@@ -2,7 +2,7 @@
 
 **Gameplay Style:** Raycasting First-Person Shooter (Wolfenstein-style corridors)
 
-**Vision:** A fully-featured, procedurally-generated raycasting FPS where five thematic genres skin identical corridor-combat mechanics — from torchlit dungeons to ruined bunkers — with co-op/deathmatch multiplayer and 82%+ test coverage, shipped as a single deterministic binary.
+**Vision:** A fully-featured, procedurally-generated raycasting FPS where five thematic genres skin identical corridor-combat mechanics — from torchlit dungeons to ruined bunkers — with co-op/deathmatch multiplayer and 82%+ test coverage, shipped as a single deterministic binary. **100% of gameplay assets — including all audio, visual, and narrative/story-driven components — are procedurally generated at runtime using deterministic algorithms.** No pre-rendered, embedded, or bundled audio files (e.g., .mp3, .wav, .ogg), visual/image files (e.g., .png, .jpg, .svg, .gif), or static narrative content (e.g., hardcoded dialogue, pre-written cutscene scripts, fixed story arcs, embedded text assets) are permitted.
 
 ---
 
@@ -68,8 +68,8 @@ Every system implements `SetGenre(genreID string)` to swap thematic presentation
 - 320×200 internal resolution scaled to window
 
 #### Audio — Core
-- Adaptive music engine: base track + intensity layers
-- SFX: gunshot, footstep, door, pickup, enemy alert, death
+- Adaptive music engine: base track + intensity layers, all procedurally generated at runtime via deterministic synthesis (no embedded or bundled audio files)
+- SFX: gunshot, footstep, door, pickup, enemy alert, death — all procedurally synthesized at runtime from seed-driven algorithms
 - 3D positional audio: distance attenuation + left/right pan for spatial awareness
 - Genre audio theme swap via `SetGenre()` (`pkg/audio`)
 
@@ -102,7 +102,7 @@ Every system implements `SetGenre(genreID string)` to swap thematic presentation
 
 #### CI/CD — Foundation
 - GitHub Actions: build + test on Linux, macOS, Windows
-- Single-binary `go build` with zero external assets (all assets generated/embedded)
+- Single-binary `go build` with zero external assets (all assets procedurally generated at runtime; no embedded, bundled, or pre-rendered media files)
 - 82%+ test coverage gate
 
 ---
@@ -117,7 +117,7 @@ Every system implements `SetGenre(genreID string)` to swap thematic presentation
 - Melee backup: knife (silent), fist (desperation)
 - Weapon wheel / quick-select (1–7 keys)
 - Per-genre weapon skin swap via `SetGenre()` (pistol → blaster, shotgun → scatter-cannon, etc.)
-- Weapon animation: raise, lower, fire, reload frames
+- Weapon animation: raise, lower, fire, reload frames — all procedurally generated at runtime
 
 #### Ammo System *(violence-specific)*
 - Per-weapon ammo types: bullets, shells, cells, rockets
@@ -141,7 +141,7 @@ Every system implements `SetGenre(genreID string)` to swap thematic presentation
 - Behavior tree nodes: patrol, idle, alert, chase, strafe, take-cover, retreat
 - Line-of-sight + hearing (gunshot radius wakes nearby enemies)
 - Enemy archetypes per genre (guard/soldier/cultist/drone/scavenger)
-- `SetGenre()` swaps archetype sprite sheets and audio
+- `SetGenre()` swaps archetype visuals and audio, all procedurally generated at runtime
 
 #### Combat System
 - Damage model: health, armor absorption
@@ -184,16 +184,16 @@ Every system implements `SetGenre(genreID string)` to swap thematic presentation
 *Goal: genre-distinct atmosphere; each genre feels visually unique.*
 
 #### Texture Mapping
-- Procedurally generated wall textures per genre (stone, hull, plaster, concrete, rust)
-- Animated textures: flickering torches (fantasy), blinking panels (scifi), dripping water (horror)
+- Procedurally generated wall textures per genre (stone, hull, plaster, concrete, rust) — all textures synthesized at runtime from deterministic algorithms, no pre-rendered image files
+- Animated textures: flickering torches (fantasy), blinking panels (scifi), dripping water (horror) — all procedurally generated at runtime
 - Floor/ceiling texture support in raycaster floor-cast pass
-- `SetGenre()` selects active texture atlas
+- `SetGenre()` selects active texture generation parameters
 
 #### Dynamic Lighting — Sector-Based
 - Per-sector ambient light level
 - Point light sources: torches, lamps, monitors, fires
 - Flashlight: cone-shaped forward light, genre-skinned (torch/headlamp/glow-rod)
-- `SetGenre()` sets base ambient level and light source sprites
+- `SetGenre()` sets base ambient level and light source parameters (all visuals procedurally generated, no bundled sprite image files)
 
 #### Particles System
 - Gunshot muzzle flash, bullet spark, blood splatter
@@ -217,9 +217,9 @@ Every system implements `SetGenre(genreID string)` to swap thematic presentation
 - Postapoc: washed-out orange dust filter, scratches
 
 #### Sound Polish
-- Positional audio tuning pass: echo/reverb per room size
-- Genre ambient loops (dungeon echo, station hum, hospital silence, server room drone, wind)
-- Reload sounds, empty-click, weapon pickup jingle
+- Positional audio tuning pass: echo/reverb per room size (procedurally computed from level geometry)
+- Genre ambient soundscapes procedurally synthesized at runtime (dungeon echo, station hum, hospital silence, server room drone, wind) — no pre-recorded audio loops or bundled sound files
+- Reload sounds, empty-click, weapon pickup jingle — all procedurally generated via deterministic synthesis
 
 ---
 
@@ -255,10 +255,10 @@ Every system implements `SetGenre(genreID string)` to swap thematic presentation
 - `SetGenre()` renames scrap (bone chips/circuit boards/flesh/data shards/salvage)
 
 #### Level Objectives / Quests
-- Per-level objective: find exit, retrieve item, destroy target, rescue hostage
+- Per-level objective procedurally generated at runtime: find exit, retrieve item, destroy target, rescue hostage — all quest content, dialogue, and descriptions deterministically generated from seed
 - Objective tracker on HUD
 - Bonus objectives for extra XP: secret count, kill count, speed run
-- `SetGenre()` flavors objective text
+- `SetGenre()` configures objective text generation parameters
 
 #### Shop / Armory (Between Levels)
 - Between-run armory screen: spend credits on weapons, ammo, upgrades, items
@@ -272,14 +272,14 @@ Every system implements `SetGenre(genreID string)` to swap thematic presentation
 - `SetGenre()` skins squad members per genre
 
 #### Environmental Storytelling
-- Lore notes, audio logs, graffiti, body arrangements placed by BSP generator
-- Contextual flavor text popup on approach
-- `SetGenre()` writes genre-appropriate text templates
+- Lore notes, audio logs, graffiti, body arrangements placed by BSP generator — all content procedurally generated at runtime from deterministic algorithms (no pre-authored text, no embedded narrative assets)
+- Contextual flavor text procedurally generated on approach using seed-driven text generation
+- `SetGenre()` configures genre-appropriate generation parameters and templates
 
 #### Collectible Logs / Books / Lore
-- Collectible lore items reveal world backstory
+- Collectible lore items with world backstory procedurally generated at runtime from deterministic algorithms — no pre-written or embedded text assets
 - Codex screen accessible from pause menu
-- `SetGenre()` sets lore voice and content templates
+- `SetGenre()` configures lore voice and content generation parameters
 
 #### Hacking / Lockpicking Mini-Games
 - Cyberpunk doors: circuit trace hacking puzzle
@@ -291,18 +291,18 @@ Every system implements `SetGenre(genreID string)` to swap thematic presentation
 - Breakable wall sections reveal hidden passages (reward secrets)
 - Destructible barrels and crates (explosion chain)
 - Debris blocks corridors temporarily
-- `SetGenre()` sets material sprites (stone rubble/hull shards/plaster/glass/concrete)
+- `SetGenre()` sets material visuals (stone rubble/hull shards/plaster/glass/concrete), all procedurally generated
 
 #### World Events / Timed Triggers
 - Alarm trigger: enemies go to alert state, doors lock for N seconds
 - Timed lockdown: find exit before timer expires
 - Boss arena event: spawn wave on entry
-- `SetGenre()` flavors event text and audio stings
+- `SetGenre()` flavors event text and audio stings (all procedurally generated at runtime)
 
 #### Props / Decoration
 - Non-interactive sprites: barrels, crates, tables, terminals, bones, plants
 - BSP generator places props at genre-appropriate density
-- `SetGenre()` selects prop sprite atlas
+- `SetGenre()` selects prop generation parameters (all props procedurally generated at runtime, no bundled sprite image files)
 
 ---
 
@@ -359,8 +359,8 @@ Every system implements `SetGenre(genreID string)` to swap thematic presentation
 
 #### Mod Framework
 - Plugin interface: custom enemy types, weapon definitions, genre themes
-- Asset override: drop PNG/WAV files into `mods/<name>/` directory
 - Mod loader with conflict detection
+- All mod content must be defined as procedural generation parameters or algorithms — no bundled PNG, WAV, or other pre-rendered asset files permitted. Mods extend or override generation rules, not static assets.
 - `pkg/mod` API
 
 #### Test Coverage

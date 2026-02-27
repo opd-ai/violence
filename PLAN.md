@@ -135,13 +135,13 @@
 
 ### Audio — Core (`pkg/audio`)
 25. [x] Implement adaptive music engine with intensity layers (2026-02-27)
-    - Deliverable: `PlayMusic()` loads base track; intensity parameter crossfades additional layers
+    - Deliverable: `PlayMusic()` procedurally generates base track at runtime; intensity parameter crossfades additional layers. All music is synthesized deterministically from seed — no pre-rendered or embedded audio files are used.
     - Implementation: Complete adaptive music system with up to 4 layers; intensity-based crossfading using smoothstep interpolation; shared audio context
     - Dependencies: Ebitengine audio API
 
 26. [x] Implement SFX playback (gunshot, footstep, door, pickup, enemy alert, death) (2026-02-27)
-    - Deliverable: `PlaySFX(name)` plays named sound effect from embedded assets
-    - Implementation: PlaySFX with 3D positioning; embedded WAV generation stubs for testing
+    - Deliverable: `PlaySFX(name)` plays named sound effect procedurally generated at runtime via deterministic synthesis algorithms. No embedded or bundled audio asset files are used.
+    - Implementation: PlaySFX with 3D positioning; procedural waveform generation stubs for testing
     - Dependencies: Step 25
 
 27. [x] Implement 3D positional audio (distance attenuation + stereo pan) (2026-02-27)
@@ -265,7 +265,7 @@
 - **Raycaster algorithm**: DDA (Digital Differential Analysis) matching Wolfenstein-style column rendering
 - **Framebuffer format**: RGBA `[]byte` at 320×200, blitted via `ebiten.NewImageFromImage`
 - **BSP splitting axis**: Alternate horizontal/vertical; randomized split position via `pkg/rng`
-- **Audio format**: Embedded WAV/OGG assets via Go `embed` directive; Ebitengine audio player for decoding
+- **Audio format**: All audio (music, SFX, ambient) is procedurally generated at runtime using deterministic synthesis algorithms seeded by `pkg/rng`. No embedded, bundled, or pre-rendered audio files (e.g., `.wav`, `.ogg`, `.mp3`) are permitted. Ebitengine audio player is used for playback of generated PCM streams.
 - **Save format**: JSON files under `$HOME/.violence/saves/`; slot 0 reserved for auto-save
 - **Trig lookup tables**: 3600-entry tables (0.1° resolution) for sin, cos, tan; indexed by fixed-point angle
 

@@ -43,6 +43,7 @@ Single tasks that are large or span multiple unrelated packages should be execut
 
 - **Structure**: Packages are focused and single-purpose. Logic is separated from data types by package boundary.
 - **Determinism**: All procedural or randomized logic uses `rand.New(rand.NewSource(seed))`. Never `time.Now()` or global `math/rand` for stateful operations.
+- **Procedural Generation**: 100% of gameplay assets — including all audio, visual, and narrative/story-driven components — must be procedurally generated at runtime using deterministic algorithms. No pre-rendered, embedded, or bundled audio files (e.g., `.mp3`, `.wav`, `.ogg`), visual/image files (e.g., `.png`, `.jpg`, `.svg`, `.gif`), or static narrative content (e.g., hardcoded dialogue, pre-written cutscene scripts, fixed story arcs, embedded text assets) are permitted. All generation must be deterministic: identical inputs (seeds) produce identical outputs.
 - **Logging**: `logrus.WithFields(logrus.Fields{...})` — never `fmt.Print`/`log.Fatal`. Standard fields: `seed`, `entityID`, `system_name`, `component_type`.
 - **Networking**: Use interface types (`net.Addr`, `net.PacketConn`, `net.Conn`, `net.Listener`). No type assertions to concrete types.
 - **Functions**: ≤30 lines, single responsibility, all errors handled explicitly.

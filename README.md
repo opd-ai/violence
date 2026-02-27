@@ -17,7 +17,7 @@ pkg/
   render/                Rendering pipeline (raycaster → framebuffer → screen)
   camera/                First-person camera (FOV, pitch, head-bob)
   input/                 Input manager (keyboard, mouse, gamepad)
-  audio/                 Audio engine (music, SFX, positional audio)
+  audio/                 Audio engine (procedurally generated music, SFX, positional audio)
   ui/                    HUD, menus, and settings screens
   tutorial/              Context-sensitive tutorial prompts
   weapon/                Weapon definitions and firing
@@ -36,10 +36,10 @@ pkg/
   event/                 World events and timed triggers
   inventory/             Item inventory
   crafting/              Scrap-to-ammo crafting
-  quest/                 Level objectives and tracking
+  quest/                 Procedurally generated level objectives and tracking
   shop/                  Between-level armory shop
   squad/                 Squad companion AI
-  lore/                  Collectible lore and codex
+  lore/                  Procedurally generated collectible lore and codex
   minigame/              Hacking and lockpicking mini-games
   destruct/              Destructible environments
   props/                 Decorative prop placement
@@ -71,6 +71,10 @@ go run .
 Configuration is loaded from `config.toml` in the working directory or `$HOME/.violence/config.toml`.
 
 Settings include window size, internal resolution, FOV, mouse sensitivity, audio volumes, default genre, VSync, and fullscreen mode. See `config.toml` for all options.
+
+## Procedural Generation Policy
+
+**100% of gameplay assets are procedurally generated at runtime using deterministic algorithms.** This includes all audio (music, SFX, ambient), all visuals (textures, sprites, particles, UI elements), and all narrative content (dialogue, lore, quests, world-building text, plot progression, character backstories). No pre-rendered, embedded, or bundled asset files (e.g., `.mp3`, `.wav`, `.ogg`, `.png`, `.jpg`, `.svg`, `.gif`) or static narrative content (e.g., hardcoded dialogue, pre-written cutscene scripts, fixed story arcs, embedded text assets) are permitted in the project. All procedural generation is deterministic: identical inputs (seeds) produce identical outputs across all platforms.
 
 ## Dependencies
 
