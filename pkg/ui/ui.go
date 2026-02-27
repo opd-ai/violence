@@ -921,3 +921,83 @@ func getLoadingDots() string {
 		return "...."
 	}
 }
+
+// Select handles menu item selection and returns an action string.
+func (mm *MenuManager) Select() string {
+	item := mm.GetSelectedItem()
+	switch mm.currentMenu {
+	case MenuTypeMain:
+		switch item {
+		case "New Game":
+			return "new_game"
+		case "Load Game":
+			return "load_game"
+		case "Settings":
+			return "settings"
+		case "Quit":
+			return "quit"
+		}
+	case MenuTypeDifficulty:
+		mm.SelectDifficulty()
+		return "difficulty_selected"
+	case MenuTypeGenre:
+		mm.SelectGenre()
+		return "genre_selected"
+	case MenuTypePause:
+		switch item {
+		case "Resume":
+			return "resume"
+		case "Settings":
+			return "settings"
+		case "Save Game":
+			return "save"
+		case "Main Menu":
+			return "quit_to_menu"
+		}
+	case MenuTypeSettings:
+		// Handle settings navigation
+		return "settings_action"
+	}
+	return ""
+}
+
+// Back navigates back in the menu hierarchy.
+func (mm *MenuManager) Back() {
+	switch mm.currentMenu {
+	case MenuTypeDifficulty, MenuTypeGenre, MenuTypeSettings:
+		mm.Show(MenuTypeMain)
+	case MenuTypePause:
+		// Pause menu back should resume game
+		mm.Hide()
+	}
+}
+
+// DrawTutorial renders a tutorial prompt on the screen.
+func DrawTutorial(screen *ebiten.Image, message string) {
+	if message == "" {
+		return
+	}
+
+	bounds := screen.Bounds()
+	screenWidth := float32(bounds.Dx())
+	screenHeight := float32(bounds.Dy())
+
+	// Draw semi-transparent overlay at bottom
+	overlayHeight := float32(80)
+	overlayY := screenHeight - overlayHeight
+	overlay := color.RGBA{0, 0, 0, 180}
+	vector.DrawFilledRect(screen, 0, overlayY, screenWidth, overlayHeight, overlay, false)
+
+	// Draw border
+	borderColor := color.RGBA{100, 100, 200, 255}
+	vector.StrokeLine(screen, 0, overlayY, screenWidth, overlayY, 2, borderColor, false)
+
+	// Draw tutorial message centered
+	centerX := screenWidth / 2
+	textY := overlayY + 30
+	drawCenteredLabel(screen, centerX, textY, message, color.RGBA{255, 255, 200, 255})
+
+	// Draw "Press any key to continue" hint
+	hintY := overlayY + 55
+	drawCenteredLabel(screen, centerX, hintY, "Press any key to dismiss", color.RGBA{150, 150, 150, 255})
+}
