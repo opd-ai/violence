@@ -169,7 +169,8 @@ Every system implements `SetGenre(genreID string)` to swap thematic presentation
 - Grunt: assault rifle + extra ammo
 - Medic: pistol + extra health packs
 - Demo: rocket launcher + less ammo
-- Per-genre flavor names via `SetGenre()` (Grunt → Warrior/Marine/Survivor/Enforcer/Scavenger)
+- Mystic: energy weapon (plasma pistol in base; genre-skinned) + passive ability charges that deal ranged AoE damage; lower max HP, higher energy ammo capacity
+- Per-genre flavor names via `SetGenre()` (Grunt → Warrior/Marine/Survivor/Enforcer/Scavenger; Mystic → Mage/Psi-Ops/Occultist/Netrunner/Chemist)
 
 #### Genre Integration — All 5
 - All systems wired to `SetGenre()` for all five genre IDs
