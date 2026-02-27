@@ -3,7 +3,9 @@ package main
 import (
 	"testing"
 
+	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/opd-ai/violence/pkg/config"
+	"github.com/opd-ai/violence/pkg/ui"
 )
 
 // TestNewGame verifies game initialization.
@@ -197,5 +199,350 @@ func TestSaveLoad(t *testing.T) {
 	}
 	if game.hud.Ammo != 100 {
 		t.Errorf("Expected ammo = 100, got %d", game.hud.Ammo)
+	}
+}
+
+// TestMenuActions verifies menu action handling.
+func TestMenuActions(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	tests := []struct {
+		name          string
+		action        string
+		initialState  GameState
+		expectedState GameState
+		setup         func(*Game)
+		verify        func(*testing.T, *Game)
+	}{
+		{
+			name:          "new_game shows difficulty menu",
+			action:        "new_game",
+			initialState:  StateMenu,
+			expectedState: StateMenu,
+			setup:         func(g *Game) { g.menuManager.Show(ui.MenuTypeMain) },
+			verify: func(t *testing.T, g *Game) {
+				if !g.menuManager.IsVisible() {
+					t.Error("Menu should be visible after new_game")
+				}
+			},
+		},
+		{
+			name:          "difficulty_selected shows genre menu",
+			action:        "difficulty_selected",
+			initialState:  StateMenu,
+			expectedState: StateMenu,
+			setup:         func(g *Game) { g.menuManager.Show(ui.MenuTypeDifficulty) },
+			verify: func(t *testing.T, g *Game) {
+				if !g.menuManager.IsVisible() {
+					t.Error("Menu should be visible after difficulty selection")
+				}
+			},
+		},
+		{
+			name:          "genre_selected starts game",
+			action:        "genre_selected",
+			initialState:  StateMenu,
+			expectedState: StatePlaying,
+			setup: func(g *Game) {
+				g.menuManager.Show(ui.MenuTypeGenre)
+			},
+			verify: func(t *testing.T, g *Game) {
+				if g.state != StatePlaying {
+					t.Errorf("Expected state StatePlaying, got %v", g.state)
+				}
+			},
+		},
+		{
+			name:          "settings shows settings menu",
+			action:        "settings",
+			initialState:  StateMenu,
+			expectedState: StateMenu,
+			setup:         func(g *Game) { g.menuManager.Show(ui.MenuTypeMain) },
+			verify: func(t *testing.T, g *Game) {
+				if !g.menuManager.IsVisible() {
+					t.Error("Settings menu should be visible")
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			game := NewGame()
+			game.state = tt.initialState
+			tt.setup(game)
+			game.handleMenuAction(tt.action)
+			tt.verify(t, game)
+		})
+	}
+}
+
+// TestPauseActions verifies pause menu action handling.
+func TestPauseActions(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	tests := []struct {
+		name          string
+		action        string
+		expectedState GameState
+		verify        func(*testing.T, *Game)
+	}{
+		{
+			name:          "resume continues gameplay",
+			action:        "resume",
+			expectedState: StatePlaying,
+			verify: func(t *testing.T, g *Game) {
+				if g.state != StatePlaying {
+					t.Errorf("Expected state StatePlaying, got %v", g.state)
+				}
+				if g.menuManager.IsVisible() {
+					t.Error("Menu should be hidden after resume")
+				}
+			},
+		},
+		{
+			name:          "save calls saveGame",
+			action:        "save",
+			expectedState: StatePaused,
+			verify: func(t *testing.T, g *Game) {
+				// Verify state is still paused after save
+				if g.state != StatePaused {
+					t.Errorf("Expected state StatePaused, got %v", g.state)
+				}
+			},
+		},
+		{
+			name:          "quit_to_menu returns to main menu",
+			action:        "quit_to_menu",
+			expectedState: StateMenu,
+			verify: func(t *testing.T, g *Game) {
+				if g.state != StateMenu {
+					t.Errorf("Expected state StateMenu, got %v", g.state)
+				}
+				if !g.menuManager.IsVisible() {
+					t.Error("Menu should be visible after quit to menu")
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			game := NewGame()
+			game.startNewGame()
+			game.state = StatePaused
+			game.menuManager.Show(ui.MenuTypePause)
+			game.handlePauseAction(tt.action)
+			tt.verify(t, game)
+		})
+	}
+}
+
+// TestUpdateStates verifies Update method for different game states.
+func TestUpdateStates(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	tests := []struct {
+		name         string
+		initialState GameState
+		verify       func(*testing.T, *Game)
+	}{
+		{
+			name:         "update menu state",
+			initialState: StateMenu,
+			verify: func(t *testing.T, g *Game) {
+				if err := g.Update(); err != nil {
+					t.Errorf("Update failed: %v", err)
+				}
+			},
+		},
+		{
+			name:         "update playing state",
+			initialState: StatePlaying,
+			verify: func(t *testing.T, g *Game) {
+				if err := g.Update(); err != nil {
+					t.Errorf("Update failed: %v", err)
+				}
+			},
+		},
+		{
+			name:         "update paused state",
+			initialState: StatePaused,
+			verify: func(t *testing.T, g *Game) {
+				if err := g.Update(); err != nil {
+					t.Errorf("Update failed: %v", err)
+				}
+			},
+		},
+		{
+			name:         "update loading state",
+			initialState: StateLoading,
+			verify: func(t *testing.T, g *Game) {
+				if err := g.Update(); err != nil {
+					t.Errorf("Update failed: %v", err)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			game := NewGame()
+			if tt.initialState == StatePlaying || tt.initialState == StatePaused {
+				game.startNewGame()
+			}
+			game.state = tt.initialState
+			tt.verify(t, game)
+		})
+	}
+}
+
+// TestLayout verifies Layout method returns correct dimensions.
+func TestLayout(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	w, h := game.Layout(800, 600)
+
+	if w != config.C.InternalWidth {
+		t.Errorf("Expected width %d, got %d", config.C.InternalWidth, w)
+	}
+	if h != config.C.InternalHeight {
+		t.Errorf("Expected height %d, got %d", config.C.InternalHeight, h)
+	}
+}
+
+// TestDrawStates verifies Draw method for different game states.
+func TestDrawStates(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	// Create a dummy screen image
+	screen := ebiten.NewImage(config.C.InternalWidth, config.C.InternalHeight)
+
+	tests := []struct {
+		name  string
+		state GameState
+	}{
+		{"menu", StateMenu},
+		{"playing", StatePlaying},
+		{"paused", StatePaused},
+		{"loading", StateLoading},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			game.state = tt.state
+			// Should not panic
+			game.Draw(screen)
+		})
+	}
+}
+
+// TestUpdatePlaying verifies gameplay update logic.
+func TestUpdatePlaying(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	// Store initial position
+	initialX := game.camera.X
+	initialY := game.camera.Y
+
+	// Call updatePlaying (no input, so no movement)
+	if err := game.updatePlaying(); err != nil {
+		t.Errorf("updatePlaying failed: %v", err)
+	}
+
+	// Verify position unchanged when no input
+	if game.camera.X != initialX {
+		t.Errorf("Camera X should not change without input")
+	}
+	if game.camera.Y != initialY {
+		t.Errorf("Camera Y should not change without input")
+	}
+}
+
+// TestStartNewGame verifies game initialization from menu.
+func TestStartNewGame(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.genreID = "scifi"
+	game.startNewGame()
+
+	// Verify state transitions
+	if game.state != StatePlaying {
+		t.Errorf("Expected state StatePlaying after startNewGame, got %v", game.state)
+	}
+
+	// Verify systems are configured for genre
+	if game.genreID != "scifi" {
+		t.Errorf("Expected genre 'scifi', got %s", game.genreID)
+	}
+
+	// Verify HUD is reset
+	if game.hud.Health != 100 {
+		t.Errorf("Expected initial health 100, got %d", game.hud.Health)
+	}
+	if game.hud.Armor != 0 {
+		t.Errorf("Expected initial armor 0, got %d", game.hud.Armor)
+	}
+	if game.hud.Ammo != 50 {
+		t.Errorf("Expected initial ammo 50, got %d", game.hud.Ammo)
+	}
+
+	// Verify map is generated
+	if game.currentMap == nil {
+		t.Error("Current map should be generated")
+	}
+}
+
+// TestUpdateMenu verifies menu navigation updates.
+func TestUpdateMenu(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.state = StateMenu
+
+	// Should not error
+	if err := game.updateMenu(); err != nil {
+		t.Errorf("updateMenu failed: %v", err)
+	}
+}
+
+// TestUpdatePaused verifies paused state updates.
+func TestUpdatePaused(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+	game.state = StatePaused
+	game.menuManager.Show(ui.MenuTypePause)
+
+	// Should not error
+	if err := game.updatePaused(); err != nil {
+		t.Errorf("updatePaused failed: %v", err)
 	}
 }
