@@ -1,7 +1,10 @@
 // Package raycaster implements the core raycasting engine.
 package raycaster
 
-import "math"
+import (
+	"math"
+	"sort"
+)
 
 // Raycaster performs raycasting against a 2D map.
 type Raycaster struct {
@@ -44,8 +47,8 @@ func (r *Raycaster) CastRays(posX, posY, dirX, dirY float64) []RayHit {
 	hits := make([]RayHit, r.Width)
 
 	// Camera plane perpendicular to direction vector
-	planeX := -dirY * math.Tan(r.FOV*math.Pi/360.0)
-	planeY := dirX * math.Tan(r.FOV*math.Pi/360.0)
+	planeX := -dirY * Tan(r.FOV*math.Pi/360.0)
+	planeY := dirX * Tan(r.FOV*math.Pi/360.0)
 
 	for x := 0; x < r.Width; x++ {
 		// Camera X coordinate in [-1, 1]
@@ -202,8 +205,8 @@ func (r *Raycaster) CastFloorCeiling(row int, posX, posY, dirX, dirY, pitch floa
 	pixels := make([]FloorCeilPixel, r.Width)
 
 	// Camera plane perpendicular to direction vector
-	planeX := -dirY * math.Tan(r.FOV*math.Pi/360.0)
-	planeY := dirX * math.Tan(r.FOV*math.Pi/360.0)
+	planeX := -dirY * Tan(r.FOV*math.Pi/360.0)
+	planeY := dirX * Tan(r.FOV*math.Pi/360.0)
 
 	// Determine if this row is floor or ceiling
 	isFloor := row > r.Height/2
@@ -264,8 +267,8 @@ func (r *Raycaster) CastSprites(sprites []Sprite, posX, posY, dirX, dirY float64
 	}
 
 	// Camera plane perpendicular to direction vector
-	planeX := -dirY * math.Tan(r.FOV*math.Pi/360.0)
-	planeY := dirX * math.Tan(r.FOV*math.Pi/360.0)
+	planeX := -dirY * Tan(r.FOV*math.Pi/360.0)
+	planeY := dirX * Tan(r.FOV*math.Pi/360.0)
 
 	// Transform sprites to camera space and calculate distance
 	type spriteData struct {
@@ -286,13 +289,9 @@ func (r *Raycaster) CastSprites(sprites []Sprite, posX, posY, dirX, dirY float64
 	}
 
 	// Sort by distance (farthest first for painter's algorithm)
-	for i := 0; i < len(spriteList)-1; i++ {
-		for j := i + 1; j < len(spriteList); j++ {
-			if spriteList[i].distance < spriteList[j].distance {
-				spriteList[i], spriteList[j] = spriteList[j], spriteList[i]
-			}
-		}
-	}
+	sort.Slice(spriteList, func(i, j int) bool {
+		return spriteList[i].distance > spriteList[j].distance
+	})
 
 	// Project each sprite
 	hits := make([]SpriteHit, 0, len(sprites))

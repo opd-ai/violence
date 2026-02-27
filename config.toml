@@ -10,3 +10,4 @@ SFXVolume = 0.8
 DefaultGenre = "fantasy"
 VSync = true
 FullScreen = false
+MaxTPS = 60

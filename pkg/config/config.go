@@ -3,7 +3,9 @@ package config
 
 import (
 	"errors"
+	"sync"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
 )
 
@@ -21,11 +23,18 @@ type Config struct {
 	DefaultGenre     string         `mapstructure:"DefaultGenre"`
 	VSync            bool           `mapstructure:"VSync"`
 	FullScreen       bool           `mapstructure:"FullScreen"`
+	MaxTPS           int            `mapstructure:"MaxTPS"` // Maximum ticks per second (0 = unlimited)
 	KeyBindings      map[string]int `mapstructure:"KeyBindings"`
 }
 
 // C is the global configuration instance.
 var C Config
+
+// mu protects concurrent access to C during hot-reload.
+var mu sync.RWMutex
+
+// ReloadCallback is called when the configuration is hot-reloaded.
+type ReloadCallback func(old, new Config)
 
 // Load reads configuration from file and environment, populating C.
 func Load() error {
@@ -46,6 +55,7 @@ func Load() error {
 	viper.SetDefault("DefaultGenre", "fantasy")
 	viper.SetDefault("VSync", true)
 	viper.SetDefault("FullScreen", false)
+	viper.SetDefault("MaxTPS", 60)
 	viper.SetDefault("KeyBindings", map[string]int{})
 
 	if err := viper.ReadInConfig(); err != nil {
@@ -60,6 +70,9 @@ func Load() error {
 
 // Save writes the current configuration to file.
 func Save() error {
+	mu.RLock()
+	defer mu.RUnlock()
+
 	viper.Set("WindowWidth", C.WindowWidth)
 	viper.Set("WindowHeight", C.WindowHeight)
 	viper.Set("InternalWidth", C.InternalWidth)
@@ -72,7 +85,44 @@ func Save() error {
 	viper.Set("DefaultGenre", C.DefaultGenre)
 	viper.Set("VSync", C.VSync)
 	viper.Set("FullScreen", C.FullScreen)
+	viper.Set("MaxTPS", C.MaxTPS)
 	viper.Set("KeyBindings", C.KeyBindings)
 
 	return viper.WriteConfig()
+}
+
+// Watch starts watching the config file for changes and calls the callback on reload.
+// Returns a stop function to cancel watching.
+func Watch(callback ReloadCallback) (stop func(), err error) {
+	viper.WatchConfig()
+
+	viper.OnConfigChange(func(e fsnotify.Event) {
+		mu.Lock()
+		defer mu.Unlock()
+
+		old := C
+		var newCfg Config
+		if err := viper.Unmarshal(&newCfg); err == nil {
+			C = newCfg
+			if callback != nil {
+				callback(old, newCfg)
+			}
+		}
+	})
+
+	return func() {}, nil
+}
+
+// Get returns a copy of the current config safely.
+func Get() Config {
+	mu.RLock()
+	defer mu.RUnlock()
+	return C
+}
+
+// Set updates the config safely.
+func Set(cfg Config) {
+	mu.Lock()
+	C = cfg
+	mu.Unlock()
 }

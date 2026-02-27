@@ -31,6 +31,12 @@ func main() {
 	ebiten.SetVsyncEnabled(config.C.VSync)
 	ebiten.SetFullscreen(config.C.FullScreen)
 	ebiten.SetWindowTitle("VIOLENCE")
+
+	// Set TPS cap (0 = unlimited, 60 = default)
+	if config.C.MaxTPS > 0 {
+		ebiten.SetTPS(config.C.MaxTPS)
+	}
+
 	if err := ebiten.RunGame(&Game{}); err != nil {
 		log.Fatal(err)
 	}
