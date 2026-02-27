@@ -1,0 +1,12 @@
+WindowWidth = 960
+WindowHeight = 600
+InternalWidth = 320
+InternalHeight = 200
+FOV = 66.0
+MouseSensitivity = 1.0
+MasterVolume = 0.8
+MusicVolume = 0.7
+SFXVolume = 0.8
+DefaultGenre = "fantasy"
+VSync = true
+FullScreen = false
