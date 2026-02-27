@@ -173,36 +173,45 @@
     - Deliverable: Tests for round-trip serialization, slot management, cross-platform path
     - Dependencies: Steps 37–38
 
+### Config / Settings (`pkg/config`)
+40. Implement config hot-reload via file watcher
+    - Deliverable: `pkg/config` watches `config.toml` for changes and reloads settings at runtime without restart
+    - Dependencies: `fsnotify` (already an indirect dependency via Viper)
+
+41. Add unit tests for config
+    - Deliverable: Tests for default values, TOML parsing, hot-reload callback, and missing-file fallback
+    - Dependencies: Step 40
+
 ### Performance — Raycaster Optimizations
-40. Add sin/cos/tan lookup tables
+42. Add sin/cos/tan lookup tables
     - Deliverable: Pre-computed trig tables used by raycaster; verified identical output to math.Sin/Cos
     - Dependencies: Step 4
 
-41. Add sprite depth-sort and occlusion column tracking
+43. Add sprite depth-sort and occlusion column tracking
     - Deliverable: Painter's algorithm sort; sprites behind solid walls skipped
     - Dependencies: Step 6
 
-42. Add frame-rate cap and VSync toggle
+44. Add frame-rate cap and VSync toggle
     - Deliverable: Config-driven TPS cap; VSync toggle wired to Ebitengine
     - Dependencies: `pkg/config`
 
 ### CI/CD — Foundation
-43. Create GitHub Actions workflow for build + test on Linux, macOS, Windows
+45. Create GitHub Actions workflow for build + test on Linux, macOS, Windows
     - Deliverable: `.github/workflows/ci.yml` running `go build` and `go test ./...` on three platforms
     - Dependencies: None
 
-44. Add 82%+ test coverage gate
+46. Add 82%+ test coverage gate
     - Deliverable: CI step fails if `go test -coverprofile` reports < 82% coverage
-    - Dependencies: Step 43, all test steps above
+    - Dependencies: Step 45, all test steps above
 
 ### Integration — Wire Systems into Game Loop
-45. Wire all v1.0 systems into `main.go` game loop
+47. Wire all v1.0 systems into `main.go` game loop
     - Deliverable: `Game.Update()` calls input → camera → ECS world update; `Game.Draw()` calls render pipeline → HUD → menu overlay
     - Dependencies: All above steps
 
-46. End-to-end playtest with fantasy genre
+48. End-to-end playtest with fantasy genre
     - Deliverable: Player can start game, generate level, move through corridors, see walls/floor/ceiling, hear audio, open pause menu, save, and exit
-    - Dependencies: Step 45
+    - Dependencies: Step 47
 
 ## Technical Specifications
 - **ECS storage**: Sparse-set or map-of-maps keyed by `(Entity, reflect.Type)` for O(1) component access
