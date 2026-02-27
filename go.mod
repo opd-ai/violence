@@ -5,6 +5,7 @@ go 1.24
 require (
 	github.com/hajimehoshi/ebiten/v2 v2.8.8
 	github.com/spf13/viper v1.20.1
+	golang.org/x/image v0.20.0
 )
 
 require (

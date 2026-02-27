@@ -160,8 +160,9 @@
     - Dependencies: Steps 25–28
 
 ### UI / HUD / Menus (`pkg/ui`)
-30. Implement HUD rendering (health, armor, ammo, weapon icon, keycards)
+30. [x] Implement HUD rendering (health, armor, ammo, weapon icon, keycards) (2026-02-27)
     - Deliverable: `DrawHUD()` renders status bars and icons onto screen image
+    - Implementation: Complete HUD system with health/armor/ammo bars, weapon display, and keycard indicators; genre-specific color themes for 5 genres; 100% test coverage
     - Dependencies: Ebitengine draw API
 
 31. Implement main menu, difficulty select, genre select, pause menu
