@@ -10,7 +10,7 @@ type RNG struct {
 
 // NewRNG creates a new RNG with the given seed.
 func NewRNG(seed uint64) *RNG {
-	return &RNG{r: rand.New(rand.NewPCG(seed, seed))}
+	return &RNG{r: rand.New(rand.NewPCG(seed, seed^0xda3e39cb94b95bdb))}
 }
 
 // Intn returns a non-negative random int in [0, n).
@@ -25,5 +25,5 @@ func (g *RNG) Float64() float64 {
 
 // Seed resets the RNG with a new seed.
 func (g *RNG) Seed(seed uint64) {
-	g.r = rand.New(rand.NewPCG(seed, seed))
+	g.r = rand.New(rand.NewPCG(seed, seed^0xda3e39cb94b95bdb))
 }

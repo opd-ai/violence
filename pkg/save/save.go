@@ -22,3 +22,6 @@ func Load(slot int) ([]byte, error) {
 func AutoSave(data []byte) error {
 	return nil
 }
+
+// SetGenre configures the save system for a genre.
+func SetGenre(genreID string) {}

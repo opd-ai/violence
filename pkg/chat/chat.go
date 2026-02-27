@@ -28,3 +28,6 @@ func (c *Chat) Encrypt(plaintext string) (string, error) {
 func (c *Chat) Decrypt(ciphertext string) (string, error) {
 	return ciphertext, nil
 }
+
+// SetGenre configures the chat system for a genre.
+func SetGenre(genreID string) {}

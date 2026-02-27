@@ -20,14 +20,16 @@ func (g *Game) Draw(screen *ebiten.Image) {
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
-	return 320, 200
+	return config.C.InternalWidth, config.C.InternalHeight
 }
 
 func main() {
 	if err := config.Load(); err != nil {
 		log.Fatal(err)
 	}
-	ebiten.SetWindowSize(960, 600)
+	ebiten.SetWindowSize(config.C.WindowWidth, config.C.WindowHeight)
+	ebiten.SetVsyncEnabled(config.C.VSync)
+	ebiten.SetFullscreen(config.C.FullScreen)
 	ebiten.SetWindowTitle("VIOLENCE")
 	if err := ebiten.RunGame(&Game{}); err != nil {
 		log.Fatal(err)

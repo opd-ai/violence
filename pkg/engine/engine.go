@@ -49,3 +49,6 @@ func (w *World) Update() {
 		s.Update(w)
 	}
 }
+
+// SetGenre configures the engine for a genre.
+func SetGenre(genreID string) {}

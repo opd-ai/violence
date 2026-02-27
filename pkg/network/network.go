@@ -31,3 +31,6 @@ func (c *Client) Send(data []byte) error {
 func (c *Client) Receive() ([]byte, error) {
 	return nil, nil
 }
+
+// SetGenre configures the network system for a genre.
+func SetGenre(genreID string) {}

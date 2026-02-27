@@ -26,3 +26,6 @@ func (f *Federation) Lookup(name string) (string, bool) {
 func (f *Federation) Match() (string, error) {
 	return "", nil
 }
+
+// SetGenre configures the federation system for a genre.
+func SetGenre(genreID string) {}

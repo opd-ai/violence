@@ -27,3 +27,6 @@ func (l *Loader) LoadMod(path string) error {
 func (l *Loader) ListMods() []Mod {
 	return l.mods
 }
+
+// SetGenre configures the mod system for a genre.
+func SetGenre(genreID string) {}
