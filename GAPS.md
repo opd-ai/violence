@@ -3,9 +3,9 @@
 ## v1.0 — Core Engine + Playable Single-Player
 
 ### Asset Pipeline
-- **Gap**: No embedded audio or texture assets exist; the roadmap specifies "zero external assets" and all assets "generated/embedded," but no procedural generation strategy for audio (WAV/OGG) is defined.
-- **Impact**: Audio engine (`pkg/audio`) cannot produce sound without either embedded files or a runtime synthesis approach. Texture rendering requires at minimum a procedural pixel generator.
-- **Resolution needed**: Decide between (a) embedding minimal placeholder WAV/OGG files via Go `embed`, (b) runtime audio synthesis (e.g., generating tones programmatically), or (c) deferring audio to a later sub-phase and using silent stubs for v1.0.
+- **Gap**: No procedural audio or texture generation strategy is defined; the roadmap specifies "zero external assets" and all assets must be procedurally generated at runtime, but no synthesis approach for audio is implemented.
+- **Impact**: Audio engine (`pkg/audio`) cannot produce sound without a runtime synthesis approach. Texture rendering requires a procedural pixel generator. No pre-rendered, embedded, or bundled audio files (e.g., `.wav`, `.ogg`, `.mp3`) or image files (e.g., `.png`, `.jpg`) are permitted.
+- **Resolution needed**: Implement runtime audio synthesis (e.g., generating tones, noise, and waveforms programmatically via deterministic algorithms seeded by `pkg/rng`). All audio and visual assets must be procedurally generated at runtime — embedding or bundling pre-made asset files is not an option.
 
 ### ECS Component Query API
 - **Gap**: The roadmap specifies "Component registration and query API" but the current `pkg/engine` stub has no component query mechanism (e.g., querying all entities with a specific set of components).
@@ -23,9 +23,9 @@
 - **Resolution needed**: Define the player entity's component set and ensure all v1.0 systems agree on the schema.
 
 ### Genre Audio and Visual Assets for Fantasy
-- **Gap**: `SetGenre("fantasy")` is wired as a stub in all packages but no concrete fantasy-themed asset definitions exist (e.g., what color palette, what SFX names, what music tracks constitute "fantasy").
-- **Impact**: Genre swap will compile and run but produce no visible or audible difference until fantasy-specific assets and parameters are defined.
-- **Resolution needed**: Create a fantasy genre asset manifest specifying: fog color, palette RGB values, wall texture parameters, SFX file list, and music track list.
+- **Gap**: `SetGenre("fantasy")` is wired as a stub in all packages but no concrete fantasy-themed procedural generation parameters exist (e.g., what color palette, what synthesis parameters for SFX, what waveform patterns for music tracks constitute "fantasy").
+- **Impact**: Genre swap will compile and run but produce no visible or audible difference until fantasy-specific procedural generation parameters are defined.
+- **Resolution needed**: Create a fantasy genre asset generation manifest specifying: fog color, palette RGB values, wall texture generation parameters, SFX synthesis parameters (waveform types, frequency ranges, envelope shapes), and music generation parameters (scale, tempo, instrument synthesis). All assets must be procedurally generated at runtime — no pre-rendered audio or image files are permitted.
 
 ### Save Data Schema
 - **Gap**: `pkg/save` defines a `Slot` struct with opaque `Data []byte` but no schema for what gets serialized (level seed, player position, health, inventory, discovered map tiles).
