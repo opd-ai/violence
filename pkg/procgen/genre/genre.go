@@ -2,11 +2,11 @@
 package genre
 
 const (
-	Fantasy  = "fantasy"
-	SciFi    = "scifi"
-	Horror   = "horror"
+	Fantasy   = "fantasy"
+	SciFi     = "scifi"
+	Horror    = "horror"
 	Cyberpunk = "cyberpunk"
-	PostApoc = "postapoc"
+	PostApoc  = "postapoc"
 )
 
 // Genre describes a game genre and its associated asset/behavior set.

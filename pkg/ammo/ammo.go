@@ -2,11 +2,11 @@
 package ammo
 
 const (
-	Bullets  = "bullets"
-	Shells   = "shells"
-	Rockets  = "rockets"
-	Cells    = "cells"
-	Mana     = "mana"
+	Bullets = "bullets"
+	Shells  = "shells"
+	Rockets = "rockets"
+	Cells   = "cells"
+	Mana    = "mana"
 )
 
 // Pool tracks ammunition counts by type.

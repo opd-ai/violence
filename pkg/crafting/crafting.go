@@ -3,9 +3,9 @@ package crafting
 
 // Recipe defines a crafting recipe.
 type Recipe struct {
-	Name    string
-	Inputs  map[string]int
-	Output  string
+	Name   string
+	Inputs map[string]int
+	Output string
 }
 
 // Craft attempts to craft an item using the given recipe.
