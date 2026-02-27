@@ -404,3 +404,9 @@ The following packages are architecture-neutral and can be copied or imported di
 | Skill / talent trees    | `pkg/skills`             | Node graph, point allocation, passive bonuses                  |
 | Lore / codex            | `pkg/lore`               | Collectible log storage, codex UI data model                   |
 | Mod loader              | `pkg/mod`                | Plugin API, asset override, conflict detection                 |
+
+---
+
+## Plan History
+
+- 2026-02-27 PLAN.md created for v1.0 — Core Engine + Playable Single-Player (archived to docs/)
