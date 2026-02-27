@@ -1,0 +1,237 @@
+# Implementation Plan: v1.0 — Core Engine + Playable Single-Player
+
+## Phase Overview
+- **Objective**: Deliver one fully playable genre (fantasy) end-to-end as a single deterministic binary with 82%+ test coverage.
+- **Prerequisites**: Go 1.24+, Ebitengine v2, Viper (all present in go.mod); `pkg/config`, `pkg/rng`, and `pkg/procgen/genre` already implemented.
+- **Estimated Scope**: Large
+
+## Implementation Steps
+
+### ECS Framework (`pkg/engine`)
+1. Implement component storage with type-safe registration and retrieval
+   - Deliverable: `World` stores components keyed by entity + component-type; `AddComponent`/`GetComponent`/`RemoveComponent` work correctly
+   - Dependencies: None
+
+2. Implement system execution with dependency ordering
+   - Deliverable: `World.Update()` runs registered systems in declared order; systems can query entities by component mask
+   - Dependencies: Step 1
+
+3. Add unit tests for ECS core
+   - Deliverable: Tests covering entity creation, component CRUD, system execution order, and `SetGenre()` propagation
+   - Dependencies: Steps 1–2
+
+### Raycaster Engine (`pkg/raycaster`)
+4. Implement DDA ray-march wall casting
+   - Deliverable: `CastRays()` returns per-column wall distances using Digital Differential Analysis against a tile grid
+   - Dependencies: None
+
+5. Implement floor/ceiling casting
+   - Deliverable: Per-pixel perspective-correct floor and ceiling rendering pass
+   - Dependencies: Step 4
+
+6. Implement sprite casting (billboard sprites)
+   - Deliverable: Depth-sorted billboard sprites clipped against wall columns
+   - Dependencies: Step 4
+
+7. Add distance fog with genre-colored exponential falloff
+   - Deliverable: Fog shader controlled by `SetGenre()` color parameter
+   - Dependencies: Step 4
+
+8. Add unit tests for raycaster
+   - Deliverable: Tests for ray-wall intersection, distance calculation, fog attenuation, and edge cases (parallel rays, corners)
+   - Dependencies: Steps 4–7
+
+### BSP Level Generator (`pkg/bsp`)
+9. Implement recursive binary space partitioning
+   - Deliverable: `Generate()` recursively splits space into rooms with configurable min/max size and density
+   - Dependencies: `pkg/rng` (already implemented)
+
+10. Implement corridor carving between leaf nodes
+    - Deliverable: L-shaped or straight corridors connect sibling leaf rooms
+    - Dependencies: Step 9
+
+11. Add keycard-locked door and secret wall placement
+    - Deliverable: Generator inserts doors at chokepoints and push-walls in dead ends
+    - Dependencies: Steps 9–10
+
+12. Wire genre tile themes via `SetGenre()`
+    - Deliverable: `SetGenre()` selects tile palette (stone/hull/plaster/concrete/rust)
+    - Dependencies: Step 9, `pkg/procgen/genre` (already implemented)
+
+13. Add unit tests for BSP generator
+    - Deliverable: Tests for deterministic output with fixed seed, room count bounds, corridor connectivity, door/secret placement
+    - Dependencies: Steps 9–12
+
+### First-Person Camera (`pkg/camera`)
+14. Implement camera update with position, direction, FOV, and pitch clamping
+    - Deliverable: `Update()` applies movement deltas; pitch clamped to ±30°
+    - Dependencies: None
+
+15. Implement head-bob synced to player speed
+    - Deliverable: Camera Y-offset sinusoid driven by movement magnitude
+    - Dependencies: Step 14
+
+16. Add unit tests for camera
+    - Deliverable: Tests for pitch clamping, FOV aspect ratio, head-bob oscillation
+    - Dependencies: Steps 14–15
+
+### Rendering Pipeline (`pkg/render`)
+17. Implement raycaster-to-framebuffer pipeline
+    - Deliverable: `Render()` calls raycaster, writes column data to an internal `[]byte` framebuffer, blits to `*ebiten.Image`
+    - Dependencies: Steps 4–6 (raycaster)
+
+18. Implement palette/shader swap per genre
+    - Deliverable: `SetGenre()` selects color palette applied during framebuffer write
+    - Dependencies: Step 17, `pkg/procgen/genre`
+
+19. Confirm 320×200 internal resolution scaled to window
+    - Deliverable: Rendering matches `config.InternalWidth` × `config.InternalHeight`, scaled by Ebitengine layout
+    - Dependencies: Step 17, `pkg/config`
+
+20. Add unit tests for render pipeline
+    - Deliverable: Tests for framebuffer dimensions, palette swap, and screen blit correctness
+    - Dependencies: Steps 17–19
+
+### Input System (`pkg/input`)
+21. Implement keyboard and mouse input polling
+    - Deliverable: `Update()` reads Ebitengine key/mouse state; `IsPressed(action)` returns live state for bound actions
+    - Dependencies: None (Ebitengine API)
+
+22. Implement configurable key remapping
+    - Deliverable: `Bind(action, key)` persists to config; default bindings for WASD, mouselook, weapon select, interact, automap, pause
+    - Dependencies: `pkg/config`
+
+23. Add gamepad support (analog sticks, triggers)
+    - Deliverable: Gamepad analog stick drives mouselook; trigger drives fire; D-pad drives movement
+    - Dependencies: Step 21
+
+24. Add unit tests for input manager
+    - Deliverable: Tests for binding lookup, action resolution, rebinding
+    - Dependencies: Steps 21–23
+
+### Audio — Core (`pkg/audio`)
+25. Implement adaptive music engine with intensity layers
+    - Deliverable: `PlayMusic()` loads base track; intensity parameter crossfades additional layers
+    - Dependencies: Ebitengine audio API
+
+26. Implement SFX playback (gunshot, footstep, door, pickup, enemy alert, death)
+    - Deliverable: `PlaySFX(name)` plays named sound effect from embedded assets
+    - Dependencies: Step 25
+
+27. Implement 3D positional audio (distance attenuation + stereo pan)
+    - Deliverable: SFX volume and pan computed from listener/source positions
+    - Dependencies: Step 26
+
+28. Wire genre audio theme swap via `SetGenre()`
+    - Deliverable: `SetGenre()` selects music tracks and SFX variant set
+    - Dependencies: Steps 25–27, `pkg/procgen/genre`
+
+29. Add unit tests for audio engine
+    - Deliverable: Tests for volume attenuation formula, pan calculation, genre swap
+    - Dependencies: Steps 25–28
+
+### UI / HUD / Menus (`pkg/ui`)
+30. Implement HUD rendering (health, armor, ammo, weapon icon, keycards)
+    - Deliverable: `DrawHUD()` renders status bars and icons onto screen image
+    - Dependencies: Ebitengine draw API
+
+31. Implement main menu, difficulty select, genre select, pause menu
+    - Deliverable: `DrawMenu()` renders navigable menu screens with keyboard/gamepad input
+    - Dependencies: `pkg/input`
+
+32. Implement settings screen (video, audio, key bindings)
+    - Deliverable: Settings screen reads/writes `pkg/config` values
+    - Dependencies: `pkg/config`, `pkg/input`
+
+33. Implement loading screen with seed display
+    - Deliverable: Loading screen shows current seed from `pkg/rng` during level generation
+    - Dependencies: `pkg/rng`
+
+34. Add unit tests for UI
+    - Deliverable: Tests for HUD value display, menu navigation state machine
+    - Dependencies: Steps 30–33
+
+### Tutorial System (`pkg/tutorial`)
+35. Implement contextual first-level prompts
+    - Deliverable: `ShowPrompt()` displays WASD/shoot/pickup/door prompts triggered by game events; prompts suppress after first completion
+    - Dependencies: `pkg/input`, `pkg/ui`
+
+36. Add unit tests for tutorial
+    - Deliverable: Tests for prompt triggering, suppression persistence
+    - Dependencies: Step 35
+
+### Save / Load (`pkg/save`)
+37. Implement per-slot save and load with file I/O
+    - Deliverable: `Save()` serializes level seed, player state, map, inventory to JSON file; `Load()` deserializes; cross-platform path resolution
+    - Dependencies: `pkg/config` (save path)
+
+38. Implement auto-save on level exit
+    - Deliverable: `AutoSave()` writes to dedicated auto-save slot on level transition
+    - Dependencies: Step 37
+
+39. Add unit tests for save/load
+    - Deliverable: Tests for round-trip serialization, slot management, cross-platform path
+    - Dependencies: Steps 37–38
+
+### Config / Settings (`pkg/config`)
+40. Implement config hot-reload via file watcher
+    - Deliverable: `pkg/config` watches `config.toml` for changes and reloads settings at runtime without restart
+    - Dependencies: `fsnotify` (already an indirect dependency via Viper)
+
+41. Add unit tests for config
+    - Deliverable: Tests for default values, TOML parsing, hot-reload callback, and missing-file fallback
+    - Dependencies: Step 40
+
+### Performance — Raycaster Optimizations
+42. Add sin/cos/tan lookup tables
+    - Deliverable: Pre-computed trig tables used by raycaster; verified identical output to math.Sin/Cos
+    - Dependencies: Step 4
+
+43. Add sprite depth-sort and occlusion column tracking
+    - Deliverable: Painter's algorithm sort; sprites behind solid walls skipped
+    - Dependencies: Step 6
+
+44. Add frame-rate cap and VSync toggle
+    - Deliverable: Config-driven TPS cap; VSync toggle wired to Ebitengine
+    - Dependencies: `pkg/config`
+
+### CI/CD — Foundation
+45. Create GitHub Actions workflow for build + test on Linux, macOS, Windows
+    - Deliverable: `.github/workflows/ci.yml` running `go build` and `go test ./...` on three platforms
+    - Dependencies: None
+
+46. Add 82%+ test coverage gate
+    - Deliverable: CI step fails if `go test -coverprofile` reports < 82% coverage
+    - Dependencies: Step 45, all test steps above
+
+### Integration — Wire Systems into Game Loop
+47. Wire all v1.0 systems into `main.go` game loop
+    - Deliverable: `Game.Update()` calls input → camera → ECS world update; `Game.Draw()` calls render pipeline → HUD → menu overlay
+    - Dependencies: All above steps
+
+48. End-to-end playtest with fantasy genre
+    - Deliverable: Player can start game, generate level, move through corridors, see walls/floor/ceiling, hear audio, open pause menu, save, and exit
+    - Dependencies: Step 47
+
+## Technical Specifications
+- **ECS storage**: Sparse-set or map-of-maps keyed by `(Entity, reflect.Type)` for O(1) component access
+- **Raycaster algorithm**: DDA (Digital Differential Analysis) matching Wolfenstein-style column rendering
+- **Framebuffer format**: RGBA `[]byte` at 320×200, blitted via `ebiten.NewImageFromImage`
+- **BSP splitting axis**: Alternate horizontal/vertical; randomized split position via `pkg/rng`
+- **Audio format**: Embedded WAV/OGG assets via Go `embed` directive; Ebitengine audio player for decoding
+- **Save format**: JSON files under `$HOME/.violence/saves/`; slot 0 reserved for auto-save
+- **Trig lookup tables**: 3600-entry tables (0.1° resolution) for sin, cos, tan; indexed by fixed-point angle
+
+## Validation Criteria
+- [ ] Fantasy genre plays end-to-end: start → generate level → navigate corridors → pause → save → exit
+- [ ] `go build -o violence .` produces a single binary with zero external asset files
+- [ ] `go test ./...` passes on Linux, macOS, and Windows
+- [ ] Test coverage ≥ 82% as reported by `go test -coverprofile`
+- [ ] BSP generator produces identical levels for the same seed across platforms
+- [ ] Raycaster renders at ≥ 30 FPS at 320×200 internal resolution
+- [ ] All v1.0 packages implement `SetGenre("fantasy")` with visible/audible effect
+- [ ] Config changes in `config.toml` take effect without recompilation
+- [ ] Save/load round-trips player state without data loss
+
+## Known Gaps
+See [GAPS.md](GAPS.md) for detailed gap analysis.
