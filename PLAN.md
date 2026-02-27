@@ -114,7 +114,7 @@
     - Deliverable: `PlayMusic()` loads base track; intensity parameter crossfades additional layers
     - Dependencies: Ebitengine audio API
 
-26. Implement SFX playback (gunshot, footstep, door, pickup, enemy, death)
+26. Implement SFX playback (gunshot, footstep, door, pickup, enemy alert, death)
     - Deliverable: `PlaySFX(name)` plays named sound effect from embedded assets
     - Dependencies: Step 25
 
