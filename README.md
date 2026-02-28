@@ -21,6 +21,7 @@ pkg/
   ui/                    HUD, menus, and settings screens
   tutorial/              Context-sensitive tutorial prompts
   weapon/                Weapon definitions and firing
+  upgrade/               Weapon upgrade token system
   ammo/                  Ammo types and pools
   door/                  Keycard and door system
   automap/               Fog-of-war automap
@@ -41,6 +42,7 @@ pkg/
   squad/                 Squad companion AI
   lore/                  Procedurally generated collectible lore and codex
   minigame/              Hacking and lockpicking mini-games
+  secret/                Push-wall secret discovery
   destruct/              Destructible environments
   props/                 Decorative prop placement
   skills/                Skill and talent trees
