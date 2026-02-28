@@ -105,8 +105,8 @@ func TestFindExitPositionSelectsFurthestRoom(t *testing.T) {
 	g := &Game{}
 
 	rooms := []*bsp.Room{
-		{X: 10, Y: 10, W: 10, H: 10},  // Center: (15, 15)
-		{X: 50, Y: 50, W: 10, H: 10},  // Center: (55, 55)
+		{X: 10, Y: 10, W: 10, H: 10},   // Center: (15, 15)
+		{X: 50, Y: 50, W: 10, H: 10},   // Center: (55, 55)
 		{X: 100, Y: 100, W: 10, H: 10}, // Center: (105, 105) - furthest from (15, 15)
 	}
 
