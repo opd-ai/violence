@@ -1,63 +1,56 @@
 You are implementing ONE novel enhancement to a Go/Ebiten procedural multiplayer action-RPG called Violence. Act autonomously. Do not ask for approval.
 
-KNOWN AVATAR PROBLEMS (read this first — high priority visual improvements):
-The current avatars need significant improvement. Consider addressing one or more of these:
-1. **WRONG PERSPECTIVE**: Sprites are rendered in profile/side view but the game uses a top-down camera. All entity sprites MUST be drawn as seen from above (aerial/overhead view). The head/shoulders should dominate the sprite; legs should be barely visible beneath the body. Any default humanoid template that gives legs a large proportion of the sprite height is wrong — that is a profile view. Use and improve aerial-view template proportions instead (head ~35%, torso ~50%, legs ~15%). Fix any sprite generation that draws entities as if viewed from the side.
-2. **INSUFFICIENT DETAIL**: Sprites are visually barren — flat colors, no shading, no texture, no personality. At 32×32 every pixel matters. Add sub-pixel shading, color gradients, dithering, highlight/shadow on body parts, hair detail, clothing patterns, anything that makes sprites look crafted rather than placeholder.
-3. **INSUFFICIENT VARIETY**: All avatars look nearly identical. Different NPCs, different players, different creature types should be immediately distinguishable at a glance. Vary body proportions, color palettes, head shapes, clothing silhouettes, and accessories. Seed-based generation should produce visually diverse output, not minor variations on one template.
-4. **POOR NONHUMANOID REPRESENTATION**: Creatures, monsters, animals, and bosses use barely-modified humanoid templates. A spider should not look like a person. A dragon should not look like a person. Build and use dedicated nonhumanoid anatomy templates — quadrupeds, insects, serpents, amorphous blobs, winged creatures, multi-limbed horrors. Each creature type needs its own distinct body plan visible from above.
+KNOWN VISUAL PROBLEMS (read this first — high priority):
+The game's visual presentation needs continuous improvement. Consider addressing one or more of these:
+1. **FLAT RENDERING**: Sprites and environments lack depth cues — no dynamic lighting, no shadows, no ambient occlusion. At small sprite sizes every pixel of shading matters. Add per-entity shadow casting, directional light response, and genre-appropriate atmosphere (fog-of-war, torch flicker, neon glow).
+2. **VISUAL MONOTONY**: Generated levels, enemies, and items blur together. Tilesets repeat without variation, color palettes are narrow, and environmental storytelling is absent. Procedural generation should produce visually diverse and memorable spaces — varied wall textures, floor debris, unique landmarks, and environmental detail props.
+3. **WEAK FEEDBACK**: Player actions lack visual punch. Attacks, hits, deaths, pickups, level-ups, and status effects need clear, satisfying visual and audio-adjacent (screen shake, flash, particle burst) feedback. The player should *feel* every interaction through the screen.
+4. **POOR READABILITY**: In chaotic combat it is hard to distinguish allies from enemies, projectiles from decorations, and interactive objects from background. Improve visual hierarchy through consistent color coding, silhouette clarity, outline shaders, and UI indicators.
 
-KNOWN SYSTEM PROBLEMS (read this first — high priority gameplay improvements):
-Many core systems need depth and integration. Consider addressing one or more of these:
-1. **SHALLOW PROGRESSION**: Many progression systems have placeholder logic or minimal depth. Skill trees, class progression, reputation systems, and achievements need meaningful choices, balanced rewards, and interconnected mechanics that create engaging long-term goals.
-2. **DISCONNECTED SYSTEMS**: Systems exist in isolation without cross-system interactions. Economy should affect territory control, faction relationships should impact quests, weather should influence combat, housing should integrate with crafting. Build bridges between systems to create emergent gameplay.
-3. **MINIMAL GENRE VARIATION**: Procedural generation often ignores genre context. Fantasy dungeons shouldn't look like sci-fi stations. Horror factions shouldn't behave like cyberpunk corporations. Each genre needs distinct procgen rules, AI behaviors, quest structures, and world-building patterns.
-4. **PLACEHOLDER MECHANICS**: Core gameplay loops have stub implementations. AI behavior trees need more node types, combat needs tactical depth, crafting needs meaningful recipes, quests need better objective variety. Replace simple implementations with full-featured systems.
+KNOWN GAMEPLAY PROBLEMS (read this first — high priority):
+Core gameplay loops need depth and variety. Consider addressing one or more of these:
+1. **SHALLOW COMBAT**: Fighting is mashy and lacks tactical choices. Add weapon movesets with different attack patterns, combo chains, dodge/parry mechanics, enemy telegraphing, and positional advantage (backstab, flanking, elevation). Combat should reward skill and planning.
+2. **THIN PROGRESSION**: Character advancement is linear and predictable. Add meaningful build decisions — branching skill trees, stat allocation trade-offs, equipment synergies, and specialization paths that create distinct playstyles.
+3. **REPETITIVE DUNGEONS**: Procedurally generated levels feel samey. Improve room/corridor variety, add themed sub-areas, environmental hazards, secrets, traps, puzzles, and set-piece encounters that break up the rhythm.
+4. **DISCONNECTED SYSTEMS**: Loot, crafting, factions, quests, and world state exist independently. Build bridges — faction standing should affect shop prices and quest availability, crafting should use dungeon-specific materials, world events should reshape the map.
+5. **PASSIVE AI**: Enemies walk toward the player and attack. Add behavior variety — ranged enemies that kite, healers that support allies, ambush mobs that hide, bosses with phase transitions, and group tactics like flanking and focus-fire.
 
-KNOWN COLLISION & ACTION PROBLEMS (read this first — high priority precision improvements):
-The current collision and action/attack/spell systems lack pixel-level precision. Consider addressing one or more of these:
-1. **IMPRECISE HITBOXES**: Collision detection uses bounding boxes that don't match sprite shapes. A thin sword should not have the same hitbox as a broad axe. Irregular creature shapes (serpents, insects, amorphous blobs) need per-pixel or convex-hull hitboxes derived from their sprite masks, not rectangular approximations.
-2. **ATTACK AREA MISMATCH**: Attack, action, and spell effect areas do not match their visual representation. A sweeping sword arc should hit exactly the pixels its animation covers. A fireball explosion radius should match the rendered blast. A beam spell should use a precise line segment, not a wide rectangle. Derive hit areas from the actual rendered sprite/animation frame masks.
-3. **SPELL SHAPE IMPRECISION**: Spell projectiles, AoE zones, and beam effects use coarse geometric approximations (circles, rectangles). Replace with pixel-perfect or vector-accurate shapes: polygon hit areas for AoE blasts, capsule/swept-circle for projectiles, Bresenham line for beams, per-frame mask sampling for complex spells.
-4. **NO COLLISION LAYERS**: All entities collide with all other entities. Add collision layer/mask bitfields so projectiles pass through allies, spells can be set to affect only enemies or only terrain, environmental objects have their own layer, and ghost/ethereal entities bypass solid geometry.
-5. **TERRAIN COLLISION IMPRECISION**: Terrain collision uses tile-center checks rather than tile edge geometry. Entities can visually overlap walls. Use sub-tile edge detection and smooth sliding collision response so entities glide along wall edges rather than stopping dead or clipping through corners.
+KNOWN TECHNICAL PROBLEMS (read this first — high priority):
+The engine has areas of technical debt that affect gameplay quality. Consider addressing one or more of these:
+1. **COARSE COLLISION**: Collision detection uses axis-aligned bounding boxes regardless of entity shape. Irregularly shaped entities (long weapons, sprawling creatures, spell effects) deserve tighter collision geometry — convex hulls, capsules, or pixel masks.
+2. **NETWORK JANK**: Multiplayer synchronization has visible artifacts — rubber-banding, delayed hit registration, desync on fast-moving entities. Improve interpolation, prediction, and authoritative state reconciliation.
+3. **MEMORY CHURN**: Hot paths allocate on every frame — sprite generation, particle updates, collision queries. Pool and cache aggressively. Profile with `go tool pprof` and eliminate per-frame allocations on critical paths.
+4. **MISSING SPATIAL INDEXING**: Entity queries iterate all entities linearly. Add spatial partitioning (grid, quadtree) for collision, rendering culling, and proximity queries. This is prerequisite for large maps and high entity counts.
 
 STEP 1 — DISCOVER (spend ≤5 minutes here):
 - Run `git log --oneline -20` to avoid duplicating recent work.
 - Read the system initialization code to understand registered systems.
 - Grep for TODO, FIXME, stub, placeholder in engine and procgen packages.
 - Pick ONE enhancement you have NOT seen in git history. Roll a d20 to decide the category:
-    - **System improvements (roll of 1–5 — address the KNOWN SYSTEM PROBLEMS above):**
-        - **Progression depth** — skill tree branching, class synergies, reputation consequence systems, achievement chains, prestige mechanics
-        - **System integration** — economy↔territory, faction↔quest, weather↔combat, housing↔crafting, companion↔skills, guild↔raids
-        - **Genre variation** — genre-specific AI personalities, quest objective variety, loot table customization, dungeon layout algorithms, NPC behavior patterns
-        - **Mechanic depth** — behavior tree node types, combat tactical options, crafting recipe complexity, quest chain branching, dialog response systems
-        - **AI improvements** — squad tactics, companion learning, enemy adaptation, merchant pricing strategies, NPC schedules and routines
-        - **World systems** — city evolution, economy simulation, faction warfare, territory sieges, world events, environmental destruction
-        - **Social features** — guild progression, trade mechanics, mail system depth, chat channels, player housing interactions
-    - **Avatar improvements (roll of 6–10 — address the KNOWN AVATAR PROBLEMS above):**
-        - **Perspective fixes** — convert any profile/side-view sprites to proper top-down aerial view. This is the single most impactful fix.
-        - **Nonhumanoid templates** — build dedicated top-down anatomy templates for creature types that are not humanoid (quadrupeds, insects, serpents, flying creatures, amorphous entities, multi-limbed creatures). Every creature type deserves its own body plan.
-        - **Player character visuals** — composite layering, anatomy detail, directional sprites, proportions, body shapes, facial features, skin/hair color variety, idle poses, shading, clothing detail
-        - **NPC variety** — genre-aware body templates, size-based anatomy, silhouette quality, visual personality, distinctive appearance per NPC, varied clothing and coloring
-        - **Equipment visuals** — material rendering fidelity, damage-state degradation, enchantment glow/particles, rarity-based detail scaling, weapon silhouettes, armor shaping
-        - **Sprite detail** — sub-pixel shading, color gradients, dithering, material textures, highlight/shadow, edge definition, anti-aliasing
-        - **Animation improvements** — smoother transitions, new states, expressive movement, attack/cast/hurt animations, idle breathing/fidget
-    - **Collision & Action precision (roll of 11–15 — address the KNOWN COLLISION & ACTION PROBLEMS above):**
-        - **Pixel-perfect hitboxes** — derive entity collision shapes from sprite pixel masks; generate convex hulls or polygon approximations per sprite frame; store in a HitboxComponent with per-frame mask data
-        - **Attack/action area accuracy** — compute hit areas from animation frame masks for melee sweeps, thrown weapons, and physical actions; ensure visual and gameplay areas match exactly
-        - **Spell shape precision** — replace coarse geometric approximations with polygon AoE zones, swept-circle projectiles, Bresenham beam lines, and per-frame mask sampling for complex spells
-        - **Collision layers & masks** — add layer/mask bitfields to ColliderComponent; define standard layers (Player, Enemy, Projectile, Terrain, Environment, Ethereal); enforce layer filtering in collision and damage systems
-        - **Terrain edge sliding** — sub-tile edge detection with smooth sliding response; entities glide along wall edges rather than stopping dead or clipping through corners
-    - **Character Customization (roll of 16–20 — address character build depth):**
-        - **Custom equipment generation** — procedural unique weapon types, armor set bonuses, accessory effects, equipment mod systems, upgrade paths, legendary item properties
-        - **Character class systems** — class specializations, multiclass combinations, class-specific abilities and resources, prestige class unlocks, hybrid class mechanics
-        - **Skill customization** — custom skill creation, skill mutation systems, skill combination mechanics, passive skill effects, skill tree variations per class
-        - **Build archetypes** — tank/DPS/support/hybrid build templates, role-specific stat distributions, playstyle-driven ability unlocks, build presets and templates
-        - **Talent systems** — talent point allocation, talent tree branching, talent synergies, talent reset mechanics, talent specialization paths
-        - **Loadout management** — quick-swap loadout systems, situational gear sets, ability bar customization, saved build configurations
-        - **Character advancement** — alternative progression paths, mastery systems, prestige mechanics, respec options, character specialization choices
-- If multiple candidates exist within your category, pick the one that most improves the game experience. Within system work, integration and progression depth are highest-value. Within avatar work, perspective fixes and nonhumanoid templates are highest-value. Within collision & action work, pixel-perfect hitboxes and collision layers are highest-value. Within character customization work, custom equipment generation and character class systems are highest-value.
+    - **Gameplay improvements (roll of 1–7 — address the KNOWN GAMEPLAY PROBLEMS above):**
+        - **Combat depth** — weapon movesets, combo systems, dodge/parry, enemy telegraphs, positional advantage, status ailments, damage types and resistances
+        - **Progression systems** — branching skill trees, stat allocation, specialization paths, prestige mechanics, equipment synergies, build-defining choices
+        - **Dungeon generation** — room shape variety, themed zones, environmental hazards, traps, secrets, puzzles, set-piece encounters, verticality, destructible terrain
+        - **System integration** — faction↔economy, crafting↔dungeon loot, weather↔combat, quest↔world state, reputation↔NPC behavior
+        - **AI behavior** — behavior tree depth, squad tactics, enemy roles (tank/healer/ranged/ambusher), boss phases, companion AI, merchant pricing, NPC routines
+        - **World systems** — dynamic events, territory control, faction warfare, environmental destruction, town evolution, trade routes, day/night cycles with gameplay impact
+        - **Multiplayer features** — co-op mechanics, PvP arenas, shared objectives, trade systems, guild features, party roles, competitive events
+    - **Visual improvements (roll of 8–14 — address the KNOWN VISUAL PROBLEMS above):**
+        - **Lighting & atmosphere** — dynamic point lights, shadow casting, ambient occlusion, genre-specific atmosphere (dungeon gloom, neon city glow, haunted fog)
+        - **Sprite quality** — shading, sub-pixel detail, color gradients, material textures, highlight/shadow, anti-aliasing, distinctive silhouettes per entity type
+        - **Animation** — smoother transitions, attack/hurt/death animations, idle fidget, directional facing, animation blending, anticipation/follow-through frames
+        - **Particle & effects** — hit sparks, blood splatter, spell effects, environmental particles (dust, rain, embers), screen shake, flash, and juice
+        - **Environment art** — tile variation, wall/floor detail, props and decorations, genre-specific tilesets, environmental storytelling, parallax layers
+        - **UI & readability** — health bars, damage numbers, status icons, minimap improvements, enemy indicators, loot highlighting, tooltip quality
+        - **Equipment visuals** — visible gear on sprites, material differentiation, enchantment glow, rarity-driven visual complexity, damage state rendering
+    - **Technical improvements (roll of 15–20 — address the KNOWN TECHNICAL PROBLEMS above):**
+        - **Collision precision** — convex hull / polygon hitboxes derived from sprite data, per-frame attack masks, spell shape accuracy, collision layers and masks, terrain edge sliding
+        - **Spatial indexing** — grid or quadtree partitioning for collision broadphase, render culling, proximity queries, and efficient entity lookup
+        - **Network quality** — interpolation smoothing, client-side prediction, server reconciliation, bandwidth optimization, lag compensation for combat
+        - **Memory optimization** — object pooling for particles/projectiles/sprites, LRU caching for generated assets, zero-alloc hot paths, buffer reuse
+        - **Performance profiling** — benchmark critical systems, identify and fix frame-time spikes, GPU batching, draw call reduction, LOD systems
+        - **Data architecture** — entity serialization improvements, save/load robustness, config validation, component versioning, migration support
+- If multiple candidates exist within your category, pick the one that most improves the player experience. Within gameplay, combat depth and AI behavior are highest-value. Within visuals, lighting/atmosphere and sprite quality are highest-value. Within technical, collision precision and spatial indexing are highest-value.
 
 STEP 2 — IMPLEMENT (this is the bulk of the work):
 Follow these rules strictly. Violations are build failures.
@@ -69,78 +62,36 @@ Architecture:
 - Logging: `logrus.WithFields(logrus.Fields{"system_name": "...", ...})`.
 - No external assets. No new dependencies beyond go.mod.
 
-Visual & Animation (for avatar improvements):
+Visual & Animation:
 - Lighting must use radial gradients with proper falloff (linear, quadratic, inverse-square). No flat circles.
 - Shadows use soft penumbra with distance-based falloff. Support genre-specific opacity presets.
 - Post-processing effects (color grading, vignette, chromatic aberration) must be genre-aware.
-- Animation playback: 12 FPS (0.083s per frame), 8 frames per state. Use distance-based LOD (full rate at ≤200px, half at ≤400px, minimal beyond).
+- Animation playback: target 12 FPS (0.083s per frame), 8 frames per state. Use distance-based LOD (full rate at ≤200px, half at ≤400px, minimal beyond).
 - Sprite generation must be seeded and cached (LRU, max 100 entries). Pool image buffers by size bucket.
 - All visual enhancements must maintain 60+ FPS. Profile before and after with `go test -bench`.
 
-Player Characters (avatar improvements):
-- **CRITICAL: All sprites must be TOP-DOWN / AERIAL VIEW.** The camera looks straight down. You see the top of the head, the shoulders, and barely any legs. If your sprite looks like a person standing facing you, it is WRONG. Use aerial-view template proportions: head ~35%, torso/shoulders ~50%, legs ~15%.
-- Use composite layered rendering. Layer order: Shadow(0) → Legs(5) → Body(10) → Armor(15) → Head(20) → Weapon(25) → Accessory(30) → Effect(40).
-- Anatomy templates define body part sizes for 32×32 top-down sprites. Proportions may be reworked freely to improve visual quality — better proportions, more detailed features, and more expressive shapes are always welcome. **Delete all profile-view templates** (any template that renders entities as seen from the side). Replace them with aerial-view equivalents. Do not leave incorrect profile-view code in the codebase.
-- Support full 360-degree rotation for sprite facing. Maintain facing angle in AnimationComponent.
-- Status effect overlays (burning, frozen, poisoned, stunned, blessed, cursed) render at ZIndex 40 with color-coded intensity and particle counts.
-- Player entities always animate at full rate (12 FPS) regardless of camera distance.
-- Focus on making characters look like recognizable people SEEN FROM ABOVE — visible head/hair, shoulder width indicating body type, equipment visible on the body, shadow underneath. Not blobs, not profile silhouettes.
-- Every pixel matters at 32×32. Use shading, color gradients, and highlights to give depth. Hair color, skin tone, and clothing should all be visually distinct.
+Sprite Standards:
+- Use perspective appropriate to the game's camera. If the game is top-down, sprites must be top-down. If the game is side-scrolling, sprites must be side-view. Match the camera.
+- Use composite layered rendering where appropriate. Define a clear z-order for body parts, equipment, and effects.
+- Every pixel matters at small sprite sizes. Use shading, color gradients, and highlights to give depth and personality. Avoid flat solid fills.
+- Different entity types must be visually distinguishable at a glance. Seed-based generation should produce genuine variety — not trivial color swaps on one template.
+- Nonhumanoid creatures need dedicated body-plan templates. A spider should look like a spider, not a human with extra arms. Build anatomy templates for each broad creature category (quadrupeds, insects, serpents, flying creatures, amorphous entities, etc.).
+- Equipment and status effects should be visible on the sprite. The player should be able to read entity state from visuals alone.
 
-NPCs & Creatures (avatar improvements):
-- **CRITICAL: All sprites must be TOP-DOWN / AERIAL VIEW.** Same as player characters — drawn as seen from directly above.
-- Use entity generation templates for genre-aware generation. Entity types: Monster, Boss, NPC, Merchant. Sizes: Tiny, Small, Medium, Large, Huge.
-- **NONHUMANOID CREATURES NEED DEDICATED TEMPLATES.** Do not reuse humanoid body plans for creatures that are not humanoid. Build top-down anatomy templates for: quadrupeds (4 legs radiating from body center), insects (segmented body, 6+ legs), serpents (elongated sinuous body), winged creatures (wide wingspan from above), amorphous entities (irregular blobby shapes), multi-limbed horrors (radial or asymmetric limbs). Each type should be immediately recognizable from its silhouette alone.
-- Anatomy templates must scale proportionally with entity size. Larger creatures need wider torsos and legs relative to head size.
-- Silhouette quality should target at least "Good" (score ≥0.7; "Excellent" is >0.8). Measure Coverage, Compactness (4π×area/perimeter²), and EdgeClarity.
-- NPCs should be visually distinct from each other — varied body shapes, hair, clothing, and facial features. No two NPCs should look the same. Seed-based generation must produce genuine variety, not trivial color swaps.
-- Apply genre-specific visual tags to influence sprite shape types (e.g., horror → Skull head shape, fantasy → Circle/Ellipse head shapes).
+Collision & Action Precision:
+- **HITBOX ACCURACY**: Generate collision geometry from sprite data where possible. Store alongside the entity as polygon or bitmask. Update when sprites change (equipment swap, animation frame).
+- **ATTACK AREAS**: Melee and ranged attack hit areas should match their visual representation. Cache per-frame hit masks in AnimationComponent. Avoid hardcoded rectangles for curved or irregular attack shapes.
+- **SPELL SHAPES**: Projectiles use swept-circle (capsule) collision. Beams use line-segment collision with configurable width. AoE uses polygon zones matching the visual blast. Store spell hit shapes in a typed component.
+- **COLLISION LAYERS**: Add `Layer uint32` and `Mask uint32` bitfields to the collider. Define standard layers (Player, Enemy, Projectile, Terrain, Environment, Ethereal). Check `(a.Layer & b.Mask) != 0` before processing. Projectiles default to ignoring allies.
+- **TERRAIN SLIDING**: Replace hard-stop collision with smooth sliding along wall edges. Compute overlap vector and decompose velocity along the wall tangent. No abrupt stops at corners.
+- All precision improvements must maintain 60+ FPS. Use spatial partitioning as broadphase. Cache masks; never recompute per frame unless the sprite changed.
 
-Equipment (avatar improvements):
-- Equipment overlays render per-slot: Weapon, Armor, Accessory, Helmet, Boots, Gloves, Shield.
-- Material types (Metal, Leather, Cloth, Wood, Crystal, Energy) should have visually distinct rendering. Use whatever visual properties best differentiate them — sheen, roughness, patterns, reflectivity, color shifts.
-- Damage states degrade visuals progressively: Pristine → Worn → Damaged → Broken. Each state should be visually obvious at a glance.
-- Enchantment glow is rarity-driven: Uncommon=Green, Rare=Blue, Epic=Purple, Legendary=Gold. Make enchantments visually exciting and clearly different from non-enchanted gear.
-- Higher rarity = more visual complexity and material fidelity. Legendary items should look unmistakably special.
-- Track equipment visuals via EquipmentVisualComponent with dirty flag for lazy regeneration. Visibility toggles per layer type.
-
-Collision & Action Precision (for collision/action improvements):
-- **PIXEL-PERFECT HITBOXES**: Generate collision masks from sprite pixel data at load/generation time. Store as a bitmask in HitboxComponent alongside a polygon approximation (convex hull or simplified contour) for fast broadphase + precise narrowphase checks. Update masks when sprites change (equipment swap, animation frame).
-- **ATTACK AREA DERIVATION**: For melee attacks, sweeping weapons, and physical actions, sample the animation frame mask at the moment of impact and use it as the hit area. Cache per-frame hit masks in the AnimationComponent. Never use a hardcoded rectangle for a curved or irregular attack shape.
-- **SPELL SHAPES**: Projectile spells use swept-circle (capsule) collision. Beam spells use Bresenham DDA line with configurable width. AoE spells use polygon zones defined by the spell's visual blast shape, not a uniform circle. Store spell hit shapes in SpellHitShapeComponent as a polygon + shape type enum.
-- **COLLISION LAYERS**: Add `Layer uint32` and `Mask uint32` bitfields to ColliderComponent. Define standard layer constants: LayerPlayer, LayerEnemy, LayerProjectile, LayerTerrain, LayerEnvironment, LayerEthereal. Collision and damage systems check `(a.Layer & b.Mask) != 0` before processing. Projectiles default to ignoring allies. Ethereal entities bypass terrain.
-- **TERRAIN EDGE SLIDING**: Replace tile-center collision with tile edge geometry. Compute overlap vector between entity and tile edge, apply minimum translation vector (MTV) for separation, then decompose velocity along the wall tangent to produce smooth sliding. No abrupt stops at corners.
-- All precision improvements must maintain 60+ FPS. Use spatial partitioning as broadphase before any pixel-level checks. Cache pixel masks; never recompute per frame unless the sprite changed.
-
-Progression Systems (system improvements):
-- Skill trees should offer meaningful branching choices. Each node should enable new playstyles or synergize with other skills. Avoid pure stat bonuses — prefer unlocking abilities, modifying existing abilities, or enabling cross-skill combos.
-- Class progression needs depth beyond level-up bonuses. Implement specializations, prestige classes, multiclass synergies. Each class should feel mechanically distinct with unique abilities and resource management.
-- Reputation systems should have gameplay consequences. Faction standing affects quest availability, merchant prices, territory access, and NPC behavior. Build reputation curves that create meaningful long-term goals.
-- Achievement systems should chain together and unlock content. Achievements should guide exploration, reward mastery, and grant permanent bonuses or cosmetic rewards.
-
-System Integration (system improvements):
-- Cross-system mechanics create emergent gameplay. Examples: economy price fluctuations affect territory control costs; faction wars generate dynamic quests; weather influences combat effectiveness; housing crafting stations boost recipe quality.
-- Look for unused interfaces between systems. Economy system has price data — territory system should read it. Faction system tracks relationships — quest system should use them. Weather system affects world — combat system should respond.
-- Add components to bridge systems (e.g., EconomicInfluenceComponent on territories, WeatherSensitivityComponent on combat entities). Systems communicate via components, not direct calls.
-- Integration should feel natural, not forced. Start with small connections (weather → movement speed) before complex interactions (economy → territory → quests).
-
-Genre Variation (system improvements):
-- Genre context should deeply influence generation. Each genre needs distinct rules for dungeons, factions, quests, loot, AI, and world-building.
-- Use genre templates for procgen parameters. Fantasy → organic dungeon layouts, magic-focused loot, honor-based factions. Sci-fi → geometric structures, tech loot, corporate factions. Horror → claustrophobic spaces, survival resources, insanity mechanics. Cyberpunk → vertical architecture, augmentation loot, gang factions.
-- AI personalities should vary by genre. Fantasy NPCs follow honor codes, sci-fi NPCs optimize efficiency, horror NPCs show fear/paranoia, cyberpunk NPCs pursue profit.
-- Quest structures differ by genre. Fantasy → hero's journey, epic quests. Sci-fi → mission briefings, exploration. Horror → investigation, survival. Cyberpunk → heists, corporate espionage.
-
-AI & Behavior (system improvements):
-- Behavior trees need more node types. Add: patrol routes, cover-seeking, flanking, retreating, calling for help, using items, environmental interaction.
-- Squad tactics should coordinate actions. Enemies in groups should focus-fire, protect wounded allies, use formations, and combine abilities.
-- Companion AI should learn from player behavior. Track preferred tactics, adapt to player playstyle, suggest strategies.
-- Merchant pricing should respond to supply/demand, player reputation, and market trends. Prices should feel dynamic, not static.
-
-World Systems (system improvements):
-- City evolution should reflect player actions. Completed quests improve infrastructure, economic activity attracts merchants, faction control changes city appearance.
-- Territory control should involve meaningful strategic choices. Territory resources, defensive positions, trade routes, and faction influence all matter.
-- World events should cascade into other systems. Natural disasters affect economy, faction wars change territory, festivals offer limited-time quests.
-- Environmental destruction should persist and matter. Destroyed walls create new paths, flooded areas become swimming zones, burned forests change terrain types.
+Gameplay Depth:
+- Combat should reward positioning, timing, and build choices. Avoid pure stat-check interactions. Add mechanics that create interesting decisions under pressure.
+- Skill trees and progression should offer meaningful branching. Each node should enable new playstyles or synergize with specific equipment/stats. Avoid pure linear stat bonuses.
+- AI enemies should have distinct behavioral roles and respond to player actions. Groups should coordinate. Bosses should have phases. Enemies should use the environment.
+- Procedural generation should be genre-aware. Fantasy, sci-fi, horror, and cyberpunk worlds need distinct generation rules for layouts, loot, factions, and quest structures.
+- Cross-system integration creates emergent gameplay. When one system's output feeds another system's input, the game becomes more than the sum of its parts.
 
 Integration (mandatory — this is where past attempts fail):
 - Register the new system in the system initialization function.
@@ -150,9 +101,9 @@ Integration (mandatory — this is where past attempts fail):
 - Persistent component data must integrate with entity serialization/deserialization, or be explicitly transient.
 
 Constraints:
-- Keep changes focused and targeted. Avatar improvements should focus on visual quality. System improvements should focus on gameplay depth. Collision improvements should focus on precision and correctness.
+- Keep changes focused and targeted. One enhancement, done well.
 - `go build ./...`, `go test -race ./...`, and `go vet ./...` must pass.
-- Write table-driven tests. Target ≥40% coverage on new code (≥30% for X11/Wayland/Ebiten-dependent packages).
+- Write table-driven tests. Target ≥40% coverage on new code (≥30% for display-dependent packages).
 - No breaking changes to saves, network protocol, or configs.
 - Maintain 60+ FPS. Cache/pool on hot paths.
 
