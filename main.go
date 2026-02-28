@@ -25,6 +25,7 @@ import (
 	"github.com/opd-ai/violence/pkg/lighting"
 	"github.com/opd-ai/violence/pkg/loot"
 	"github.com/opd-ai/violence/pkg/mod"
+	"github.com/opd-ai/violence/pkg/network"
 	"github.com/opd-ai/violence/pkg/particle"
 	"github.com/opd-ai/violence/pkg/progression"
 	"github.com/opd-ai/violence/pkg/quest"
@@ -52,6 +53,9 @@ const (
 	StateLoading
 	StateShop
 	StateCrafting
+	StateSkills
+	StateMods
+	StateMultiplayer
 )
 
 // Game implements ebiten.Game for the VIOLENCE raycasting FPS.
@@ -111,10 +115,14 @@ type Game struct {
 	shopInventory  *shop.ShopInventory
 	shopArmory     *shop.Shop
 	craftingResult string
-	skillTree      *skills.Tree
+	skillManager   *skills.Manager
 	modLoader      *mod.Loader
 	networkMode    bool
 	multiplayerMgr interface{} // Can be *network.FFAMatch, *network.TeamMatch, etc.
+	skillsTreeIdx  int          // Active tree tab in skills UI
+	skillsNodeIdx  int          // Selected node in skills UI
+	mpStatusMsg    string       // Multiplayer status message
+	mpSelectedMode int          // Selected multiplayer mode
 }
 
 // NewGame creates and initializes a new game instance.
@@ -199,6 +207,12 @@ func (g *Game) Update() error {
 		return g.updateShop()
 	case StateCrafting:
 		return g.updateCrafting()
+	case StateSkills:
+		return g.updateSkills()
+	case StateMods:
+		return g.updateMods()
+	case StateMultiplayer:
+		return g.updateMultiplayer()
 	}
 
 	return nil

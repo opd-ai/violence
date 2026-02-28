@@ -1468,10 +1468,10 @@ type SkillTreeState struct {
 
 // SkillsState holds the entire skills screen state.
 type SkillsState struct {
-	Trees        []SkillTreeState
-	ActiveTree   int // Index of the active tree tab
-	Selected     int // Selected node within active tree
-	TotalPoints  int
+	Trees       []SkillTreeState
+	ActiveTree  int // Index of the active tree tab
+	Selected    int // Selected node within active tree
+	TotalPoints int
 }
 
 // DrawSkills renders the skills overlay screen.
@@ -1504,7 +1504,7 @@ func DrawSkills(screen *ebiten.Image, state *SkillsState) {
 	tabY := pointsY + 25
 	tabWidth := screenWidth / float32(len(tabNames))
 	for i, name := range tabNames {
-		tabX := float32(i) * tabWidth + tabWidth/2
+		tabX := float32(i)*tabWidth + tabWidth/2
 		tabColor := color.RGBA{120, 120, 120, 255}
 		if i == state.ActiveTree {
 			tabColor = color.RGBA{255, 200, 50, 255}
@@ -1640,11 +1640,11 @@ type MultiplayerMode struct {
 
 // MultiplayerState holds the multiplayer lobby display state.
 type MultiplayerState struct {
-	Modes       []MultiplayerMode
-	Selected    int
-	Connected   bool
-	ServerAddr  string
-	StatusMsg   string
+	Modes      []MultiplayerMode
+	Selected   int
+	Connected  bool
+	ServerAddr string
+	StatusMsg  string
 }
 
 // DrawMultiplayer renders the multiplayer lobby screen.
