@@ -89,7 +89,7 @@
   - Prerequisites form directed acyclic graphs (e.g., combat_master requires both combat_dmg_2 and combat_accuracy_1)
   - Test coverage: 98.5%
 
-### 6. Extended Inventory System (`pkg/inventory/`)
+### 6. Extended Inventory System (`pkg/inventory/`) ✅
 - **Deliverable**: Extended `inventory.go` with active-use items, quick-use slot
 - **Dependencies**: `pkg/input` (use keybind)
 - **Implementation**:
@@ -97,6 +97,13 @@
   - Implement concrete items: `Grenade`, `ProximityMine`, `Medkit`
   - Add `QuickSlot` for fast item access (key binding: Q)
   - Implement `UseQuickSlot()` consuming and applying quick-slot item
+- **Completed**: 2026-02-28
+  - Implemented `ActiveItem` interface with `Use(user *Entity) error`, `GetID()`, `GetName()` methods
+  - Concrete items: `Grenade` (throwable explosive), `ProximityMine` (placeable trap), `Medkit` (healing with fixed or percentage heal)
+  - `QuickSlot` with thread-safe `Set()`, `Get()`, `Clear()`, `IsEmpty()` operations
+  - `UseQuickSlot(user)` validates item presence, uses item, consumes from inventory, and auto-clears when depleted
+  - Thread-safe inventory operations using sync.RWMutex for concurrent access
+  - Test coverage: 95.4% (21 test cases including concurrent access)
 
 ### 7. Crafting System (`pkg/crafting/`)
 - **Deliverable**: Extended `crafting.go` with scrap-to-ammo recipes

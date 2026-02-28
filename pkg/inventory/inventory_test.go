@@ -272,3 +272,353 @@ func TestSetGenre(t *testing.T) {
 	SetGenre("cyberpunk")
 	SetGenre("postapoc")
 }
+
+// ActiveItem tests
+
+func TestGrenade_Use(t *testing.T) {
+	grenade := &Grenade{
+		ID:     "grenade",
+		Name:   "Frag Grenade",
+		Damage: 50.0,
+		Radius: 5.0,
+	}
+
+	user := &Entity{Health: 100, MaxHealth: 100}
+	err := grenade.Use(user)
+	if err != nil {
+		t.Fatalf("Grenade.Use() failed: %v", err)
+	}
+
+	// Test nil user
+	err = grenade.Use(nil)
+	if err == nil {
+		t.Fatal("Grenade.Use(nil) should return error")
+	}
+
+	if grenade.GetID() != "grenade" {
+		t.Errorf("GetID() = %s, want grenade", grenade.GetID())
+	}
+	if grenade.GetName() != "Frag Grenade" {
+		t.Errorf("GetName() = %s, want Frag Grenade", grenade.GetName())
+	}
+}
+
+func TestProximityMine_Use(t *testing.T) {
+	mine := &ProximityMine{
+		ID:           "mine",
+		Name:         "Proximity Mine",
+		Damage:       75.0,
+		TriggerRange: 3.0,
+	}
+
+	user := &Entity{Health: 100, MaxHealth: 100}
+	err := mine.Use(user)
+	if err != nil {
+		t.Fatalf("ProximityMine.Use() failed: %v", err)
+	}
+
+	// Test nil user
+	err = mine.Use(nil)
+	if err == nil {
+		t.Fatal("ProximityMine.Use(nil) should return error")
+	}
+
+	if mine.GetID() != "mine" {
+		t.Errorf("GetID() = %s, want mine", mine.GetID())
+	}
+	if mine.GetName() != "Proximity Mine" {
+		t.Errorf("GetName() = %s, want Proximity Mine", mine.GetName())
+	}
+}
+
+func TestMedkit_Use(t *testing.T) {
+	tests := []struct {
+		name       string
+		medkit     *Medkit
+		userHealth float64
+		maxHealth  float64
+		wantHealth float64
+		wantErr    bool
+	}{
+		{
+			name:       "fixed amount healing",
+			medkit:     &Medkit{ID: "medkit", Name: "Medkit", HealAmount: 25.0},
+			userHealth: 50.0,
+			maxHealth:  100.0,
+			wantHealth: 75.0,
+			wantErr:    false,
+		},
+		{
+			name:       "percentage healing",
+			medkit:     &Medkit{ID: "medkit", Name: "Medkit", PercentHeal: 0.5},
+			userHealth: 50.0,
+			maxHealth:  100.0,
+			wantHealth: 100.0,
+			wantErr:    false,
+		},
+		{
+			name:       "healing capped at max health",
+			medkit:     &Medkit{ID: "medkit", Name: "Medkit", HealAmount: 100.0},
+			userHealth: 80.0,
+			maxHealth:  100.0,
+			wantHealth: 100.0,
+			wantErr:    false,
+		},
+		{
+			name:       "nil user returns error",
+			medkit:     &Medkit{ID: "medkit", Name: "Medkit", HealAmount: 25.0},
+			userHealth: 0,
+			maxHealth:  0,
+			wantHealth: 0,
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var user *Entity
+			if !tt.wantErr {
+				user = &Entity{Health: tt.userHealth, MaxHealth: tt.maxHealth}
+			}
+
+			err := tt.medkit.Use(user)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("Medkit.Use() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			if !tt.wantErr && user.Health != tt.wantHealth {
+				t.Errorf("After Use(), health = %f, want %f", user.Health, tt.wantHealth)
+			}
+		})
+	}
+
+	medkit := &Medkit{ID: "medkit", Name: "Medkit", HealAmount: 25.0}
+	if medkit.GetID() != "medkit" {
+		t.Errorf("GetID() = %s, want medkit", medkit.GetID())
+	}
+	if medkit.GetName() != "Medkit" {
+		t.Errorf("GetName() = %s, want Medkit", medkit.GetName())
+	}
+}
+
+// QuickSlot tests
+
+func TestNewQuickSlot(t *testing.T) {
+	qs := NewQuickSlot()
+	if qs == nil {
+		t.Fatal("NewQuickSlot returned nil")
+	}
+	if !qs.IsEmpty() {
+		t.Error("New quick slot should be empty")
+	}
+}
+
+func TestQuickSlot_SetAndGet(t *testing.T) {
+	qs := NewQuickSlot()
+	grenade := &Grenade{ID: "grenade", Name: "Frag Grenade"}
+
+	qs.Set(grenade)
+
+	if qs.IsEmpty() {
+		t.Error("Quick slot should not be empty after Set")
+	}
+
+	item := qs.Get()
+	if item == nil {
+		t.Fatal("Get() returned nil")
+	}
+	if item.GetID() != "grenade" {
+		t.Errorf("Get().GetID() = %s, want grenade", item.GetID())
+	}
+}
+
+func TestQuickSlot_Clear(t *testing.T) {
+	qs := NewQuickSlot()
+	grenade := &Grenade{ID: "grenade", Name: "Frag Grenade"}
+
+	qs.Set(grenade)
+	if qs.IsEmpty() {
+		t.Error("Quick slot should not be empty after Set")
+	}
+
+	qs.Clear()
+	if !qs.IsEmpty() {
+		t.Error("Quick slot should be empty after Clear")
+	}
+	if qs.Get() != nil {
+		t.Error("Get() should return nil after Clear")
+	}
+}
+
+// Inventory + QuickSlot integration tests
+
+func TestInventory_SetAndGetQuickSlot(t *testing.T) {
+	inv := NewInventory()
+	if inv.QuickSlot == nil {
+		t.Fatal("Inventory should have QuickSlot initialized")
+	}
+
+	grenade := &Grenade{ID: "grenade", Name: "Frag Grenade"}
+	inv.SetQuickSlot(grenade)
+
+	item := inv.GetQuickSlot()
+	if item == nil {
+		t.Fatal("GetQuickSlot() returned nil")
+	}
+	if item.GetID() != "grenade" {
+		t.Errorf("GetQuickSlot().GetID() = %s, want grenade", item.GetID())
+	}
+}
+
+func TestInventory_UseQuickSlot(t *testing.T) {
+	tests := []struct {
+		name           string
+		setupItems     []Item
+		setupQuickSlot ActiveItem
+		wantErr        bool
+		wantHealth     float64
+		wantItemQty    int
+	}{
+		{
+			name:           "use medkit from quick slot",
+			setupItems:     []Item{{ID: "medkit", Name: "Medkit", Qty: 2}},
+			setupQuickSlot: &Medkit{ID: "medkit", Name: "Medkit", HealAmount: 25.0},
+			wantErr:        false,
+			wantHealth:     75.0,
+			wantItemQty:    1,
+		},
+		{
+			name:           "use last medkit removes from inventory",
+			setupItems:     []Item{{ID: "medkit", Name: "Medkit", Qty: 1}},
+			setupQuickSlot: &Medkit{ID: "medkit", Name: "Medkit", HealAmount: 25.0},
+			wantErr:        false,
+			wantHealth:     75.0,
+			wantItemQty:    0,
+		},
+		{
+			name:           "use grenade from quick slot",
+			setupItems:     []Item{{ID: "grenade", Name: "Grenade", Qty: 3}},
+			setupQuickSlot: &Grenade{ID: "grenade", Name: "Grenade", Damage: 50.0},
+			wantErr:        false,
+			wantHealth:     50.0,
+			wantItemQty:    2,
+		},
+		{
+			name:           "empty quick slot returns error",
+			setupItems:     []Item{{ID: "medkit", Name: "Medkit", Qty: 1}},
+			setupQuickSlot: nil,
+			wantErr:        true,
+			wantHealth:     50.0,
+			wantItemQty:    1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inv := NewInventory()
+			for _, item := range tt.setupItems {
+				inv.Add(item)
+			}
+			if tt.setupQuickSlot != nil {
+				inv.SetQuickSlot(tt.setupQuickSlot)
+			}
+
+			user := &Entity{Health: 50.0, MaxHealth: 100.0}
+			err := inv.UseQuickSlot(user)
+
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("UseQuickSlot() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			if user.Health != tt.wantHealth {
+				t.Errorf("After UseQuickSlot(), health = %f, want %f", user.Health, tt.wantHealth)
+			}
+
+			if len(tt.setupItems) > 0 {
+				itemID := tt.setupItems[0].ID
+				if tt.wantItemQty == 0 {
+					if inv.Has(itemID) {
+						t.Errorf("Item %s should be removed from inventory", itemID)
+					}
+				} else {
+					item := inv.Get(itemID)
+					if item == nil {
+						t.Fatal("Item should still be in inventory")
+					}
+					if item.Qty != tt.wantItemQty {
+						t.Errorf("Item quantity = %d, want %d", item.Qty, tt.wantItemQty)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestInventory_UseQuickSlot_ItemNotInInventory(t *testing.T) {
+	inv := NewInventory()
+	// Add grenade to quick slot but not to inventory
+	grenade := &Grenade{ID: "grenade", Name: "Grenade", Damage: 50.0}
+	inv.SetQuickSlot(grenade)
+
+	user := &Entity{Health: 50.0, MaxHealth: 100.0}
+	err := inv.UseQuickSlot(user)
+	if err == nil {
+		t.Fatal("UseQuickSlot() should fail when item not in inventory")
+	}
+
+	// Quick slot should be cleared
+	if !inv.QuickSlot.IsEmpty() {
+		t.Error("Quick slot should be cleared when item not in inventory")
+	}
+}
+
+func TestInventory_UseQuickSlot_ClearsWhenDepleted(t *testing.T) {
+	inv := NewInventory()
+	inv.Add(Item{ID: "medkit", Name: "Medkit", Qty: 1})
+	medkit := &Medkit{ID: "medkit", Name: "Medkit", HealAmount: 25.0}
+	inv.SetQuickSlot(medkit)
+
+	user := &Entity{Health: 50.0, MaxHealth: 100.0}
+	err := inv.UseQuickSlot(user)
+	if err != nil {
+		t.Fatalf("UseQuickSlot() failed: %v", err)
+	}
+
+	// Item should be depleted and quick slot cleared
+	if inv.Has("medkit") {
+		t.Error("Medkit should be removed from inventory")
+	}
+	if !inv.QuickSlot.IsEmpty() {
+		t.Error("Quick slot should be cleared when item is depleted")
+	}
+}
+
+func TestInventory_ConcurrentAccess(t *testing.T) {
+	inv := NewInventory()
+	inv.Add(Item{ID: "medkit", Name: "Medkit", Qty: 100})
+
+	// Test concurrent reads and writes don't cause data races
+	done := make(chan bool)
+
+	// Reader goroutine
+	go func() {
+		for i := 0; i < 100; i++ {
+			inv.Has("medkit")
+			inv.Get("medkit")
+			inv.Count()
+		}
+		done <- true
+	}()
+
+	// Writer goroutine
+	go func() {
+		for i := 0; i < 100; i++ {
+			inv.Add(Item{ID: "ammo", Name: "Ammo", Qty: 1})
+			inv.Consume("ammo", 1)
+		}
+		done <- true
+	}()
+
+	<-done
+	<-done
+}
