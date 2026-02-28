@@ -1,6 +1,10 @@
 package loot
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/opd-ai/violence/pkg/rng"
+)
 
 func TestNewLootTable(t *testing.T) {
 	lt := NewLootTable()
@@ -166,5 +170,222 @@ func TestLootTableModification(t *testing.T) {
 	}
 	if lt.Drops[1].ItemID != "item2" {
 		t.Error("Second drop should be item2")
+	}
+}
+
+func TestNewSecretLootTable(t *testing.T) {
+	r := rng.NewRNG(12345)
+	slt := NewSecretLootTable(r)
+
+	if slt == nil {
+		t.Fatal("NewSecretLootTable returned nil")
+	}
+	if len(slt.Uncommon) == 0 {
+		t.Error("Uncommon items should be initialized")
+	}
+	if len(slt.Rare) == 0 {
+		t.Error("Rare items should be initialized")
+	}
+	if len(slt.Legendary) == 0 {
+		t.Error("Legendary items should be initialized")
+	}
+	if slt.rng == nil {
+		t.Error("RNG should be set")
+	}
+}
+
+func TestGenerateSecretReward_Deterministic(t *testing.T) {
+	r := rng.NewRNG(12345)
+	slt := NewSecretLootTable(r)
+
+	// Same seed should produce same result
+	item1, rarity1 := slt.GenerateSecretReward(999)
+	item2, rarity2 := slt.GenerateSecretReward(999)
+
+	if item1 != item2 {
+		t.Errorf("Same seed produced different items: %s vs %s", item1, item2)
+	}
+	if rarity1 != rarity2 {
+		t.Errorf("Same seed produced different rarities: %d vs %d", rarity1, rarity2)
+	}
+}
+
+func TestGenerateSecretReward_DifferentSeeds(t *testing.T) {
+	r := rng.NewRNG(12345)
+	slt := NewSecretLootTable(r)
+
+	// Different seeds should (usually) produce different results
+	results := make(map[string]int)
+	for seed := uint64(0); seed < 100; seed++ {
+		item, _ := slt.GenerateSecretReward(seed)
+		results[item]++
+	}
+
+	// Should have multiple different items across 100 rolls
+	if len(results) < 3 {
+		t.Errorf("Expected variety in rewards, got only %d unique items in 100 rolls", len(results))
+	}
+}
+
+func TestGenerateSecretReward_RarityDistribution(t *testing.T) {
+	r := rng.NewRNG(12345)
+	slt := NewSecretLootTable(r)
+
+	uncommonCount := 0
+	rareCount := 0
+	legendaryCount := 0
+	trials := 1000
+
+	for seed := uint64(0); seed < uint64(trials); seed++ {
+		_, rarity := slt.GenerateSecretReward(seed)
+		switch rarity {
+		case RarityUncommon:
+			uncommonCount++
+		case RarityRare:
+			rareCount++
+		case RarityLegendary:
+			legendaryCount++
+		}
+	}
+
+	// Check approximate distribution (30% uncommon, 50% rare, 20% legendary)
+	// Allow 10% margin of error
+	uncommonPercent := float64(uncommonCount) / float64(trials) * 100
+	rarePercent := float64(rareCount) / float64(trials) * 100
+	legendaryPercent := float64(legendaryCount) / float64(trials) * 100
+
+	if uncommonPercent < 20 || uncommonPercent > 40 {
+		t.Errorf("Uncommon rate = %.1f%%, want ~30%%", uncommonPercent)
+	}
+	if rarePercent < 40 || rarePercent > 60 {
+		t.Errorf("Rare rate = %.1f%%, want ~50%%", rarePercent)
+	}
+	if legendaryPercent < 10 || legendaryPercent > 30 {
+		t.Errorf("Legendary rate = %.1f%%, want ~20%%", legendaryPercent)
+	}
+}
+
+func TestGenerateSecretReward_EmptyTables(t *testing.T) {
+	r := rng.NewRNG(12345)
+	slt := &SecretLootTable{
+		Uncommon:  []string{},
+		Rare:      []string{},
+		Legendary: []string{},
+		rng:       r,
+	}
+
+	// Should return fallback items instead of panicking
+	item, rarity := slt.GenerateSecretReward(123)
+	if item == "" {
+		t.Error("Empty tables should return fallback item, not empty string")
+	}
+	if rarity == RarityCommon {
+		// Fallback for uncommon tier
+		if item != "ammo_bullets" {
+			t.Errorf("Fallback uncommon item = %s, want ammo_bullets", item)
+		}
+	}
+}
+
+func TestAddItem(t *testing.T) {
+	r := rng.NewRNG(12345)
+	slt := NewSecretLootTable(r)
+
+	initialUncommon := len(slt.Uncommon)
+	initialRare := len(slt.Rare)
+	initialLegendary := len(slt.Legendary)
+
+	slt.AddItem("custom_uncommon", RarityUncommon)
+	slt.AddItem("custom_rare", RarityRare)
+	slt.AddItem("custom_legendary", RarityLegendary)
+
+	if len(slt.Uncommon) != initialUncommon+1 {
+		t.Errorf("Uncommon count = %d, want %d", len(slt.Uncommon), initialUncommon+1)
+	}
+	if len(slt.Rare) != initialRare+1 {
+		t.Errorf("Rare count = %d, want %d", len(slt.Rare), initialRare+1)
+	}
+	if len(slt.Legendary) != initialLegendary+1 {
+		t.Errorf("Legendary count = %d, want %d", len(slt.Legendary), initialLegendary+1)
+	}
+
+	// Verify items were added
+	found := false
+	for _, item := range slt.Uncommon {
+		if item == "custom_uncommon" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("custom_uncommon not found in Uncommon list")
+	}
+}
+
+func TestAddItem_CommonRarity(t *testing.T) {
+	r := rng.NewRNG(12345)
+	slt := NewSecretLootTable(r)
+
+	initialUncommon := len(slt.Uncommon)
+	initialRare := len(slt.Rare)
+	initialLegendary := len(slt.Legendary)
+
+	// Adding common rarity should not add to any list
+	slt.AddItem("common_item", RarityCommon)
+
+	if len(slt.Uncommon) != initialUncommon {
+		t.Error("Common item should not be added to Uncommon list")
+	}
+	if len(slt.Rare) != initialRare {
+		t.Error("Common item should not be added to Rare list")
+	}
+	if len(slt.Legendary) != initialLegendary {
+		t.Error("Common item should not be added to Legendary list")
+	}
+}
+
+func TestRarityConstants(t *testing.T) {
+	// Verify rarity constants are distinct
+	rarities := map[Rarity]bool{
+		RarityCommon:    true,
+		RarityUncommon:  true,
+		RarityRare:      true,
+		RarityLegendary: true,
+	}
+
+	if len(rarities) != 4 {
+		t.Error("Rarity constants should be distinct")
+	}
+}
+
+func TestGenerateSecretReward_AllTiers(t *testing.T) {
+	r := rng.NewRNG(12345)
+	slt := NewSecretLootTable(r)
+
+	foundUncommon := false
+	foundRare := false
+	foundLegendary := false
+
+	// Generate enough rewards to hit all tiers
+	for seed := uint64(0); seed < 100; seed++ {
+		_, rarity := slt.GenerateSecretReward(seed)
+		switch rarity {
+		case RarityUncommon:
+			foundUncommon = true
+		case RarityRare:
+			foundRare = true
+		case RarityLegendary:
+			foundLegendary = true
+		}
+	}
+
+	if !foundUncommon {
+		t.Error("Should generate at least one uncommon item in 100 rolls")
+	}
+	if !foundRare {
+		t.Error("Should generate at least one rare item in 100 rolls")
+	}
+	if !foundLegendary {
+		t.Error("Should generate at least one legendary item in 100 rolls")
 	}
 }

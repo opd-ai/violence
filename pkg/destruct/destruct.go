@@ -153,3 +153,234 @@ func (d *Destructible) GetDropItems() []string {
 
 // SetGenre configures destructible types for a genre.
 func SetGenre(genreID string) {}
+
+// BreakableWall represents a wall that can be destroyed to reveal a passage.
+type BreakableWall struct {
+	ID           string
+	X, Y         float64
+	Health       float64
+	MaxHealth    float64
+	Destroyed    bool
+	RevealsPath  bool
+	PathX, PathY int
+	mu           sync.RWMutex
+}
+
+// NewBreakableWall creates a new breakable wall.
+func NewBreakableWall(id string, x, y, health float64, revealsPath bool) *BreakableWall {
+	return &BreakableWall{
+		ID:          id,
+		X:           x,
+		Y:           y,
+		Health:      health,
+		MaxHealth:   health,
+		Destroyed:   false,
+		RevealsPath: revealsPath,
+	}
+}
+
+// Damage applies damage to the wall.
+func (w *BreakableWall) Damage(amount float64) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if w.Destroyed {
+		return false
+	}
+
+	w.Health -= amount
+	if w.Health <= 0 {
+		w.Health = 0
+		w.Destroyed = true
+		return true
+	}
+	return false
+}
+
+// IsDestroyed returns whether the wall is destroyed.
+func (w *BreakableWall) IsDestroyed() bool {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	return w.Destroyed
+}
+
+// GetHealth returns current health.
+func (w *BreakableWall) GetHealth() float64 {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	return w.Health
+}
+
+// SetRevealedPath sets the tile coordinates revealed when destroyed.
+func (w *BreakableWall) SetRevealedPath(x, y int) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.PathX = x
+	w.PathY = y
+	w.RevealsPath = true
+}
+
+// GetRevealedPath returns the revealed path coordinates.
+func (w *BreakableWall) GetRevealedPath() (int, int, bool) {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	return w.PathX, w.PathY, w.RevealsPath
+}
+
+// DestructibleObject represents objects like barrels and crates with explosion chains.
+type DestructibleObject struct {
+	Destructible
+	Explosive      bool
+	ExplosionRange float64
+	ChainReaction  bool
+}
+
+// NewDestructibleObject creates a new destructible object.
+func NewDestructibleObject(id, objType string, health, x, y float64, explosive bool) *DestructibleObject {
+	return &DestructibleObject{
+		Destructible: Destructible{
+			ID:        id,
+			Health:    health,
+			MaxHealth: health,
+			Destroyed: false,
+			X:         x,
+			Y:         y,
+			Type:      objType,
+			DropItems: make([]string, 0),
+		},
+		Explosive:      explosive,
+		ExplosionRange: 3.0,
+		ChainReaction:  explosive,
+	}
+}
+
+// GetExplosionTargets returns objects within explosion range.
+func (o *DestructibleObject) GetExplosionTargets(allObjects []*DestructibleObject) []*DestructibleObject {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+
+	if !o.Explosive || !o.Destroyed {
+		return nil
+	}
+
+	targets := make([]*DestructibleObject, 0)
+	for _, other := range allObjects {
+		if other.ID == o.ID || other.IsDestroyed() {
+			continue
+		}
+
+		dx := other.X - o.X
+		dy := other.Y - o.Y
+		dist := dx*dx + dy*dy // squared distance
+
+		if dist <= o.ExplosionRange*o.ExplosionRange {
+			targets = append(targets, other)
+		}
+	}
+
+	return targets
+}
+
+// Debris represents temporary debris from destroyed objects.
+type Debris struct {
+	ID            string
+	X, Y          float64
+	Material      string
+	BlocksPath    bool
+	TimeRemaining float64
+	MaxTime       float64
+	mu            sync.RWMutex
+}
+
+// NewDebris creates a new debris object.
+func NewDebris(id string, x, y float64, material string, blocksPath bool, duration float64) *Debris {
+	return &Debris{
+		ID:            id,
+		X:             x,
+		Y:             y,
+		Material:      material,
+		BlocksPath:    blocksPath,
+		TimeRemaining: duration,
+		MaxTime:       duration,
+	}
+}
+
+// Update advances debris timer; returns true when cleared.
+func (d *Debris) Update(deltaTime float64) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	d.TimeRemaining -= deltaTime
+	return d.TimeRemaining <= 0
+}
+
+// IsCleared returns whether debris has been cleared.
+func (d *Debris) IsCleared() bool {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.TimeRemaining <= 0
+}
+
+// GetProgress returns clear progress (0.0 = just created, 1.0 = cleared).
+func (d *Debris) GetProgress() float64 {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	if d.MaxTime <= 0 {
+		return 1.0
+	}
+	return 1.0 - (d.TimeRemaining / d.MaxTime)
+}
+
+// GetDebrisMaterial returns genre-specific debris material name.
+func GetDebrisMaterial(genre, objectType string) string {
+	materials := map[string]map[string]string{
+		"fantasy": {
+			"wall":    "stone rubble",
+			"barrel":  "wooden splinters",
+			"crate":   "wooden fragments",
+			"door":    "splintered wood",
+			"default": "debris",
+		},
+		"scifi": {
+			"wall":    "hull shards",
+			"barrel":  "metal fragments",
+			"crate":   "alloy pieces",
+			"door":    "broken plating",
+			"default": "wreckage",
+		},
+		"horror": {
+			"wall":    "crumbling plaster",
+			"barrel":  "rotted wood",
+			"crate":   "decayed boards",
+			"door":    "splintered planks",
+			"default": "remains",
+		},
+		"cyberpunk": {
+			"wall":    "shattered glass",
+			"barrel":  "polymer shards",
+			"crate":   "synthetic fragments",
+			"door":    "broken circuits",
+			"default": "scrap",
+		},
+		"postapoc": {
+			"wall":    "concrete chunks",
+			"barrel":  "rusted metal",
+			"crate":   "salvaged parts",
+			"door":    "warped metal",
+			"default": "rubble",
+		},
+	}
+
+	genreMaterials, ok := materials[genre]
+	if !ok {
+		genreMaterials = materials["fantasy"]
+	}
+
+	material, ok := genreMaterials[objectType]
+	if !ok {
+		material = genreMaterials["default"]
+	}
+
+	return material
+}

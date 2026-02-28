@@ -182,7 +182,7 @@ func TestTracker_SetGenre(t *testing.T) {
 
 func TestTracker_ObjectiveTypes(t *testing.T) {
 	tracker := NewTracker()
-	tracker.Generate(555, 50) // Generate many to hit all types
+	tracker.Generate(555, 70) // Generate many to hit all types
 	types := make(map[ObjectiveType]bool)
 	for _, obj := range tracker.Objectives {
 		types[obj.Type] = true
@@ -208,9 +208,210 @@ func TestTracker_ObjectiveTypes(t *testing.T) {
 			if obj.Target != "time" || obj.Count < 60 || obj.Count >= 180 {
 				t.Errorf("ObjSurvive has wrong target/count")
 			}
+		case ObjRetrieveItem:
+			if obj.Target != "retrieve" || obj.Count != 1 {
+				t.Errorf("ObjRetrieveItem has wrong target/count")
+			}
+		case ObjRescueHostage:
+			if obj.Target != "hostage" || obj.Count < 1 || obj.Count >= 4 {
+				t.Errorf("ObjRescueHostage has wrong target/count: %d", obj.Count)
+			}
 		}
 	}
-	if len(types) < 5 {
-		t.Errorf("expected all 5 objective types represented, got %d", len(types))
+	if len(types) < 7 {
+		t.Errorf("expected all 7 objective types represented, got %d", len(types))
+	}
+}
+
+func TestTracker_GenerateWithLayout(t *testing.T) {
+	layout := LevelLayout{
+		Width:       100,
+		Height:      100,
+		ExitPos:     &Position{X: 90, Y: 90},
+		SecretCount: 5,
+		Rooms:       []Room{{X: 10, Y: 10, Width: 20, Height: 20}},
+	}
+	tracker := NewTracker()
+	tracker.GenerateWithLayout(12345, layout)
+
+	// Should have at least 4 objectives (1 main + 3 bonus)
+	if len(tracker.Objectives) < 4 {
+		t.Errorf("expected at least 4 objectives, got %d", len(tracker.Objectives))
+	}
+
+	// First objective should be main exit objective
+	if tracker.Objectives[0].Type != ObjFindExit {
+		t.Errorf("first objective should be FindExit, got %v", tracker.Objectives[0].Type)
+	}
+	if tracker.Objectives[0].Category != CategoryMain {
+		t.Error("first objective should be main category")
+	}
+	if tracker.Objectives[0].PosX != 90 || tracker.Objectives[0].PosY != 90 {
+		t.Errorf("exit position not set correctly: got (%f, %f)", tracker.Objectives[0].PosX, tracker.Objectives[0].PosY)
+	}
+
+	// Should have bonus objectives
+	bonusCount := 0
+	for _, obj := range tracker.Objectives {
+		if obj.Category == CategoryBonus {
+			bonusCount++
+		}
+	}
+	if bonusCount != 3 {
+		t.Errorf("expected 3 bonus objectives, got %d", bonusCount)
+	}
+}
+
+func TestTracker_GetMainObjectives(t *testing.T) {
+	tracker := NewTracker()
+	tracker.Add(Objective{ID: "main1", Category: CategoryMain})
+	tracker.Add(Objective{ID: "bonus1", Category: CategoryBonus})
+	tracker.Add(Objective{ID: "main2", Category: CategoryMain})
+
+	main := tracker.GetMainObjectives()
+	if len(main) != 2 {
+		t.Errorf("expected 2 main objectives, got %d", len(main))
+	}
+	for _, obj := range main {
+		if obj.Category != CategoryMain {
+			t.Error("GetMainObjectives returned non-main objective")
+		}
+	}
+}
+
+func TestTracker_GetBonusObjectives(t *testing.T) {
+	tracker := NewTracker()
+	tracker.Add(Objective{ID: "main1", Category: CategoryMain})
+	tracker.Add(Objective{ID: "bonus1", Category: CategoryBonus})
+	tracker.Add(Objective{ID: "bonus2", Category: CategoryBonus, Complete: true})
+
+	bonus := tracker.GetBonusObjectives()
+	if len(bonus) != 1 {
+		t.Errorf("expected 1 active bonus objective, got %d", len(bonus))
+	}
+	for _, obj := range bonus {
+		if obj.Category != CategoryBonus {
+			t.Error("GetBonusObjectives returned non-bonus objective")
+		}
+		if obj.Complete {
+			t.Error("GetBonusObjectives returned completed objective")
+		}
+	}
+}
+
+func TestTracker_BonusObjectiveTypes(t *testing.T) {
+	layout := LevelLayout{
+		Width:       50,
+		Height:      50,
+		ExitPos:     &Position{X: 40, Y: 40},
+		SecretCount: 10,
+	}
+	tracker := NewTracker()
+	tracker.GenerateWithLayout(999, layout)
+
+	bonus := tracker.GetBonusObjectives()
+
+	// Should have 3 bonus types: secrets, kills, speedrun
+	bonusTypes := make(map[string]bool)
+	for _, obj := range bonus {
+		bonusTypes[obj.ID] = true
+	}
+
+	if !bonusTypes["bonus_secrets"] {
+		t.Error("missing bonus_secrets objective")
+	}
+	if !bonusTypes["bonus_kills"] {
+		t.Error("missing bonus_kills objective")
+	}
+	if !bonusTypes["bonus_speed"] {
+		t.Error("missing bonus_speed objective")
+	}
+}
+
+func TestTracker_GenerateWithLayoutDeterministic(t *testing.T) {
+	layout := LevelLayout{
+		Width:       100,
+		Height:      100,
+		ExitPos:     &Position{X: 50, Y: 50},
+		SecretCount: 3,
+	}
+
+	t1 := NewTracker()
+	t1.GenerateWithLayout(777, layout)
+
+	t2 := NewTracker()
+	t2.GenerateWithLayout(777, layout)
+
+	if len(t1.Objectives) != len(t2.Objectives) {
+		t.Errorf("expected same count, got %d vs %d", len(t1.Objectives), len(t2.Objectives))
+	}
+
+	for i := range t1.Objectives {
+		if t1.Objectives[i].ID != t2.Objectives[i].ID {
+			t.Errorf("objective %d ID mismatch", i)
+		}
+		if t1.Objectives[i].Desc != t2.Objectives[i].Desc {
+			t.Errorf("objective %d desc mismatch", i)
+		}
+		if t1.Objectives[i].Count != t2.Objectives[i].Count {
+			t.Errorf("objective %d count mismatch", i)
+		}
+	}
+}
+
+func TestObjectiveCategory(t *testing.T) {
+	tests := []struct {
+		category ObjectiveCategory
+		name     string
+	}{
+		{CategoryMain, "main"},
+		{CategoryBonus, "bonus"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			obj := Objective{Category: tt.category}
+			if obj.Category != tt.category {
+				t.Errorf("expected category %v, got %v", tt.category, obj.Category)
+			}
+		})
+	}
+}
+
+func TestTracker_UpdateProgressBonusObjective(t *testing.T) {
+	tracker := NewTracker()
+	tracker.Add(Objective{ID: "bonus_kills", Category: CategoryBonus, Count: 50})
+
+	tracker.UpdateProgress("bonus_kills", 25)
+	if tracker.Objectives[0].Progress != 25 {
+		t.Errorf("expected progress 25, got %d", tracker.Objectives[0].Progress)
+	}
+
+	tracker.UpdateProgress("bonus_kills", 25)
+	if !tracker.Objectives[0].Complete {
+		t.Error("bonus objective should be complete")
+	}
+}
+
+func TestLevelLayout(t *testing.T) {
+	layout := LevelLayout{
+		Width:       200,
+		Height:      150,
+		ExitPos:     &Position{X: 100, Y: 75},
+		SecretCount: 8,
+		Rooms: []Room{
+			{X: 10, Y: 10, Width: 30, Height: 20},
+			{X: 50, Y: 50, Width: 40, Height: 30},
+		},
+	}
+
+	if layout.Width != 200 {
+		t.Errorf("expected width 200, got %d", layout.Width)
+	}
+	if layout.ExitPos.X != 100 {
+		t.Errorf("expected exit X 100, got %f", layout.ExitPos.X)
+	}
+	if len(layout.Rooms) != 2 {
+		t.Errorf("expected 2 rooms, got %d", len(layout.Rooms))
 	}
 }

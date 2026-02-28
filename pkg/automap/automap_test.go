@@ -37,6 +37,12 @@ func TestNewMap(t *testing.T) {
 					t.Errorf("Revealed width at row %d: expected %d, got %d", y, tt.width, len(m.Revealed[y]))
 				}
 			}
+			if m.Annotations == nil {
+				t.Fatal("Annotations array not initialized")
+			}
+			if len(m.Annotations) != 0 {
+				t.Errorf("Annotations should be initially empty, got %d", len(m.Annotations))
+			}
 		})
 	}
 }
@@ -246,5 +252,116 @@ func TestMapDimensions(t *testing.T) {
 			// Test boundary
 			m.Reveal(tt.width, tt.height) // Should not panic (out of bounds)
 		})
+	}
+}
+
+func TestAddAnnotation(t *testing.T) {
+	m := NewMap(10, 10)
+
+	// Add secret annotation
+	m.AddAnnotation(5, 5, AnnotationSecret)
+	if len(m.Annotations) != 1 {
+		t.Errorf("Expected 1 annotation, got %d", len(m.Annotations))
+	}
+
+	ann := m.Annotations[0]
+	if ann.X != 5 || ann.Y != 5 {
+		t.Errorf("Annotation position = (%d, %d), want (5, 5)", ann.X, ann.Y)
+	}
+	if ann.Type != AnnotationSecret {
+		t.Errorf("Annotation type = %d, want %d (AnnotationSecret)", ann.Type, AnnotationSecret)
+	}
+}
+
+func TestAddMultipleAnnotations(t *testing.T) {
+	m := NewMap(10, 10)
+
+	m.AddAnnotation(1, 1, AnnotationSecret)
+	m.AddAnnotation(2, 2, AnnotationObjective)
+	m.AddAnnotation(3, 3, AnnotationItem)
+
+	if len(m.Annotations) != 3 {
+		t.Errorf("Expected 3 annotations, got %d", len(m.Annotations))
+	}
+
+	expectedTypes := []AnnotationType{AnnotationSecret, AnnotationObjective, AnnotationItem}
+	for i, ann := range m.Annotations {
+		if ann.Type != expectedTypes[i] {
+			t.Errorf("Annotation %d type = %d, want %d", i, ann.Type, expectedTypes[i])
+		}
+	}
+}
+
+func TestAddAnnotationDuplicate(t *testing.T) {
+	m := NewMap(10, 10)
+
+	// Add same annotation twice
+	m.AddAnnotation(5, 5, AnnotationSecret)
+	m.AddAnnotation(5, 5, AnnotationSecret)
+
+	if len(m.Annotations) != 1 {
+		t.Errorf("Duplicate annotation should not be added, got %d annotations", len(m.Annotations))
+	}
+}
+
+func TestGetAnnotationsAt(t *testing.T) {
+	m := NewMap(10, 10)
+
+	m.AddAnnotation(5, 5, AnnotationSecret)
+	m.AddAnnotation(3, 3, AnnotationObjective)
+
+	// Get annotation at (5, 5)
+	anns := m.GetAnnotationsAt(5, 5)
+	if len(anns) != 1 {
+		t.Errorf("Expected 1 annotation at (5, 5), got %d", len(anns))
+	}
+	if len(anns) > 0 && anns[0].Type != AnnotationSecret {
+		t.Errorf("Annotation type = %d, want %d", anns[0].Type, AnnotationSecret)
+	}
+
+	// Get annotation at empty position
+	anns = m.GetAnnotationsAt(7, 7)
+	if len(anns) != 0 {
+		t.Errorf("Expected 0 annotations at (7, 7), got %d", len(anns))
+	}
+}
+
+func TestGetAnnotationsAtMultiple(t *testing.T) {
+	m := NewMap(10, 10)
+
+	// Note: AddAnnotation prevents duplicates at same position,
+	// so this tests the query function with single annotation
+	m.AddAnnotation(5, 5, AnnotationSecret)
+
+	anns := m.GetAnnotationsAt(5, 5)
+	if len(anns) != 1 {
+		t.Errorf("Expected 1 annotation at (5, 5), got %d", len(anns))
+	}
+}
+
+func TestAnnotationTypes(t *testing.T) {
+	m := NewMap(10, 10)
+
+	types := []AnnotationType{
+		AnnotationNone,
+		AnnotationSecret,
+		AnnotationObjective,
+		AnnotationItem,
+	}
+
+	for i, annType := range types {
+		m.AddAnnotation(i, i, annType)
+	}
+
+	// Verify all types stored correctly
+	for i, annType := range types {
+		anns := m.GetAnnotationsAt(i, i)
+		if len(anns) != 1 {
+			t.Errorf("Expected 1 annotation at (%d, %d), got %d", i, i, len(anns))
+			continue
+		}
+		if anns[0].Type != annType {
+			t.Errorf("Annotation at (%d, %d) type = %d, want %d", i, i, anns[0].Type, annType)
+		}
 	}
 }

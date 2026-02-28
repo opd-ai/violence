@@ -320,7 +320,7 @@ func actionStrafe(agent *Agent, ctx *Context) NodeStatus {
 func actionChase(agent *Agent, ctx *Context) NodeStatus {
 	agent.State = StateChase
 	// Use A* pathfinding to navigate toward player
-	path := findPath(agent.X, agent.Y, ctx.PlayerX, ctx.PlayerY, ctx.TileMap)
+	path := FindPath(agent.X, agent.Y, ctx.PlayerX, ctx.PlayerY, ctx.TileMap)
 	if len(path) > 1 {
 		agent.TargetX = path[1].X
 		agent.TargetY = path[1].Y
@@ -446,8 +446,8 @@ func (n *pathNode) f() float64 {
 	return n.g + n.h
 }
 
-// findPath uses A* to find a path from start to goal.
-func findPath(x1, y1, x2, y2 float64, tileMap [][]int) []Waypoint {
+// FindPath uses A* to find a path from start to goal.
+func FindPath(x1, y1, x2, y2 float64, tileMap [][]int) []Waypoint {
 	if tileMap == nil || len(tileMap) == 0 || len(tileMap[0]) == 0 {
 		return []Waypoint{{X: x1, Y: y1}}
 	}

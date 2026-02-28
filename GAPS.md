@@ -119,3 +119,22 @@
 - **Gap**: `ReverbCalculator` accepts width/height but no integration exists to extract room dimensions from BSP level data.
 - **Impact**: Reverb parameters are static; rooms of different sizes all have identical reverb.
 - **Resolution needed**: Implement `SetRoomFromBSP(room *bsp.Room)` that extracts bounds and calls `SetRoomSize()`.
+
+---
+
+## v4.0 — Gameplay Expansion: Secrets, Upgrades, Squad AI, Storytelling
+
+### Squad AI Formation Algorithm
+- **Gap**: Squad companion AI requires formation positioning (line, wedge, column) but no algorithm is defined for calculating member offsets from leader position.
+- **Impact**: Squad members will cluster at identical positions without formation logic.
+- **Resolution needed**: Define formation shapes as offset arrays relative to leader facing direction; implement `GetFormationOffset(memberIndex, formationType, leaderDir)`.
+
+### Procedural Text Generation Grammar
+- **Gap**: Lore generation requires template grammar to produce coherent narrative text, but no grammar rules or word banks are defined.
+- **Impact**: Generated lore text may be repetitive, incoherent, or lacking genre-appropriate vocabulary.
+- **Resolution needed**: Design Markov chain or template-based grammar with genre-specific word banks; define sentence structure templates for notes, logs, and graffiti.
+
+### Credit Economy Balance
+- **Gap**: Initial credit values (kill=10, secret=50, objective=100) are placeholder estimates without playtesting validation.
+- **Impact**: Progression curve may feel too fast or too slow; shop items may be trivially affordable or unreachable.
+- **Resolution needed**: Playtest economy across multiple runs; adjust credit rewards and item prices to achieve ~3 shop purchases per level average.

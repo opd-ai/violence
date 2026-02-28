@@ -156,9 +156,9 @@ func TestFindPath(t *testing.T) {
 		{1, 0, 0, 0, 1},
 		{1, 1, 1, 1, 1},
 	}
-	path := findPath(1.5, 1.5, 3.5, 3.5, tileMap)
+	path := FindPath(1.5, 1.5, 3.5, 3.5, tileMap)
 	if len(path) < 2 {
-		t.Errorf("findPath should return path with at least 2 waypoints")
+		t.Errorf("FindPath should return path with at least 2 waypoints")
 	}
 	// Check first waypoint is near start
 	if math.Abs(path[0].X-1.5) > 1 || math.Abs(path[0].Y-1.5) > 1 {
@@ -179,7 +179,7 @@ func TestFindPath_Blocked(t *testing.T) {
 		{1, 0, 1, 0, 1},
 		{1, 1, 1, 1, 1},
 	}
-	path := findPath(1.5, 1.5, 3.5, 1.5, tileMap)
+	path := FindPath(1.5, 1.5, 3.5, 1.5, tileMap)
 	// Should return direct line if no path found
 	if len(path) != 2 {
 		t.Errorf("Blocked path should return direct line with 2 waypoints, got %d", len(path))
@@ -187,9 +187,9 @@ func TestFindPath_Blocked(t *testing.T) {
 }
 
 func TestFindPath_NilMap(t *testing.T) {
-	path := findPath(1, 1, 2, 2, nil)
+	path := FindPath(1, 1, 2, 2, nil)
 	if len(path) != 1 {
-		t.Errorf("findPath with nil map should return start waypoint")
+		t.Errorf("FindPath with nil map should return start waypoint")
 	}
 }
 
@@ -607,6 +607,6 @@ func BenchmarkFindPath(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		findPath(1, 1, 28, 28, tileMap)
+		FindPath(1, 1, 28, 28, tileMap)
 	}
 }

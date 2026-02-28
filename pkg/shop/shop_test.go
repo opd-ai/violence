@@ -278,3 +278,277 @@ func TestShop_DefaultGenre(t *testing.T) {
 		t.Error("unknown genre should default to fantasy items")
 	}
 }
+
+func TestCredit_NewCredit(t *testing.T) {
+	c := NewCredit(500)
+	if c == nil {
+		t.Fatal("NewCredit returned nil")
+	}
+	if c.Get() != 500 {
+		t.Errorf("expected 500 credits, got %d", c.Get())
+	}
+}
+
+func TestCredit_Add(t *testing.T) {
+	c := NewCredit(100)
+	c.Add(50)
+	if c.Get() != 150 {
+		t.Errorf("expected 150 credits, got %d", c.Get())
+	}
+	c.Add(200)
+	if c.Get() != 350 {
+		t.Errorf("expected 350 credits, got %d", c.Get())
+	}
+}
+
+func TestCredit_Deduct(t *testing.T) {
+	c := NewCredit(100)
+	success := c.Deduct(50)
+	if !success {
+		t.Error("Deduct should succeed with sufficient balance")
+	}
+	if c.Get() != 50 {
+		t.Errorf("expected 50 credits, got %d", c.Get())
+	}
+}
+
+func TestCredit_DeductInsufficient(t *testing.T) {
+	c := NewCredit(50)
+	success := c.Deduct(100)
+	if success {
+		t.Error("Deduct should fail with insufficient balance")
+	}
+	if c.Get() != 50 {
+		t.Errorf("balance should remain 50, got %d", c.Get())
+	}
+}
+
+func TestCredit_Set(t *testing.T) {
+	c := NewCredit(100)
+	c.Set(250)
+	if c.Get() != 250 {
+		t.Errorf("expected 250 credits, got %d", c.Get())
+	}
+}
+
+func TestShopInventory_GetAllItems(t *testing.T) {
+	inv := ShopInventory{
+		Weapons:  []Item{{ID: "weapon1"}},
+		Ammo:     []Item{{ID: "ammo1"}, {ID: "ammo2"}},
+		Upgrades: []Item{{ID: "upgrade1"}},
+	}
+	all := inv.GetAllItems()
+	if len(all) != 4 {
+		t.Errorf("expected 4 items, got %d", len(all))
+	}
+}
+
+func TestShopInventory_FindItem(t *testing.T) {
+	inv := ShopInventory{
+		Weapons: []Item{{ID: "weapon1", Name: "Sword"}},
+		Ammo:    []Item{{ID: "ammo1", Name: "Arrows"}},
+	}
+	item := inv.FindItem("ammo1")
+	if item == nil {
+		t.Fatal("FindItem returned nil for valid ID")
+	}
+	if item.Name != "Arrows" {
+		t.Errorf("expected Arrows, got %s", item.Name)
+	}
+}
+
+func TestShopInventory_FindItemNotFound(t *testing.T) {
+	inv := ShopInventory{}
+	item := inv.FindItem("missing")
+	if item != nil {
+		t.Error("FindItem should return nil for missing item")
+	}
+}
+
+func TestShop_Purchase(t *testing.T) {
+	shop := NewArmory("fantasy")
+	credits := NewCredit(1000)
+
+	success := shop.Purchase("ammo_arrows", credits)
+	if !success {
+		t.Error("Purchase should succeed with sufficient credits")
+	}
+	if credits.Get() != 950 {
+		t.Errorf("expected 950 credits remaining, got %d", credits.Get())
+	}
+}
+
+func TestShop_PurchaseInsufficient(t *testing.T) {
+	shop := NewArmory("scifi")
+	credits := NewCredit(25)
+
+	success := shop.Purchase("ammo_bullets", credits)
+	if success {
+		t.Error("Purchase should fail with insufficient credits")
+	}
+	if credits.Get() != 25 {
+		t.Errorf("credits should remain 25, got %d", credits.Get())
+	}
+}
+
+func TestShop_PurchaseOutOfStock(t *testing.T) {
+	shop := NewShop([]Item{
+		{ID: "rare", Name: "Rare", Price: 50, Stock: 0},
+	})
+	credits := NewCredit(100)
+
+	success := shop.Purchase("rare", credits)
+	if success {
+		t.Error("Purchase should fail when out of stock")
+	}
+}
+
+func TestShop_PurchaseItemNotFound(t *testing.T) {
+	shop := NewArmory("horror")
+	credits := NewCredit(500)
+
+	success := shop.Purchase("missing_item", credits)
+	if success {
+		t.Error("Purchase should fail for non-existent item")
+	}
+	if credits.Get() != 500 {
+		t.Error("credits should not change on failed purchase")
+	}
+}
+
+func TestShop_PurchaseNilCredits(t *testing.T) {
+	shop := NewArmory("cyberpunk")
+	success := shop.Purchase("ammo_bullets", nil)
+	if success {
+		t.Error("Purchase should fail with nil credits")
+	}
+}
+
+func TestShop_GetShopName(t *testing.T) {
+	tests := []struct {
+		genre string
+		name  string
+	}{
+		{"fantasy", "Merchant Tent"},
+		{"scifi", "Supply Depot"},
+		{"horror", "Black Market"},
+		{"cyberpunk", "Corpo Shop"},
+		{"postapoc", "Scrap Trader"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.genre, func(t *testing.T) {
+			shop := NewArmory(tt.genre)
+			name := shop.GetShopName()
+			if name != tt.name {
+				t.Errorf("expected %s, got %s", tt.name, name)
+			}
+		})
+	}
+}
+
+func TestShop_InventoryCategories(t *testing.T) {
+	shop := NewArmory("scifi")
+
+	if len(shop.Inventory.Weapons) == 0 {
+		t.Error("shop should have weapons")
+	}
+	if len(shop.Inventory.Ammo) == 0 {
+		t.Error("shop should have ammo")
+	}
+	if len(shop.Inventory.Upgrades) == 0 {
+		t.Error("shop should have upgrades")
+	}
+	if len(shop.Inventory.Consumables) == 0 {
+		t.Error("shop should have consumables")
+	}
+	if len(shop.Inventory.Armor) == 0 {
+		t.Error("shop should have armor")
+	}
+}
+
+func TestShop_ItemTypes(t *testing.T) {
+	shop := NewArmory("fantasy")
+
+	// Check that items have correct types
+	weaponFound := false
+	upgradeFound := false
+
+	for _, item := range shop.Inventory.Weapons {
+		if item.Type == ItemTypeWeapon {
+			weaponFound = true
+		}
+	}
+	for _, item := range shop.Inventory.Upgrades {
+		if item.Type == ItemTypeUpgrade {
+			upgradeFound = true
+		}
+	}
+
+	if !weaponFound {
+		t.Error("weapons should have ItemTypeWeapon type")
+	}
+	if !upgradeFound {
+		t.Error("upgrades should have ItemTypeUpgrade type")
+	}
+}
+
+func TestShop_PurchaseStockDecrement(t *testing.T) {
+	shop := NewArmory("postapoc")
+	credits := NewCredit(5000)
+
+	// Find a limited stock item
+	initialStock := 0
+	var itemID string
+	for _, item := range shop.Inventory.Armor {
+		if item.Stock > 0 {
+			initialStock = item.Stock
+			itemID = item.ID
+			break
+		}
+	}
+
+	if itemID == "" {
+		t.Skip("no limited stock items found")
+	}
+
+	// Purchase the item
+	shop.Purchase(itemID, credits)
+
+	// Check stock decremented
+	item := shop.Inventory.FindItem(itemID)
+	if item.Stock != initialStock-1 {
+		t.Errorf("expected stock %d, got %d", initialStock-1, item.Stock)
+	}
+}
+
+func TestCredit_ConcurrentAccess(t *testing.T) {
+	c := NewCredit(1000)
+	done := make(chan bool)
+
+	// Concurrent adds
+	for i := 0; i < 10; i++ {
+		go func() {
+			c.Add(10)
+			done <- true
+		}()
+	}
+
+	// Concurrent deducts
+	for i := 0; i < 5; i++ {
+		go func() {
+			c.Deduct(10)
+			done <- true
+		}()
+	}
+
+	// Wait for all goroutines
+	for i := 0; i < 15; i++ {
+		<-done
+	}
+
+	// Final balance should be 1000 + (10*10) - (5*10) = 1050
+	if c.Get() != 1050 {
+		t.Errorf("expected 1050 credits after concurrent ops, got %d", c.Get())
+	}
+}
