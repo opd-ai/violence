@@ -19,11 +19,13 @@ import (
 	"github.com/opd-ai/violence/pkg/destruct"
 	"github.com/opd-ai/violence/pkg/door"
 	"github.com/opd-ai/violence/pkg/engine"
+	"github.com/opd-ai/violence/pkg/event"
 	"github.com/opd-ai/violence/pkg/input"
 	"github.com/opd-ai/violence/pkg/lighting"
 	"github.com/opd-ai/violence/pkg/loot"
 	"github.com/opd-ai/violence/pkg/particle"
 	"github.com/opd-ai/violence/pkg/progression"
+	"github.com/opd-ai/violence/pkg/quest"
 	"github.com/opd-ai/violence/pkg/raycaster"
 	"github.com/opd-ai/violence/pkg/render"
 	"github.com/opd-ai/violence/pkg/rng"
@@ -90,6 +92,11 @@ type Game struct {
 	// v4.0 systems
 	destructibleSystem *destruct.System
 	squadCompanions    *squad.Squad
+	questTracker       *quest.Tracker
+	alarmTrigger       *event.AlarmTrigger
+	lockdownTrigger    *event.TimedLockdown
+	bossArena          *event.BossArenaEvent
+	levelStartTime     time.Time
 }
 
 // NewGame creates and initializes a new game instance.
@@ -143,6 +150,7 @@ func NewGame() *Game {
 		// v4.0 systems
 		destructibleSystem: destruct.NewSystem(),
 		squadCompanions:    squad.NewSquad(3), // Max 3 squad members
+		questTracker:       quest.NewTracker(),
 	}
 
 	// Initialize BSP generator
@@ -314,6 +322,36 @@ func (g *Game) startNewGame() {
 	g.squadCompanions.AddMember("companion_1", "grunt", "assault_rifle", g.camera.X-2, g.camera.Y+1, g.seed)
 	g.squadCompanions.AddMember("companion_2", "medic", "pistol", g.camera.X-2, g.camera.Y-1, g.seed)
 
+	// Initialize quest tracker with level objectives
+	g.questTracker = quest.NewTracker()
+	g.questTracker.SetGenre(g.genreID)
+	layout := quest.LevelLayout{
+		Width:       len(tiles[0]),
+		Height:      len(tiles),
+		ExitPos:     &quest.Position{X: 60, Y: 60}, // TODO: get actual exit position from BSP
+		SecretCount: 5,                             // TODO: get actual secret count from BSP
+		Rooms:       []quest.Room{},                // TODO: populate from BSP rooms
+	}
+	g.questTracker.GenerateWithLayout(g.seed, layout)
+
+	// Initialize event triggers
+	g.alarmTrigger = event.NewAlarmTrigger("alarm_1", 30.0)         // 30 second alarm
+	g.lockdownTrigger = event.NewTimedLockdown("lockdown_1", 180.0) // 3 minute escape timer
+	// Find a room for boss arena (use center of map for now)
+	centerX := len(tiles[0]) / 2
+	centerY := len(tiles) / 2
+	g.bossArena = event.NewBossArenaEvent("boss_1", "center_room", 3, 5.0) // 3 waves, 5 sec between
+	// Trigger boss arena when player enters center region
+	if int(g.camera.X) == centerX && int(g.camera.Y) == centerY {
+		g.bossArena.Trigger()
+	}
+
+	// Set event genre
+	event.SetGenre(g.genreID)
+
+	// Track level start time for speedrun objectives
+	g.levelStartTime = time.Now()
+
 	// Play music
 	g.audioEngine.PlayMusic("theme", 0.5)
 
@@ -357,6 +395,14 @@ func (g *Game) setGenre(genreID string) {
 	if g.particleSystem != nil && len(g.currentMap) > 0 && len(g.currentMap[0]) > 0 {
 		g.weatherEmitter = particle.NewWeatherEmitter(g.particleSystem, genreID, 0, 0, float64(len(g.currentMap[0])), float64(len(g.currentMap)))
 	}
+
+	// v4.0 systems
+	destruct.SetGenre(genreID)
+	squad.SetGenre(genreID)
+	if g.questTracker != nil {
+		g.questTracker.SetGenre(genreID)
+	}
+	event.SetGenre(genreID)
 
 	// Generate genre-specific textures
 	g.textureAtlas.GenerateWallSet(genreID)
@@ -491,6 +537,10 @@ func (g *Game) updatePlaying() error {
 								if agent.Health <= 0 {
 									// Enemy died - award XP
 									g.progression.AddXP(50)
+									// Update kill count objective
+									if g.questTracker != nil {
+										g.questTracker.UpdateProgress("bonus_kills", 1)
+									}
 									// TODO: spawn loot drops
 								}
 							}
@@ -595,12 +645,65 @@ func (g *Game) updatePlaying() error {
 		g.squadCompanions.Update(g.camera.X, g.camera.Y, g.currentMap, g.camera.X, g.camera.Y, g.seed)
 	}
 
+	// Update event triggers
+	deltaTime := 1.0 / 60.0 // Assuming 60 TPS
+	if g.alarmTrigger != nil && g.alarmTrigger.IsActive() {
+		g.alarmTrigger.Update(deltaTime)
+		// During alarm, all enemies are on alert (TODO: implement alert state)
+	}
+	if g.lockdownTrigger != nil && g.lockdownTrigger.IsActive() {
+		g.lockdownTrigger.Update(deltaTime)
+		// Update speedrun objective with remaining time
+		if g.questTracker != nil {
+			remainingTime := g.lockdownTrigger.GetRemaining()
+			// Check if player is out of time
+			if g.lockdownTrigger.IsExpired() {
+				// TODO: handle lockdown failure (restart level or game over)
+				g.hud.ShowMessage("Lockdown complete - you are trapped!")
+			} else if remainingTime < 10 {
+				g.hud.ShowMessage("WARNING: 10 seconds remaining!")
+			}
+		}
+	}
+
+	// Check boss arena trigger
+	if g.bossArena != nil && !g.bossArena.IsTriggered() {
+		// Check if player entered boss arena region (simplified)
+		centerX := float64(len(g.currentMap[0]) / 2)
+		centerY := float64(len(g.currentMap) / 2)
+		distToCenterSq := (g.camera.X-centerX)*(g.camera.X-centerX) + (g.camera.Y-centerY)*(g.camera.Y-centerY)
+		if distToCenterSq < 25 { // Within 5 units of center
+			g.bossArena.Trigger()
+			// Generate and play event audio sting (parameters available for future procedural audio)
+			_ = event.GenerateEventAudioSting(g.seed, event.EventBossArena)
+			g.audioEngine.PlaySFX("boss_encounter", g.camera.X, g.camera.Y)
+			// Show event text
+			eventText := event.GenerateEventText(g.seed, event.EventBossArena)
+			g.hud.ShowMessage(eventText)
+			// TODO: spawn boss waves
+		}
+	}
+
+	// Update quest objectives
+	if g.questTracker != nil {
+		// Update speedrun timer
+		elapsedTime := time.Since(g.levelStartTime).Seconds()
+		for i := range g.questTracker.Objectives {
+			obj := &g.questTracker.Objectives[i]
+			if obj.ID == "bonus_speed" && !obj.Complete {
+				if elapsedTime > float64(obj.Count) {
+					// Failed speed run objective
+					obj.Complete = false // Already false, but explicit
+				}
+			}
+		}
+	}
+
 	// Progression updates happen automatically
 	// TODO: Add Level and XP to HUD display
 
 	// Update v3.0 systems (Step 28: Wire to game loop)
 	// Update particles (assuming 60 TPS = 1/60 second per frame)
-	deltaTime := 1.0 / 60.0
 	if g.particleSystem != nil {
 		g.particleSystem.Update(deltaTime)
 	}
@@ -898,6 +1001,11 @@ func (g *Game) drawPlaying(screen *ebiten.Image) {
 	g.hud.Update()
 	ui.DrawHUD(screen, g.hud)
 
+	// Render quest objectives (top-right corner)
+	if g.questTracker != nil {
+		g.drawQuestObjectives(screen)
+	}
+
 	// Render tutorial prompts
 	if g.tutorialSystem.Active {
 		ui.DrawTutorial(screen, g.tutorialSystem.Current)
@@ -983,6 +1091,45 @@ func (g *Game) drawAutomap(screen *ebiten.Image) {
 
 	dirLen := scale * 3
 	vector.StrokeLine(screen, playerX, playerY, playerX+float32(g.camera.DirX)*dirLen, playerY+float32(g.camera.DirY)*dirLen, 1, color.RGBA{255, 255, 0, 255}, false)
+}
+
+// drawQuestObjectives renders quest objectives on screen.
+func (g *Game) drawQuestObjectives(screen *ebiten.Image) {
+	if g.questTracker == nil {
+		return
+	}
+
+	// Get active objectives
+	mainObjs := g.questTracker.GetMainObjectives()
+	bonusObjs := g.questTracker.GetBonusObjectives()
+
+	// Position at top-right corner
+	bounds := screen.Bounds()
+	w := float32(bounds.Dx())
+	startX := w - 250
+	startY := float32(10)
+
+	// Draw background
+	bgHeight := float32(20 + (len(mainObjs)+len(bonusObjs))*15)
+	vector.DrawFilledRect(screen, startX, startY, 240, bgHeight, color.RGBA{0, 0, 0, 150}, false)
+	vector.StrokeRect(screen, startX, startY, 240, bgHeight, 1, color.RGBA{100, 100, 100, 200}, false)
+
+	// Note: We can't render text without adding a text rendering system
+	// For now, this creates the UI box where objectives would be displayed
+	// A full implementation would use ebitenutil.DebugPrintAt or a proper text renderer
+
+	// Draw placeholder indicator for each objective (colored dots)
+	y := startY + 10
+	for range mainObjs {
+		objColor := color.RGBA{255, 200, 50, 255} // Yellow for main objectives
+		vector.DrawFilledCircle(screen, startX+10, y, 3, objColor, false)
+		y += 15
+	}
+	for range bonusObjs {
+		objColor := color.RGBA{100, 150, 255, 255} // Blue for bonus objectives
+		vector.DrawFilledCircle(screen, startX+10, y, 3, objColor, false)
+		y += 15
+	}
 }
 
 // drawPaused renders the paused game state.

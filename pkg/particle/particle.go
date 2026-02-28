@@ -22,11 +22,12 @@ type Particle struct {
 
 // ParticleSystem manages a pool of particles with spawn/update/cull lifecycle.
 type ParticleSystem struct {
-	particles []Particle
-	poolSize  int
-	nextIndex int
-	rng       *rand.Rand
-	genreID   string
+	particles     []Particle
+	poolSize      int
+	nextIndex     int
+	rng           *rand.Rand
+	genreID       string
+	activeIndices []int // Indices of active particles for efficient iteration
 
 	// Spatial culling bounds
 	minX, maxX float64
@@ -40,13 +41,14 @@ func NewParticleSystem(poolSize int, seed int64) *ParticleSystem {
 	}
 
 	return &ParticleSystem{
-		particles: make([]Particle, poolSize),
-		poolSize:  poolSize,
-		rng:       rand.New(rand.NewSource(seed)),
-		minX:      -1000,
-		maxX:      1000,
-		minY:      -1000,
-		maxY:      1000,
+		particles:     make([]Particle, poolSize),
+		poolSize:      poolSize,
+		activeIndices: make([]int, 0, poolSize),
+		rng:           rand.New(rand.NewSource(seed)),
+		minX:          -1000,
+		maxX:          1000,
+		minY:          -1000,
+		maxY:          1000,
 	}
 }
 
@@ -68,7 +70,8 @@ func (ps *ParticleSystem) Spawn(x, y, z, vx, vy, vz, life, size float64, c color
 	// Find next available particle in pool
 	startIndex := ps.nextIndex
 	for {
-		p := &ps.particles[ps.nextIndex]
+		particleIndex := ps.nextIndex
+		p := &ps.particles[particleIndex]
 		ps.nextIndex = (ps.nextIndex + 1) % ps.poolSize
 
 		if !p.Active {
@@ -87,6 +90,8 @@ func (ps *ParticleSystem) Spawn(x, y, z, vx, vy, vz, life, size float64, c color
 			p.A = c.A
 			p.Size = size
 			p.Active = true
+			// Add to active indices list
+			ps.activeIndices = append(ps.activeIndices, particleIndex)
 			return p
 		}
 
@@ -113,11 +118,11 @@ func (ps *ParticleSystem) SpawnBurst(x, y, z float64, count int, speed, spread, 
 
 // Update advances all active particles by deltaTime seconds.
 func (ps *ParticleSystem) Update(deltaTime float64) {
-	for i := range ps.particles {
-		p := &ps.particles[i]
-		if !p.Active {
-			continue
-		}
+	// Iterate only over active particles and remove deactivated ones
+	writeIdx := 0
+	for readIdx := 0; readIdx < len(ps.activeIndices); readIdx++ {
+		particleIndex := ps.activeIndices[readIdx]
+		p := &ps.particles[particleIndex]
 
 		// Update position
 		p.X += p.VX * deltaTime
@@ -140,7 +145,13 @@ func (ps *ParticleSystem) Update(deltaTime float64) {
 		// Fade alpha based on remaining life
 		lifeFraction := p.Life / p.MaxLife
 		p.A = uint8(float64(color.RGBA{p.R, p.G, p.B, 255}.A) * lifeFraction)
+
+		// Keep this particle in active list
+		ps.activeIndices[writeIdx] = particleIndex
+		writeIdx++
 	}
+	// Trim activeIndices to only include still-active particles
+	ps.activeIndices = ps.activeIndices[:writeIdx]
 }
 
 // GetActiveParticles returns a slice of all currently active particles.
@@ -171,6 +182,7 @@ func (ps *ParticleSystem) Clear() {
 		ps.particles[i].Active = false
 	}
 	ps.nextIndex = 0
+	ps.activeIndices = ps.activeIndices[:0]
 }
 
 // Emitter spawns and manages particles.

@@ -394,3 +394,80 @@ func BenchmarkParticleSystemSpawnBurst(b *testing.B) {
 		}
 	}
 }
+
+// TestActiveIndicesTracking verifies that active indices are correctly maintained
+func TestActiveIndicesTracking(t *testing.T) {
+	ps := NewParticleSystem(10, 12345)
+	c := color.RGBA{R: 255, G: 255, B: 255, A: 255}
+
+	// Initially no active particles
+	if len(ps.activeIndices) != 0 {
+		t.Errorf("initial activeIndices length = %d, want 0", len(ps.activeIndices))
+	}
+
+	// Spawn 3 particles
+	ps.Spawn(0, 0, 0, 0, 0, 0, 1, 1, c)
+	ps.Spawn(1, 1, 0, 0, 0, 0, 1, 1, c)
+	ps.Spawn(2, 2, 0, 0, 0, 0, 1, 1, c)
+
+	if len(ps.activeIndices) != 3 {
+		t.Errorf("activeIndices length = %d, want 3", len(ps.activeIndices))
+	}
+
+	// Verify all tracked indices point to active particles
+	for _, idx := range ps.activeIndices {
+		if !ps.particles[idx].Active {
+			t.Errorf("activeIndices[%d] points to inactive particle", idx)
+		}
+	}
+
+	// Expire particles via update
+	ps.Update(2.0)
+
+	if len(ps.activeIndices) != 0 {
+		t.Errorf("activeIndices length after expiration = %d, want 0", len(ps.activeIndices))
+	}
+
+	// Spawn new particles and verify tracking works again
+	ps.Spawn(3, 3, 0, 0, 0, 0, 1, 1, c)
+
+	if len(ps.activeIndices) != 1 {
+		t.Errorf("activeIndices length after respawn = %d, want 1", len(ps.activeIndices))
+	}
+}
+
+// TestUpdateOnlyProcessesActiveParticles verifies performance optimization
+func TestUpdateOnlyProcessesActiveParticles(t *testing.T) {
+	// Large pool with few active particles
+	ps := NewParticleSystem(1024, 12345)
+	c := color.RGBA{R: 255, G: 255, B: 255, A: 255}
+
+	// Spawn only 10 particles in a pool of 1024
+	for i := 0; i < 10; i++ {
+		ps.Spawn(float64(i), float64(i), 0, 1, 1, 0, 10.0, 1.0, c)
+	}
+
+	// activeIndices should only have 10 entries
+	if len(ps.activeIndices) != 10 {
+		t.Errorf("activeIndices length = %d, want 10", len(ps.activeIndices))
+	}
+
+	// Update should only iterate over 10 particles, not 1024
+	ps.Update(0.016)
+
+	// All 10 should still be active
+	if len(ps.activeIndices) != 10 {
+		t.Errorf("activeIndices length after update = %d, want 10", len(ps.activeIndices))
+	}
+
+	// Verify only tracked particles are active
+	activeCount := 0
+	for i := range ps.particles {
+		if ps.particles[i].Active {
+			activeCount++
+		}
+	}
+	if activeCount != len(ps.activeIndices) {
+		t.Errorf("actual active count = %d, tracked count = %d", activeCount, len(ps.activeIndices))
+	}
+}
