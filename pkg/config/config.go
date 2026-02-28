@@ -93,6 +93,8 @@ func Save() error {
 
 // Watch starts watching the config file for changes and calls the callback on reload.
 // Returns a stop function to cancel watching.
+// NOTE: viper does not provide a mechanism to stop file watching once started.
+// The returned stop function is a no-op for API compatibility.
 func Watch(callback ReloadCallback) (stop func(), err error) {
 	viper.WatchConfig()
 
@@ -110,6 +112,7 @@ func Watch(callback ReloadCallback) (stop func(), err error) {
 		}
 	})
 
+	// viper provides no stop mechanism; return no-op for API compatibility
 	return func() {}, nil
 }
 

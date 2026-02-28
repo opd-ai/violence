@@ -1080,3 +1080,87 @@ func BenchmarkRaycaster_ApplyFog(b *testing.B) {
 		r.ApplyFog(baseColor, 10.0)
 	}
 }
+
+func TestRaycaster_CastRay_NilMap(t *testing.T) {
+	r := NewRaycaster(66.0, 320, 200)
+	// Map is nil by default
+
+	hit := r.castRay(5.0, 5.0, 1.0, 0.0)
+
+	// Should return safe default instead of panicking
+	if hit.Distance < 1e10 {
+		t.Errorf("Distance = %v, expected very large value for nil map", hit.Distance)
+	}
+	if hit.WallType != 1 {
+		t.Errorf("WallType = %v, expected 1 for nil map boundary", hit.WallType)
+	}
+}
+
+func TestRaycaster_CastRay_EmptyMap(t *testing.T) {
+	r := NewRaycaster(66.0, 320, 200)
+	r.SetMap([][]int{})
+
+	hit := r.castRay(5.0, 5.0, 1.0, 0.0)
+
+	// Should return safe default instead of panicking
+	if hit.Distance < 1e10 {
+		t.Errorf("Distance = %v, expected very large value for empty map", hit.Distance)
+	}
+	if hit.WallType != 1 {
+		t.Errorf("WallType = %v, expected 1 for empty map boundary", hit.WallType)
+	}
+}
+
+func TestRaycaster_CastRay_EmptyRow(t *testing.T) {
+	r := NewRaycaster(66.0, 320, 200)
+	r.SetMap([][]int{{}})
+
+	hit := r.castRay(5.0, 5.0, 1.0, 0.0)
+
+	// Should return safe default instead of panicking
+	if hit.Distance < 1e10 {
+		t.Errorf("Distance = %v, expected very large value for map with empty row", hit.Distance)
+	}
+	if hit.WallType != 1 {
+		t.Errorf("WallType = %v, expected 1 for empty row boundary", hit.WallType)
+	}
+}
+
+func TestRaycaster_CastFloorCeiling_HorizonLine(t *testing.T) {
+	r := NewRaycaster(66.0, 320, 200)
+
+	// Test row exactly at horizon (height/2 = 100)
+	horizonRow := r.Height / 2
+	pixels := r.CastFloorCeiling(horizonRow, 5.0, 5.0, 1.0, 0.0, 0.0)
+
+	if len(pixels) != r.Width {
+		t.Errorf("len(pixels) = %d, want %d", len(pixels), r.Width)
+	}
+
+	// All pixels at horizon should have infinite distance
+	for i, px := range pixels {
+		if px.Distance < 1e10 {
+			t.Errorf("Pixel %d: Distance = %v, expected very large value at horizon", i, px.Distance)
+		}
+		if math.IsNaN(px.WorldX) || math.IsNaN(px.WorldY) {
+			t.Errorf("Pixel %d has NaN coordinates at horizon", i)
+		}
+	}
+}
+
+func TestRaycaster_CastFloorCeiling_HorizonWithPitch(t *testing.T) {
+	r := NewRaycaster(66.0, 320, 200)
+
+	// Even with pitch, horizon line should handle division by zero
+	horizonRow := r.Height / 2
+	pixels := r.CastFloorCeiling(horizonRow, 5.0, 5.0, 1.0, 0.0, 0.5)
+
+	for i, px := range pixels {
+		if px.Distance < 1e10 {
+			t.Errorf("Pixel %d: Distance = %v, expected very large value at horizon with pitch", i, px.Distance)
+		}
+		if math.IsInf(px.Distance, 0) && math.IsNaN(px.Distance) {
+			t.Errorf("Pixel %d has invalid distance at horizon with pitch", i)
+		}
+	}
+}

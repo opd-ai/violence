@@ -151,7 +151,7 @@ func GetMessage(promptType PromptType) string {
 		PromptPickup:   "Press E to pick up items",
 		PromptDoor:     "Press E to open doors",
 		PromptAutomap:  "Press TAB to toggle the automap",
-		PromptWeapon:   "Press 1-7 to switch weapons",
+		PromptWeapon:   "Press 1-5 to switch weapons",
 	}
 	return messages[promptType]
 }

@@ -1,7 +1,11 @@
 // Package camera manages the first-person camera.
 package camera
 
-import "math"
+import (
+	"math"
+
+	"github.com/opd-ai/violence/pkg/raycaster"
+)
 
 const (
 	MaxPitch         = 30.0
@@ -66,8 +70,10 @@ func (c *Camera) Update(deltaX, deltaY, deltaDirX, deltaDirY, deltaPitch float64
 // Rotate rotates the camera direction by the given angle in radians.
 func (c *Camera) Rotate(angleRadians float64) {
 	oldDirX := c.DirX
-	c.DirX = c.DirX*math.Cos(angleRadians) - c.DirY*math.Sin(angleRadians)
-	c.DirY = oldDirX*math.Sin(angleRadians) + c.DirY*math.Cos(angleRadians)
+	sinAngle := raycaster.Sin(angleRadians)
+	cosAngle := raycaster.Cos(angleRadians)
+	c.DirX = c.DirX*cosAngle - c.DirY*sinAngle
+	c.DirY = oldDirX*sinAngle + c.DirY*cosAngle
 }
 
 // SetGenre configures camera behavior for a genre.

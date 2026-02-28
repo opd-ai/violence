@@ -381,7 +381,7 @@ func TestGetMessage(t *testing.T) {
 		{
 			name:       "weapon",
 			promptType: PromptWeapon,
-			want:       "Press 1-7 to switch weapons",
+			want:       "Press 1-5 to switch weapons",
 		},
 	}
 

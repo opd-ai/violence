@@ -138,6 +138,7 @@ func (g *Game) handleMenuAction(action string) {
 	case "difficulty_selected":
 		g.menuManager.Show(ui.MenuTypeGenre)
 	case "genre_selected":
+		// Genre was already set by MenuManager.Select() which calls SelectGenre()
 		g.genreID = g.menuManager.GetSelectedGenre()
 		g.startNewGame()
 	case "load_game":

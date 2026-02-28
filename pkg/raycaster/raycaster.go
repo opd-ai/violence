@@ -66,6 +66,11 @@ func (r *Raycaster) CastRays(posX, posY, dirX, dirY float64) []RayHit {
 
 // castRay performs DDA against the map grid for a single ray.
 func (r *Raycaster) castRay(posX, posY, rayDirX, rayDirY float64) RayHit {
+	// Check for nil or empty map before proceeding
+	if r.Map == nil || len(r.Map) == 0 || len(r.Map[0]) == 0 {
+		return RayHit{Distance: 1e30, WallType: 1, Side: 0}
+	}
+
 	// Current map cell
 	mapX := int(posX)
 	mapY := int(posY)
@@ -211,10 +216,11 @@ func (r *Raycaster) CastFloorCeiling(row int, posX, posY, dirX, dirY, pitch floa
 	// Determine if this row is floor or ceiling
 	isFloor := row > r.Height/2
 
-	// Distance from horizon (p must be non-zero)
+	// Calculate distance from horizon (required for perspective division)
 	p := row - r.Height/2
+	// Guard against division by zero at horizon line
 	if p == 0 {
-		// At horizon - return infinite distance
+		// At horizon - return infinite distance for all pixels
 		for x := 0; x < r.Width; x++ {
 			pixels[x] = FloorCeilPixel{
 				WorldX:   posX,
@@ -230,7 +236,7 @@ func (r *Raycaster) CastFloorCeiling(row int, posX, posY, dirX, dirY, pitch floa
 	cameraZ := 0.5 * float64(r.Height)
 	pitchOffset := pitch * float64(r.Height) / 2.0
 
-	// Vertical position of the row on screen
+	// Vertical position of the row on screen (safe: p != 0)
 	rowDistance := (cameraZ + pitchOffset) / float64(p)
 	if rowDistance < 0 {
 		rowDistance = -rowDistance
