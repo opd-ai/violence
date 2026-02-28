@@ -10,9 +10,9 @@
 
 This audit examined the VIOLENCE codebase against its documented functionality in README.md. The project successfully compiles, passes all existing tests, and implements the majority of documented features. However, several functional discrepancies, edge case vulnerabilities, and missing implementation details were identified.
 
-**Total Issues Found:** 15  
+**Total Issues Found:** 17  
 - **CRITICAL BUG:** 3  
-- **FUNCTIONAL MISMATCH:** 5  
+- **FUNCTIONAL MISMATCH:** 7  
 - **MISSING FEATURE:** 4  
 - **EDGE CASE BUG:** 3  
 
@@ -552,6 +552,44 @@ if len(tiles) < g.Height || len(tiles[0]) < g.Width {
 **Reproduction:**
 ~~Theoretical - would require calling UpdateProgress(2147483647) times on a 32-bit system.~~
 **FIXED:** Added comprehensive tests for large values (1 billion progress updates, 100 million single update). All tests pass.
+
+---
+
+### [ ] FUNCTIONAL MISMATCH: Window Resolution Is Too Small (2026-02-28)
+**Files:** main.go:1483, pkg/config/config.go:57-58, config.toml:1-2  
+**Severity:** Medium  
+**Status:** OPEN  
+**Description:** The default window size is set to 960×600, which is too small for a first-person shooter. At this resolution, the game viewport is cramped, UI elements are difficult to read, and the overall gameplay experience is degraded compared to industry-standard minimum resolutions.
+
+**Expected Behavior:** The default window resolution should be at least 1024×768 or 1280×768 to provide adequate screen real estate for the raycaster viewport, HUD elements, minimap, and UI overlays.
+
+**Actual Behavior:** The default window size is 960×600, configured in `config.toml` (`WindowWidth = 960`, `WindowHeight = 600`) and hardcoded as defaults in `pkg/config/config.go` (`viper.SetDefault("WindowWidth", 960)`, `viper.SetDefault("WindowHeight", 600)`). This is applied in `main.go` via `ebiten.SetWindowSize(config.C.WindowWidth, config.C.WindowHeight)`.
+
+**Impact:** 
+- Cramped gameplay viewport reduces player immersion and visibility
+- HUD and UI elements may overlap or be difficult to read at small resolution
+- Does not meet typical minimum resolution expectations for FPS games
+
+**Recommended Fix:** Update the default `WindowWidth` to 1280 and `WindowHeight` to 768 in both `config.toml` and the `viper.SetDefault()` calls in `pkg/config/config.go`.
+
+---
+
+### [ ] FUNCTIONAL MISMATCH: Window Resolution Is Fixed-Size (Not Resizable) (2026-02-28)
+**Files:** main.go:1483-1487  
+**Severity:** Medium  
+**Status:** OPEN  
+**Description:** The game window is created at a fixed size with no call to `ebiten.SetWindowResizingMode()` or the legacy `ebiten.SetWindowResizable()`, meaning the window cannot be resized by the user at runtime. Players are locked into whatever resolution is set in the config file and must edit the TOML to change it.
+
+**Expected Behavior:** The window should be resizable so that players can adjust it to their preferred size or snap it to screen edges. Ebitengine supports this via `ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)`. The `Layout()` method already returns internal resolution independently, so resizing would work correctly with Ebitengine's automatic scaling.
+
+**Actual Behavior:** In `main.go`, the window setup calls `ebiten.SetWindowSize()`, `ebiten.SetVsyncEnabled()`, `ebiten.SetFullscreen()`, and `ebiten.SetWindowTitle()`, but never calls `ebiten.SetWindowResizingMode()`. By default, Ebitengine windows are not resizable.
+
+**Impact:**
+- Users cannot resize the window without editing `config.toml` and restarting
+- Poor user experience compared to standard desktop applications and games
+- Window cannot be snapped to half-screen or adjusted for multi-monitor setups
+
+**Recommended Fix:** Add `ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)` to the window initialization in `main.go`, after the `ebiten.SetWindowSize()` call.
 
 ---
 
