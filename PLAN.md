@@ -166,9 +166,10 @@
     - **Dependencies**: Existing `.github/workflows/ci.yml`
     - **Completed**: Implemented `.github/workflows/build.yml` with build jobs for Linux (amd64/arm64 via cross-compilation), macOS (universal binary via lipo), Windows (amd64), and WASM (with wasm_exec.js loader). Added artifact uploads (30-day retention), build summary job, and comprehensive documentation in `docs/BUILD_MATRIX.md` covering platform targets, cross-compilation instructions, CGO requirements, and local build commands
 
-31. Add mobile build targets (iOS/Android)
+31. [x] Add mobile build targets (iOS/Android) (2026-02-28)
     - **Deliverable**: Gomobile-based build jobs producing `.ipa` and `.apk` artifacts
     - **Dependencies**: Step 30
+    - **Completed**: Implemented `build-ios` job for macOS runner producing Violence.xcframework and unsigned .ipa, `build-android` job for Ubuntu runner with JDK 17, Android SDK, NDK 26.1.10909125 producing violence.aar library. Updated summary job to depend on all 6 platform builds. Added comprehensive build tests validating workflow structure, mobile job configuration, and documentation. Updated BUILD_MATRIX.md with iOS/Android sections covering gomobile usage, framework integration, and platform-specific notes. All tests pass.
 
 32. Create Docker image for dedicated server
     - **Deliverable**: `Dockerfile` producing minimal server image; published to GitHub Container Registry

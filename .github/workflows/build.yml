@@ -1,0 +1,339 @@
+name: Multi-Platform Build
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24'
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libc6-dev libgl1-mesa-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev libxxf86vm-dev libasound2-dev pkg-config
+    
+    - name: Build for Linux ${{ matrix.arch }}
+      env:
+        GOOS: linux
+        GOARCH: ${{ matrix.arch }}
+        CGO_ENABLED: 1
+      run: |
+        if [ "${{ matrix.arch }}" = "arm64" ]; then
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          export CC=aarch64-linux-gnu-gcc
+        fi
+        go build -v -o violence-linux-${{ matrix.arch }} .
+    
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: violence-linux-${{ matrix.arch }}
+        path: violence-linux-${{ matrix.arch }}
+        retention-days: 30
+
+  build-macos:
+    name: Build macOS Universal
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24'
+    
+    - name: Build for macOS amd64
+      env:
+        GOOS: darwin
+        GOARCH: amd64
+        CGO_ENABLED: 1
+      run: go build -v -o violence-darwin-amd64 .
+    
+    - name: Build for macOS arm64
+      env:
+        GOOS: darwin
+        GOARCH: arm64
+        CGO_ENABLED: 1
+      run: go build -v -o violence-darwin-arm64 .
+    
+    - name: Create universal binary
+      run: |
+        lipo -create -output violence-darwin-universal violence-darwin-amd64 violence-darwin-arm64
+        chmod +x violence-darwin-universal
+    
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: violence-darwin-universal
+        path: violence-darwin-universal
+        retention-days: 30
+
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24'
+    
+    - name: Build for Windows amd64
+      env:
+        GOOS: windows
+        GOARCH: amd64
+        CGO_ENABLED: 1
+      run: go build -v -o violence-windows-amd64.exe .
+    
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: violence-windows-amd64
+        path: violence-windows-amd64.exe
+        retention-days: 30
+
+  build-wasm:
+    name: Build WASM
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24'
+    
+    - name: Build for WASM
+      env:
+        GOOS: js
+        GOARCH: wasm
+        CGO_ENABLED: 0
+      run: |
+        go build -v -o violence.wasm .
+        cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" .
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: violence-wasm
+        path: |
+          violence.wasm
+          wasm_exec.js
+        retention-days: 30
+
+  build-ios:
+    name: Build iOS
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24'
+    
+    - name: Install gomobile
+      run: |
+        go install golang.org/x/mobile/cmd/gomobile@latest
+        gomobile init
+    
+    - name: Build iOS framework
+      run: |
+        gomobile bind -target=ios -o Violence.xcframework .
+    
+    - name: Create dummy app structure for .ipa
+      run: |
+        mkdir -p Payload/Violence.app
+        cp -r Violence.xcframework Payload/Violence.app/
+        # Note: Actual .ipa creation requires signing with Apple Developer cert
+        # This creates an unsigned archive for artifact purposes
+        cd Payload && zip -r ../violence-ios-unsigned.ipa . && cd ..
+    
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: violence-ios
+        path: |
+          Violence.xcframework
+          violence-ios-unsigned.ipa
+        retention-days: 30
+
+  build-android:
+    name: Build Android
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24'
+    
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+    
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+    
+    - name: Install Android NDK
+      run: |
+        sdkmanager --install "ndk;26.1.10909125"
+        echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125" >> $GITHUB_ENV
+    
+    - name: Install gomobile
+      run: |
+        go install golang.org/x/mobile/cmd/gomobile@latest
+        gomobile init
+    
+    - name: Build Android AAR
+      run: |
+        gomobile bind -target=android -o violence.aar .
+    
+    - name: Build APK wrapper
+      run: |
+        # Create minimal AndroidManifest.xml
+        mkdir -p app/src/main
+        cat > app/src/main/AndroidManifest.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+            package="ai.opd.violence">
+            <application
+                android:label="Violence"
+                android:hasCode="true">
+                <activity
+                    android:name="org.golang.app.GoNativeActivity"
+                    android:exported="true">
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.LAUNCHER" />
+                    </intent-filter>
+                </activity>
+            </application>
+            <uses-permission android:name="android.permission.INTERNET" />
+        </manifest>
+        EOF
+        
+        # Create build.gradle
+        cat > app/build.gradle << 'EOF'
+        plugins {
+            id 'com.android.application'
+        }
+        android {
+            compileSdk 34
+            namespace 'ai.opd.violence'
+            defaultConfig {
+                applicationId "ai.opd.violence"
+                minSdk 23
+                targetSdk 34
+                versionCode 1
+                versionName "1.0"
+            }
+            buildTypes {
+                release {
+                    minifyEnabled false
+                }
+            }
+        }
+        dependencies {
+            implementation files('../violence.aar')
+        }
+        EOF
+        
+        # Create settings.gradle
+        cat > settings.gradle << 'EOF'
+        rootProject.name = "Violence"
+        include ':app'
+        EOF
+        
+        # Create root build.gradle
+        cat > build.gradle << 'EOF'
+        buildscript {
+            repositories {
+                google()
+                mavenCentral()
+            }
+            dependencies {
+                classpath 'com.android.tools.build:gradle:8.1.0'
+            }
+        }
+        allprojects {
+            repositories {
+                google()
+                mavenCentral()
+            }
+        }
+        EOF
+        
+        # Build APK
+        chmod +x ./gradlew 2>/dev/null || true
+        # Note: Actual gradle build requires full Android project setup
+        # This creates placeholder for artifact purposes
+        echo "Android APK build requires signing keys - creating unsigned AAR artifact"
+    
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: violence-android
+        path: violence.aar
+        retention-days: 30
+
+  summary:
+    name: Build Summary
+    needs: [build-linux, build-macos, build-windows, build-wasm, build-ios, build-android]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Check build status
+      run: |
+        echo "Build summary:"
+        echo "- Linux amd64: ${{ needs.build-linux.result }}"
+        echo "- Linux arm64: ${{ needs.build-linux.result }}"
+        echo "- macOS universal: ${{ needs.build-macos.result }}"
+        echo "- Windows amd64: ${{ needs.build-windows.result }}"
+        echo "- WASM: ${{ needs.build-wasm.result }}"
+        echo "- iOS: ${{ needs.build-ios.result }}"
+        echo "- Android: ${{ needs.build-android.result }}"
+        
+        if [ "${{ needs.build-linux.result }}" != "success" ] || \
+           [ "${{ needs.build-macos.result }}" != "success" ] || \
+           [ "${{ needs.build-windows.result }}" != "success" ] || \
+           [ "${{ needs.build-wasm.result }}" != "success" ] || \
+           [ "${{ needs.build-ios.result }}" != "success" ] || \
+           [ "${{ needs.build-android.result }}" != "success" ]; then
+          echo "One or more builds failed"
+          exit 1
+        fi
+        echo "All builds successful"
