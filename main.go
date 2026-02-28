@@ -26,6 +26,7 @@ import (
 	"github.com/opd-ai/violence/pkg/inventory"
 	"github.com/opd-ai/violence/pkg/lighting"
 	"github.com/opd-ai/violence/pkg/loot"
+	"github.com/opd-ai/violence/pkg/lore"
 	"github.com/opd-ai/violence/pkg/mod"
 	"github.com/opd-ai/violence/pkg/network"
 	"github.com/opd-ai/violence/pkg/particle"
@@ -59,6 +60,7 @@ const (
 	StateSkills
 	StateMods
 	StateMultiplayer
+	StateCodex
 )
 
 // Game implements ebiten.Game for the VIOLENCE raycasting FPS.
@@ -128,6 +130,10 @@ type Game struct {
 	mpSelectedMode  int         // Selected multiplayer mode
 	playerInventory *inventory.Inventory
 	propsManager    *props.Manager
+	loreCodex       *lore.Codex
+	loreGenerator   *lore.Generator
+	loreItems       []*lore.LoreItem
+	codexScrollIdx  int // Scroll position for codex UI
 }
 
 // NewGame creates and initializes a new game instance.
@@ -184,6 +190,10 @@ func NewGame() *Game {
 		questTracker:       quest.NewTracker(),
 		playerInventory:    inventory.NewInventory(),
 		propsManager:       props.NewManager(),
+		loreCodex:          lore.NewCodex(),
+		loreGenerator:      lore.NewGenerator(int64(seed)),
+		loreItems:          make([]*lore.LoreItem, 0),
+		codexScrollIdx:     0,
 	}
 
 	// Initialize BSP generator
@@ -220,6 +230,8 @@ func (g *Game) Update() error {
 		return g.updateMods()
 	case StateMultiplayer:
 		return g.updateMultiplayer()
+	case StateCodex:
+		return g.updateCodex()
 	}
 
 	return nil
@@ -296,6 +308,26 @@ func (g *Game) startNewGame() {
 	for _, room := range rooms {
 		propRoom := &props.Room{X: room.X, Y: room.Y, W: room.W, H: room.H}
 		g.propsManager.PlaceProps(propRoom, 0.2, g.seed+uint64(room.X*1000+room.Y))
+	}
+
+	// Generate and place lore items in rooms
+	g.loreItems = make([]*lore.LoreItem, 0)
+	g.loreGenerator.SetGenre(g.genreID)
+	loreItemsPerLevel := 5 + len(rooms)/3 // Scale with level size
+	if loreItemsPerLevel > len(rooms) {
+		loreItemsPerLevel = len(rooms)
+	}
+	for i := 0; i < loreItemsPerLevel && i < len(rooms); i++ {
+		room := rooms[i]
+		itemX := float64(room.X+1) + g.rng.Float64()*float64(room.W-2)
+		itemY := float64(room.Y+1) + g.rng.Float64()*float64(room.H-2)
+		itemType := lore.LoreItemType(i % 4)
+		context := g.getLoreContext(*room)
+		itemID := "lore_" + g.genreID + "_" + string(rune(i+'0'))
+		loreItem := g.loreGenerator.GenerateLoreItem(itemID, itemType, itemX, itemY, context)
+		g.loreItems = append(g.loreItems, &loreItem)
+		codexEntry := g.loreGenerator.Generate(loreItem.CodexID)
+		g.loreCodex.AddEntry(codexEntry)
 	}
 
 	// Reset player position to a safe starting location
@@ -495,6 +527,9 @@ func (g *Game) setGenre(genreID string) {
 	if g.propsManager != nil {
 		g.propsManager.SetGenre(genreID)
 	}
+	if g.loreGenerator != nil {
+		g.loreGenerator.SetGenre(genreID)
+	}
 
 	// Generate genre-specific textures
 	g.textureAtlas.GenerateWallSet(genreID)
@@ -596,13 +631,21 @@ func (g *Game) updatePlaying() error {
 		return nil
 	}
 
+	// Open lore codex
+	if g.input.IsJustPressed(input.ActionCodex) {
+		g.state = StateCodex
+		g.codexScrollIdx = 0
+		return nil
+	}
+
 	// Use quick slot item
 	if g.input.IsJustPressed(input.ActionUseItem) {
 		g.useQuickSlotItem()
 	}
 
-	// Check for door interaction
+	// Check for door interaction and lore item collection
 	if g.input.IsJustPressed(input.ActionInteract) {
+		g.tryCollectLore()
 		g.tryInteractDoor()
 	}
 
@@ -1059,6 +1102,45 @@ func (g *Game) useQuickSlotItem() {
 	// Play sound effect
 	g.audioEngine.PlaySFX("item_use", g.camera.X, g.camera.Y)
 	g.hud.ShowMessage("Used " + activeItem.GetName())
+}
+
+// tryCollectLore checks if player is near a lore item and collects it.
+func (g *Game) tryCollectLore() {
+	collectDist := 2.0
+	for _, loreItem := range g.loreItems {
+		if loreItem.Activated {
+			continue
+		}
+		dx := loreItem.PosX - g.camera.X
+		dy := loreItem.PosY - g.camera.Y
+		dist := dx*dx + dy*dy
+		if dist < collectDist*collectDist {
+			loreItem.Activated = true
+			g.loreCodex.MarkFound(loreItem.CodexID)
+			typeName := lore.GetLoreItemTypeName(loreItem.Type, g.genreID)
+			g.hud.ShowMessage("Found: " + typeName)
+			g.audioEngine.PlaySFX("lore_pickup", g.camera.X, g.camera.Y)
+			return
+		}
+	}
+}
+
+// getLoreContext determines appropriate lore context based on room properties.
+func (g *Game) getLoreContext(room bsp.Room) lore.ContextType {
+	// Simple heuristic based on room position and size
+	if room.W*room.H < 50 {
+		return lore.ContextStorage
+	}
+	if room.X < 20 && room.Y < 20 {
+		return lore.ContextQuarters
+	}
+	if room.W*room.H > 200 {
+		return lore.ContextCombat
+	}
+	if room.X > 40 || room.Y > 40 {
+		return lore.ContextEscape
+	}
+	return lore.ContextGeneral
 }
 
 // updatePaused handles pause menu updates.
@@ -1573,6 +1655,30 @@ func (g *Game) updateMultiplayer() error {
 	return nil
 }
 
+// updateCodex handles lore codex UI updates.
+func (g *Game) updateCodex() error {
+	// Close codex
+	if g.input.IsJustPressed(input.ActionPause) || g.input.IsJustPressed(input.ActionCodex) {
+		g.state = StatePlaying
+		return nil
+	}
+
+	// Scroll through entries
+	foundEntries := g.loreCodex.GetFoundEntries()
+	if g.input.IsJustPressed(input.ActionMoveForward) {
+		if g.codexScrollIdx > 0 {
+			g.codexScrollIdx--
+		}
+	}
+	if g.input.IsJustPressed(input.ActionMoveBackward) {
+		if g.codexScrollIdx < len(foundEntries)-1 {
+			g.codexScrollIdx++
+		}
+	}
+
+	return nil
+}
+
 // handleMultiplayerSelect initializes the selected multiplayer mode.
 func (g *Game) handleMultiplayerSelect() {
 	modes := g.getMultiplayerModes()
@@ -1821,6 +1927,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		g.drawMods(screen)
 	case StateMultiplayer:
 		g.drawMultiplayer(screen)
+	case StateCodex:
+		g.drawCodex(screen)
 	}
 }
 
@@ -1843,6 +1951,11 @@ func (g *Game) drawPlaying(screen *ebiten.Image) {
 	// Render props as sprites in world space
 	if g.propsManager != nil {
 		g.renderProps(screen)
+	}
+
+	// Render lore items as sprites in world space
+	if len(g.loreItems) > 0 {
+		g.renderLoreItems(screen)
 	}
 
 	// Render particles on top of 3D world (simple sprite overlay for now)
@@ -2092,6 +2205,105 @@ func (g *Game) drawPaused(screen *ebiten.Image) {
 // drawLoading renders the loading screen.
 func (g *Game) drawLoading(screen *ebiten.Image) {
 	ui.DrawLoadingScreen(screen, g.loadingScreen)
+}
+
+// renderLoreItems draws lore items as simple sprites in world space.
+func (g *Game) renderLoreItems(screen *ebiten.Image) {
+	fov := g.camera.FOV
+	planeX := -g.camera.DirY * fov / 66.0
+	planeY := g.camera.DirX * fov / 66.0
+
+	for _, loreItem := range g.loreItems {
+		if loreItem.Activated {
+			continue
+		}
+
+		dx := loreItem.PosX - g.camera.X
+		dy := loreItem.PosY - g.camera.Y
+		dist := dx*dx + dy*dy
+		if dist > 400 {
+			continue
+		}
+
+		invDet := 1.0 / (planeX*g.camera.DirY - g.camera.DirX*planeY)
+		transformX := invDet * (g.camera.DirY*dx - g.camera.DirX*dy)
+		transformY := invDet * (-planeY*dx + planeX*dy)
+
+		if transformY <= 0.1 {
+			continue
+		}
+
+		spriteScreenX := int((float64(config.C.InternalWidth) / 2.0) * (1.0 + transformX/transformY))
+		spriteHeight := int(float64(config.C.InternalHeight) / transformY / 2)
+		spriteWidth := spriteHeight
+
+		drawStartX := spriteScreenX - spriteWidth/2
+		drawEndX := spriteScreenX + spriteWidth/2
+		drawStartY := config.C.InternalHeight/2 - spriteHeight/2
+		drawEndY := config.C.InternalHeight/2 + spriteHeight/2
+
+		if drawEndX < 0 || drawStartX >= config.C.InternalWidth {
+			continue
+		}
+		if drawStartX < 0 {
+			drawStartX = 0
+		}
+		if drawEndX >= config.C.InternalWidth {
+			drawEndX = config.C.InternalWidth - 1
+		}
+
+		// Color based on lore item type - pulsing glow effect
+		pulse := float32(0.7 + 0.3*float64(g.animationTicker%60)/60.0)
+		var loreColor color.RGBA
+		switch loreItem.Type {
+		case lore.LoreItemNote:
+			loreColor = color.RGBA{uint8(255 * pulse), uint8(255 * pulse), 200, 255}
+		case lore.LoreItemAudioLog:
+			loreColor = color.RGBA{100, uint8(200 * pulse), uint8(255 * pulse), 255}
+		case lore.LoreItemGraffiti:
+			loreColor = color.RGBA{uint8(255 * pulse), 100, 100, 255}
+		case lore.LoreItemBodyArrangement:
+			loreColor = color.RGBA{150, 150, uint8(150 * pulse), 255}
+		}
+
+		vector.DrawFilledRect(screen, float32(drawStartX), float32(drawStartY),
+			float32(drawEndX-drawStartX), float32(drawEndY-drawStartY), loreColor, false)
+	}
+}
+
+// drawCodex renders the lore codex UI overlay.
+func (g *Game) drawCodex(screen *ebiten.Image) {
+	// Draw semi-transparent background
+	bgColor := color.RGBA{0, 0, 0, 200}
+	vector.DrawFilledRect(screen, 0, 0, float32(config.C.InternalWidth), float32(config.C.InternalHeight), bgColor, false)
+
+	// Draw simple border
+	borderColor := color.RGBA{100, 100, 150, 255}
+	vector.StrokeRect(screen, 20, 20, float32(config.C.InternalWidth-40), float32(config.C.InternalHeight-40), 2, borderColor, false)
+
+	// Get found entries
+	foundEntries := g.loreCodex.GetFoundEntries()
+	if len(foundEntries) == 0 {
+		// No lore discovered - show centered message using existing HUD methods
+		g.hud.ShowMessage("No lore discovered yet. Explore to find lore items!")
+		return
+	}
+
+	// Show current entry
+	if g.codexScrollIdx >= len(foundEntries) {
+		g.codexScrollIdx = len(foundEntries) - 1
+	}
+	if g.codexScrollIdx < 0 {
+		g.codexScrollIdx = 0
+	}
+
+	entry := foundEntries[g.codexScrollIdx]
+
+	// For now, just display basic info using HUD message system
+	// Future: implement proper text rendering
+	displayText := entry.Title + " | " + entry.Category + " | Entry " +
+		string(rune(g.codexScrollIdx+1+'0')) + "/" + string(rune(len(foundEntries)+'0'))
+	g.hud.ShowMessage(displayText)
 }
 
 // Layout returns the game's internal resolution.

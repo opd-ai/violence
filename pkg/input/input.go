@@ -34,6 +34,7 @@ const (
 	ActionSkills       Action = "skills"
 	ActionMultiplayer  Action = "multiplayer"
 	ActionUseItem      Action = "use_item"
+	ActionCodex        Action = "codex"
 )
 
 // Manager tracks input state and key bindings.
@@ -85,6 +86,7 @@ func (m *Manager) setDefaultBindings() {
 	m.bindings[ActionSkills] = ebiten.KeyK
 	m.bindings[ActionMultiplayer] = ebiten.KeyN
 	m.bindings[ActionUseItem] = ebiten.KeyF
+	m.bindings[ActionCodex] = ebiten.KeyL
 
 	// Gamepad button bindings
 	m.gamepadButtons[ActionFire] = ebiten.GamepadButton0       // A/Cross
