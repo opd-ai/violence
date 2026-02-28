@@ -343,3 +343,89 @@ func TestSetGenre(t *testing.T) {
 	SetGenre("scifi")
 	SetGenre("")
 }
+
+func TestLoader_PluginIntegration(t *testing.T) {
+	t.Run("PluginManagerAccess", func(t *testing.T) {
+		loader := NewLoader()
+		pm := loader.PluginManager()
+		if pm == nil {
+			t.Fatal("PluginManager() returned nil")
+		}
+	})
+
+	t.Run("RegisterPlugin", func(t *testing.T) {
+		loader := NewLoader()
+		plugin := NewMockPlugin("TestPlugin", "1.0.0")
+
+		if err := loader.RegisterPlugin(plugin); err != nil {
+			t.Fatalf("RegisterPlugin failed: %v", err)
+		}
+
+		// Verify plugin is in plugin manager
+		plugins := loader.PluginManager().ListPlugins()
+		if len(plugins) != 1 {
+			t.Fatalf("expected 1 plugin, got %d", len(plugins))
+		}
+		if plugins[0] != "TestPlugin" {
+			t.Fatalf("wrong plugin name: got %s", plugins[0])
+		}
+	})
+
+	t.Run("UnloadPluginViaLoader", func(t *testing.T) {
+		loader := NewLoader()
+		plugin := NewMockPlugin("TestPlugin", "1.0.0")
+
+		loader.RegisterPlugin(plugin)
+
+		if err := loader.UnloadPlugin("TestPlugin"); err != nil {
+			t.Fatalf("UnloadPlugin failed: %v", err)
+		}
+
+		plugins := loader.PluginManager().ListPlugins()
+		if len(plugins) != 0 {
+			t.Fatal("plugin should be unloaded")
+		}
+	})
+
+	t.Run("PluginWithHooks", func(t *testing.T) {
+		loader := NewLoader()
+		plugin := NewMockPlugin("TestPlugin", "1.0.0")
+
+		loader.RegisterPlugin(plugin)
+
+		// Register a hook via plugin manager
+		called := false
+		loader.PluginManager().Hooks().Register(HookTypeWeaponFire, func(data interface{}) error {
+			called = true
+			return nil
+		})
+
+		// Trigger hook
+		if err := loader.PluginManager().Hooks().Trigger(HookTypeWeaponFire, nil); err != nil {
+			t.Fatalf("Trigger failed: %v", err)
+		}
+
+		if !called {
+			t.Fatal("hook was not called")
+		}
+	})
+
+	t.Run("PluginWithGenerators", func(t *testing.T) {
+		loader := NewLoader()
+		plugin := NewMockPlugin("TestPlugin", "1.0.0")
+
+		loader.RegisterPlugin(plugin)
+
+		// Register a generator via plugin manager
+		gen := NewMockGenerator("weapon")
+		if err := loader.PluginManager().Generators().Register(gen); err != nil {
+			t.Fatalf("Register generator failed: %v", err)
+		}
+
+		// Get generator
+		retrieved := loader.PluginManager().Generators().Get("weapon")
+		if retrieved == nil {
+			t.Fatal("generator not found")
+		}
+	})
+}

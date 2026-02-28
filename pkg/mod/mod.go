@@ -22,27 +22,30 @@ type Mod struct {
 
 // Loader manages loading and listing of mods.
 type Loader struct {
-	mods      []Mod
-	modsDir   string
-	mu        sync.RWMutex
-	conflicts map[string][]string // mod name -> conflicting mods
+	mods          []Mod
+	modsDir       string
+	mu            sync.RWMutex
+	conflicts     map[string][]string // mod name -> conflicting mods
+	pluginManager *PluginManager
 }
 
 // NewLoader creates a new mod loader.
 func NewLoader() *Loader {
 	return &Loader{
-		mods:      make([]Mod, 0),
-		modsDir:   "mods",
-		conflicts: make(map[string][]string),
+		mods:          make([]Mod, 0),
+		modsDir:       "mods",
+		conflicts:     make(map[string][]string),
+		pluginManager: NewPluginManager(),
 	}
 }
 
 // NewLoaderWithDir creates a mod loader with a custom directory.
 func NewLoaderWithDir(dir string) *Loader {
 	return &Loader{
-		mods:      make([]Mod, 0),
-		modsDir:   dir,
-		conflicts: make(map[string][]string),
+		mods:          make([]Mod, 0),
+		modsDir:       dir,
+		conflicts:     make(map[string][]string),
+		pluginManager: NewPluginManager(),
 	}
 }
 
@@ -185,5 +188,29 @@ func (l *Loader) GetModsDir() string {
 	return l.modsDir
 }
 
+// PluginManager returns the plugin manager for this loader.
+// This provides access to hooks and generators registered by plugins.
+func (l *Loader) PluginManager() *PluginManager {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.pluginManager
+}
+
+// RegisterPlugin registers a plugin with the loader's plugin manager.
+// The plugin is loaded immediately and its lifecycle managed by the loader.
+func (l *Loader) RegisterPlugin(p Plugin) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.pluginManager.LoadPlugin(p)
+}
+
+// UnloadPlugin unloads a plugin by name.
+func (l *Loader) UnloadPlugin(name string) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.pluginManager.UnloadPlugin(name)
+}
+
 // SetGenre configures the mod system for a genre.
+// This triggers the HookTypeGenreSet hook for all registered plugins.
 func SetGenre(genreID string) {}
