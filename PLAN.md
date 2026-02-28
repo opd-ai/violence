@@ -271,7 +271,7 @@
 - [ ] Chat messages encrypt/decrypt correctly between clients
 - [ ] Squad members see shared tag in HUD
 - [ ] Federation matchmaking places players on available servers
-- [ ] CI builds successfully on all 6 platform targets (Linux x2, macOS, Windows, WASM, mobile x2)
+- [ ] CI builds successfully on all 6 platform targets (Linux, macOS, Windows, WASM, mobile x2)
 - [ ] Docker server image runs and accepts connections
 - [ ] Release automation uploads signed artifacts for tagged commits
 - [ ] Documentation covers all multiplayer and modding features
