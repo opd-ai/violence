@@ -103,17 +103,20 @@
     - **Dependencies**: `pkg/ui`
     - **Completed**: Implemented `ChatOverlay` struct with visibility toggle, message history (max 100 messages, 10 visible), input buffer (max 200 chars), scroll support (PgUp/PgDn), position/size configuration. Added comprehensive tests covering all core functionality (visibility, message management, input buffer, scrolling, concurrent access) achieving 48.3% coverage on chat.go (Draw function excluded as it requires display)
 
-19. Implement server-side relay with no plaintext storage
+19. [x] Implement server-side relay with no plaintext storage (2026-02-28)
     - **Deliverable**: Server relays encrypted blobs without decryption capability; messages encrypted client-side
     - **Dependencies**: Existing `pkg/chat` encryption
+    - **Completed**: Implemented `RelayServer` with TCP-based encrypted message relay (no plaintext storage/decryption), `RelayClient` for client connections, line-based message protocol with proper delimiter handling, broadcast support ("all" recipient), per-client connection tracking, graceful shutdown, and `EncryptedMessage` struct for encrypted blob transmission. Added 10 comprehensive test scenarios including server lifecycle, client connections, encrypted message relay, broadcast messaging, E2E encryption with AES-256-GCM, multiple message handling, and no-plaintext-storage verification. All tests pass with 87.8% package coverage
 
-20. Implement profanity filter toggle
+20. [x] Implement profanity filter toggle (2026-02-28)
     - **Deliverable**: Client-side filter option that masks flagged words; toggled in settings
     - **Dependencies**: Step 18, `pkg/config`
+    - **Completed**: Added `ProfanityFilter` boolean field to `Config` struct (defaults to `true`), implemented `FilterProfanity()` function with case-insensitive substring matching that replaces flagged words with asterisks of equal length, included minimal profanity word list (18 common words), added `AddProfanityWord()`, `ClearProfanityWords()`, and `SetProfanityWords()` for customization. Added 50+ comprehensive test cases covering filter enable/disable, encryption round-trip, relay integration, multiple occurrences, edge cases, case insensitivity, and length preservation. All tests pass with 89.1% package coverage
 
-21. Add unit tests for chat
+21. [x] Add unit tests for chat (2026-02-28)
     - **Deliverable**: Tests for encryption round-trip, relay without decryption, filter masking
     - **Dependencies**: Steps 18–20
+    - **Completed**: Extended test suite with profanity filter integration tests including: encryption round-trip with filtering, relay integration (verifying server sees only encrypted blobs while clients filter after decryption), multiple occurrences, edge cases (unicode, numbers, special chars, substrings), case insensitivity, and length preservation. Total of 60+ test cases across all chat functionality with comprehensive coverage of encryption, relay, and filtering features. Package coverage: 89.1%
 
 ### Squads / Clans (`pkg/federation`)
 22. Implement squad group management

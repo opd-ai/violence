@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 )
 
@@ -159,3 +160,63 @@ func (c *Chat) Decrypt(ciphertext string) (string, error) {
 
 // SetGenre configures the chat system for a genre.
 func SetGenre(genreID string) {}
+
+// profanityWords contains commonly filtered words.
+// Note: This is a minimal list. Production would use localized word lists.
+var profanityWords = []string{
+	"fuck", "shit", "damn", "ass", "bitch", "bastard",
+	"crap", "piss", "cock", "dick", "pussy", "cunt",
+	"fag", "retard", "nigger", "nigga", "kike", "spic",
+}
+
+// FilterProfanity applies profanity masking to a message if enabled.
+// Flagged words are replaced with asterisks of equal length.
+func FilterProfanity(message string, filterEnabled bool) string {
+	if !filterEnabled || message == "" {
+		return message
+	}
+
+	result := message
+	lower := strings.ToLower(message)
+
+	for _, word := range profanityWords {
+		// Find all occurrences (case-insensitive)
+		for {
+			idx := strings.Index(lower, word)
+			if idx == -1 {
+				break
+			}
+
+			// Replace with asterisks, preserving original length
+			wordLen := len(word)
+			mask := strings.Repeat("*", wordLen)
+
+			// Preserve case boundaries by replacing in both strings
+			result = result[:idx] + mask + result[idx+wordLen:]
+			lower = lower[:idx] + mask + lower[idx+wordLen:]
+		}
+	}
+
+	return result
+}
+
+// AddProfanityWord adds a custom word to the profanity filter list.
+func AddProfanityWord(word string) {
+	if word == "" {
+		return
+	}
+	profanityWords = append(profanityWords, strings.ToLower(word))
+}
+
+// ClearProfanityWords clears all profanity words (useful for testing).
+func ClearProfanityWords() {
+	profanityWords = []string{}
+}
+
+// SetProfanityWords replaces the profanity word list.
+func SetProfanityWords(words []string) {
+	profanityWords = make([]string, len(words))
+	for i, word := range words {
+		profanityWords[i] = strings.ToLower(word)
+	}
+}

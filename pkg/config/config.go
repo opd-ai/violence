@@ -25,6 +25,7 @@ type Config struct {
 	FullScreen       bool           `mapstructure:"FullScreen"`
 	MaxTPS           int            `mapstructure:"MaxTPS"` // Maximum ticks per second (0 = unlimited)
 	KeyBindings      map[string]int `mapstructure:"KeyBindings"`
+	ProfanityFilter  bool           `mapstructure:"ProfanityFilter"` // Client-side profanity filter toggle
 }
 
 // C is the global configuration instance.
@@ -57,6 +58,7 @@ func Load() error {
 	viper.SetDefault("FullScreen", false)
 	viper.SetDefault("MaxTPS", 60)
 	viper.SetDefault("KeyBindings", map[string]int{})
+	viper.SetDefault("ProfanityFilter", true)
 
 	if err := viper.ReadInConfig(); err != nil {
 		var notFound viper.ConfigFileNotFoundError
@@ -87,6 +89,7 @@ func Save() error {
 	viper.Set("FullScreen", C.FullScreen)
 	viper.Set("MaxTPS", C.MaxTPS)
 	viper.Set("KeyBindings", C.KeyBindings)
+	viper.Set("ProfanityFilter", C.ProfanityFilter)
 
 	return viper.WriteConfig()
 }
