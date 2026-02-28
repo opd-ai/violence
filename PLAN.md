@@ -66,9 +66,10 @@
     - **Dependencies**: Step 10
     - **Completed**: Implemented `TeamMatch` with player management (2-16 players), two-team system (red/blue), team assignment on join, team-specific spawn points (left/right side split), `OnPlayerKill()`/`OnPlayerSuicide()` with team score tracking, `GetTeamScore()` for team statistics, leaderboard sorted by team then frags, win condition based on team frag limit or time limit, and comprehensive tests (22 test cases) achieving 96.2% package coverage
 
-12. Generate deathmatch-specific BSP maps
+12. [x] Generate deathmatch-specific BSP maps (2026-02-28)
     - **Deliverable**: Arena layout generator with symmetrical spawn pads, weapon spawn locations, sightline balancing
     - **Dependencies**: `pkg/bsp`
+    - **Completed**: Implemented `ArenaGenerator` in `pkg/bsp/deathmatch.go` with: (1) symmetrical 4-way rotational spawn pad placement, (2) strategic weapon spawn locations (power weapons at center, mid-tier on cardinal directions, basic on diagonals), (3) tactical cover points in ring pattern, (4) sightline analysis using 16-direction raycasting, (5) automatic sightline balancing to prevent overpowered spawn positions, (6) genre-specific tile selection, (7) rounded arena corners for smooth movement, and comprehensive tests (13 test cases) achieving 94.5% package coverage
 
 13. Implement kill feed and scoreboard UI
     - **Deliverable**: Real-time kill notifications; end-of-match scoreboard with K/D/A stats
