@@ -31,16 +31,42 @@
   - Comprehensive test suite with 92.8% coverage
 - **Dependencies**: Step 1 texture generation
 
-### 3. Implement Sector-Based Dynamic Lighting System
+### 3. Implement Sector-Based Dynamic Lighting System ✓
+- **Status**: Completed 2026-02-28
 - **Deliverable**: `pkg/lighting/sector.go` — SectorLightMap type with per-sector ambient levels; AddLight/RemoveLight API; Calculate() computes combined illumination per tile
+- **Implementation Summary**:
+  - Created SectorLightMap managing per-tile lighting with ambient base + point light contributions
+  - Implemented AddLight/RemoveLight/UpdateLight/Clear APIs for dynamic light source management
+  - Calculate() method with quadratic attenuation: intensity = I / (1 + distance²)
+  - Spatial bounds culling optimizes calculation to only process tiles within light radius
+  - Dirty flag prevents unnecessary recalculations when lights unchanged
+  - Comprehensive test suite with 100.0% coverage including edge cases and performance benchmark
 - **Dependencies**: None
 
-### 4. Implement Point Light Sources
+### 4. Implement Point Light Sources ✓
+- **Status**: Completed 2026-02-28
 - **Deliverable**: `pkg/lighting/point.go` — PointLight struct with position, radius, intensity, color; attenuation function (linear/quadratic falloff); genre-specific light source definitions (torches, lamps, monitors, fires)
+- **Implementation Summary**:
+  - Created PointLight extending base Light with type metadata and flicker support
+  - Implemented 4 genre-specific presets per genre (20 total) with accurate color/intensity values
+  - Added UpdateFlicker() for deterministic torch/lamp flickering based on game tick
+  - Dual attenuation modes: ApplyAttenuation (quadratic) and LinearAttenuation for flexibility
+  - SetPosition/SetIntensity/SetColor mutators for dynamic light manipulation
+  - GetPresetByName helper for easy light spawning by type
+  - Comprehensive test suite with 98.1% coverage including all genres and edge cases
 - **Dependencies**: Step 3 SectorLightMap
 
-### 5. Implement Player Flashlight
+### 5. Implement Player Flashlight ✓
+- **Status**: Completed 2026-02-28
 - **Deliverable**: `pkg/lighting/flashlight.go` — ConeLight type for forward-facing illumination; radius, angle, intensity parameters; genre-skinned variants (torch/headlamp/glow-rod)
+- **Implementation Summary**:
+  - Created ConeLight with directional cone-shaped illumination
+  - Implemented GetFlashlightPreset() with unique configurations per genre (torch, headlamp, flashlight, glow_rod, salvaged_lamp)
+  - ApplyConeAttenuation() combines distance (quadratic) and angular falloff for realistic beam
+  - Toggle() and SetActive() for on/off control
+  - IsPointInCone() for efficient visibility checks
+  - GetContributionAsPointLight() allows integration with SectorLightMap
+  - Comprehensive test suite with 98.8% coverage including all genres
 - **Dependencies**: Step 4 point light foundation
 
 ### 6. Integrate Lighting with Rendering Pipeline

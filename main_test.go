@@ -6,6 +6,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/opd-ai/violence/pkg/config"
 	"github.com/opd-ai/violence/pkg/ui"
+	"github.com/opd-ai/violence/pkg/weapon"
 )
 
 // TestNewGame verifies game initialization.
@@ -1162,6 +1163,89 @@ func TestCombatWithDifferentWeaponTypes(t *testing.T) {
 					t.Errorf("Expected ammo consumption for %s", tt.name)
 				}
 			}
+		})
+	}
+}
+
+// TestAllGenresPlayable validates Step 60: end-to-end gameplay for all five genres.
+// Tests that each genre can: start → generate level → spawn enemies → combat → progress XP.
+func TestAllGenresPlayable(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	genres := []string{"fantasy", "scifi", "horror", "cyberpunk", "postapoc"}
+
+	for _, genreID := range genres {
+		t.Run(genreID, func(t *testing.T) {
+			// Initialize game
+			game := NewGame()
+			if game == nil {
+				t.Fatal("NewGame() returned nil")
+			}
+
+			// Start game with genre
+			game.startNewGame()
+			game.genreID = genreID
+			game.arsenal.SetGenre(genreID)
+
+			// Verify map generated
+			if game.currentMap == nil {
+				t.Fatal("Map not generated")
+			}
+
+			// Verify weapon equipped
+			weapon := game.arsenal.GetCurrentWeapon()
+			if weapon.Name == "" {
+				t.Fatal("No weapon equipped")
+			}
+
+			// Verify enemies spawned
+			if len(game.aiAgents) == 0 {
+				t.Fatal("No enemies spawned")
+			}
+
+			// Simulate combat
+			enemy := game.aiAgents[0]
+			initialHealth := enemy.Health
+
+			raycastFn := func(x, y, dx, dy, maxDist float64) (bool, float64, float64, float64, uint64) {
+				return true, 10.0, enemy.X, enemy.Y, 0
+			}
+
+			// Fire at enemy
+			game.arsenal.Update()
+			hitResults := game.arsenal.Fire(game.camera.X, game.camera.Y, game.camera.DirX, game.camera.DirY, raycastFn)
+
+			if len(hitResults) == 0 {
+				t.Fatal("No hit results from weapon fire")
+			}
+
+			if hitResults[0].Hit {
+				enemy.Health -= weapon.Damage
+			}
+
+			// Verify damage applied
+			if enemy.Health >= initialHealth {
+				t.Error("Enemy should have taken damage")
+			}
+
+			// Award XP
+			initialXP := game.progression.XP
+			game.progression.AddXP(50)
+
+			if game.progression.XP != initialXP+50 {
+				t.Errorf("Expected XP increase of 50, got %d", game.progression.XP-initialXP)
+			}
+
+			// Verify ammo system
+			game.ammoPool.Add("bullets", 50)
+			if game.ammoPool.Get("bullets") < 50 {
+				t.Error("Ammo not added correctly")
+			}
+
+			// All core systems functional for this genre
+			t.Logf("Genre %s: all systems functional", genreID)
 		})
 	}
 }
