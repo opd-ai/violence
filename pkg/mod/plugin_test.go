@@ -9,12 +9,13 @@ import (
 
 // MockPlugin is a test plugin implementation.
 type MockPlugin struct {
-	name      string
-	version   string
-	loadErr   error
-	unloadErr error
-	loadCalls int
-	mu        sync.Mutex
+	name       string
+	version    string
+	loadErr    error
+	unloadErr  error
+	loadCalls  int
+	generators []Generator
+	mu         sync.Mutex
 }
 
 func NewMockPlugin(name, version string) *MockPlugin {
@@ -41,6 +42,18 @@ func (p *MockPlugin) Name() string {
 
 func (p *MockPlugin) Version() string {
 	return p.version
+}
+
+func (p *MockPlugin) GetGenerators() []Generator {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.generators
+}
+
+func (p *MockPlugin) SetGenerators(gens []Generator) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.generators = gens
 }
 
 func (p *MockPlugin) SetLoadError(err error) {

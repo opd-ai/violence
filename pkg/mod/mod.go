@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
+
+	logrus "github.com/sirupsen/logrus"
 )
 
 // Mod represents a loaded game modification.
@@ -26,6 +29,7 @@ type Loader struct {
 	modsDir       string
 	mu            sync.RWMutex
 	conflicts     map[string][]string // mod name -> conflicting mods
+	warnings      []string
 	pluginManager *PluginManager
 }
 
@@ -35,6 +39,7 @@ func NewLoader() *Loader {
 		mods:          make([]Mod, 0),
 		modsDir:       "mods",
 		conflicts:     make(map[string][]string),
+		warnings:      make([]string, 0),
 		pluginManager: NewPluginManager(),
 	}
 }
@@ -45,6 +50,7 @@ func NewLoaderWithDir(dir string) *Loader {
 		mods:          make([]Mod, 0),
 		modsDir:       dir,
 		conflicts:     make(map[string][]string),
+		warnings:      make([]string, 0),
 		pluginManager: NewPluginManager(),
 	}
 }
@@ -209,4 +215,88 @@ func (l *Loader) UnloadPlugin(name string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.pluginManager.UnloadPlugin(name)
+}
+
+// LoadAllMods scans the mods directory and loads all valid mods found.
+// Each subdirectory containing a mod.json is treated as a mod.
+// Mods are loaded in alphabetical order for deterministic behavior.
+// Returns the number of mods successfully loaded and any error from scanning.
+func (l *Loader) LoadAllMods() (int, error) {
+	l.mu.RLock()
+	modsDir := l.modsDir
+	l.mu.RUnlock()
+
+	entries, err := os.ReadDir(modsDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil // No mods directory is not an error
+		}
+		return 0, fmt.Errorf("failed to read mods directory %s: %w", modsDir, err)
+	}
+
+	// Collect directories and sort for deterministic order
+	dirs := make([]string, 0)
+	for _, entry := range entries {
+		if entry.IsDir() {
+			dirs = append(dirs, entry.Name())
+		}
+	}
+	sort.Strings(dirs)
+
+	loaded := 0
+	for _, dir := range dirs {
+		modPath := filepath.Join(modsDir, dir)
+		manifestPath := filepath.Join(modPath, "mod.json")
+
+		// Skip directories without mod.json
+		if _, err := os.Stat(manifestPath); os.IsNotExist(err) {
+			continue
+		}
+
+		if err := l.LoadMod(modPath); err != nil {
+			l.mu.Lock()
+			warning := fmt.Sprintf("failed to load mod from %s: %s", dir, err.Error())
+			l.warnings = append(l.warnings, warning)
+			l.mu.Unlock()
+			logrus.WithFields(logrus.Fields{
+				"system_name": "mod_loader",
+				"mod_dir":     dir,
+			}).Warn(warning)
+			continue
+		}
+		loaded++
+	}
+
+	return loaded, nil
+}
+
+// GetWarnings returns all accumulated warning messages from the loader.
+func (l *Loader) GetWarnings() []string {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
+	// Combine loader warnings with plugin manager warnings
+	pmWarnings := l.pluginManager.Warnings()
+	all := make([]string, 0, len(l.warnings)+len(pmWarnings))
+	all = append(all, l.warnings...)
+	all = append(all, pmWarnings...)
+	return all
+}
+
+// ClearWarnings removes all warnings.
+func (l *Loader) ClearWarnings() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.warnings = l.warnings[:0]
+	l.pluginManager.ClearWarnings()
+}
+
+// RegisterOverride registers a generation parameter override.
+func (l *Loader) RegisterOverride(override ParamOverride) {
+	l.pluginManager.Overrides().Register(override)
+}
+
+// GetOverrides returns the effective parameter overrides for a generator type.
+func (l *Loader) GetOverrides(generatorType string) map[string]interface{} {
+	return l.pluginManager.Overrides().GetAll(generatorType)
 }
