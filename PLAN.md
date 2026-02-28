@@ -71,13 +71,15 @@
     - **Dependencies**: `pkg/bsp`
     - **Completed**: Implemented `ArenaGenerator` in `pkg/bsp/deathmatch.go` with: (1) symmetrical 4-way rotational spawn pad placement, (2) strategic weapon spawn locations (power weapons at center, mid-tier on cardinal directions, basic on diagonals), (3) tactical cover points in ring pattern, (4) sightline analysis using 16-direction raycasting, (5) automatic sightline balancing to prevent overpowered spawn positions, (6) genre-specific tile selection, (7) rounded arena corners for smooth movement, and comprehensive tests (13 test cases) achieving 94.5% package coverage
 
-13. Implement kill feed and scoreboard UI
+13. [x] Implement kill feed and scoreboard UI (2026-02-28)
     - **Deliverable**: Real-time kill notifications; end-of-match scoreboard with K/D/A stats
     - **Dependencies**: Steps 10–11, `pkg/ui`
+    - **Completed**: Implemented `KillFeed` with real-time kill notifications (max 5 entries, 5s duration), support for suicide and team kill indicators, automatic entry expiration. Implemented `Scoreboard` with configurable FFA/team modes, K/D/A stat display, winner text, visibility toggle, team-colored player indicators. Added comprehensive unit tests for all UI logic components achieving high coverage on testable functions (rendering tests skipped due to display requirements)
 
-14. Add integration tests for deathmatch
+14. [x] Add integration tests for deathmatch (2026-02-28)
     - **Deliverable**: Simulated 4-player FFA and 2v2 team matches with frag tracking validation
     - **Dependencies**: Steps 10–13
+    - **Completed**: Implemented comprehensive integration test suite (`deathmatch_integration_test.go`) with 4 scenarios: (1) full 4-player FFA match with combat/respawn/frag limit win, (2) 2v2 team match with team score tracking and frag limit win, (3) time limit win condition test, and (4) continuous respawn cycle test. All tests pass, validating kill feed tracking, scoreboard updates, and proper match state management
 
 ### Territory Control (Deathmatch Variant)
 15. Implement control point capture mechanics
