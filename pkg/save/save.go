@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 )
 
@@ -81,12 +82,35 @@ type Slot struct {
 }
 
 // getSavePath returns the platform-specific save directory path.
+// On Windows: %APPDATA%\violence\saves
+// On macOS/Linux/Unix: ~/.violence/saves
 func getSavePath() (string, error) {
-	home, err := os.UserHomeDir()
+	var baseDir string
+	var err error
+
+	if runtime.GOOS == "windows" {
+		// Use %APPDATA% on Windows
+		baseDir = os.Getenv("APPDATA")
+		if baseDir == "" {
+			// Fallback to user home directory if APPDATA is not set
+			baseDir, err = os.UserHomeDir()
+			if err != nil {
+				return "", fmt.Errorf("failed to get home directory: %w", err)
+			}
+		}
+		savePath := filepath.Join(baseDir, "violence", "saves")
+		if err := os.MkdirAll(savePath, 0o755); err != nil {
+			return "", fmt.Errorf("failed to create save directory: %w", err)
+		}
+		return savePath, nil
+	}
+
+	// Unix/Linux/macOS: use hidden directory in home
+	baseDir, err = os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to get home directory: %w", err)
 	}
-	savePath := filepath.Join(home, ".violence", "saves")
+	savePath := filepath.Join(baseDir, ".violence", "saves")
 	if err := os.MkdirAll(savePath, 0o755); err != nil {
 		return "", fmt.Errorf("failed to create save directory: %w", err)
 	}

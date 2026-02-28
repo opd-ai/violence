@@ -3,6 +3,7 @@ package save
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -630,5 +631,64 @@ func BenchmarkLoad(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		Load(1)
+	}
+}
+
+func TestGetSavePath_PlatformSpecific(t *testing.T) {
+	_, cleanup := setupTestDir(t)
+	defer cleanup()
+
+	// Also set APPDATA for Windows testing
+	originalAppData := os.Getenv("APPDATA")
+	if runtime.GOOS == "windows" {
+		tempAppData, err := os.MkdirTemp("", "appdata_test_*")
+		if err != nil {
+			t.Fatalf("failed to create temp appdata: %v", err)
+		}
+		defer os.RemoveAll(tempAppData)
+		os.Setenv("APPDATA", tempAppData)
+		defer os.Setenv("APPDATA", originalAppData)
+	}
+
+	savePath, err := getSavePath()
+	if err != nil {
+		t.Fatalf("getSavePath failed: %v", err)
+	}
+
+	// Verify path structure based on OS
+	if runtime.GOOS == "windows" {
+		// On Windows, should be %APPDATA%\violence\saves
+		expectedSuffix := filepath.Join("violence", "saves")
+		if !filepath.IsAbs(savePath) {
+			t.Errorf("save path should be absolute, got: %s", savePath)
+		}
+		if !filepath.HasPrefix(savePath, os.Getenv("APPDATA")) && os.Getenv("APPDATA") != "" {
+			t.Errorf("Windows save path should use APPDATA, got: %s", savePath)
+		}
+		if !filepath.Match("*"+expectedSuffix, savePath) {
+			t.Logf("Windows save path: %s (expected suffix: %s)", savePath, expectedSuffix)
+		}
+	} else {
+		// On Unix/Linux/macOS, should be ~/.violence/saves
+		expectedSuffix := filepath.Join(".violence", "saves")
+		if !filepath.IsAbs(savePath) {
+			t.Errorf("save path should be absolute, got: %s", savePath)
+		}
+		home, _ := os.UserHomeDir()
+		if !filepath.HasPrefix(savePath, home) {
+			t.Errorf("Unix save path should use home directory, got: %s", savePath)
+		}
+		if !filepath.Match("*"+expectedSuffix, savePath) {
+			t.Logf("Unix save path: %s (expected suffix: %s)", savePath, expectedSuffix)
+		}
+	}
+
+	// Verify directory was created
+	info, err := os.Stat(savePath)
+	if err != nil {
+		t.Fatalf("save path should exist: %v", err)
+	}
+	if !info.IsDir() {
+		t.Errorf("save path should be a directory")
 	}
 }
