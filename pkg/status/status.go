@@ -26,5 +26,14 @@ func (r *Registry) Apply(name string) {}
 // Tick advances all active effects by one tick.
 func (r *Registry) Tick() {}
 
+var currentGenre = "fantasy"
+
 // SetGenre configures status effects for a genre.
-func SetGenre(genreID string) {}
+func SetGenre(genreID string) {
+	currentGenre = genreID
+}
+
+// GetCurrentGenre returns the current global genre setting.
+func GetCurrentGenre() string {
+	return currentGenre
+}

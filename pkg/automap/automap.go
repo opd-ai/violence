@@ -74,5 +74,14 @@ func (m *Map) GetAnnotationsAt(x, y int) []Annotation {
 // Render draws the automap (stub).
 func (m *Map) Render() {}
 
+var currentGenre = "fantasy"
+
 // SetGenre configures automap visuals for a genre.
-func SetGenre(genreID string) {}
+func SetGenre(genreID string) {
+	currentGenre = genreID
+}
+
+// GetCurrentGenre returns the current global genre setting.
+func GetCurrentGenre() string {
+	return currentGenre
+}

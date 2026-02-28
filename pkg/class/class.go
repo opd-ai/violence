@@ -21,5 +21,14 @@ func GetClass(id string) Class {
 	return Class{ID: id}
 }
 
+var currentGenre = "fantasy"
+
 // SetGenre configures available classes for a genre.
-func SetGenre(genreID string) {}
+func SetGenre(genreID string) {
+	currentGenre = genreID
+}
+
+// GetCurrentGenre returns the current global genre setting.
+func GetCurrentGenre() string {
+	return currentGenre
+}

@@ -295,8 +295,17 @@ func (t *Tracker) AllComplete() bool {
 	return len(t.Objectives) > 0
 }
 
+var currentGenre = "fantasy"
+
 // SetGenre configures quest types for a genre.
-func SetGenre(genreID string) {}
+func SetGenre(genreID string) {
+	currentGenre = genreID
+}
+
+// GetCurrentGenre returns the current global genre setting.
+func GetCurrentGenre() string {
+	return currentGenre
+}
 
 // SetGenre on instance configures genre-specific text.
 func (t *Tracker) SetGenre(genreID string) {

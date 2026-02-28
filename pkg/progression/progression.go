@@ -22,5 +22,14 @@ func (p *Progression) LevelUp() {
 	p.Level++
 }
 
+var currentGenre = "fantasy"
+
 // SetGenre configures progression curves for a genre.
-func SetGenre(genreID string) {}
+func SetGenre(genreID string) {
+	currentGenre = genreID
+}
+
+// GetCurrentGenre returns the current global genre setting.
+func GetCurrentGenre() string {
+	return currentGenre
+}

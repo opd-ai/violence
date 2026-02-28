@@ -140,8 +140,17 @@ func (t *Tutorial) saveState() {
 	os.WriteFile(t.savePath, data, 0o644)
 }
 
+var currentGenre = "fantasy"
+
 // SetGenre configures tutorial content for a genre.
-func SetGenre(genreID string) {}
+func SetGenre(genreID string) {
+	currentGenre = genreID
+}
+
+// GetCurrentGenre returns the current global genre setting.
+func GetCurrentGenre() string {
+	return currentGenre
+}
 
 // GetMessage returns the appropriate message for a prompt type.
 func GetMessage(promptType PromptType) string {

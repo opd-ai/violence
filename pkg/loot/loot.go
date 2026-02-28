@@ -115,5 +115,14 @@ func (slt *SecretLootTable) AddItem(item string, rarity Rarity) {
 	}
 }
 
+var currentGenre = "fantasy"
+
 // SetGenre configures loot tables for a genre.
-func SetGenre(genreID string) {}
+func SetGenre(genreID string) {
+	currentGenre = genreID
+}
+
+// GetCurrentGenre returns the current global genre setting.
+func GetCurrentGenre() string {
+	return currentGenre
+}

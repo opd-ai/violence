@@ -76,5 +76,14 @@ func (c *Camera) Rotate(angleRadians float64) {
 	c.DirY = oldDirX*sinAngle + c.DirY*cosAngle
 }
 
+var currentGenre = "fantasy"
+
 // SetGenre configures camera behavior for a genre.
-func SetGenre(genreID string) {}
+func SetGenre(genreID string) {
+	currentGenre = genreID
+}
+
+// GetCurrentGenre returns the current global genre setting.
+func GetCurrentGenre() string {
+	return currentGenre
+}

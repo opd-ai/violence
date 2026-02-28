@@ -367,8 +367,17 @@ func (s *Shop) GetShopName() string {
 	return s.shopName
 }
 
+var currentGenre = "fantasy"
+
 // SetGenre configures shop inventory for a genre.
-func SetGenre(genreID string) {}
+func SetGenre(genreID string) {
+	currentGenre = genreID
+}
+
+// GetCurrentGenre returns the current global genre setting.
+func GetCurrentGenre() string {
+	return currentGenre
+}
 
 // SetGenre on instance configures genre-specific inventory.
 func (s *Shop) SetGenre(genreID string) {

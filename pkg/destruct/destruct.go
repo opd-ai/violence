@@ -151,8 +151,17 @@ func (d *Destructible) GetDropItems() []string {
 	return result
 }
 
+var currentGenre = "fantasy"
+
 // SetGenre configures destructible types for a genre.
-func SetGenre(genreID string) {}
+func SetGenre(genreID string) {
+	currentGenre = genreID
+}
+
+// GetCurrentGenre returns the current global genre setting.
+func GetCurrentGenre() string {
+	return currentGenre
+}
 
 // BreakableWall represents a wall that can be destroyed to reveal a passage.
 type BreakableWall struct {

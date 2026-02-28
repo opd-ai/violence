@@ -38,5 +38,14 @@ func (p *Pool) Get(ammoType string) int {
 	return p.counts[ammoType]
 }
 
+var currentGenre = "fantasy"
+
 // SetGenre configures ammo types for a genre.
-func SetGenre(genreID string) {}
+func SetGenre(genreID string) {
+	currentGenre = genreID
+}
+
+// GetCurrentGenre returns the current global genre setting.
+func GetCurrentGenre() string {
+	return currentGenre
+}

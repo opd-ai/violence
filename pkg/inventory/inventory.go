@@ -309,6 +309,14 @@ func (inv *Inventory) UseQuickSlot(user *Entity) error {
 	return nil
 }
 
+var currentGenre = "fantasy"
+
 // SetGenre configures inventory rules for a genre.
-// Currently no genre-specific inventory rules.
-func SetGenre(genreID string) {}
+func SetGenre(genreID string) {
+	currentGenre = genreID
+}
+
+// GetCurrentGenre returns the current global genre setting.
+func GetCurrentGenre() string {
+	return currentGenre
+}

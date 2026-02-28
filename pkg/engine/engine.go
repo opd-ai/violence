@@ -124,5 +124,14 @@ func (w *World) GetGenre() string {
 	return w.genre
 }
 
+var currentGenre = "fantasy"
+
 // SetGenre configures the engine for a genre (global).
-func SetGenre(genreID string) {}
+func SetGenre(genreID string) {
+	currentGenre = genreID
+}
+
+// GetCurrentGenre returns the current global genre setting.
+func GetCurrentGenre() string {
+	return currentGenre
+}
