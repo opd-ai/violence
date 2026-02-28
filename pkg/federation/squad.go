@@ -24,10 +24,19 @@ var (
 
 // SquadMember represents a member in a squad.
 type SquadMember struct {
-	PlayerID   string    `json:"player_id"`
-	PlayerName string    `json:"player_name"`
-	JoinedAt   time.Time `json:"joined_at"`
-	IsLeader   bool      `json:"is_leader"`
+	PlayerID   string      `json:"player_id"`
+	PlayerName string      `json:"player_name"`
+	JoinedAt   time.Time   `json:"joined_at"`
+	IsLeader   bool        `json:"is_leader"`
+	Stats      MemberStats `json:"stats"`
+}
+
+// MemberStats tracks individual member statistics.
+type MemberStats struct {
+	TotalKills  int           `json:"total_kills"`
+	TotalDeaths int           `json:"total_deaths"`
+	TotalWins   int           `json:"total_wins"`
+	PlayTime    time.Duration `json:"play_time"`
 }
 
 // SquadInvite represents a pending squad invitation.
@@ -329,4 +338,99 @@ func (sm *SquadManager) getSquadSavePath() (string, error) {
 	}
 
 	return filepath.Join(savePath, "squads.json"), nil
+}
+
+// SquadStats represents aggregated statistics across all squad members.
+type SquadStats struct {
+	TotalKills    int
+	TotalDeaths   int
+	TotalWins     int
+	TotalPlayTime time.Duration
+	MemberCount   int
+	AvgKills      float64
+	AvgDeaths     float64
+	AvgWins       float64
+	AvgPlayTime   time.Duration
+}
+
+// GetStats returns aggregated statistics for the squad.
+func (s *Squad) GetStats() SquadStats {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	stats := SquadStats{
+		MemberCount: len(s.Members),
+	}
+
+	if len(s.Members) == 0 {
+		return stats
+	}
+
+	for _, member := range s.Members {
+		stats.TotalKills += member.Stats.TotalKills
+		stats.TotalDeaths += member.Stats.TotalDeaths
+		stats.TotalWins += member.Stats.TotalWins
+		stats.TotalPlayTime += member.Stats.PlayTime
+	}
+
+	memberCount := float64(len(s.Members))
+	stats.AvgKills = float64(stats.TotalKills) / memberCount
+	stats.AvgDeaths = float64(stats.TotalDeaths) / memberCount
+	stats.AvgWins = float64(stats.TotalWins) / memberCount
+	stats.AvgPlayTime = time.Duration(int64(stats.TotalPlayTime) / int64(len(s.Members)))
+
+	return stats
+}
+
+// UpdateMemberStats updates statistics for a squad member.
+func (s *Squad) UpdateMemberStats(playerID string, kills, deaths, wins int, playTime time.Duration) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	member, exists := s.Members[playerID]
+	if !exists {
+		return ErrNotInSquad
+	}
+
+	member.Stats.TotalKills += kills
+	member.Stats.TotalDeaths += deaths
+	member.Stats.TotalWins += wins
+	member.Stats.PlayTime += playTime
+
+	s.Members[playerID] = member
+	return nil
+}
+
+// SetMemberStats sets statistics for a squad member (replaces existing).
+func (s *Squad) SetMemberStats(playerID string, kills, deaths, wins int, playTime time.Duration) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	member, exists := s.Members[playerID]
+	if !exists {
+		return ErrNotInSquad
+	}
+
+	member.Stats = MemberStats{
+		TotalKills:  kills,
+		TotalDeaths: deaths,
+		TotalWins:   wins,
+		PlayTime:    playTime,
+	}
+
+	s.Members[playerID] = member
+	return nil
+}
+
+// GetMemberStats retrieves statistics for a specific member.
+func (s *Squad) GetMemberStats(playerID string) (MemberStats, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	member, exists := s.Members[playerID]
+	if !exists {
+		return MemberStats{}, ErrNotInSquad
+	}
+
+	return member.Stats, nil
 }

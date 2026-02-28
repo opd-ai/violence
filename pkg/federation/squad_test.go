@@ -497,3 +497,367 @@ func TestSquad_GetSquadSavePath(t *testing.T) {
 		t.Error("squad directory should be created")
 	}
 }
+
+func TestSquad_GetStats_EmptySquad(t *testing.T) {
+	squad := NewSquad("squad1", "Test", "TEST", "player1", "Leader")
+	squad.Leave("player1") // Empty the squad
+
+	stats := squad.GetStats()
+
+	if stats.MemberCount != 0 {
+		t.Errorf("expected 0 members, got %d", stats.MemberCount)
+	}
+	if stats.TotalKills != 0 {
+		t.Errorf("expected 0 total kills, got %d", stats.TotalKills)
+	}
+	if stats.TotalDeaths != 0 {
+		t.Errorf("expected 0 total deaths, got %d", stats.TotalDeaths)
+	}
+	if stats.TotalWins != 0 {
+		t.Errorf("expected 0 total wins, got %d", stats.TotalWins)
+	}
+	if stats.TotalPlayTime != 0 {
+		t.Errorf("expected 0 total play time, got %v", stats.TotalPlayTime)
+	}
+}
+
+func TestSquad_GetStats_SingleMember(t *testing.T) {
+	squad := NewSquad("squad1", "Test", "TEST", "player1", "Leader")
+
+	// Update member stats
+	err := squad.SetMemberStats("player1", 100, 50, 10, 5*time.Hour)
+	if err != nil {
+		t.Fatalf("failed to set member stats: %v", err)
+	}
+
+	stats := squad.GetStats()
+
+	if stats.MemberCount != 1 {
+		t.Errorf("expected 1 member, got %d", stats.MemberCount)
+	}
+	if stats.TotalKills != 100 {
+		t.Errorf("expected 100 total kills, got %d", stats.TotalKills)
+	}
+	if stats.TotalDeaths != 50 {
+		t.Errorf("expected 50 total deaths, got %d", stats.TotalDeaths)
+	}
+	if stats.TotalWins != 10 {
+		t.Errorf("expected 10 total wins, got %d", stats.TotalWins)
+	}
+	if stats.TotalPlayTime != 5*time.Hour {
+		t.Errorf("expected 5h total play time, got %v", stats.TotalPlayTime)
+	}
+
+	// Check averages (same as totals for single member)
+	if stats.AvgKills != 100.0 {
+		t.Errorf("expected 100.0 avg kills, got %f", stats.AvgKills)
+	}
+	if stats.AvgDeaths != 50.0 {
+		t.Errorf("expected 50.0 avg deaths, got %f", stats.AvgDeaths)
+	}
+	if stats.AvgWins != 10.0 {
+		t.Errorf("expected 10.0 avg wins, got %f", stats.AvgWins)
+	}
+	if stats.AvgPlayTime != 5*time.Hour {
+		t.Errorf("expected 5h avg play time, got %v", stats.AvgPlayTime)
+	}
+}
+
+func TestSquad_GetStats_MultipleMembers(t *testing.T) {
+	squad := NewSquad("squad1", "Test", "TEST", "player1", "Leader")
+
+	// Add more members
+	squad.Invite("player2")
+	squad.Accept("player2", "Player2")
+	squad.Invite("player3")
+	squad.Accept("player3", "Player3")
+
+	// Set stats for each member
+	squad.SetMemberStats("player1", 100, 50, 10, 5*time.Hour)
+	squad.SetMemberStats("player2", 80, 40, 8, 4*time.Hour)
+	squad.SetMemberStats("player3", 60, 30, 6, 3*time.Hour)
+
+	stats := squad.GetStats()
+
+	if stats.MemberCount != 3 {
+		t.Errorf("expected 3 members, got %d", stats.MemberCount)
+	}
+	if stats.TotalKills != 240 {
+		t.Errorf("expected 240 total kills, got %d", stats.TotalKills)
+	}
+	if stats.TotalDeaths != 120 {
+		t.Errorf("expected 120 total deaths, got %d", stats.TotalDeaths)
+	}
+	if stats.TotalWins != 24 {
+		t.Errorf("expected 24 total wins, got %d", stats.TotalWins)
+	}
+	if stats.TotalPlayTime != 12*time.Hour {
+		t.Errorf("expected 12h total play time, got %v", stats.TotalPlayTime)
+	}
+
+	// Check averages
+	if stats.AvgKills != 80.0 {
+		t.Errorf("expected 80.0 avg kills, got %f", stats.AvgKills)
+	}
+	if stats.AvgDeaths != 40.0 {
+		t.Errorf("expected 40.0 avg deaths, got %f", stats.AvgDeaths)
+	}
+	if stats.AvgWins != 8.0 {
+		t.Errorf("expected 8.0 avg wins, got %f", stats.AvgWins)
+	}
+	if stats.AvgPlayTime != 4*time.Hour {
+		t.Errorf("expected 4h avg play time, got %v", stats.AvgPlayTime)
+	}
+}
+
+func TestSquad_UpdateMemberStats(t *testing.T) {
+	squad := NewSquad("squad1", "Test", "TEST", "player1", "Leader")
+
+	// Initial stats
+	err := squad.SetMemberStats("player1", 100, 50, 10, 5*time.Hour)
+	if err != nil {
+		t.Fatalf("failed to set member stats: %v", err)
+	}
+
+	// Update with incremental values
+	err = squad.UpdateMemberStats("player1", 20, 5, 2, 1*time.Hour)
+	if err != nil {
+		t.Fatalf("failed to update member stats: %v", err)
+	}
+
+	memberStats, err := squad.GetMemberStats("player1")
+	if err != nil {
+		t.Fatalf("failed to get member stats: %v", err)
+	}
+
+	if memberStats.TotalKills != 120 {
+		t.Errorf("expected 120 kills, got %d", memberStats.TotalKills)
+	}
+	if memberStats.TotalDeaths != 55 {
+		t.Errorf("expected 55 deaths, got %d", memberStats.TotalDeaths)
+	}
+	if memberStats.TotalWins != 12 {
+		t.Errorf("expected 12 wins, got %d", memberStats.TotalWins)
+	}
+	if memberStats.PlayTime != 6*time.Hour {
+		t.Errorf("expected 6h play time, got %v", memberStats.PlayTime)
+	}
+}
+
+func TestSquad_UpdateMemberStats_NonExistent(t *testing.T) {
+	squad := NewSquad("squad1", "Test", "TEST", "player1", "Leader")
+
+	err := squad.UpdateMemberStats("nonexistent", 10, 5, 1, 1*time.Hour)
+	if err != ErrNotInSquad {
+		t.Errorf("expected ErrNotInSquad, got %v", err)
+	}
+}
+
+func TestSquad_SetMemberStats(t *testing.T) {
+	squad := NewSquad("squad1", "Test", "TEST", "player1", "Leader")
+
+	// Set initial stats
+	err := squad.SetMemberStats("player1", 100, 50, 10, 5*time.Hour)
+	if err != nil {
+		t.Fatalf("failed to set member stats: %v", err)
+	}
+
+	// Replace with new stats
+	err = squad.SetMemberStats("player1", 200, 100, 20, 10*time.Hour)
+	if err != nil {
+		t.Fatalf("failed to set member stats: %v", err)
+	}
+
+	memberStats, err := squad.GetMemberStats("player1")
+	if err != nil {
+		t.Fatalf("failed to get member stats: %v", err)
+	}
+
+	if memberStats.TotalKills != 200 {
+		t.Errorf("expected 200 kills, got %d", memberStats.TotalKills)
+	}
+	if memberStats.TotalDeaths != 100 {
+		t.Errorf("expected 100 deaths, got %d", memberStats.TotalDeaths)
+	}
+	if memberStats.TotalWins != 20 {
+		t.Errorf("expected 20 wins, got %d", memberStats.TotalWins)
+	}
+	if memberStats.PlayTime != 10*time.Hour {
+		t.Errorf("expected 10h play time, got %v", memberStats.PlayTime)
+	}
+}
+
+func TestSquad_SetMemberStats_NonExistent(t *testing.T) {
+	squad := NewSquad("squad1", "Test", "TEST", "player1", "Leader")
+
+	err := squad.SetMemberStats("nonexistent", 100, 50, 10, 5*time.Hour)
+	if err != ErrNotInSquad {
+		t.Errorf("expected ErrNotInSquad, got %v", err)
+	}
+}
+
+func TestSquad_GetMemberStats(t *testing.T) {
+	squad := NewSquad("squad1", "Test", "TEST", "player1", "Leader")
+
+	// New members start with zero stats
+	memberStats, err := squad.GetMemberStats("player1")
+	if err != nil {
+		t.Fatalf("failed to get member stats: %v", err)
+	}
+
+	if memberStats.TotalKills != 0 {
+		t.Errorf("expected 0 kills, got %d", memberStats.TotalKills)
+	}
+	if memberStats.TotalDeaths != 0 {
+		t.Errorf("expected 0 deaths, got %d", memberStats.TotalDeaths)
+	}
+	if memberStats.TotalWins != 0 {
+		t.Errorf("expected 0 wins, got %d", memberStats.TotalWins)
+	}
+	if memberStats.PlayTime != 0 {
+		t.Errorf("expected 0 play time, got %v", memberStats.PlayTime)
+	}
+}
+
+func TestSquad_GetMemberStats_NonExistent(t *testing.T) {
+	squad := NewSquad("squad1", "Test", "TEST", "player1", "Leader")
+
+	_, err := squad.GetMemberStats("nonexistent")
+	if err != ErrNotInSquad {
+		t.Errorf("expected ErrNotInSquad, got %v", err)
+	}
+}
+
+func TestSquad_StatsPersistence(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "squad_stats_test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	oldHome := os.Getenv("HOME")
+	os.Setenv("HOME", tmpDir)
+	defer os.Setenv("HOME", oldHome)
+
+	// Create squad manager and squad
+	sm := NewSquadManager()
+	squad, err := sm.CreateSquad("squad1", "Test", "TEST", "player1", "Leader")
+	if err != nil {
+		t.Fatalf("failed to create squad: %v", err)
+	}
+
+	// Set stats
+	squad.SetMemberStats("player1", 100, 50, 10, 5*time.Hour)
+
+	// Save
+	if err := sm.Save(); err != nil {
+		t.Fatalf("failed to save: %v", err)
+	}
+
+	// Load into new manager
+	sm2 := NewSquadManager()
+	if err := sm2.Load(); err != nil {
+		t.Fatalf("failed to load: %v", err)
+	}
+
+	// Verify stats persisted
+	loadedSquad, err := sm2.GetSquad("squad1")
+	if err != nil {
+		t.Fatalf("failed to get squad: %v", err)
+	}
+
+	memberStats, err := loadedSquad.GetMemberStats("player1")
+	if err != nil {
+		t.Fatalf("failed to get member stats: %v", err)
+	}
+
+	if memberStats.TotalKills != 100 {
+		t.Errorf("expected 100 kills, got %d", memberStats.TotalKills)
+	}
+	if memberStats.TotalDeaths != 50 {
+		t.Errorf("expected 50 deaths, got %d", memberStats.TotalDeaths)
+	}
+	if memberStats.TotalWins != 10 {
+		t.Errorf("expected 10 wins, got %d", memberStats.TotalWins)
+	}
+	if memberStats.PlayTime != 5*time.Hour {
+		t.Errorf("expected 5h play time, got %v", memberStats.PlayTime)
+	}
+}
+
+func TestSquad_ConcurrentStatsUpdate(t *testing.T) {
+	squad := NewSquad("squad1", "Test", "TEST", "player1", "Leader")
+
+	// Concurrent stat updates
+	done := make(chan bool)
+	for i := 0; i < 10; i++ {
+		go func() {
+			squad.UpdateMemberStats("player1", 1, 0, 0, 1*time.Second)
+			done <- true
+		}()
+	}
+
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+
+	memberStats, err := squad.GetMemberStats("player1")
+	if err != nil {
+		t.Fatalf("failed to get member stats: %v", err)
+	}
+
+	if memberStats.TotalKills != 10 {
+		t.Errorf("expected 10 kills from concurrent updates, got %d", memberStats.TotalKills)
+	}
+	if memberStats.PlayTime != 10*time.Second {
+		t.Errorf("expected 10s play time from concurrent updates, got %v", memberStats.PlayTime)
+	}
+}
+
+func TestSquad_StatsAfterMemberLeaves(t *testing.T) {
+	squad := NewSquad("squad1", "Test", "TEST", "player1", "Leader")
+
+	// Add member with stats
+	squad.Invite("player2")
+	squad.Accept("player2", "Player2")
+	squad.SetMemberStats("player1", 100, 50, 10, 5*time.Hour)
+	squad.SetMemberStats("player2", 80, 40, 8, 4*time.Hour)
+
+	// Verify total stats
+	stats := squad.GetStats()
+	if stats.TotalKills != 180 {
+		t.Errorf("expected 180 total kills, got %d", stats.TotalKills)
+	}
+
+	// Member leaves
+	squad.Leave("player2")
+
+	// Stats should reflect only remaining member
+	stats = squad.GetStats()
+	if stats.MemberCount != 1 {
+		t.Errorf("expected 1 member, got %d", stats.MemberCount)
+	}
+	if stats.TotalKills != 100 {
+		t.Errorf("expected 100 total kills after member leaves, got %d", stats.TotalKills)
+	}
+	if stats.TotalDeaths != 50 {
+		t.Errorf("expected 50 total deaths after member leaves, got %d", stats.TotalDeaths)
+	}
+}
+
+func TestSquad_ZeroStats(t *testing.T) {
+	squad := NewSquad("squad1", "Test", "TEST", "player1", "Leader")
+
+	// Don't set any stats - verify defaults
+	stats := squad.GetStats()
+
+	if stats.MemberCount != 1 {
+		t.Errorf("expected 1 member, got %d", stats.MemberCount)
+	}
+	if stats.TotalKills != 0 {
+		t.Errorf("expected 0 total kills, got %d", stats.TotalKills)
+	}
+	if stats.AvgKills != 0.0 {
+		t.Errorf("expected 0.0 avg kills, got %f", stats.AvgKills)
+	}
+}

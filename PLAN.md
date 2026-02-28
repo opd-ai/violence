@@ -129,9 +129,10 @@
     - **Dependencies**: Steps 18–19, Step 22
     - **Completed**: Implemented `SquadChatChannel` with shared AES-256 encryption key generation, `NewSquadChatChannel()` for creating new channels and `NewSquadChatChannelWithKey()` for joining with existing key, `SendMessage()` encrypting and broadcasting to all squad members via relay server, `ReceiveMessages()` polling and decrypting messages using squad key (non-members cannot decrypt), `SquadChatManager` for managing multiple squad channels with create/join/remove operations, message history tracking, encryption key sharing for new members, and comprehensive tests (13 test scenarios including E2E integration) achieving 93.5% package coverage. Added `GetAddr()` method to `RelayServer` for test infrastructure
 
-24. Implement squad statistics
+24. [x] Implement squad statistics (2026-02-28)
     - **Deliverable**: Aggregate stats across squad members: total kills, wins, play time; displayed in squad info screen
     - **Dependencies**: Step 22
+    - **Completed**: Added `MemberStats` struct tracking individual member statistics (kills, deaths, wins, play time), `SquadStats` struct with aggregated totals and averages across all squad members, `GetStats()` method computing total and average statistics, `UpdateMemberStats()` for incremental stat updates, `SetMemberStats()` for replacing stats, `GetMemberStats()` for retrieving individual member stats, stats persistence via JSON serialization, thread-safe concurrent stat updates with mutex protection, and comprehensive tests (13 test scenarios covering empty squads, single/multiple members, incremental updates, persistence, concurrent access, member departures, and zero stats) achieving 94.4% package coverage
 
 25. Implement squad tag display
     - **Deliverable**: Configurable 4-character tag shown in HUD nameplates above squad members
