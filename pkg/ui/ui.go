@@ -466,12 +466,13 @@ func DrawMenu(screen *ebiten.Image, mm *MenuManager) {
 	// Draw menu items
 	for i, item := range items {
 		itemY := menuY + titleHeight + float32(i)*itemHeight
+		textY := itemY + 14 // text baseline (Face7x13: ~10px ascent + padding)
 
-		// Highlight selected item
+		// Highlight selected item — aligned to text position
 		if i == mm.selectedIndex {
 			highlightColor := color.RGBA{80, 80, 120, 200}
 			highlightX := screenWidth/2 - highlightW/2
-			vector.DrawFilledRect(screen, highlightX, itemY-5, highlightW, itemHeight-5, highlightColor, false)
+			vector.DrawFilledRect(screen, highlightX, textY-12, highlightW, 16, highlightColor, false)
 		}
 
 		// Draw item text
@@ -479,7 +480,7 @@ func DrawMenu(screen *ebiten.Image, mm *MenuManager) {
 		if i == mm.selectedIndex {
 			itemColor = color.RGBA{255, 255, 255, 255}
 		}
-		drawCenteredLabel(screen, titleX, itemY+20, item, itemColor)
+		drawCenteredLabel(screen, titleX, textY, item, itemColor)
 	}
 
 	// Draw additional info for difficulty and genre menus
@@ -666,12 +667,13 @@ func drawSettingsScreen(screen *ebiten.Image, mm *MenuManager, screenWidth, scre
 	// Draw menu items with values
 	for i, item := range items {
 		itemY := startY + float32(i)*itemHeight
+		textY := itemY + 12 // text baseline
 
-		// Highlight selected item
+		// Highlight selected item — aligned to text
 		if i == mm.selectedIndex {
 			highlightColor := color.RGBA{80, 80, 120, 200}
 			highlightX := screenWidth/2 - highlightW/2
-			vector.DrawFilledRect(screen, highlightX, itemY-5, highlightW, itemHeight-5, highlightColor, false)
+			vector.DrawFilledRect(screen, highlightX, textY-11, highlightW, 15, highlightColor, false)
 		}
 
 		// Draw item label
@@ -682,13 +684,13 @@ func drawSettingsScreen(screen *ebiten.Image, mm *MenuManager, screenWidth, scre
 
 		// Draw label on the left (adapt to screen width)
 		labelX := screenWidth * 0.1
-		drawLabel(screen, labelX, itemY+12, item, itemColor)
+		drawLabel(screen, labelX, textY, item, itemColor)
 
 		// Draw value on the right if not "Back"
 		if item != "Back" && inCategory {
 			valueX := screenWidth * 0.65
 			value := getSettingValue(mm, item)
-			drawLabel(screen, valueX, itemY+12, value, itemColor)
+			drawLabel(screen, valueX, textY, value, itemColor)
 		}
 	}
 
