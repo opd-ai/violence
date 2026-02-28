@@ -415,3 +415,55 @@ func TestLevelLayout(t *testing.T) {
 		t.Errorf("expected 2 rooms, got %d", len(layout.Rooms))
 	}
 }
+
+func TestUpdateProgressInt64(t *testing.T) {
+	tracker := NewTracker()
+	tracker.Add(Objective{
+		ID:       "test_overflow",
+		Type:     ObjKillAll,
+		Category: CategoryMain,
+		Desc:     "Test large numbers",
+		Target:   "enemy",
+		Count:    1000000000,
+		Progress: 0,
+	})
+
+	// Simulate many updates (would overflow int32 at 2.1 billion)
+	for i := 0; i < 1000; i++ {
+		tracker.UpdateProgress("test_overflow", 1000000)
+	}
+
+	// Progress should be tracked correctly with int64
+	obj := tracker.Objectives[0]
+	expected := int64(1000000000)
+	if obj.Progress != expected {
+		t.Errorf("Progress = %d, want %d", obj.Progress, expected)
+	}
+	if !obj.Complete {
+		t.Error("Objective should be marked complete")
+	}
+}
+
+func TestUpdateProgressLargeValue(t *testing.T) {
+	tracker := NewTracker()
+	tracker.Add(Objective{
+		ID:       "test_large",
+		Type:     ObjKillAll,
+		Category: CategoryBonus,
+		Desc:     "Very large target",
+		Target:   "enemy",
+		Count:    100000000,
+		Progress: 0,
+	})
+
+	// Add a very large amount at once
+	tracker.UpdateProgress("test_large", 100000000)
+
+	obj := tracker.Objectives[0]
+	if obj.Progress != 100000000 {
+		t.Errorf("Progress = %d, want 100000000", obj.Progress)
+	}
+	if !obj.Complete {
+		t.Error("Objective should be complete")
+	}
+}

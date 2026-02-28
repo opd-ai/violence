@@ -448,3 +448,45 @@ func BenchmarkGenerateLarge(b *testing.B) {
 		g.Generate()
 	}
 }
+
+func TestPlaceSecretsWithNilTiles(t *testing.T) {
+	r := rng.NewRNG(12345)
+	g := NewGenerator(64, 64, r)
+
+	// placeSecrets should handle nil tiles gracefully
+	g.placeSecrets(nil, nil)
+
+	// placeSecrets should handle empty tiles
+	g.placeSecrets(nil, [][]int{})
+
+	// placeSecrets should handle undersized tiles
+	smallTiles := make([][]int, 10)
+	for i := range smallTiles {
+		smallTiles[i] = make([]int, 10)
+	}
+	g.placeSecrets(nil, smallTiles)
+}
+
+func TestPlaceSecretsWithValidTiles(t *testing.T) {
+	r := rng.NewRNG(12345)
+	g := NewGenerator(64, 64, r)
+
+	// Create a valid tile map
+	tiles := make([][]int, g.Height)
+	for i := range tiles {
+		tiles[i] = make([]int, g.Width)
+		for j := range tiles[i] {
+			tiles[i][j] = g.wallTile
+		}
+	}
+
+	// Create a dead end (floor with 3 walls)
+	tiles[32][32] = g.floorTile
+	tiles[31][32] = g.wallTile
+	tiles[33][32] = g.wallTile
+	tiles[32][31] = g.wallTile
+	tiles[32][33] = g.wallTile
+
+	// placeSecrets should work without panic
+	g.placeSecrets(nil, tiles)
+}

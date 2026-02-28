@@ -36,7 +36,7 @@ type Objective struct {
 	Desc     string
 	Target   string
 	Count    int
-	Progress int
+	Progress int64 // int64 prevents overflow in long gameplay sessions
 	Complete bool
 	PosX     float64 // Objective position in level
 	PosY     float64
@@ -235,8 +235,8 @@ func (t *Tracker) Add(obj Objective) {
 func (t *Tracker) UpdateProgress(id string, amount int) {
 	for i := range t.Objectives {
 		if t.Objectives[i].ID == id {
-			t.Objectives[i].Progress += amount
-			if t.Objectives[i].Progress >= t.Objectives[i].Count {
+			t.Objectives[i].Progress += int64(amount)
+			if t.Objectives[i].Progress >= int64(t.Objectives[i].Count) {
 				t.Objectives[i].Complete = true
 			}
 		}

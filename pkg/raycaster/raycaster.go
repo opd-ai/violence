@@ -232,12 +232,13 @@ func (r *Raycaster) CastFloorCeiling(row int, posX, posY, dirX, dirY, pitch floa
 	p := row - r.Height/2
 	// Guard against division by zero at horizon line
 	if p == 0 {
-		// At horizon - return infinite distance for all pixels
+		// At horizon - use far plane distance for consistent fog/lighting
+		const farPlane = 1e10
 		for x := 0; x < r.Width; x++ {
 			pixels[x] = FloorCeilPixel{
 				WorldX:   posX,
 				WorldY:   posY,
-				Distance: 1e30,
+				Distance: farPlane,
 				IsFloor:  isFloor,
 			}
 		}

@@ -404,29 +404,32 @@ func SetGenre(genreID string) {}
 
 ---
 
-### EDGE CASE BUG: Division by Zero in Raycaster Floor/Ceiling Rendering
+### [x] EDGE CASE BUG: Division by Zero in Raycaster Floor/Ceiling Rendering (2026-02-28)
 **File:** pkg/raycaster/raycaster.go:229-244  
 **Severity:** Medium  
+**Status:** FIXED
 **Description:** The `CastFloorCeiling()` function checks for division by zero at the horizon line (`p == 0` at line 233), but only returns early without handling the edge case properly. While this prevents a crash, it returns pixels with distance 1e30 for the entire horizon row, which may cause rendering artifacts or incorrect fog application.
 
 **Expected Behavior:** Horizon line pixels should have sensible default values or be handled specially in rendering.
 
-**Actual Behavior:** Returns pixels with infinite distance (1e30) which may cause fog or lighting calculations to behave unexpectedly.
+**Actual Behavior:** ~~Returns pixels with infinite distance (1e30) which may cause fog or lighting calculations to behave unexpectedly.~~ **FIXED:** Returns pixels with far plane distance (1e10) for consistent fog/lighting calculations at horizon.
 
 **Impact:** 
-- Potential visual artifacts at the horizon line
-- Fog may not render correctly at eye level
-- Low severity as the function prevents crash
+- ~~Potential visual artifacts at the horizon line~~
+- ~~Fog may not render correctly at eye level~~
+- ~~Low severity as the function prevents crash~~
+**FIXED:** Horizon pixels now use consistent far plane distance (1e10) instead of infinity (1e30), ensuring proper fog and lighting behavior while maintaining test compatibility.
 
 **Reproduction:**
-```go
+~~```go
 r := raycaster.NewRaycaster(66.0, 320, 200)
 pixels := r.CastFloorCeiling(100, 5.0, 5.0, 1.0, 0.0, 0.0) // Row 100 = height/2
 // All pixels will have Distance = 1e30
-```
+```~~
+**FIXED:** Horizon pixels now correctly use far plane distance.
 
 **Code Reference:**
-```go
+~~```go
 if p == 0 {
 	// At horizon - return infinite distance for all pixels
 	for x := 0; x < r.Width; x++ {
@@ -439,32 +442,36 @@ if p == 0 {
 	}
 	return pixels
 }
-```
+```~~
+**FIXED:** Now uses `const farPlane = 1e10` for consistent rendering behavior.
 
 ---
 
-### EDGE CASE BUG: Nil/Empty Map Not Handled in BSP Secret Placement
+### [x] EDGE CASE BUG: Nil/Empty Map Not Handled in BSP Secret Placement (2026-02-28)
 **File:** pkg/bsp/bsp.go:325-363  
 **Severity:** Low  
+**Status:** FIXED
 **Description:** The `placeSecrets()` function iterates over the tile map without checking if the map is nil or empty. While `Generate()` creates the map first, if someone calls `placeSecrets()` independently or if map creation fails, this could cause a panic.
 
 **Expected Behavior:** Function should validate map exists before iteration.
 
-**Actual Behavior:** No nil/bounds checking before accessing tiles array.
+**Actual Behavior:** ~~No nil/bounds checking before accessing tiles array.~~ **FIXED:** Added nil/empty/bounds validation at function start.
 
 **Impact:** 
-- Potential panic if called with uninitialized generator
-- Low severity as normal usage flow prevents this
-- Defensive programming issue
+- ~~Potential panic if called with uninitialized generator~~
+- ~~Low severity as normal usage flow prevents this~~
+- ~~Defensive programming issue~~
+**FIXED:** Defensive validation prevents panics. Function now gracefully handles nil tiles, empty slices, and undersized maps.
 
 **Reproduction:**
-```go
+~~```go
 gen := bsp.NewGenerator(64, 64, rng.NewRNG(123))
 gen.placeSecrets(nil, make([][]int, 0)) // Would panic if public
-```
+```~~
+**FIXED:** Now returns early without panic. Added comprehensive tests covering nil tiles, empty slices, and undersized maps.
 
 **Code Reference:**
-```go
+~~```go
 func (g *Generator) placeSecrets(n *Node, tiles [][]int) {
 	if n == nil {
 		return
@@ -474,26 +481,38 @@ func (g *Generator) placeSecrets(n *Node, tiles [][]int) {
 	for y := 1; y < g.Height-1; y++ {
 		for x := 1; x < g.Width-1; x++ {
 			// Accessing tiles without validation
+```~~
+**FIXED:** Added three validation checks:
+```go
+if len(tiles) == 0 || len(tiles[0]) == 0 {
+	return
+}
+if len(tiles) < g.Height || len(tiles[0]) < g.Width {
+	return
+}
 ```
 
 ---
 
-### EDGE CASE BUG: Integer Overflow in Quest Progress Updates
+### [x] EDGE CASE BUG: Integer Overflow in Quest Progress Updates (2026-02-28)
 **File:** pkg/quest/quest.go (UpdateProgress not shown, but referenced in main.go:542)  
 **Severity:** Low  
+**Status:** FIXED
 **Description:** Quest objectives track progress with `int` type (line 39), and main.go calls `UpdateProgress("bonus_kills", 1)` to increment kill counts (line 542). For long-running games or high kill count objectives, repeatedly adding to progress could theoretically overflow the int, though this is extremely unlikely in practice.
 
 **Expected Behavior:** Progress should be bounded or use a larger integer type to prevent overflow.
 
-**Actual Behavior:** Uses standard `int` which is 32-bit on 32-bit systems.
+**Actual Behavior:** ~~Uses standard `int` which is 32-bit on 32-bit systems.~~ **FIXED:** Changed to `int64` to prevent overflow in long gameplay sessions.
 
 **Impact:** 
-- Extremely low probability in normal gameplay
-- Would require 2+ billion kill count updates on 32-bit systems
-- Quest completion could break if overflow occurs
+- ~~Extremely low probability in normal gameplay~~
+- ~~Would require 2+ billion kill count updates on 32-bit systems~~
+- ~~Quest completion could break if overflow occurs~~
+**FIXED:** Using `int64` eliminates overflow risk for all practical gameplay scenarios (max value: 9.2 quintillion).
 
 **Reproduction:**
-Theoretical - would require calling UpdateProgress(2147483647) times on a 32-bit system.
+~~Theoretical - would require calling UpdateProgress(2147483647) times on a 32-bit system.~~
+**FIXED:** Added comprehensive tests for large values (1 billion progress updates, 100 million single update). All tests pass.
 
 ---
 

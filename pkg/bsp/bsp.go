@@ -326,6 +326,12 @@ func (g *Generator) placeSecrets(n *Node, tiles [][]int) {
 	if n == nil {
 		return
 	}
+	if len(tiles) == 0 || len(tiles[0]) == 0 {
+		return
+	}
+	if len(tiles) < g.Height || len(tiles[0]) < g.Width {
+		return
+	}
 
 	// Find dead ends (floor tiles with 3 wall neighbors)
 	for y := 1; y < g.Height-1; y++ {
