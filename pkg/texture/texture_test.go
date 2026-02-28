@@ -1,6 +1,7 @@
 package texture
 
 import (
+	"image"
 	"image/color"
 	"testing"
 )
@@ -489,3 +490,278 @@ func BenchmarkGenerateWall256(b *testing.B) {
 		atlas.Generate("wall", 256, "wall")
 	}
 }
+
+// Animated texture tests
+
+func TestNewAnimatedTexture(t *testing.T) {
+	tests := []struct {
+		name       string
+		frameCount int
+		fps        int
+	}{
+		{"single frame", 1, 30},
+		{"few frames", 4, 15},
+		{"many frames", 16, 60},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			anim := NewAnimatedTexture(tt.frameCount, tt.fps)
+			if anim == nil {
+				t.Fatal("NewAnimatedTexture returned nil")
+			}
+			if anim.FrameCount() != tt.frameCount {
+				t.Errorf("FrameCount() = %d, want %d", anim.FrameCount(), tt.frameCount)
+			}
+		})
+	}
+}
+
+func TestAnimatedTextureGetFrame(t *testing.T) {
+	tests := []struct {
+		name       string
+		fps        int
+		tick       int
+		frameCount int
+		expectIdx  int
+	}{
+		{"first frame", 30, 0, 4, 0},
+		{"second frame", 30, 30, 4, 1},
+		{"wrap around", 30, 120, 4, 0},
+		{"high tick", 15, 1000, 8, 2},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			anim := NewAnimatedTexture(tt.frameCount, tt.fps)
+
+			// Set dummy frames for testing
+			for i := 0; i < tt.frameCount; i++ {
+				img := &dummyImage{id: i}
+				anim.SetFrame(i, img)
+			}
+
+			frame := anim.GetFrame(tt.tick)
+			if frame == nil {
+				t.Fatal("GetFrame returned nil")
+			}
+
+			dummy, ok := frame.(*dummyImage)
+			if !ok {
+				t.Fatal("frame is not a dummyImage")
+			}
+
+			if dummy.id != tt.expectIdx {
+				t.Errorf("frame id = %d, want %d", dummy.id, tt.expectIdx)
+			}
+		})
+	}
+}
+
+func TestAnimatedTextureEmptyFrames(t *testing.T) {
+	anim := NewAnimatedTexture(4, 30)
+
+	// Don't set any frames
+	frame := anim.GetFrame(0)
+	if frame != nil {
+		t.Error("GetFrame on empty frames should return nil")
+	}
+}
+
+func TestGenerateAnimatedFlickerTorch(t *testing.T) {
+	atlas := NewAtlas(42)
+	err := atlas.GenerateAnimated("torch", 32, 8, 15, "flicker_torch")
+	if err != nil {
+		t.Fatalf("GenerateAnimated failed: %v", err)
+	}
+
+	// Verify we can get frames
+	for tick := 0; tick < 120; tick += 15 {
+		frame, ok := atlas.GetAnimatedFrame("torch", tick)
+		if !ok {
+			t.Errorf("GetAnimatedFrame failed at tick %d", tick)
+		}
+		if frame == nil {
+			t.Errorf("frame is nil at tick %d", tick)
+		}
+	}
+}
+
+func TestGenerateAnimatedBlinkPanel(t *testing.T) {
+	atlas := NewAtlas(123)
+	err := atlas.GenerateAnimated("panel", 32, 4, 30, "blink_panel")
+	if err != nil {
+		t.Fatalf("GenerateAnimated failed: %v", err)
+	}
+
+	frame0, _ := atlas.GetAnimatedFrame("panel", 0)
+	frame1, _ := atlas.GetAnimatedFrame("panel", 30)
+
+	if frame0 == nil || frame1 == nil {
+		t.Fatal("frames are nil")
+	}
+
+	// Frames should differ
+	if frame0 == frame1 {
+		t.Error("consecutive frames are identical (should differ)")
+	}
+}
+
+func TestGenerateAnimatedDripWater(t *testing.T) {
+	atlas := NewAtlas(789)
+	err := atlas.GenerateAnimated("drip", 32, 10, 20, "drip_water")
+	if err != nil {
+		t.Fatalf("GenerateAnimated failed: %v", err)
+	}
+
+	frame, ok := atlas.GetAnimatedFrame("drip", 0)
+	if !ok {
+		t.Fatal("GetAnimatedFrame failed")
+	}
+	if frame == nil {
+		t.Error("frame is nil")
+	}
+}
+
+func TestAnimatedDeterministic(t *testing.T) {
+	seed := uint64(999)
+
+	atlas1 := NewAtlas(seed)
+	atlas1.GenerateAnimated("anim", 16, 4, 30, "flicker_torch")
+
+	atlas2 := NewAtlas(seed)
+	atlas2.GenerateAnimated("anim", 16, 4, 30, "flicker_torch")
+
+	// Compare frames
+	for tick := 0; tick < 120; tick += 30 {
+		f1, _ := atlas1.GetAnimatedFrame("anim", tick)
+		f2, _ := atlas2.GetAnimatedFrame("anim", tick)
+
+		// Compare pixel-by-pixel
+		b := f1.Bounds()
+		for y := b.Min.Y; y < b.Max.Y; y++ {
+			for x := b.Min.X; x < b.Max.X; x++ {
+				if f1.At(x, y) != f2.At(x, y) {
+					t.Errorf("tick %d: pixel (%d,%d) differs", tick, x, y)
+					return
+				}
+			}
+		}
+	}
+}
+
+func TestGetAnimatedFrameNonExistent(t *testing.T) {
+	atlas := NewAtlas(555)
+	_, ok := atlas.GetAnimatedFrame("nonexistent", 0)
+	if ok {
+		t.Error("GetAnimatedFrame returned true for nonexistent texture")
+	}
+}
+
+func TestGetAnimatedFrameStaticTexture(t *testing.T) {
+	atlas := NewAtlas(666)
+	atlas.Generate("static", 32, "wall")
+
+	_, ok := atlas.GetAnimatedFrame("static", 0)
+	if ok {
+		t.Error("GetAnimatedFrame returned true for static texture")
+	}
+}
+
+func TestAnimatedFrameCycling(t *testing.T) {
+	atlas := NewAtlas(777)
+	atlas.GenerateAnimated("cycle", 16, 4, 30, "flicker_torch")
+
+	// Test that frames cycle correctly
+	f0, _ := atlas.GetAnimatedFrame("cycle", 0)
+	f120, _ := atlas.GetAnimatedFrame("cycle", 120) // 120 ticks = 4 frames @ 30fps = full cycle
+
+	// Should be back to frame 0
+	b := f0.Bounds()
+	matches := true
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			if f0.At(x, y) != f120.At(x, y) {
+				matches = false
+				break
+			}
+		}
+	}
+
+	if !matches {
+		t.Error("frame at tick 0 and tick 120 should be identical (full cycle)")
+	}
+}
+
+func TestAnimatedTextureGenreVariations(t *testing.T) {
+	genres := []string{"fantasy", "scifi", "horror"}
+	patterns := []string{"flicker_torch", "blink_panel", "drip_water"}
+
+	for _, genre := range genres {
+		for _, pattern := range patterns {
+			t.Run(genre+"_"+pattern, func(t *testing.T) {
+				atlas := NewAtlas(123)
+				atlas.SetGenre(genre)
+				err := atlas.GenerateAnimated("test", 16, 4, 30, pattern)
+				if err != nil {
+					t.Fatalf("GenerateAnimated failed: %v", err)
+				}
+
+				frame, ok := atlas.GetAnimatedFrame("test", 0)
+				if !ok || frame == nil {
+					t.Error("failed to get animated frame")
+				}
+			})
+		}
+	}
+}
+
+func TestAnimatedFrameVariation(t *testing.T) {
+	atlas := NewAtlas(888)
+	atlas.GenerateAnimated("var", 16, 8, 30, "flicker_torch")
+
+	// Get multiple frames and verify they differ
+	frames := make([]image.Image, 8)
+	for i := 0; i < 8; i++ {
+		frames[i], _ = atlas.GetAnimatedFrame("var", i*30)
+	}
+
+	// At least some frames should differ
+	allIdentical := true
+	for i := 1; i < len(frames); i++ {
+		if frames[0] != frames[i] {
+			allIdentical = false
+			break
+		}
+	}
+
+	if allIdentical {
+		t.Error("all frames are identical, animation is static")
+	}
+}
+
+func BenchmarkGenerateAnimatedTorch(b *testing.B) {
+	atlas := NewAtlas(12345)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		atlas.GenerateAnimated("torch", 32, 8, 15, "flicker_torch")
+	}
+}
+
+func BenchmarkGetAnimatedFrame(b *testing.B) {
+	atlas := NewAtlas(12345)
+	atlas.GenerateAnimated("torch", 32, 8, 15, "flicker_torch")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		atlas.GetAnimatedFrame("torch", i%120)
+	}
+}
+
+// dummyImage is a minimal image.Image implementation for testing
+type dummyImage struct {
+	id int
+}
+
+func (d *dummyImage) ColorModel() color.Model { return color.RGBAModel }
+func (d *dummyImage) Bounds() image.Rectangle { return image.Rect(0, 0, 1, 1) }
+func (d *dummyImage) At(x, y int) color.Color { return color.RGBA{R: 0, G: 0, B: 0, A: 255} }

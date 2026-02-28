@@ -12,6 +12,7 @@ import (
 // Atlas stores procedurally generated textures.
 type Atlas struct {
 	textures map[string]image.Image
+	animated map[string]*AnimatedTexture
 	genre    string
 	seed     uint64
 }
@@ -20,6 +21,7 @@ type Atlas struct {
 func NewAtlas(seed uint64) *Atlas {
 	return &Atlas{
 		textures: make(map[string]image.Image),
+		animated: make(map[string]*AnimatedTexture),
 		genre:    "fantasy",
 		seed:     seed,
 	}

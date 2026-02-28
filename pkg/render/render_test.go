@@ -1,6 +1,7 @@
 package render
 
 import (
+	"image"
 	"image/color"
 	"testing"
 
@@ -351,4 +352,190 @@ func BenchmarkSetGenre(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		r.SetGenre(genres[i%len(genres)])
 	}
+}
+
+func TestSetTextureAtlas(t *testing.T) {
+	rc := raycaster.NewRaycaster(66.0, 320, 200)
+	r := NewRenderer(320, 200, rc)
+
+	if r.atlas != nil {
+		t.Error("Atlas should be nil initially")
+	}
+
+	// Create a mock atlas (we'll use the real one for integration)
+	atlas := &mockAtlas{}
+	r.SetTextureAtlas(atlas)
+
+	if r.atlas == nil {
+		t.Error("Atlas should be set after SetTextureAtlas")
+	}
+}
+
+func TestRenderFloorWithTexture(t *testing.T) {
+	rc := raycaster.NewRaycaster(66.0, 320, 200)
+	rc.SetMap([][]int{
+		{1, 1, 1, 1, 1},
+		{1, 0, 0, 0, 1},
+		{1, 0, 0, 0, 1},
+		{1, 0, 0, 0, 1},
+		{1, 1, 1, 1, 1},
+	})
+	r := NewRenderer(320, 200, rc)
+
+	// Render without texture atlas (palette mode)
+	colorNoTex := r.renderFloor(160, 150, 2.5, 2.5, 1.0, 0.0, 0.0)
+	if colorNoTex.A != 255 {
+		t.Error("Floor should have full alpha without texture")
+	}
+
+	// Now with atlas that doesn't have floor texture (should fallback to palette)
+	atlas := &mockAtlas{hasFloor: false}
+	r.SetTextureAtlas(atlas)
+	colorNoFloor := r.renderFloor(160, 150, 2.5, 2.5, 1.0, 0.0, 0.0)
+	if colorNoFloor.A != 255 {
+		t.Error("Floor should have full alpha when texture missing")
+	}
+
+	// With atlas that has floor texture
+	atlas2 := &mockAtlas{hasFloor: true}
+	r.SetTextureAtlas(atlas2)
+	colorWithTex := r.renderFloor(160, 150, 2.5, 2.5, 1.0, 0.0, 0.0)
+	if colorWithTex.A != 255 {
+		t.Error("Floor should have full alpha with texture")
+	}
+}
+
+func TestRenderCeilingWithTexture(t *testing.T) {
+	rc := raycaster.NewRaycaster(66.0, 320, 200)
+	rc.SetMap([][]int{
+		{1, 1, 1, 1, 1},
+		{1, 0, 0, 0, 1},
+		{1, 0, 0, 0, 1},
+		{1, 0, 0, 0, 1},
+		{1, 1, 1, 1, 1},
+	})
+	r := NewRenderer(320, 200, rc)
+
+	// Without texture atlas
+	colorNoTex := r.renderCeiling(160, 50, 2.5, 2.5, 1.0, 0.0, 0.0)
+	if colorNoTex.A != 255 {
+		t.Error("Ceiling should have full alpha without texture")
+	}
+
+	// With atlas that has ceiling texture
+	atlas := &mockAtlas{hasCeiling: true}
+	r.SetTextureAtlas(atlas)
+	colorWithTex := r.renderCeiling(160, 50, 2.5, 2.5, 1.0, 0.0, 0.0)
+	if colorWithTex.A != 255 {
+		t.Error("Ceiling should have full alpha with texture")
+	}
+}
+
+func TestSampleTexture(t *testing.T) {
+	rc := raycaster.NewRaycaster(66.0, 320, 200)
+	r := NewRenderer(320, 200, rc)
+
+	// Create a simple test texture
+	tex := &mockTexture{
+		w:     8,
+		h:     8,
+		color: color.RGBA{R: 100, G: 150, B: 200, A: 255},
+	}
+
+	tests := []struct {
+		name   string
+		worldX float64
+		worldY float64
+	}{
+		{"origin", 0.0, 0.0},
+		{"positive coords", 1.5, 2.3},
+		{"negative coords", -0.5, -1.2},
+		{"large coords", 10.7, 15.9},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := r.sampleTexture(tex, tt.worldX, tt.worldY)
+			if c.A != 255 {
+				t.Errorf("sampled color alpha = %d, want 255", c.A)
+			}
+			// Should return the test color
+			if c.R != 100 || c.G != 150 || c.B != 200 {
+				t.Errorf("sampled color = %v, want RGB(100,150,200)", c)
+			}
+		})
+	}
+}
+
+func TestSampleTextureWrapping(t *testing.T) {
+	rc := raycaster.NewRaycaster(66.0, 320, 200)
+	r := NewRenderer(320, 200, rc)
+
+	tex := &mockTexture{
+		w:     4,
+		h:     4,
+		color: color.RGBA{R: 50, G: 100, B: 150, A: 255},
+	}
+
+	// Test that coordinates wrap correctly
+	c1 := r.sampleTexture(tex, 0.0, 0.0)
+	c2 := r.sampleTexture(tex, 1.0, 1.0) // Should wrap to same texel
+	c3 := r.sampleTexture(tex, 2.0, 2.0) // Should also wrap to same texel
+
+	if c1 != c2 || c1 != c3 {
+		t.Error("Texture wrapping should produce identical colors at integer boundaries")
+	}
+}
+
+func BenchmarkSampleTexture(b *testing.B) {
+	rc := raycaster.NewRaycaster(66.0, 320, 200)
+	r := NewRenderer(320, 200, rc)
+
+	tex := &mockTexture{
+		w:     64,
+		h:     64,
+		color: color.RGBA{R: 128, G: 128, B: 128, A: 255},
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r.sampleTexture(tex, float64(i%100)/10.0, float64(i%100)/10.0)
+	}
+}
+
+// mockAtlas is a minimal texture.Atlas for testing
+type mockAtlas struct {
+	hasFloor   bool
+	hasCeiling bool
+}
+
+func (m *mockAtlas) Get(name string) (image.Image, bool) {
+	if name == "floor_main" && m.hasFloor {
+		return &mockTexture{w: 8, h: 8, color: color.RGBA{R: 80, G: 70, B: 60, A: 255}}, true
+	}
+	if name == "ceiling_main" && m.hasCeiling {
+		return &mockTexture{w: 8, h: 8, color: color.RGBA{R: 60, G: 50, B: 40, A: 255}}, true
+	}
+	return nil, false
+}
+
+func (m *mockAtlas) SetGenre(genreID string) {}
+
+// mockTexture is a simple test texture that returns a constant color
+type mockTexture struct {
+	w     int
+	h     int
+	color color.RGBA
+}
+
+func (m *mockTexture) ColorModel() color.Model {
+	return color.RGBAModel
+}
+
+func (m *mockTexture) Bounds() image.Rectangle {
+	return image.Rect(0, 0, m.w, m.h)
+}
+
+func (m *mockTexture) At(x, y int) color.Color {
+	return m.color
 }

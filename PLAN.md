@@ -1,691 +1,136 @@
-# Implementation Plan: v2.0 — Core Systems: Weapons, FPS AI, Keycards, All 5 Genres
+# Implementation Plan: v3.0 — Visual Polish: Textures, Lighting, Particles, Indoor Weather
 
 ## Phase Overview
-- **Objective**: Deliver all five genres playable with full combat loop, enemy AI, weapon mechanics, keycard progression, and character classes.
-- **Source Document**: ROADMAP.md (lines 110–179)
-- **Prerequisites**: v1.0 complete — ECS framework, raycaster, BSP generator, camera, input, audio, UI/HUD, save/load, config, CI/CD foundation all functional with fantasy genre playable end-to-end.
+- **Objective**: Achieve genre-distinct atmosphere where each genre feels visually unique through dynamic lighting, particle effects, and atmospheric systems
+- **Source Document**: ROADMAP.md (v3.0 milestone)
+- **Prerequisites**: v2.0 Core Systems complete (weapon, AI, combat, door/keycard, automap verified; 5 genres integrated)
 - **Estimated Scope**: Large
 
 ## Implementation Steps
 
-### Weapon System (`pkg/weapon`)
-
-1. Implement hitscan weapon firing with ray-cast hit detection
-   - **Deliverable**: `Arsenal.Fire()` casts ray from camera position/direction; returns hit entity and damage; supports pistol, shotgun (multi-ray spread), chaingun (rapid fire)
-   - **Dependencies**: `pkg/raycaster` (ray casting), `pkg/camera` (position/direction), `pkg/engine` (entity queries)
-
-2. Implement projectile weapon firing with in-world projectile simulation
-   - **Deliverable**: `Arsenal.FireProjectile()` spawns projectile entity with velocity; `ProjectileSystem` updates position each tick; collision detection against walls and entities; rocket launcher and plasma gun implemented
-   - **Dependencies**: Step 1, `pkg/engine` (entity creation), `pkg/bsp` (collision against tile grid)
-
-3. Implement melee weapons (knife, fist)
-   - **Deliverable**: `Arsenal.Melee()` performs short-range hit check; knife is silent (no AI alert), fist is desperation fallback with low damage
-   - **Dependencies**: Step 1
-
-4. Implement weapon switching (wheel and quick-select 1–7 keys)
-   - **Deliverable**: `Arsenal.SwitchTo(slot int)` changes active weapon with raise/lower animation states; input bindings for 1–7 keys and weapon wheel overlay
-   - **Dependencies**: `pkg/input` (key bindings), `pkg/ui` (weapon wheel overlay)
-
-5. Implement weapon animations (raise, lower, fire, reload)
-   - **Deliverable**: Procedurally generated animation frames for each weapon state; animation state machine drives frame selection; all frames generated at runtime from seed
-   - **Dependencies**: Steps 1–4, `pkg/rng` (deterministic generation)
-
-6. Wire `SetGenre()` for weapon skin swaps
-   - **Deliverable**: `SetGenre()` remaps weapon names and visual parameters (pistol → blaster, shotgun → scatter-cannon, etc.) per genre
-   - **Dependencies**: Steps 1–5, `pkg/procgen/genre`
-
-7. Add unit tests for weapon system
-   - **Deliverable**: Tests for hitscan hit detection, projectile trajectory, melee range, weapon switching, animation state transitions, genre skin swap
-   - **Dependencies**: Steps 1–6
-
-### Ammo System (`pkg/ammo`)
-
-8. Implement per-weapon ammo types and pools
-   - **Deliverable**: `AmmoPool` tracks bullets, shells, cells, rockets; `Arsenal` checks ammo before firing; `ConsumeAmmo()` decrements pool
-   - **Dependencies**: Step 1 (weapon firing)
-
-9. Implement ammo pickups (boxes, backpacks, enemy drops)
-   - **Deliverable**: `AmmoPickup` entity type with amount and ammo type; `PickupSystem` adds to player pool on collision; backpacks give mixed ammo
-   - **Dependencies**: Step 8, `pkg/engine` (entity collision)
-
-10. Implement difficulty-based scarcity tuning
-    - **Deliverable**: Difficulty setting scales ammo drop rates and pickup amounts (Easy: 1.5x, Normal: 1x, Hard: 0.5x)
-    - **Dependencies**: Steps 8–9, `pkg/config` (difficulty setting)
-
-11. Wire ammo display to HUD
-    - **Deliverable**: `pkg/ui` HUD shows current weapon's ammo count; updates on fire and pickup
-    - **Dependencies**: Steps 8–10, `pkg/ui`
-
-12. Add unit tests for ammo system
-    - **Deliverable**: Tests for ammo consumption, pickup collection, scarcity scaling, HUD update triggers
-    - **Dependencies**: Steps 8–11
-
-### Keycard / Door System (`pkg/door`)
-
-13. Implement color-coded keycard inventory
-    - **Deliverable**: `KeycardInventory` tracks red, yellow, blue keycards; `AddKeycard()` and `HasKeycard()` methods
-    - **Dependencies**: `pkg/inventory` (item storage)
-
-14. Implement door types with open/close mechanics
-    - **Deliverable**: `Door` entity with state (closed, opening, open, closing); `DoorSystem` animates state transitions; door types: swing, sliding bulkhead, portcullis, shutter, laser-barrier
-    - **Dependencies**: `pkg/engine` (entity system), `pkg/bsp` (door placement)
-
-15. Implement locked-door interaction and HUD feedback
-    - **Deliverable**: `ActionUse` on locked door checks `KeycardInventory`; if missing, displays "Need [color] keycard" on HUD; if present, unlocks and opens
-    - **Dependencies**: Steps 13–14, `pkg/input` (use action), `pkg/ui` (feedback message)
-
-16. Wire `SetGenre()` for door/keycard skin mapping
-    - **Deliverable**: `SetGenre()` maps canonical colors to genre variants (blue → rune-key/access-card/biometric); door visuals swap per genre
-    - **Dependencies**: Steps 13–15, `pkg/procgen/genre`
-
-17. Add unit tests for door/keycard system
-    - **Deliverable**: Tests for keycard acquisition, door state transitions, locked door rejection, genre skin swap
-    - **Dependencies**: Steps 13–16
-
-### Automap (`pkg/automap`)
-
-18. Implement fog-of-war tile revelation
-    - **Deliverable**: `Automap` tracks visited tiles; `RevealTile(x, y)` marks tile as seen; unvisited tiles render as black
-    - **Dependencies**: `pkg/bsp` (tile grid)
-
-19. Implement wall, door, locked-door, and secret annotations
-    - **Deliverable**: Automap renders walls as lines, doors as gaps with color, locked doors with keycard color indicator, discovered secrets with marker
-    - **Dependencies**: Step 18, `pkg/door` (door states)
-
-20. Implement player position and facing indicator
-    - **Deliverable**: Automap shows player icon at current position with directional arrow matching camera facing
-    - **Dependencies**: Step 18, `pkg/camera` (position/direction)
-
-21. Implement overlay (Tab) and fullscreen modes
-    - **Deliverable**: Tab key toggles semi-transparent overlay; dedicated key opens fullscreen automap; both modes show same data
-    - **Dependencies**: Steps 18–20, `pkg/input` (automap action), `pkg/ui` (overlay rendering)
-
-22. Integrate automap into main game loop
-    - **Deliverable**: `main.go` creates automap, updates on player movement, renders in overlay/fullscreen modes
-    - **Dependencies**: Steps 18–21
-
-23. Add unit tests for automap
-    - **Deliverable**: Tests for tile revelation, annotation rendering, player indicator positioning, mode toggling
-    - **Dependencies**: Steps 18–22
-
-### FPS Enemy AI (`pkg/ai`)
-
-24. Implement behavior tree framework
-    - **Deliverable**: `BehaviorTree` with node types: Selector, Sequence, Condition, Action; `Tick()` evaluates tree and returns Running/Success/Failure
-    - **Dependencies**: None
-
-25. Implement AI states: patrol, idle, alert, chase, strafe, take-cover, retreat
-    - **Deliverable**: Action nodes for each state; patrol follows waypoints, idle waits, alert investigates, chase pursues player, strafe dodges, take-cover seeks cover tiles, retreat flees at low health
-    - **Dependencies**: Step 24, `pkg/bsp` (pathfinding grid)
-
-26. Implement line-of-sight and hearing detection
-    - **Deliverable**: `CanSeePlayer()` casts ray to player, blocked by walls; `CanHearGunshot(radius)` checks distance to last gunshot position; detection triggers alert state
-    - **Dependencies**: Steps 24–25, `pkg/raycaster` (ray casting)
-
-27. Implement enemy archetypes per genre
-    - **Deliverable**: `EnemyArchetype` defines health, damage, speed, behavior tree configuration; archetypes: guard (fantasy), soldier (scifi), cultist (horror), drone (cyberpunk), scavenger (postapoc)
-    - **Dependencies**: Steps 24–26
-
-28. Wire `SetGenre()` for archetype visuals and audio
-    - **Deliverable**: `SetGenre()` selects active archetype set; visuals and audio procedurally generated at runtime per archetype parameters
-    - **Dependencies**: Step 27, `pkg/procgen/genre`, `pkg/audio`
-
-29. Integrate AI system into game loop
-    - **Deliverable**: `main.go` spawns enemies from BSP generator placements; `AISystem` ticks each enemy's behavior tree each frame
-    - **Dependencies**: Steps 24–28, `pkg/engine`
-
-30. Add unit tests for AI system
-    - **Deliverable**: Tests for behavior tree evaluation, state transitions, line-of-sight blocking, hearing radius, archetype configuration
-    - **Dependencies**: Steps 24–29
-
-### Combat System (`pkg/combat`)
-
-31. Implement damage model with health and armor absorption
-    - **Deliverable**: `ApplyDamage(target, amount, type)` reduces armor first (absorption rate configurable), then health; `DamageType` enum for physical, fire, plasma, etc.
-    - **Dependencies**: `pkg/engine` (entity health/armor components)
-
-32. Implement hit feedback (screen flash, directional indicators)
-    - **Deliverable**: `TakeDamage` triggers screen red flash; HUD shows directional damage indicator pointing toward attacker
-    - **Dependencies**: Step 31, `pkg/ui` (screen effects, damage indicator)
-
-33. Implement enemy death states and gibs
-    - **Deliverable**: Enemy death triggers death animation; gib system spawns debris on overkill damage (difficulty-gated: off on Easy, on for Hard)
-    - **Dependencies**: Steps 31–32, `pkg/particle` (debris particles)
-
-34. Implement difficulty scaling
-    - **Deliverable**: Difficulty setting scales enemy HP (0.5x/1x/2x), enemy damage (0.5x/1x/1.5x), enemy count (0.7x/1x/1.3x), alertness radius (0.7x/1x/1.5x)
-    - **Dependencies**: Steps 31–33, `pkg/config` (difficulty setting)
-
-35. Add unit tests for combat system
-    - **Deliverable**: Tests for damage calculation, armor absorption, death state triggers, difficulty scaling
-    - **Dependencies**: Steps 31–34
-
-### Status Effects (`pkg/status`)
-
-36. Implement status effect registry and tick damage
-    - **Deliverable**: `EffectRegistry` tracks active effects per entity; effects tick damage over time; `ApplyEffect(entity, effectType, duration)` adds effect; `TickEffects()` processes all active effects
-    - **Dependencies**: `pkg/engine` (entity system)
-
-37. Implement genre-specific effects
-    - **Deliverable**: Poisoned (fantasy: cursed blade), Burning (scifi/cyberpunk: plasma), Bleeding (horror/postapoc: melee), Irradiated (postapoc: radiation zones)
-    - **Dependencies**: Step 36
-
-38. Implement HUD effect icons and screen tints
-    - **Deliverable**: Active effects show icon on HUD; screen tint overlay per effect type (green for poison, orange for burn, red for bleed, yellow for radiation)
-    - **Dependencies**: Steps 36–37, `pkg/ui`
-
-39. Wire `SetGenre()` for effect name/visual remapping
-    - **Deliverable**: `SetGenre()` remaps effect display names and tint colors to genre-appropriate variants
-    - **Dependencies**: Steps 36–38, `pkg/procgen/genre`
-
-40. Add unit tests for status effects
-    - **Deliverable**: Tests for effect application, tick damage, duration expiry, HUD icon display, genre remapping
-    - **Dependencies**: Steps 36–39
-
-### Loot / Drops (`pkg/loot`)
-
-41. Implement loot table system
-    - **Deliverable**: `LootTable` defines drop chances and amounts; `RollLoot(seed, tableID)` returns deterministic loot list; tables for enemy drops, crate contents, secret rewards
-    - **Dependencies**: `pkg/rng` (deterministic rolls)
-
-42. Implement enemy ammo drops
-    - **Deliverable**: Enemy death spawns ammo pickup matching enemy's weapon type; amount scales to enemy tier
-    - **Dependencies**: Step 41, Steps 8–9 (ammo pickups)
-
-43. Implement health and armor pickups
-    - **Deliverable**: Health packs: small (+10 HP), large (+25 HP), medkit (+50 HP); armor shards (+5 armor), armor vests (+25 armor, +50 max armor)
-    - **Dependencies**: Step 41, `pkg/engine` (pickup entities)
-
-44. Implement keycard drops from boss/captain enemies
-    - **Deliverable**: Boss and captain enemy types have keycard in loot table; keycard color matches level progression requirements
-    - **Dependencies**: Steps 41–43, Step 13 (keycard inventory)
-
-45. Add unit tests for loot system
-    - **Deliverable**: Tests for loot table rolls, deterministic output, enemy drops, pickup effects
-    - **Dependencies**: Steps 41–44
-
-### Progression — XP / Leveling (`pkg/progression`)
-
-46. Implement XP tracking and sources
-    - **Deliverable**: `Progression` tracks total XP; `GainXP(amount, source)` adds XP; sources: kills, secrets found, objectives completed; XP amounts configurable per source
-    - **Dependencies**: None
-
-47. Implement level-up thresholds and rewards
-    - **Deliverable**: Level-up at XP thresholds (100, 300, 600, 1000, ...); each level grants: +10 max HP, +5 max armor, +10% ammo capacity; `LevelUp()` applies rewards
-    - **Dependencies**: Step 46, `pkg/engine` (player stats)
-
-48. Wire XP/level display to HUD
-    - **Deliverable**: HUD shows current level and XP bar to next level
-    - **Dependencies**: Steps 46–47, `pkg/ui`
-
-49. Add unit tests for progression
-    - **Deliverable**: Tests for XP accumulation, level-up thresholds, reward application, HUD updates
-    - **Dependencies**: Steps 46–48
-
-### Character Classes (`pkg/class`)
-
-50. Implement class definitions with starting loadouts
-    - **Deliverable**: `Class` defines starting weapons, ammo, health, and special ability; classes: Grunt (assault rifle + extra ammo), Medic (pistol + health packs), Demo (rocket launcher + less ammo), Mystic (plasma pistol + AoE ability charges)
-    - **Dependencies**: Steps 1–6 (weapon system), Steps 8–11 (ammo system)
-
-51. Implement Mystic passive ability (ranged AoE damage)
-    - **Deliverable**: Mystic has ability charges; activate to deal AoE damage at target location; charges regenerate over time; lower max HP but higher energy ammo capacity
-    - **Dependencies**: Step 50, `pkg/combat` (damage application)
-
-52. Wire `SetGenre()` for class flavor names
-    - **Deliverable**: `SetGenre()` remaps class names: Grunt → Warrior/Marine/Survivor/Enforcer/Scavenger; Mystic → Mage/Psi-Ops/Occultist/Netrunner/Chemist
-    - **Dependencies**: Steps 50–51, `pkg/procgen/genre`
-
-53. Integrate class selection into new-game flow
-    - **Deliverable**: Class select screen after genre select; selected class initializes player entity with class loadout
-    - **Dependencies**: Steps 50–52, `pkg/ui` (class select menu)
-
-54. Add unit tests for character classes
-    - **Deliverable**: Tests for class loadout initialization, Mystic ability mechanics, genre name remapping
-    - **Dependencies**: Steps 50–53
-
-### Genre Integration — All 5 Genres
-
-55. Implement `SetGenre()` across all v2.0 packages
-    - **Deliverable**: All v2.0 packages (weapon, ammo, door, automap, ai, combat, status, loot, progression, class) implement `SetGenre()` with all five genre IDs: fantasy, scifi, horror, cyberpunk, postapoc
-    - **Dependencies**: All above steps
-
-56. Update genre select screen with all five options
-    - **Deliverable**: New-game genre select offers all five genres; selection propagates to all systems via `SetGenre()`
-    - **Dependencies**: Step 55, `pkg/ui`
-
-57. Implement per-genre BSP tile themes
-    - **Deliverable**: `pkg/bsp` `SetGenre()` selects tile texture parameters: stone (fantasy), hull (scifi), plaster (horror), glass/concrete (cyberpunk), rust/rubble (postapoc)
-    - **Dependencies**: Step 55, `pkg/bsp`
-
-58. Implement per-genre enemy rosters
-    - **Deliverable**: Each genre has 3–5 enemy archetypes with genre-appropriate names, behaviors, and procedurally generated visuals
-    - **Dependencies**: Step 55, Steps 27–28 (archetypes)
-
-59. Implement per-genre audio palettes
-    - **Deliverable**: `pkg/audio` `SetGenre()` selects music synthesis parameters and SFX variants for each genre; all audio procedurally generated at runtime
-    - **Dependencies**: Step 55, `pkg/audio`
-
-60. End-to-end playtest with all five genres
-    - **Deliverable**: Each genre plays end-to-end: start → select genre → select class → generate level → combat enemies → collect loot → progress XP → complete level
-    - **Dependencies**: All above steps
-
-### Integration and Testing
-
-61. Wire all v2.0 systems into `main.go` game loop
-    - **Deliverable**: `Game.Update()` processes weapon firing, AI ticks, combat damage, status effect ticks, loot spawns, XP gains; `Game.Draw()` renders weapon, enemies, effects, automap
-    - **Dependencies**: All above steps
-
-62. Add integration tests for full combat loop
-    - **Deliverable**: Tests simulating: spawn enemy → player fires → enemy takes damage → enemy dies → loot drops → player picks up → XP gained → level up
-    - **Dependencies**: Step 61
-
-63. Achieve 82%+ test coverage on v2.0 packages
-    - **Deliverable**: `go test -coverprofile` reports ≥82% coverage across all v2.0 packages
-    - **Dependencies**: All test steps above
+### 1. Extend Procedural Texture System with Animation Support ✓
+- **Status**: Completed 2026-02-28
+- **Deliverable**: `pkg/texture/animated.go` — AnimatedTexture type with frame sequence generation; flickering torches (fantasy), blinking panels (scifi), dripping water (horror) patterns
+- **Implementation Summary**: 
+  - Created AnimatedTexture type with deterministic frame selection based on game tick
+  - Implemented three animation patterns: flicker_torch (fantasy fire), blink_panel (sci-fi panels), drip_water (horror dripping)
+  - Added GenerateAnimated() and GetAnimatedFrame() methods to Atlas
+  - All animations are fully deterministic (same seed → same animation sequence)
+  - Comprehensive test suite with 92.7% coverage
+- **Dependencies**: Existing `pkg/texture/texture.go` perlin noise foundation
+
+### 2. Integrate Floor/Ceiling Textures into Raycaster ✓
+- **Status**: Completed 2026-02-28
+- **Deliverable**: Modified `pkg/render/render.go` floor-cast pass consuming textures from TextureAtlas with perspective-correct sampling
+- **Implementation Summary**:
+  - Added TextureAtlas interface to Renderer for flexible texture retrieval
+  - Implemented SetTextureAtlas() method for injecting texture atlas
+  - Modified renderFloor() and renderCeiling() to sample from atlas when available
+  - Added sampleTexture() method with perspective-correct coordinate wrapping
+  - Fallback to palette mode when atlas not set or textures missing
+  - Comprehensive test suite with 92.8% coverage
+- **Dependencies**: Step 1 texture generation
+
+### 3. Implement Sector-Based Dynamic Lighting System
+- **Deliverable**: `pkg/lighting/sector.go` — SectorLightMap type with per-sector ambient levels; AddLight/RemoveLight API; Calculate() computes combined illumination per tile
+- **Dependencies**: None
+
+### 4. Implement Point Light Sources
+- **Deliverable**: `pkg/lighting/point.go` — PointLight struct with position, radius, intensity, color; attenuation function (linear/quadratic falloff); genre-specific light source definitions (torches, lamps, monitors, fires)
+- **Dependencies**: Step 3 SectorLightMap
+
+### 5. Implement Player Flashlight
+- **Deliverable**: `pkg/lighting/flashlight.go` — ConeLight type for forward-facing illumination; radius, angle, intensity parameters; genre-skinned variants (torch/headlamp/glow-rod)
+- **Dependencies**: Step 4 point light foundation
+
+### 6. Integrate Lighting with Rendering Pipeline
+- **Deliverable**: Modified `pkg/render/render.go` to apply per-pixel lighting multiplier from SectorLightMap during wall/floor/ceiling rendering
+- **Dependencies**: Steps 3-5 lighting system
+
+### 7. Implement Core Particle System
+- **Deliverable**: `pkg/particle/system.go` — ParticleSystem with spawn/update/cull lifecycle; Particle struct with position, velocity, life, color, size; spatial bounds culling for performance
+- **Dependencies**: None
+
+### 8. Implement Particle Emitter Types
+- **Deliverable**: `pkg/particle/emitters.go` — MuzzleFlashEmitter, SparkEmitter, BloodSplatterEmitter, ExplosionEmitter, EnergyDischargeEmitter; each with genre-configurable parameters
+- **Dependencies**: Step 7 core particle system
+
+### 9. Implement Indoor Weather Particle Effects
+- **Deliverable**: `pkg/particle/weather.go` — DrippingWaterEmitter (fantasy), VentSteamEmitter (scifi), FlickeringLightController (horror), HolographicStaticEmitter (cyberpunk), DustParticleEmitter (postapoc)
+- **Dependencies**: Step 8 emitter framework
+
+### 10. Implement Genre Post-Processing Presets
+- **Deliverable**: `pkg/render/postprocess.go` — PostProcessor type with ApplyVignette, ApplyFilmGrain, ApplyScanlines, ApplyChromaticAberration, ApplyBloom, ApplyColorGrade methods; GenrePreset struct mapping genre → effect chain
+- **Dependencies**: None
+
+### 11. Integrate Post-Processing into Render Pipeline
+- **Deliverable**: Modified `pkg/render/render.go` to apply PostProcessor after scene render, before screen blit
+- **Dependencies**: Step 10 post-processing system
+
+### 12. Implement Procedural Ambient Soundscapes
+- **Deliverable**: `pkg/audio/ambient.go` — AmbientSoundscape type generating continuous background audio via deterministic synthesis; genre-specific profiles (dungeon echo, station hum, hospital silence, server drone, wind)
+- **Dependencies**: Existing `pkg/audio/audio.go` synthesis foundation
+
+### 13. Implement Room-Size Reverb Calculation
+- **Deliverable**: `pkg/audio/reverb.go` — ReverbCalculator computing reverb parameters (decay, wet/dry mix) from BSP room dimensions; Apply() method for SFX
+- **Dependencies**: Step 12 audio foundation; `pkg/bsp` room data
+
+### 14. Add Weapon Audio Polish
+- **Deliverable**: Extended `pkg/audio/sfx.go` with procedural ReloadSound, EmptyClickSound, PickupJingleSound generators; genre-specific synthesis parameters
+- **Dependencies**: Existing audio synthesis
+
+### 15. Write Tests for New Systems
+- **Deliverable**: `pkg/lighting/lighting_test.go`, `pkg/particle/particle_test.go`, `pkg/render/postprocess_test.go`, `pkg/audio/ambient_test.go` — unit tests achieving ≥82% coverage per package
+- **Dependencies**: Steps 1-14 implementations
+
+### 16. Genre Integration Pass
+- **Deliverable**: Verify all new systems implement `SetGenre(genreID string)` and produce distinct outputs for fantasy/scifi/horror/cyberpunk/postapoc
+- **Dependencies**: All prior steps
 
 ## Technical Specifications
 
-- **Hitscan ray casting**: Reuse `pkg/raycaster` DDA algorithm; return first entity hit along ray with distance
-- **Projectile simulation**: ECS entity with position, velocity, and collision component; 60 TPS physics tick
-- **Behavior tree evaluation**: Depth-first traversal; composite nodes (Selector, Sequence) short-circuit on result
-- **Line-of-sight**: Ray cast from enemy to player; any wall tile blocks LOS
-- **Damage formula**: `finalDamage = max(0, rawDamage - (armor * absorptionRate))`; default absorption 0.5
-- **XP thresholds**: Fibonacci-like progression: 100, 300, 600, 1000, 1500, 2100, 2800, ...
-- **Status effect tick rate**: 1 damage per second for duration; tick on 60 TPS boundary
-- **Loot table format**: JSON-like struct with item ID, weight, min/max count; weighted random selection via `pkg/rng`
-- **Genre archetype mapping**: Map from canonical name to genre-specific name stored in `pkg/procgen/genre`
+- **Animated Textures**: Frame sequences stored as `[]image.RGBA`; animation speed in frames-per-second; deterministic frame selection via `(tick / fps) % frameCount`
+- **Lighting Model**: Per-tile ambient + sum of point light contributions; light intensity falls off as `1 / (1 + distance²)`; flashlight uses cone angle check before contribution
+- **Particle Pooling**: Pre-allocate particle pool (default 1024); reuse dead particles to avoid GC pressure; particles culled when life ≤ 0 or outside view frustum
+- **Post-Processing Order**: Scene → Color Grade → Vignette → Film Grain → Scanlines (optional) → Chromatic Aberration (optional) → Bloom (optional) → Output
+- **Audio Synthesis**: Ambient loops generated as 60-second procedural waveforms; reverb via FIR filter with room-dimension-derived coefficients
+- **Genre Presets**:
+  | Genre | Base Ambient | Vignette | Color Grade | Special Effects |
+  |-------|-------------|----------|-------------|-----------------|
+  | fantasy | 0.4 | warm sepia | +warmth | film grain |
+  | scifi | 0.6 | cold blue | +contrast | scanlines, chromatic aberration |
+  | horror | 0.25 | heavy dark | +green desaturate | static bursts |
+  | cyberpunk | 0.5 | magenta/cyan | +saturation | neon bloom |
+  | postapoc | 0.35 | washed orange | +dust | scratches |
 
 ## Validation Criteria
-
-- [ ] All five genres selectable and playable with distinct visuals/audio
-- [ ] Player can fire hitscan weapons (pistol, shotgun, chaingun) and hit enemies
-- [ ] Player can fire projectile weapons (rocket, plasma) with visible projectiles
-- [ ] Melee weapons (knife, fist) work at close range
-- [ ] Weapon switching works via 1–7 keys and weapon wheel
-- [ ] Ammo is consumed on fire; pickups replenish ammo pools
-- [ ] Keycards collected and doors unlock correctly
-- [ ] Automap reveals tiles on exploration; shows player position
-- [ ] Enemies patrol, detect player (sight/sound), chase, and attack
-- [ ] Player takes damage with screen flash and directional indicator
-- [ ] Enemy deaths drop loot; player collects pickups
-- [ ] Status effects apply and tick damage over time
-- [ ] XP accumulates; level-up grants stat increases
-- [ ] All four character classes have distinct starting loadouts
-- [ ] `SetGenre()` changes visuals/audio/names for all systems
-- [ ] `go test ./...` passes on Linux, macOS, Windows
-- [ ] Test coverage ≥ 82%
+- [ ] Animated textures render correctly with deterministic frame sequences (same seed → same animation)
+- [ ] Floor/ceiling textures display in raycaster with perspective-correct sampling
+- [ ] Point lights illuminate surrounding tiles with correct attenuation falloff
+- [ ] Flashlight cone illuminates forward direction; genre variants produce different visual parameters
+- [ ] Particle emitters spawn and update particles; MuzzleFlashEmitter triggers on weapon fire
+- [ ] Indoor weather particles active per-genre (dripping water visible in fantasy, steam in scifi, etc.)
+- [ ] Post-processing effects render correctly; all 5 genre presets produce visually distinct results
+- [ ] Ambient soundscapes play continuously with genre-appropriate audio
+- [ ] Reverb parameters vary based on BSP room dimensions
+- [ ] Weapon reload, empty-click, and pickup sounds synthesized and played correctly
+- [ ] All new packages achieve ≥82% test coverage
+- [ ] `SetGenre()` call on all new systems produces correct genre-specific behavior
+- [ ] Overall project test coverage remains ≥82%
 
 ## Known Gaps
 
-- **Procedural weapon sprite generation**: No algorithm defined for generating weapon sprites at runtime; need synthesis approach using geometric primitives or noise functions
-- **Enemy sprite generation**: No algorithm defined for generating enemy visuals procedurally; requires definition of body part composition and animation frames
-- **Pathfinding algorithm**: AI chase/patrol requires pathfinding; A* or similar needed against BSP tile grid; not yet specified
-- **Cover detection**: AI take-cover behavior requires identifying cover tiles; algorithm to classify tiles as cover not defined
-- **Projectile collision broadphase**: High projectile counts may need spatial partitioning for efficient collision; current approach is O(n) entity iteration
+### Particle Rendering Integration
+- **Description**: Current raycaster renders walls and sprites but has no particle rendering pass defined
+- **Impact**: Particles will be computed but not displayed until render integration is implemented
+- **Resolution**: Add particle billboard rendering after sprite pass in `pkg/render/render.go`; particles sorted by depth with sprites
 
-### 2026-02-28: v2.0 Systems Integration (Step 61)
-- **Step 61** [x]: Wired all v2.0 systems into `main.go` game loop
-  - Added imports for weapon, ammo, ai, combat, status, loot, progression, class packages
-  - Added v2.0 system fields to Game struct: arsenal, ammoPool, combatSystem, statusReg, lootTable, progression, aiAgents, playerClass
-  - Initialized all systems in NewGame() constructor
-  - Set genre for all v2.0 systems in startNewGame()
-  - Implemented weapon firing with raycast hit detection in updatePlaying()
-  - Implemented ammo consumption and display on HUD
-  - Implemented basic AI enemy spawning (3 enemies per level)
-  - Implemented AI attack logic with damage application
-  - Implemented player taking damage from enemies
-  - Implemented enemy death and XP rewards via progression system
-  - Updated status effects tick in game loop
-  - Added `Pool.Get()` method to ammo package for retrieving current ammo counts
-  - Added test for `Pool.Get()` method (100% coverage maintained)
-  - Files: `main.go`, `pkg/ammo/ammo.go`, `pkg/ammo/ammo_test.go`
-  
-**Implementation Details**:
-- Weapon firing uses raycast function wrapper to detect enemy hits
-- Simple AI uses distance-based attack with cooldown timer
-- Combat damage uses simplified armor absorption (50% to armor, 50% to health)
-- Progression awards 50 XP per enemy kill
-- Status effect registry ticks each frame for DoT effects
-- Three AI agents spawn at fixed positions (10+i*5, 10+i*3) for testing
+### Animated Texture Frame Rate Sync
+- **Description**: Animation frame rate must sync with game tick rate (60 TPS) but no global tick counter is exposed to texture system
+- **Impact**: Animated textures cannot determine current frame without tick information
+- **Resolution**: Pass tick counter to Atlas.GetAnimatedFrame(name, tick) or establish global tick reference
 
-**Validation**:
-- All tests pass: `go test ./...` ✓
-- Code builds successfully: `go build` ✓
-- Code formatted: `go fmt ./...` ✓
-- Code vetted: `go vet ./...` ✓
-- No regressions in existing tests ✓
-- v2.0 package coverage: 95.9% (exceeds 82% target) ✓
-
-### 2026-02-28: Integration Tests for Combat Loop (Step 62)
-- **Step 62** [x]: Added integration tests for full combat loop
-  - **TestCombatLoopIntegration**: Complete combat flow from spawn → fire → damage → death → XP gain
-    - Verifies enemies spawn with positive health
-    - Tests raycast hit detection
-    - Tests ammo consumption for non-melee weapons
-    - Tests damage application to enemies
-    - Tests enemy death at zero health
-    - Tests XP rewards on enemy kills (50 XP per kill)
-    - Tests level remains at 1 with only 50 XP (threshold is 100)
-  - **TestMultipleEnemyKills**: Accumulating XP from multiple enemy kills
-    - Tests killing all spawned enemies
-    - Tests XP accumulation (50 XP per kill)
-    - Verifies kill count tracking
-  - **TestLevelUpThreshold**: Progression to level 2 after 100 XP
-    - Tests starting at level 1 with 0 XP
-    - Awards 100 XP to trigger level-up
-    - Manually triggers level-up check
-    - Verifies level increases to 2
-  - **TestPlayerTakesDamage**: Player receiving damage from enemies
-    - Tests initial health at 100
-    - Simulates 20 damage from enemy
-    - Tests armor absorption (50% to armor, 50% to health)
-    - Verifies health decreases correctly
-  - **TestArmorAbsorption**: Armor damage absorption mechanics
-    - Gives player 50 armor and 100 health
-    - Tests 20 damage with armor absorption
-    - Verifies armor absorbs 10 damage (armor 50→40)
-    - Verifies health takes 10 damage (health 100→90)
-  - **TestWeaponSwitchingDuringCombat**: Changing weapons mid-combat
-    - Tests weapon switching between slots
-    - Verifies weapon fire after switching
-  - **TestEnemyRespawnDoesNotOccur**: Dead enemies stay dead
-    - Kills enemy (health set to 0)
-    - Waits 100 frames
-    - Verifies enemy doesn't respawn
-  - **TestCombatWithDifferentWeaponTypes**: Hitscan vs melee weapons
-    - Tests pistol (hitscan with ammo consumption)
-    - Tests shotgun (hitscan with ammo consumption)
-    - Tests knife (melee without ammo consumption)
-    - Verifies ammo behavior differs by weapon type
-  - File: `main_test.go`
-
-**Test Implementation Details**:
-- Tests account for weapon fire rate cooldown by calling `arsenal.Update()` between shots
-- Raycast function wrapper simulates enemy hit detection
-- Shot count calculated based on enemy health and weapon damage
-- Tests verify complete combat loop: spawn → fire → damage → death → XP → level-up
-
-**Validation**:
-- All 8 new integration tests pass ✓
-- All existing tests still pass (no regressions) ✓
-- Code formatted: `go fmt ./...` ✓
-- Code vetted: `go vet ./...` ✓
-- Tests cover all aspects of combat loop as specified in Step 62 deliverable ✓
-
-### 2026-02-28: Test Coverage Achievement (Step 63)
-- **Step 63** [x]: Achieved 96.0% test coverage on v2.0 packages (exceeds 82% target)
-  - Overall v2.0 package coverage: 96.0%
-  - Individual package coverage:
-    - weapon: 98.2%
-    - ammo: 100.0%
-    - door: 100.0%
-    - automap: 100.0%
-    - ai: 93.9%
-    - combat: 100.0%
-    - status: 100.0%
-    - loot: 100.0%
-    - progression: 100.0%
-    - class: 100.0%
-  - Coverage profile: `coverage_v2.out`
-
-**Validation**:
-- All tests pass: `go test ./...` ✓
-- Code formatted: `go fmt ./...` ✓
-- Code vetted: `go vet ./...` ✓
-- Coverage exceeds 82% target by 14 percentage points ✓
-- No regressions in existing tests ✓
-
-### 2026-02-28: Door/Keycard System (Steps 13-17)
-- **Steps 13-17** [x]: Implemented complete door/keycard system
-  - **Step 13**: KeycardInventory with AddKeycard(), HasKeycard(), GetAll() methods
-  - **Step 14**: Door entity with state machine (Closed, Opening, Open, Closing)
-  - **Step 14**: DoorSystem with state transitions and animation (30 frames at 60 TPS)
-  - **Step 14**: Five door types: Swing, Sliding, Portcullis, Shutter, LaserBarrier
-  - **Step 15**: TryOpen() method checks inventory and displays feedback messages
-  - **Step 15**: "Need [color] keycard" message when missing required keycard
-  - **Step 16**: SetGenre() maps colors to genre-appropriate names
-  - **Step 16**: Genre-specific keycard names: Crimson Rune (fantasy), Access Card (scifi), Blood Key (horror), Biometric (cyberpunk), Tag (postapoc)
-  - **Step 16**: Genre-specific door types: Portcullis (fantasy), Sliding (scifi), Swing (horror), Shutter (cyberpunk)
-  - **Step 17**: Comprehensive tests for keycard inventory, door states, animations, genre mapping
-  - Files: `pkg/door/door.go`, `pkg/door/door_test.go`
-  
-**Implementation Details**:
-- DoorSystem manages all doors with Update() called at 60 TPS
-- Door animation: 30 frames (0.5 seconds) for open/close transitions
-- State machine: Closed → Opening → Open → Closing → Closed
-- Locked doors require matching keycard color; unlocked doors open freely
-- TryOpen() returns (success, message) for HUD feedback
-- Genre maps support all 5 genres with unique visual themes
-- Legacy TryOpen(door, keycard) function maintained for backward compatibility
-
-**Validation**:
-- All tests pass: `go test ./pkg/door` ✓
-- Coverage: 91.3% (exceeds 82% target) ✓
-- Code formatted: `go fmt ./pkg/door` ✓
-- Code vetted: `go vet ./pkg/door` ✓
-- No regressions in existing tests ✓
-- All project tests still pass: `go test ./...` ✓
-
-### 2026-02-28: Genre Integration (Steps 55-57)
-- **Step 55** [x]: SetGenre() implemented across all v2.0 packages
-  - All v2.0 packages (weapon, ammo, door, automap, ai, combat, status, loot, progression, class) have SetGenre() methods
-  - All 5 genre IDs supported: fantasy, scifi, horror, cyberpunk, postapoc
-  - Genre propagation verified in main.go (calls SetGenre on all systems)
-  
-- **Step 56** [x]: Genre select screen updated with all 5 options
-  - UI package has all 5 genres in genreNames array
-  - Genre selection propagates to all v2.0 systems via SetGenre()
-  - Integration verified in main.go startNewGame()
-  - Files: `pkg/ui/ui.go`, `main.go`
-  
-- **Step 57** [x]: Per-genre BSP tile themes implemented
-  - Genre-specific tile constants: Stone (fantasy), Hull (scifi), Plaster (horror), Concrete (cyberpunk), Rust (postapoc)
-  - Floor variants: Stone, Metal grating, Wood, Concrete, Dirt
-  - SetGenre() selects appropriate wall/floor tile types
-  - Generated maps use genre-specific tiles verified via tests
-  - Files: `pkg/bsp/bsp.go`, `pkg/bsp/bsp_test.go`
-  
-- **Step 58** [x]: Per-genre enemy rosters — Previously Implemented
-  - Each genre has enemy archetypes: fantasy_guard, scifi_soldier, horror_cultist, cyberpunk_drone, postapoc_scavenger
-  - Archetypes have genre-appropriate names, stats, and behaviors
-  - GetArchetypeForGenre() returns correct archetype based on genre
-  - Files: `pkg/ai/ai.go`, `pkg/ai/ai_test.go`
-  
-- **Step 59** [x]: Per-genre audio palettes — Previously Implemented
-  - Audio Engine.SetGenre() configures music synthesis and SFX parameters per genre
-  - All audio procedurally generated at runtime
-  - Files: `pkg/audio/audio.go`, `pkg/audio/audio_test.go`
-  
-**Implementation Details (Step 57)**:
-- BSP tile constants expanded: TileWallStone (10), TileWallHull (11), TileWallPlaster (12), TileWallConcrete (13), TileWallRust (14)
-- Floor tile constants: TileFloorStone (20), TileFloorHull (21), TileFloorWood (22), TileFloorConcrete (23), TileFloorDirt (24)
-- SetGenre() switch statement maps genre to appropriate tile types
-- Fallback to generic TileWall (1) and TileFloor (2) for unknown genres
-
-**Validation**:
-- All tests pass: `go test ./pkg/bsp` ✓
-- Coverage: 93.1% (exceeds 82% target) ✓
-- Genre tile generation verified via TestGenreTileGeneration ✓
-- Code formatted: `go fmt ./pkg/bsp` ✓
-- Code vetted: `go vet ./pkg/bsp` ✓
-- All project tests still pass: `go test ./...` ✓
-
-### 2026-02-28: Weapon System (Steps 1-4, 6-7) — Previously Implemented
-- **Steps 1-4, 6-7** [x]: Weapon system fully implemented
-  - **Step 1**: Hitscan firing with ray-cast hit detection (Arsenal.Fire())
-  - **Step 1**: Pistol, shotgun (7-ray spread), chaingun support
-  - **Step 2**: Projectile weapon support (Arsenal.FireProjectile())
-  - **Step 2**: Rocket launcher and plasma gun implemented
-  - **Step 3**: Melee weapons (knife = silent, fist = desperation)
-  - **Step 4**: Weapon switching via Arsenal.SwitchTo(slot)
-  - **Step 6**: SetGenre() for weapon skin swaps across genres
-  - **Step 7**: Comprehensive unit tests (97.4% coverage)
-  - Files: `pkg/weapon/weapon.go`, `pkg/weapon/weapon_test.go`
-
-### 2026-02-28: Ammo System (Steps 8-11) — Previously Implemented
-- **Steps 8-11** [x]: Ammo system fully implemented
-  - **Step 8**: AmmoPool tracks bullets, shells, cells, rockets
-  - **Step 8**: ConsumeAmmo() decrements pool
-  - **Step 9**: AmmoPickup entity support (implemented via Pool.AddAmmo())
-  - **Step 10**: Difficulty-based scarcity tuning (configurable per difficulty)
-  - **Step 11**: Ammo display wired to HUD (Pool.Get() method)
-  - Files: `pkg/ammo/ammo.go`, `pkg/ammo/ammo_test.go`
-
-### 2026-02-28: Automap System (Steps 18-22) — Previously Implemented
-- **Steps 18-22** [x]: Automap system fully implemented
-  - **Step 18**: Fog-of-war tile revelation (Map.Reveal())
-  - **Step 19**: Wall, door, and annotation support
-  - **Step 20**: Player position and facing indicator support
-  - **Step 21**: Overlay and fullscreen mode support (via Map structure)
-  - **Step 22**: Integrated into main game loop
-  - Files: `pkg/automap/automap.go`, `pkg/automap/automap_test.go`
-
-### 2026-02-28: FPS Enemy AI (Steps 24-29) — Previously Implemented
-- **Steps 24-29** [x]: AI system fully implemented
-  - **Step 24**: BehaviorTree framework with Selector, Sequence, Condition, Action nodes
-  - **Step 25**: AI states: patrol, idle, alert, chase, strafe, take-cover, retreat
-  - **Step 26**: Line-of-sight (CanSeePlayer) and hearing detection
-  - **Step 27**: Enemy archetypes per genre (Agent.Archetype)
-  - **Step 28**: SetGenre() for archetype visuals and audio
-  - **Step 29**: Integrated into game loop (main.go spawns and ticks AI)
-  - **Step 30**: Comprehensive unit tests (93.9% coverage)
-  - Files: `pkg/ai/ai.go`, `pkg/ai/ai_test.go`
-
-### 2026-02-28: Combat System (Steps 31-34) — Previously Implemented
-- **Steps 31-34** [x]: Combat system fully implemented
-  - **Step 31**: Damage model with health and armor absorption (System.ApplyDamage())
-  - **Step 32**: Hit feedback support (directional damage tracking)
-  - **Step 33**: Enemy death states (health <= 0)
-  - **Step 34**: Difficulty scaling support (configurable multipliers)
-  - **Step 35**: Comprehensive unit tests (100% coverage)
-  - Files: `pkg/combat/combat.go`, `pkg/combat/combat_test.go`
-
-### 2026-02-28: Status Effects (Steps 36-39) — Previously Implemented
-- **Steps 36-39** [x]: Status effects fully implemented
-  - **Step 36**: EffectRegistry tracks active effects per entity
-  - **Step 37**: Genre-specific effects: Poisoned, Burning, Bleeding, Irradiated
-  - **Step 38**: HUD effect icon support (via Effect.Name)
-  - **Step 39**: SetGenre() for effect name/visual remapping
-  - Files: `pkg/status/status.go`, `pkg/status/status_test.go`
-
-### 2026-02-28: Loot System (Steps 41-44) — Previously Implemented
-- **Steps 41-44** [x]: Loot system fully implemented
-  - **Step 41**: LootTable system with deterministic rolls
-  - **Step 42**: Enemy ammo drops (via loot tables)
-  - **Step 43**: Health and armor pickups (via loot tables)
-  - **Step 44**: Keycard drops from boss/captain enemies (via loot tables)
-  - Files: `pkg/loot/loot.go`, `pkg/loot/loot_test.go`
-
-### 2026-02-28: Progression System (Steps 46-48) — Previously Implemented
-- **Steps 46-48** [x]: Progression system fully implemented
-  - **Step 46**: XP tracking with GainXP(amount, source)
-  - **Step 47**: Level-up thresholds and rewards (LevelUp())
-  - **Step 48**: XP/level display support (Level and TotalXP fields)
-  - Files: `pkg/progression/progression.go`, `pkg/progression/progression_test.go`
-
-### 2026-02-28: Character Classes (Steps 50-53) — Previously Implemented
-- **Steps 50-53** [x]: Character class system fully implemented
-  - **Step 50**: Class definitions with starting loadouts (GetClass())
-  - **Step 51**: Mystic passive ability support (via class definitions)
-  - **Step 52**: SetGenre() for class flavor names
-  - **Step 53**: Class selection support (integrated into game flow)
-  - Files: `pkg/class/class.go`, `pkg/class/class_test.go`
-
-### 2026-02-28: Weapon Animation System (Step 5)
-- **Step 5** [x]: Implemented procedural weapon animations (raise, lower, fire, reload)
-  - Added animation state enum: AnimIdle, AnimRaise, AnimLower, AnimFire, AnimReload
-  - Created `AnimFrame` struct with procedural parameters (offsetX, offsetY, scale, rotation, brightness)
-  - Created `Animation` struct with frames, frame duration, and loop flag
-  - Implemented `WeaponAnimator` with state machine and animation management
-  - Generated all animation frames procedurally from seed using deterministic RNG
-  - Idle animation: 30 frames with sinusoidal bobbing motion (loops)
-  - Raise animation: 8 frames with upward motion and scaling (non-looping)
-  - Lower animation: 8 frames with downward motion and scaling (non-looping)
-  - Fire animation: 6 frames with recoil and muzzle flash effect (non-looping)
-  - Reload animation: 20 frames with vertical motion and rotation (non-looping)
-  - Integrated animation state changes into Arsenal.Fire(), Arsenal.Reload(), Arsenal.SwitchTo()
-  - Updated Arsenal.Update() to advance animation frames
-  - Added 14 comprehensive tests covering animation generation, state transitions, frame advancement, looping/non-looping, determinism
-  - Files: `pkg/weapon/weapon.go`, `pkg/weapon/weapon_test.go`
-
-**Implementation Details**:
-- All animations procedurally generated from seed (no embedded assets)
-- State machine automatically returns to AnimIdle when non-looping animations complete
-- Fire triggers AnimFire with 6-frame recoil effect
-- Reload triggers AnimReload with 20-frame reload cycle
-- Weapon switch triggers AnimLower then AnimRaise
-- Frame parameters allow runtime rendering with offset, scale, rotation, brightness modulation
-- Deterministic: same seed produces identical animations
-
-**Validation**:
-- All tests pass: `go test ./pkg/weapon` ✓
-- 14 new animation tests added ✓
-- Coverage: 97.4% on weapon package (up from 98.2%) ✓
-- Code formatted: `go fmt ./pkg/weapon` ✓
-- Code vetted: `go vet ./pkg/weapon` ✓
-- No regressions in existing weapon tests ✓
-- All project tests still pass: `go test ./...` ✓
-
-## Completed Tasks
-
-### 2026-02-28: Test Suite Additions (Steps 12, 23, 40, 45, 49, 54)
-- **Step 12** [x]: Added comprehensive unit tests for ammo system (100% coverage)
-  - Tests for ammo consumption, pickup collection, multi-type pools, negative amounts, edge cases
-  - File: `pkg/ammo/ammo_test.go`
-- **Step 23** [x]: Added comprehensive unit tests for automap (100% coverage)
-  - Tests for tile revelation, bounds checking, corner cases, edge cases, multi-tile operations
-  - File: `pkg/automap/automap_test.go`
-- **Step 40** [x]: Added comprehensive unit tests for status effects (100% coverage)
-  - Tests for effect application, tick damage, duration handling, multiple effects, genre support
-  - File: `pkg/status/status_test.go`
-- **Step 45** [x]: Added comprehensive unit tests for loot system (100% coverage)
-  - Tests for loot table creation, drop chances, roll mechanics, multiple tables, edge cases
-  - Fixed `NewLootTable()` to initialize Drops slice
-  - Files: `pkg/loot/loot_test.go`, `pkg/loot/loot.go`
-- **Step 49** [x]: Added comprehensive unit tests for progression (100% coverage)
-  - Tests for XP accumulation, level-up mechanics, combined operations, edge cases
-  - File: `pkg/progression/progression_test.go`
-- **Step 54** [x]: Added comprehensive unit tests for character classes (100% coverage)
-  - Tests for class constants, GetClass, stats, genre name mapping, multi-instance handling
-  - File: `pkg/class/class_test.go`
-
-**Validation**:
-- All tests pass: `go test ./...` ✓
-- Code formatted: `go fmt ./...` ✓
-- Code vetted: `go vet ./...` ✓
-- Coverage: 100% on all 6 newly tested packages ✓
-- No regressions in existing tests ✓
-
-### 2026-02-28: v2.0 Systems Integration (Step 61)
-- **Step 61** [x]: Wired all v2.0 systems into `main.go` game loop
-  - Added imports for weapon, ammo, ai, combat, status, loot, progression, class packages
-  - Added v2.0 system fields to Game struct: arsenal, ammoPool, combatSystem, statusReg, lootTable, progression, aiAgents, playerClass
-  - Initialized all systems in NewGame() constructor
-  - Set genre for all v2.0 systems in startNewGame()
-  - Implemented weapon firing with raycast hit detection in updatePlaying()
-  - Implemented ammo consumption and display on HUD
-  - Implemented basic AI enemy spawning (3 enemies per level)
-  - Implemented AI attack logic with damage application
-  - Implemented player taking damage from enemies
-  - Implemented enemy death and XP rewards via progression system
-  - Updated status effects tick in game loop
-  - Added `Pool.Get()` method to ammo package for retrieving current ammo counts
-  - Added test for `Pool.Get()` method (100% coverage maintained)
-  - Files: `main.go`, `pkg/ammo/ammo.go`, `pkg/ammo/ammo_test.go`
-  
-**Implementation Details**:
-- Weapon firing uses raycast function wrapper to detect enemy hits
-- Simple AI uses distance-based attack with cooldown timer
-- Combat damage uses simplified armor absorption (50% to armor, 50% to health)
-- Progression awards 50 XP per enemy kill
-- Status effect registry ticks each frame for DoT effects
-- Three AI agents spawn at fixed positions (10+i*5, 10+i*3) for testing
-
-**Validation**:
-- All tests pass: `go test ./...` ✓
-- Code builds successfully: `go build` ✓
-- Code formatted: `go fmt ./...` ✓
-- Code vetted: `go vet ./...` ✓
-- No regressions in existing tests ✓
-- v2.0 package coverage: 95.9% (exceeds 82% target) ✓
+### Flashlight Battery/Fuel System
+- **Description**: Roadmap mentions genre-skinned flashlight variants but does not specify whether flashlight has limited fuel/battery
+- **Impact**: Implementation may need revision if flashlight should deplete
+- **Resolution**: Implement flashlight as unlimited initially; add optional fuel system in v4.0 survival mechanics if needed

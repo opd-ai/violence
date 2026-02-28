@@ -9,6 +9,13 @@ import (
 	"github.com/opd-ai/violence/pkg/raycaster"
 )
 
+// TextureAtlas is an interface for texture retrieval.
+// Allows testing with mocks while supporting the full texture.Atlas.
+type TextureAtlas interface {
+	Get(name string) (image.Image, bool)
+	SetGenre(genreID string)
+}
+
 // Renderer manages the rendering pipeline.
 type Renderer struct {
 	Width       int
@@ -17,6 +24,7 @@ type Renderer struct {
 	raycaster   *raycaster.Raycaster
 	palette     map[int]color.RGBA
 	genreID     string
+	atlas       TextureAtlas
 }
 
 // NewRenderer creates a renderer with the given internal resolution.
@@ -28,7 +36,13 @@ func NewRenderer(width, height int, rc *raycaster.Raycaster) *Renderer {
 		raycaster:   rc,
 		palette:     getDefaultPalette(),
 		genreID:     "fantasy",
+		atlas:       nil, // Optional texture atlas
 	}
+}
+
+// SetTextureAtlas assigns a texture atlas for textured rendering.
+func (r *Renderer) SetTextureAtlas(atlas TextureAtlas) {
+	r.atlas = atlas
 }
 
 // Render draws a frame to the given screen image.
@@ -109,13 +123,27 @@ func (r *Renderer) renderWall(x, y int, hit raycaster.RayHit) color.RGBA {
 }
 
 // renderFloor computes floor color for a given pixel.
+// If atlas is set, samples floor texture with perspective-correct coordinates.
 func (r *Renderer) renderFloor(x, y int, posX, posY, dirX, dirY, pitch float64) color.RGBA {
 	pixels := r.raycaster.CastFloorCeiling(y, posX, posY, dirX, dirY, pitch)
 	if x >= len(pixels) {
 		return r.palette[0]
 	}
 
-	baseColor := r.palette[2]
+	var baseColor color.RGBA
+
+	// Try to sample from texture atlas if available
+	if r.atlas != nil {
+		floorTex, hasFloor := r.atlas.Get("floor_main")
+		if hasFloor {
+			baseColor = r.sampleTexture(floorTex, pixels[x].WorldX, pixels[x].WorldY)
+		} else {
+			baseColor = r.palette[2]
+		}
+	} else {
+		baseColor = r.palette[2]
+	}
+
 	foggedColor := r.raycaster.ApplyFog(
 		[3]float64{
 			float64(baseColor.R) / 255.0,
@@ -134,13 +162,27 @@ func (r *Renderer) renderFloor(x, y int, posX, posY, dirX, dirY, pitch float64) 
 }
 
 // renderCeiling computes ceiling color for a given pixel.
+// If atlas is set, samples ceiling texture with perspective-correct coordinates.
 func (r *Renderer) renderCeiling(x, y int, posX, posY, dirX, dirY, pitch float64) color.RGBA {
 	pixels := r.raycaster.CastFloorCeiling(r.Height-1-y, posX, posY, dirX, dirY, pitch)
 	if x >= len(pixels) {
 		return r.palette[0]
 	}
 
-	baseColor := r.palette[3]
+	var baseColor color.RGBA
+
+	// Try to sample from texture atlas if available
+	if r.atlas != nil {
+		ceilingTex, hasCeiling := r.atlas.Get("ceiling_main")
+		if hasCeiling {
+			baseColor = r.sampleTexture(ceilingTex, pixels[x].WorldX, pixels[x].WorldY)
+		} else {
+			baseColor = r.palette[3]
+		}
+	} else {
+		baseColor = r.palette[3]
+	}
+
 	foggedColor := r.raycaster.ApplyFog(
 		[3]float64{
 			float64(baseColor.R) / 255.0,
@@ -155,6 +197,51 @@ func (r *Renderer) renderCeiling(x, y int, posX, posY, dirX, dirY, pitch float64
 		G: uint8(foggedColor[1] * 255),
 		B: uint8(foggedColor[2] * 255),
 		A: 255,
+	}
+}
+
+// sampleTexture samples a texture at world coordinates with wrapping.
+// Uses perspective-correct texture mapping for floor/ceiling.
+func (r *Renderer) sampleTexture(tex image.Image, worldX, worldY float64) color.RGBA {
+	bounds := tex.Bounds()
+	texWidth := bounds.Dx()
+	texHeight := bounds.Dy()
+
+	// Convert world coordinates to texture coordinates with wrapping
+	// Each world tile maps to one texture repeat
+	texX := int(worldX*float64(texWidth)) % texWidth
+	texY := int(worldY*float64(texHeight)) % texHeight
+
+	// Handle negative wrapping
+	if texX < 0 {
+		texX += texWidth
+	}
+	if texY < 0 {
+		texY += texHeight
+	}
+
+	// Clamp to texture bounds for safety
+	if texX >= texWidth {
+		texX = texWidth - 1
+	}
+	if texY >= texHeight {
+		texY = texHeight - 1
+	}
+	if texX < 0 {
+		texX = 0
+	}
+	if texY < 0 {
+		texY = 0
+	}
+
+	c := tex.At(texX, texY)
+	cr, cg, cb, ca := c.RGBA()
+
+	return color.RGBA{
+		R: uint8(cr >> 8),
+		G: uint8(cg >> 8),
+		B: uint8(cb >> 8),
+		A: uint8(ca >> 8),
 	}
 }
 
