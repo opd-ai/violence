@@ -253,6 +253,8 @@ func NewMenuManager() *MenuManager {
 	mm.menuItems[MenuTypePause] = []string{
 		"Resume",
 		"Shop",
+		"Skills",
+		"Multiplayer",
 		"Settings",
 		"Save Game",
 		"Main Menu",
@@ -1177,6 +1179,10 @@ func (mm *MenuManager) Select() string {
 			return "resume"
 		case "Shop":
 			return "shop"
+		case "Skills":
+			return "skills"
+		case "Multiplayer":
+			return "multiplayer"
 		case "Settings":
 			return "settings"
 		case "Save Game":
@@ -1205,8 +1211,8 @@ func (mm *MenuManager) Back() {
 	case MenuTypePause:
 		// Pause menu back should resume game
 		mm.Hide()
-	case MenuTypeShop, MenuTypeCrafting:
-		// Return to pause menu from shop/crafting
+	case MenuTypeShop, MenuTypeCrafting, MenuTypeSkills, MenuTypeMods, MenuTypeMultiplayer:
+		// Return to pause menu from overlays
 		mm.Show(MenuTypePause)
 	}
 }

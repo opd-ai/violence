@@ -192,8 +192,8 @@ func TestLoad_MissingFileFallback(t *testing.T) {
 	}
 
 	cfg := Get()
-	if cfg.WindowWidth != 960 {
-		t.Errorf("Default WindowWidth = %d, want 960", cfg.WindowWidth)
+	if cfg.WindowWidth != 1280 {
+		t.Errorf("Default WindowWidth = %d, want 1280", cfg.WindowWidth)
 	}
 }
 

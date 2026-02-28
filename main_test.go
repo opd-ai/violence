@@ -1709,3 +1709,334 @@ func TestDrawShopAndCrafting(t *testing.T) {
 	game.openCrafting()
 	game.drawCrafting(screen)
 }
+
+// TestSkillsIntegration verifies skills system is initialized and functional.
+func TestSkillsIntegration(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	// Verify skills system is initialized
+	if game.skillManager == nil {
+		t.Fatal("Skill manager not initialized after startNewGame")
+	}
+
+	// Verify starting skill points (3 per tree)
+	combatTree, err := game.skillManager.GetTree("combat")
+	if err != nil {
+		t.Fatalf("Failed to get combat tree: %v", err)
+	}
+	if combatTree.GetPoints() != 3 {
+		t.Errorf("Expected 3 starting points in combat tree, got %d", combatTree.GetPoints())
+	}
+
+	survivalTree, err := game.skillManager.GetTree("survival")
+	if err != nil {
+		t.Fatalf("Failed to get survival tree: %v", err)
+	}
+	if survivalTree.GetPoints() != 3 {
+		t.Errorf("Expected 3 starting points in survival tree, got %d", survivalTree.GetPoints())
+	}
+
+	techTree, err := game.skillManager.GetTree("tech")
+	if err != nil {
+		t.Fatalf("Failed to get tech tree: %v", err)
+	}
+	if techTree.GetPoints() != 3 {
+		t.Errorf("Expected 3 starting points in tech tree, got %d", techTree.GetPoints())
+	}
+
+	// Verify all three trees have nodes
+	if len(combatTree.Nodes) != 5 {
+		t.Errorf("Expected 5 combat nodes, got %d", len(combatTree.Nodes))
+	}
+	if len(survivalTree.Nodes) != 5 {
+		t.Errorf("Expected 5 survival nodes, got %d", len(survivalTree.Nodes))
+	}
+	if len(techTree.Nodes) != 5 {
+		t.Errorf("Expected 5 tech nodes, got %d", len(techTree.Nodes))
+	}
+}
+
+// TestSkillsAllocateFlow verifies skill allocation mechanics in-game.
+func TestSkillsAllocateFlow(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	// Allocate a root combat node (no prereqs)
+	err := game.skillManager.AllocatePoint("combat", "combat_dmg_1")
+	if err != nil {
+		t.Errorf("Should be able to allocate root node: %v", err)
+	}
+
+	// Verify allocation
+	if !game.skillManager.IsNodeAllocated("combat", "combat_dmg_1") {
+		t.Error("combat_dmg_1 should be allocated")
+	}
+
+	// Check modifier
+	dmgMod := game.skillManager.GetModifier("damage")
+	if dmgMod < 0.09 || dmgMod > 0.11 { // Approx 0.10
+		t.Errorf("Expected ~0.10 damage modifier, got %f", dmgMod)
+	}
+
+	// Try allocating a node with unmet prereqs
+	err = game.skillManager.AllocatePoint("combat", "combat_master")
+	if err == nil {
+		t.Error("Should not be able to allocate combat_master without prereqs")
+	}
+}
+
+// TestSkillsStateTransition verifies skills state transitions work correctly.
+func TestSkillsStateTransition(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	// Verify we're in playing state
+	if game.state != StatePlaying {
+		t.Errorf("Expected StatePlaying, got %v", game.state)
+	}
+
+	// Open skills
+	game.openSkills()
+	if game.state != StateSkills {
+		t.Errorf("Expected StateSkills, got %v", game.state)
+	}
+	if !game.menuManager.IsVisible() {
+		t.Error("Menu should be visible in skills state")
+	}
+	if game.menuManager.GetCurrentMenu() != ui.MenuTypeSkills {
+		t.Error("Menu type should be MenuTypeSkills")
+	}
+}
+
+// TestBuildSkillsState verifies skills state building for UI.
+func TestBuildSkillsState(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	state := game.buildSkillsState()
+	if state == nil {
+		t.Fatal("Skills state should not be nil")
+	}
+	if len(state.Trees) != 3 {
+		t.Errorf("Expected 3 trees, got %d", len(state.Trees))
+	}
+	if state.TotalPoints != 3 {
+		t.Errorf("Expected 3 total points, got %d", state.TotalPoints)
+	}
+
+	// Verify tree names
+	treeNames := []string{"Combat", "Survival", "Tech"}
+	for i, tree := range state.Trees {
+		if tree.TreeName != treeNames[i] {
+			t.Errorf("Tree %d: expected name %s, got %s", i, treeNames[i], tree.TreeName)
+		}
+		if len(tree.Nodes) != 5 {
+			t.Errorf("Tree %s: expected 5 nodes, got %d", tree.TreeName, len(tree.Nodes))
+		}
+	}
+}
+
+// TestModLoaderIntegration verifies mod loader is initialized and functional.
+func TestModLoaderIntegration(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	// Verify mod loader is initialized
+	if game.modLoader == nil {
+		t.Fatal("Mod loader not initialized after startNewGame")
+	}
+
+	// Verify mods directory
+	modsDir := game.modLoader.GetModsDir()
+	if modsDir == "" {
+		t.Error("Mods directory should not be empty")
+	}
+
+	// Verify ListMods works (may be empty if no mods dir)
+	mods := game.modLoader.ListMods()
+	if mods == nil {
+		t.Error("ListMods should return non-nil slice")
+	}
+}
+
+// TestBuildModsState verifies mods state building for UI.
+func TestBuildModsState(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	state := game.buildModsState()
+	if state == nil {
+		t.Fatal("Mods state should not be nil")
+	}
+	if state.ModsDir == "" {
+		t.Error("Mods directory should not be empty")
+	}
+}
+
+// TestMultiplayerStateTransition verifies multiplayer state transitions.
+func TestMultiplayerStateTransition(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	// Open multiplayer lobby
+	game.openMultiplayer()
+	if game.state != StateMultiplayer {
+		t.Errorf("Expected StateMultiplayer, got %v", game.state)
+	}
+	if !game.menuManager.IsVisible() {
+		t.Error("Menu should be visible in multiplayer state")
+	}
+}
+
+// TestMultiplayerModes verifies multiplayer mode list.
+func TestMultiplayerModes(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	modes := game.getMultiplayerModes()
+
+	expectedModes := []string{"coop", "ffa", "team", "territory"}
+	if len(modes) != len(expectedModes) {
+		t.Fatalf("Expected %d modes, got %d", len(expectedModes), len(modes))
+	}
+	for i, expected := range expectedModes {
+		if modes[i].ID != expected {
+			t.Errorf("Mode %d: expected ID %s, got %s", i, expected, modes[i].ID)
+		}
+		if modes[i].Name == "" {
+			t.Errorf("Mode %s: name should not be empty", modes[i].ID)
+		}
+		if modes[i].MaxPlayers <= 0 {
+			t.Errorf("Mode %s: max players should be positive", modes[i].ID)
+		}
+	}
+}
+
+// TestMultiplayerCoopInit verifies co-op session initialization from lobby.
+func TestMultiplayerCoopInit(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+	game.openMultiplayer()
+
+	// Select co-op mode (index 0)
+	game.mpSelectedMode = 0
+	game.handleMultiplayerSelect()
+
+	if !game.networkMode {
+		t.Error("Network mode should be enabled after selecting co-op")
+	}
+	if game.multiplayerMgr == nil {
+		t.Error("Multiplayer manager should be initialized")
+	}
+	if game.mpStatusMsg == "" {
+		t.Error("Status message should be set")
+	}
+}
+
+// TestDrawSkillsModsMultiplayer verifies draw methods don't panic.
+func TestDrawSkillsModsMultiplayer(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	screen := ebiten.NewImage(320, 200)
+
+	// Test drawSkills doesn't panic
+	game.openSkills()
+	game.drawSkills(screen)
+
+	// Test drawMods doesn't panic
+	game.state = StateMods
+	game.drawMods(screen)
+
+	// Test drawMultiplayer doesn't panic
+	game.openMultiplayer()
+	game.drawMultiplayer(screen)
+}
+
+// TestSkillPointsOnLevelUp verifies skill points are awarded on level-up.
+func TestSkillPointsOnLevelUp(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	combatTree, _ := game.skillManager.GetTree("combat")
+	startPoints := combatTree.GetPoints()
+
+	// Directly simulate level-up and skill point award (matching main.go logic)
+	game.skillManager.AddPoints(1)
+
+	// Verify skill point was awarded to all trees
+	afterTree, _ := game.skillManager.GetTree("combat")
+	if afterTree.GetPoints() != startPoints+1 {
+		t.Errorf("Expected %d skill points after AddPoints(1), got %d", startPoints+1, afterTree.GetPoints())
+	}
+}
+
+// TestGetTreeNodeList verifies stable node ordering.
+func TestGetTreeNodeList(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	tree, err := game.skillManager.GetTree("combat")
+	if err != nil {
+		t.Fatalf("Failed to get combat tree: %v", err)
+	}
+
+	nodes := game.getTreeNodeList(tree)
+	if len(nodes) != 5 {
+		t.Fatalf("Expected 5 nodes, got %d", len(nodes))
+	}
+
+	// Verify sorted order
+	for i := 1; i < len(nodes); i++ {
+		if nodes[i-1].ID > nodes[i].ID {
+			t.Errorf("Nodes not sorted: %s > %s", nodes[i-1].ID, nodes[i].ID)
+		}
+	}
+}

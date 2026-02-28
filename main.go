@@ -3,6 +3,7 @@ package main
 import (
 	"image/color"
 	"log"
+	"os"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -119,10 +120,10 @@ type Game struct {
 	modLoader      *mod.Loader
 	networkMode    bool
 	multiplayerMgr interface{} // Can be *network.FFAMatch, *network.TeamMatch, etc.
-	skillsTreeIdx  int          // Active tree tab in skills UI
-	skillsNodeIdx  int          // Selected node in skills UI
-	mpStatusMsg    string       // Multiplayer status message
-	mpSelectedMode int          // Selected multiplayer mode
+	skillsTreeIdx  int         // Active tree tab in skills UI
+	skillsNodeIdx  int         // Selected node in skills UI
+	mpStatusMsg    string      // Multiplayer status message
+	mpSelectedMode int         // Selected multiplayer mode
 }
 
 // NewGame creates and initializes a new game instance.
@@ -395,6 +396,19 @@ func (g *Game) startNewGame() {
 	g.craftingMenu = crafting.NewCraftingMenu(g.scrapStorage, g.genreID)
 	g.craftingResult = ""
 
+	// Initialize skills system (v5.0)
+	g.skillManager = skills.NewManager()
+	g.skillManager.AddPoints(3) // Start with 3 skill points
+	g.skillsTreeIdx = 0
+	g.skillsNodeIdx = 0
+
+	// Initialize mod loader (v5.0)
+	if g.modLoader == nil {
+		g.modLoader = mod.NewLoader()
+	}
+	// Scan mods directory for available mods
+	g.scanMods()
+
 	// Track level start time for speedrun objectives
 	g.levelStartTime = time.Now()
 
@@ -457,6 +471,8 @@ func (g *Game) setGenre(genreID string) {
 		g.shopInventory = &g.shopArmory.Inventory
 	}
 	crafting.SetGenre(genreID)
+	skills.SetGenre(genreID)
+	network.SetGenre(genreID)
 
 	// Generate genre-specific textures
 	g.textureAtlas.GenerateWallSet(genreID)
@@ -546,6 +562,18 @@ func (g *Game) updatePlaying() error {
 		return nil
 	}
 
+	// Open skills overlay
+	if g.input.IsJustPressed(input.ActionSkills) {
+		g.openSkills()
+		return nil
+	}
+
+	// Open multiplayer lobby
+	if g.input.IsJustPressed(input.ActionMultiplayer) {
+		g.openMultiplayer()
+		return nil
+	}
+
 	// Check for door interaction
 	if g.input.IsJustPressed(input.ActionInteract) {
 		g.tryInteractDoor()
@@ -602,7 +630,18 @@ func (g *Game) updatePlaying() error {
 
 								if agent.Health <= 0 {
 									// Enemy died - award XP and credits
+									oldLevel := g.progression.Level
 									g.progression.AddXP(50)
+									// Check for level-up (every 100 XP)
+									newLevel := g.progression.XP / 100
+									if newLevel > oldLevel {
+										g.progression.Level = newLevel
+										// Award skill point on level-up
+										if g.skillManager != nil {
+											g.skillManager.AddPoints(1)
+										}
+										g.hud.ShowMessage("Level Up! Skill point earned!")
+									}
 									if g.shopCredits != nil {
 										g.shopCredits.Add(25) // 25 credits per kill
 									}
@@ -979,6 +1018,10 @@ func (g *Game) handlePauseAction(action string) {
 		g.menuManager.Hide()
 	case "shop":
 		g.openShop()
+	case "skills":
+		g.openSkills()
+	case "multiplayer":
+		g.openMultiplayer()
 	case "save":
 		// Save to slot 1
 		g.saveGame(1)
@@ -1243,6 +1286,401 @@ func (g *Game) buildCraftingState() *ui.CraftingState {
 	}
 }
 
+// openSkills transitions to the skills state.
+func (g *Game) openSkills() {
+	if g.skillManager == nil {
+		g.skillManager = skills.NewManager()
+	}
+	g.skillsTreeIdx = 0
+	g.skillsNodeIdx = 0
+	g.menuManager.Show(ui.MenuTypeSkills)
+	g.state = StateSkills
+}
+
+// updateSkills handles skills screen input.
+func (g *Game) updateSkills() error {
+	// Back to playing
+	if g.input.IsJustPressed(input.ActionPause) || g.input.IsJustPressed(input.ActionSkills) {
+		g.state = StatePlaying
+		g.menuManager.Hide()
+		return nil
+	}
+
+	// Switch tree tabs with strafe keys (left/right)
+	if g.input.IsJustPressed(input.ActionStrafeLeft) {
+		if g.skillsTreeIdx > 0 {
+			g.skillsTreeIdx--
+			g.skillsNodeIdx = 0
+		}
+	}
+	if g.input.IsJustPressed(input.ActionStrafeRight) {
+		if g.skillsTreeIdx < 2 { // 3 trees: combat, survival, tech
+			g.skillsTreeIdx++
+			g.skillsNodeIdx = 0
+		}
+	}
+
+	// Navigate nodes
+	if g.input.IsJustPressed(input.ActionMoveForward) {
+		if g.skillsNodeIdx > 0 {
+			g.skillsNodeIdx--
+		}
+	}
+	if g.input.IsJustPressed(input.ActionMoveBackward) {
+		g.skillsNodeIdx++
+	}
+
+	// Allocate skill point
+	if g.input.IsJustPressed(input.ActionFire) || g.input.IsJustPressed(input.ActionInteract) {
+		g.handleSkillAllocate()
+	}
+
+	return nil
+}
+
+// handleSkillAllocate attempts to allocate a skill point.
+func (g *Game) handleSkillAllocate() {
+	if g.skillManager == nil {
+		return
+	}
+
+	treeIDs := []string{"combat", "survival", "tech"}
+	if g.skillsTreeIdx < 0 || g.skillsTreeIdx >= len(treeIDs) {
+		return
+	}
+	treeID := treeIDs[g.skillsTreeIdx]
+
+	tree, err := g.skillManager.GetTree(treeID)
+	if err != nil {
+		return
+	}
+
+	// Get sorted node list for this tree
+	nodes := g.getTreeNodeList(tree)
+	if g.skillsNodeIdx < 0 || g.skillsNodeIdx >= len(nodes) {
+		return
+	}
+
+	nodeID := nodes[g.skillsNodeIdx].ID
+	if err := g.skillManager.AllocatePoint(treeID, nodeID); err != nil {
+		g.hud.ShowMessage("Cannot allocate: " + err.Error())
+	} else {
+		g.hud.ShowMessage("Skill unlocked!")
+		g.audioEngine.PlaySFX("skill_unlock", g.camera.X, g.camera.Y)
+	}
+}
+
+// getTreeNodeList returns nodes for a tree in a stable order.
+func (g *Game) getTreeNodeList(tree *skills.Tree) []skills.Node {
+	if tree == nil {
+		return nil
+	}
+	// Return nodes in consistent order based on node IDs
+	nodes := make([]skills.Node, 0, len(tree.Nodes))
+	for _, node := range tree.Nodes {
+		nodes = append(nodes, *node)
+	}
+	// Sort by ID for stable ordering
+	for i := 0; i < len(nodes); i++ {
+		for j := i + 1; j < len(nodes); j++ {
+			if nodes[i].ID > nodes[j].ID {
+				nodes[i], nodes[j] = nodes[j], nodes[i]
+			}
+		}
+	}
+	return nodes
+}
+
+// drawSkills renders the skills overlay screen.
+func (g *Game) drawSkills(screen *ebiten.Image) {
+	// Draw frozen game world
+	g.renderer.Render(screen, g.camera.X, g.camera.Y, g.camera.DirX, g.camera.DirY, g.camera.Pitch)
+
+	// Build skills state for UI
+	skillsState := g.buildSkillsState()
+	ui.DrawSkills(screen, skillsState)
+}
+
+// buildSkillsState creates the skills display state from game data.
+func (g *Game) buildSkillsState() *ui.SkillsState {
+	if g.skillManager == nil {
+		return nil
+	}
+
+	treeIDs := []string{"combat", "survival", "tech"}
+	treeNames := []string{"Combat", "Survival", "Tech"}
+	trees := make([]ui.SkillTreeState, 0, len(treeIDs))
+
+	for i, treeID := range treeIDs {
+		tree, err := g.skillManager.GetTree(treeID)
+		if err != nil {
+			continue
+		}
+
+		nodeList := g.getTreeNodeList(tree)
+		uiNodes := make([]ui.SkillNode, len(nodeList))
+		for j, node := range nodeList {
+			// Check if prerequisites are met
+			available := true
+			for _, reqID := range node.Requires {
+				if !tree.IsAllocated(reqID) {
+					available = false
+					break
+				}
+			}
+			available = available && tree.GetPoints() >= node.Cost && !tree.IsAllocated(node.ID)
+
+			uiNodes[j] = ui.SkillNode{
+				ID:          node.ID,
+				Name:        node.Name,
+				Description: node.Description,
+				Cost:        node.Cost,
+				Allocated:   tree.IsAllocated(node.ID),
+				Available:   available,
+			}
+		}
+
+		trees = append(trees, ui.SkillTreeState{
+			TreeName: treeNames[i],
+			TreeID:   treeID,
+			Nodes:    uiNodes,
+			Points:   tree.GetPoints(),
+			Selected: g.skillsNodeIdx,
+		})
+	}
+
+	// Total points available across all trees (they share the same pool via AddPoints)
+	totalPoints := 0
+	if t, err := g.skillManager.GetTree("combat"); err == nil {
+		totalPoints = t.GetPoints()
+	}
+
+	return &ui.SkillsState{
+		Trees:       trees,
+		ActiveTree:  g.skillsTreeIdx,
+		Selected:    g.skillsNodeIdx,
+		TotalPoints: totalPoints,
+	}
+}
+
+// openMultiplayer transitions to the multiplayer lobby state.
+func (g *Game) openMultiplayer() {
+	g.mpSelectedMode = 0
+	g.mpStatusMsg = ""
+	g.menuManager.Show(ui.MenuTypeMultiplayer)
+	g.state = StateMultiplayer
+}
+
+// updateMultiplayer handles multiplayer lobby input.
+func (g *Game) updateMultiplayer() error {
+	// Back to playing
+	if g.input.IsJustPressed(input.ActionPause) || g.input.IsJustPressed(input.ActionMultiplayer) {
+		g.state = StatePlaying
+		g.menuManager.Hide()
+		return nil
+	}
+
+	// Navigate modes
+	if g.input.IsJustPressed(input.ActionMoveForward) {
+		if g.mpSelectedMode > 0 {
+			g.mpSelectedMode--
+		}
+	}
+	if g.input.IsJustPressed(input.ActionMoveBackward) {
+		g.mpSelectedMode++
+		modes := g.getMultiplayerModes()
+		if g.mpSelectedMode >= len(modes) {
+			g.mpSelectedMode = len(modes) - 1
+		}
+	}
+
+	// Select mode
+	if g.input.IsJustPressed(input.ActionFire) || g.input.IsJustPressed(input.ActionInteract) {
+		g.handleMultiplayerSelect()
+	}
+
+	return nil
+}
+
+// handleMultiplayerSelect initializes the selected multiplayer mode.
+func (g *Game) handleMultiplayerSelect() {
+	modes := g.getMultiplayerModes()
+	if g.mpSelectedMode < 0 || g.mpSelectedMode >= len(modes) {
+		return
+	}
+
+	mode := modes[g.mpSelectedMode]
+	switch mode.ID {
+	case "coop":
+		session, err := network.NewCoopSession("local_coop", 4, g.seed)
+		if err != nil {
+			g.mpStatusMsg = "Failed: " + err.Error()
+			return
+		}
+		g.multiplayerMgr = session
+		g.networkMode = true
+		g.mpStatusMsg = "Co-op session started! Waiting for players..."
+	case "ffa":
+		match, err := network.NewFFAMatch("local_ffa", 20, 10*time.Minute, g.seed)
+		if err != nil {
+			g.mpStatusMsg = "Failed: " + err.Error()
+			return
+		}
+		g.multiplayerMgr = match
+		g.networkMode = true
+		g.mpStatusMsg = "Free-for-All match started!"
+	case "team":
+		match, err := network.NewTeamMatch("local_team", 50, 15*time.Minute, g.seed)
+		if err != nil {
+			g.mpStatusMsg = "Failed: " + err.Error()
+			return
+		}
+		g.multiplayerMgr = match
+		g.networkMode = true
+		g.mpStatusMsg = "Team Deathmatch started!"
+	case "territory":
+		match, err := network.NewTerritoryMatch("local_territory", 100, 20*time.Minute, g.seed)
+		if err != nil {
+			g.mpStatusMsg = "Failed: " + err.Error()
+			return
+		}
+		g.multiplayerMgr = match
+		g.networkMode = true
+		g.mpStatusMsg = "Territory Control started!"
+	default:
+		g.mpStatusMsg = "Unknown mode"
+	}
+	g.hud.ShowMessage(g.mpStatusMsg)
+}
+
+// getMultiplayerModes returns the available multiplayer modes.
+func (g *Game) getMultiplayerModes() []ui.MultiplayerMode {
+	return []ui.MultiplayerMode{
+		{ID: "coop", Name: "Cooperative", Description: "2-4 player cooperative campaign", MaxPlayers: 4},
+		{ID: "ffa", Name: "Free-for-All", Description: "Every player for themselves", MaxPlayers: 8},
+		{ID: "team", Name: "Team Deathmatch", Description: "Red vs Blue team combat", MaxPlayers: 16},
+		{ID: "territory", Name: "Territory Control", Description: "Capture and hold strategic points", MaxPlayers: 16},
+	}
+}
+
+// drawMultiplayer renders the multiplayer lobby screen.
+func (g *Game) drawMultiplayer(screen *ebiten.Image) {
+	// Draw frozen game world
+	g.renderer.Render(screen, g.camera.X, g.camera.Y, g.camera.DirX, g.camera.DirY, g.camera.Pitch)
+
+	state := &ui.MultiplayerState{
+		Modes:      g.getMultiplayerModes(),
+		Selected:   g.mpSelectedMode,
+		Connected:  g.networkMode,
+		ServerAddr: "localhost",
+		StatusMsg:  g.mpStatusMsg,
+	}
+	ui.DrawMultiplayer(screen, state)
+}
+
+// updateMods handles mods screen input.
+func (g *Game) updateMods() error {
+	// Back to playing
+	if g.input.IsJustPressed(input.ActionPause) {
+		g.state = StatePlaying
+		g.menuManager.Hide()
+		return nil
+	}
+
+	// Navigate mods
+	if g.input.IsJustPressed(input.ActionMoveForward) {
+		g.menuManager.MoveUp()
+	}
+	if g.input.IsJustPressed(input.ActionMoveBackward) {
+		g.menuManager.MoveDown()
+	}
+
+	// Toggle mod enable/disable
+	if g.input.IsJustPressed(input.ActionFire) || g.input.IsJustPressed(input.ActionInteract) {
+		g.handleModToggle()
+	}
+
+	return nil
+}
+
+// handleModToggle toggles the selected mod on/off.
+func (g *Game) handleModToggle() {
+	if g.modLoader == nil {
+		return
+	}
+
+	mods := g.modLoader.ListMods()
+	idx := g.menuManager.GetSelectedIndex()
+	if idx < 0 || idx >= len(mods) {
+		return
+	}
+
+	modEntry := mods[idx]
+	if modEntry.Enabled {
+		g.modLoader.DisableMod(modEntry.Name)
+		g.hud.ShowMessage("Disabled: " + modEntry.Name)
+	} else {
+		g.modLoader.EnableMod(modEntry.Name)
+		g.hud.ShowMessage("Enabled: " + modEntry.Name)
+	}
+}
+
+// drawMods renders the mods screen.
+func (g *Game) drawMods(screen *ebiten.Image) {
+	// Draw frozen game world
+	g.renderer.Render(screen, g.camera.X, g.camera.Y, g.camera.DirX, g.camera.DirY, g.camera.Pitch)
+
+	state := g.buildModsState()
+	ui.DrawMods(screen, state)
+}
+
+// buildModsState creates the mods display state from game data.
+func (g *Game) buildModsState() *ui.ModsState {
+	if g.modLoader == nil {
+		return nil
+	}
+
+	mods := g.modLoader.ListMods()
+	uiMods := make([]ui.ModInfo, len(mods))
+	for i, m := range mods {
+		uiMods[i] = ui.ModInfo{
+			Name:        m.Name,
+			Version:     m.Version,
+			Description: m.Description,
+			Author:      m.Author,
+			Enabled:     m.Enabled,
+		}
+	}
+
+	return &ui.ModsState{
+		Mods:     uiMods,
+		ModsDir:  g.modLoader.GetModsDir(),
+		Selected: g.menuManager.GetSelectedIndex(),
+	}
+}
+
+// scanMods scans the mods directory for available mods.
+func (g *Game) scanMods() {
+	if g.modLoader == nil {
+		return
+	}
+
+	modsDir := g.modLoader.GetModsDir()
+	entries, err := os.ReadDir(modsDir)
+	if err != nil {
+		// Mods directory doesn't exist or can't be read; not an error
+		return
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			modPath := modsDir + "/" + entry.Name()
+			// Attempt to load; ignore errors for invalid mods
+			_ = g.modLoader.LoadMod(modPath)
+		}
+	}
+}
+
 // saveGame saves the current game state.
 func (g *Game) saveGame(slot int) {
 	// Collect ammo pool state
@@ -1306,6 +1744,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		g.drawShop(screen)
 	case StateCrafting:
 		g.drawCrafting(screen)
+	case StateSkills:
+		g.drawSkills(screen)
+	case StateMods:
+		g.drawMods(screen)
+	case StateMultiplayer:
+		g.drawMultiplayer(screen)
 	}
 }
 

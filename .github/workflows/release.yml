@@ -1,0 +1,132 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: Prepare release assets
+      run: |
+        mkdir -p release
+        
+        # Linux amd64
+        cp artifacts/violence-linux-amd64/violence-linux-amd64 release/
+        cp artifacts/violence-linux-amd64/violence-linux-amd64.asc release/ 2>/dev/null || true
+        cp artifacts/violence-linux-amd64/violence-linux-amd64.sha256 release/ 2>/dev/null || true
+        
+        # Linux arm64
+        cp artifacts/violence-linux-arm64/violence-linux-arm64 release/
+        cp artifacts/violence-linux-arm64/violence-linux-arm64.asc release/ 2>/dev/null || true
+        cp artifacts/violence-linux-arm64/violence-linux-arm64.sha256 release/ 2>/dev/null || true
+        
+        # macOS universal
+        cp artifacts/violence-darwin-universal/violence-darwin-universal release/
+        cp artifacts/violence-darwin-universal/violence-darwin-universal.sha256 release/ 2>/dev/null || true
+        
+        # Windows amd64
+        cp artifacts/violence-windows-amd64/violence-windows-amd64.exe release/
+        cp artifacts/violence-windows-amd64/violence-windows-amd64.exe.asc release/ 2>/dev/null || true
+        cp artifacts/violence-windows-amd64/violence-windows-amd64.exe.sha256 release/ 2>/dev/null || true
+        
+        # WASM
+        cp artifacts/violence-wasm/violence.wasm release/
+        cp artifacts/violence-wasm/wasm_exec.js release/
+        
+        # iOS (if available)
+        if [ -d "artifacts/violence-ios" ]; then
+          cp artifacts/violence-ios/violence-ios-unsigned.ipa release/ 2>/dev/null || true
+        fi
+        
+        # Android (if available)
+        if [ -d "artifacts/violence-android" ]; then
+          cp artifacts/violence-android/violence.aar release/ 2>/dev/null || true
+        fi
+        
+        # Generate combined checksums file
+        cd release
+        sha256sum * > CHECKSUMS-SHA256.txt 2>/dev/null || true
+        cd ..
+        
+        echo "Release assets:"
+        ls -la release/
+
+    - name: Generate release notes
+      id: release_notes
+      run: |
+        TAG_NAME=${GITHUB_REF#refs/tags/}
+        
+        # Get previous tag for changelog
+        PREV_TAG=$(git tag --sort=-v:refname | grep '^v' | sed -n '2p')
+        
+        if [ -n "$PREV_TAG" ]; then
+          CHANGELOG=$(git log --pretty=format:"- %s (%h)" "${PREV_TAG}..${TAG_NAME}" 2>/dev/null || echo "Initial release")
+        else
+          CHANGELOG="Initial release"
+        fi
+        
+        # Write release notes to file
+        cat > release_notes.md << EOF
+        ## VIOLENCE ${TAG_NAME}
+        
+        ### Changes
+        ${CHANGELOG}
+        
+        ### Downloads
+        | Platform | File | Signature |
+        |----------|------|-----------|
+        | Linux (amd64) | \`violence-linux-amd64\` | \`.asc\` GPG signature |
+        | Linux (arm64) | \`violence-linux-arm64\` | \`.asc\` GPG signature |
+        | macOS (Universal) | \`violence-darwin-universal\` | Notarized by Apple |
+        | Windows (amd64) | \`violence-windows-amd64.exe\` | \`.asc\` GPG signature |
+        | Web (WASM) | \`violence.wasm\` + \`wasm_exec.js\` | — |
+        | iOS | \`violence-ios-unsigned.ipa\` | Unsigned |
+        | Android | \`violence.aar\` | Unsigned |
+        
+        ### Verification
+        
+        **GPG Signature Verification (Linux/Windows):**
+        \`\`\`bash
+        gpg --verify violence-linux-amd64.asc violence-linux-amd64
+        \`\`\`
+        
+        **SHA256 Checksum Verification:**
+        \`\`\`bash
+        sha256sum -c CHECKSUMS-SHA256.txt
+        \`\`\`
+        
+        **macOS:** The macOS binary is notarized by Apple. Gatekeeper will allow execution without warnings.
+        EOF
+
+    - name: Create draft release
+      uses: softprops/action-gh-release@v2
+      with:
+        draft: true
+        generate_release_notes: false
+        body_path: release_notes.md
+        files: release/*
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
