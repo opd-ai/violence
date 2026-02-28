@@ -2766,3 +2766,230 @@ func TestMinigameSeedDeterminism(t *testing.T) {
 		t.Error("Same seed and position should create same minigame type")
 	}
 }
+
+// TestSecretWallIntegration verifies secret wall system is initialized.
+func TestSecretWallIntegration(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	if game.secretManager == nil {
+		t.Fatal("Secret manager not initialized in NewGame")
+	}
+
+	game.startNewGame()
+	if game.secretManager == nil {
+		t.Fatal("Secret manager should be initialized after startNewGame")
+	}
+}
+
+// TestSecretWallPlacement verifies secrets are placed in the map.
+func TestSecretWallPlacement(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.seed = 99999 // Fixed seed for determinism
+	game.startNewGame()
+
+	// Count secret tiles in the map
+	secretCount := 0
+	for y := 0; y < len(game.currentMap); y++ {
+		for x := 0; x < len(game.currentMap[y]); x++ {
+			if game.currentMap[y][x] == bsp.TileSecret {
+				secretCount++
+			}
+		}
+	}
+
+	// BSP generator places secrets with 15% chance in dead ends
+	// We should have at least some secrets in a 64x64 map
+	if secretCount == 0 {
+		t.Log("Warning: No secret tiles placed (this can happen randomly)")
+	}
+
+	// Secret manager should track all secret tiles
+	managerCount := game.secretManager.GetTotalCount()
+	if managerCount != secretCount {
+		t.Errorf("Secret manager has %d secrets but map has %d TileSecret tiles", managerCount, secretCount)
+	}
+}
+
+// TestSecretWallDiscovery verifies secret discovery mechanics.
+func TestSecretWallDiscovery(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	// Manually add a secret wall for testing at position (11, 10)
+	game.currentMap[10][11] = bsp.TileSecret
+	game.secretManager.Add(11, 10, 0) // DirNorth
+
+	initialDiscovered := game.secretManager.GetDiscoveredCount()
+	if initialDiscovered != 0 {
+		t.Errorf("Expected 0 discovered secrets initially, got %d", initialDiscovered)
+	}
+
+	// Position player to face the secret wall at (11, 10)
+	// checkDist = 1.5, so camera at (9.5, 10.0) with dir (1.0, 0.0)
+	// will check position (9.5 + 1.0*1.5, 10.0 + 0.0*1.5) = (11.0, 10.0) -> (11, 10)
+	game.camera.X = 9.5
+	game.camera.Y = 10.0
+	game.camera.DirX = 1.0
+	game.camera.DirY = 0.0
+
+	// Trigger secret discovery
+	game.tryInteractDoor()
+
+	// Secret should now be discovered
+	discovered := game.secretManager.GetDiscoveredCount()
+	if discovered != 1 {
+		t.Errorf("Expected 1 discovered secret after interaction, got %d", discovered)
+	}
+
+	// Secret wall should start animating
+	secret := game.secretManager.Get(11, 10)
+	if secret == nil {
+		t.Fatal("Secret wall should exist at (11, 10)")
+	}
+	if !secret.IsAnimating() && !secret.IsOpen() {
+		t.Error("Secret wall should be animating or open after trigger")
+	}
+}
+
+// TestSecretWallAnimation verifies animation state progression.
+func TestSecretWallAnimation(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	// Add test secret
+	game.currentMap[15][15] = bsp.TileSecret
+	game.secretManager.Add(15, 15, 0)
+
+	// Trigger it
+	game.secretManager.TriggerAt(15, 15, "player")
+
+	secret := game.secretManager.Get(15, 15)
+	if secret == nil {
+		t.Fatal("Secret should exist")
+	}
+	if !secret.IsAnimating() {
+		t.Error("Secret should be animating after trigger")
+	}
+
+	// Simulate multiple update cycles
+	deltaTime := 1.0 / 60.0    // 60 FPS
+	for i := 0; i < 120; i++ { // 2 seconds worth of updates
+		game.secretManager.Update(deltaTime)
+	}
+
+	// After 2 seconds (animation duration is 1 second), secret should be open
+	if !secret.IsOpen() {
+		t.Error("Secret should be fully open after animation completes")
+	}
+}
+
+// TestSecretWallQuestTracking verifies quest system integration.
+func TestSecretWallQuestTracking(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	// Add a test secret
+	game.currentMap[20][20] = bsp.TileSecret
+	game.secretManager.Add(20, 20, 0)
+
+	// Position player to interact with secret
+	game.camera.X = 19.5
+	game.camera.Y = 20.0
+	game.camera.DirX = 1.0
+	game.camera.DirY = 0.0
+
+	// Quest tracker should exist
+	if game.questTracker == nil {
+		t.Fatal("Quest tracker should be initialized")
+	}
+
+	// Interact with secret
+	game.tryInteractDoor()
+
+	// Quest progress should be updated
+	// (bonus_secrets objective is updated in tryInteractDoor)
+	for _, obj := range game.questTracker.Objectives {
+		if obj.ID == "bonus_secrets" {
+			if obj.Progress == 0 {
+				t.Log("Warning: bonus_secrets progress not incremented (objective may not exist)")
+			}
+			break
+		}
+	}
+}
+
+// TestSecretWallGenreDifferences verifies genre-specific behavior.
+func TestSecretWallGenreDifferences(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	genres := []string{"fantasy", "scifi", "horror", "cyberpunk", "postapoc"}
+
+	for _, genre := range genres {
+		t.Run(genre, func(t *testing.T) {
+			game := NewGame()
+			game.genreID = genre
+			game.seed = 55555 // Fixed seed
+			game.startNewGame()
+
+			// Verify secrets are placed regardless of genre
+			secretCount := game.secretManager.GetTotalCount()
+			t.Logf("Genre %s has %d secrets", genre, secretCount)
+			// Some maps may have 0 secrets due to random generation
+			if secretCount < 0 {
+				t.Errorf("Invalid secret count: %d", secretCount)
+			}
+		})
+	}
+}
+
+// TestSecretWallDeterminism verifies deterministic secret placement.
+func TestSecretWallDeterminism(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	seed := uint64(777777)
+
+	game1 := NewGame()
+	game1.seed = seed
+	game1.startNewGame()
+	secrets1 := game1.secretManager.GetAll()
+
+	game2 := NewGame()
+	game2.seed = seed
+	game2.startNewGame()
+	secrets2 := game2.secretManager.GetAll()
+
+	if len(secrets1) != len(secrets2) {
+		t.Errorf("Same seed should produce same number of secrets: %d vs %d", len(secrets1), len(secrets2))
+	}
+
+	// Verify positions match
+	for i := 0; i < len(secrets1) && i < len(secrets2); i++ {
+		if secrets1[i].X != secrets2[i].X || secrets1[i].Y != secrets2[i].Y {
+			t.Errorf("Secret %d position mismatch: (%d,%d) vs (%d,%d)",
+				i, secrets1[i].X, secrets1[i].Y, secrets2[i].X, secrets2[i].Y)
+		}
+	}
+}

@@ -40,6 +40,7 @@ import (
 	"github.com/opd-ai/violence/pkg/render"
 	"github.com/opd-ai/violence/pkg/rng"
 	"github.com/opd-ai/violence/pkg/save"
+	"github.com/opd-ai/violence/pkg/secret"
 	"github.com/opd-ai/violence/pkg/shop"
 	"github.com/opd-ai/violence/pkg/skills"
 	"github.com/opd-ai/violence/pkg/squad"
@@ -146,6 +147,9 @@ type Game struct {
 	minigameType       string // "lockpick", "hack", "circuit", "code"
 	previousState      GameState
 	minigameInputTimer int // Frame timer for input delay
+
+	// Secret wall system
+	secretManager *secret.Manager
 }
 
 // NewGame creates and initializes a new game instance.
@@ -206,6 +210,7 @@ func NewGame() *Game {
 		loreGenerator:      lore.NewGenerator(int64(seed)),
 		loreItems:          make([]*lore.LoreItem, 0),
 		codexScrollIdx:     0,
+		secretManager:      secret.NewManager(64), // Map width for secret key calculation
 	}
 
 	// Initialize BSP generator
@@ -342,6 +347,27 @@ func (g *Game) startNewGame() {
 		g.loreItems = append(g.loreItems, &loreItem)
 		codexEntry := g.loreGenerator.Generate(loreItem.CodexID)
 		g.loreCodex.AddEntry(codexEntry)
+	}
+
+	// Scan map for secret walls and register them
+	g.secretManager = secret.NewManager(len(tiles[0]))
+	for y := 0; y < len(tiles); y++ {
+		for x := 0; x < len(tiles[y]); x++ {
+			if tiles[y][x] == bsp.TileSecret {
+				// Determine slide direction based on neighboring floor tiles
+				dir := secret.DirNorth
+				if y+1 < len(tiles) && tiles[y+1][x] == bsp.TileFloor {
+					dir = secret.DirSouth
+				} else if y > 0 && tiles[y-1][x] == bsp.TileFloor {
+					dir = secret.DirNorth
+				} else if x+1 < len(tiles[y]) && tiles[y][x+1] == bsp.TileFloor {
+					dir = secret.DirEast
+				} else if x > 0 && tiles[y][x-1] == bsp.TileFloor {
+					dir = secret.DirWest
+				}
+				g.secretManager.Add(x, y, dir)
+			}
+		}
 	}
 
 	// Reset player position to a safe starting location
@@ -918,6 +944,11 @@ func (g *Game) updatePlaying() error {
 		g.weatherEmitter.Update(deltaTime)
 	}
 
+	// Update secret wall animations
+	if g.secretManager != nil {
+		g.secretManager.Update(deltaTime)
+	}
+
 	// Recalculate lighting with flashlight
 	if g.lightMap != nil {
 		// Create genre-specific flashlight
@@ -1040,6 +1071,7 @@ func (g *Game) isWalkable(x, y float64) bool {
 }
 
 // tryInteractDoor checks if player is facing a door and attempts to open it.
+// Also checks for secret walls that can be triggered.
 func (g *Game) tryInteractDoor() {
 	checkDist := 1.5
 	checkX := g.camera.X + g.camera.DirX*checkDist
@@ -1055,6 +1087,20 @@ func (g *Game) tryInteractDoor() {
 	}
 
 	tile := g.currentMap[mapY][mapX]
+
+	// Check for secret walls first
+	if tile == bsp.TileSecret {
+		if g.secretManager != nil && g.secretManager.TriggerAt(mapX, mapY, "player") {
+			g.audioEngine.PlaySFX("secret_open", float64(mapX), float64(mapY))
+			g.hud.ShowMessage("Secret discovered!")
+			// Update quest tracker for secret discovery
+			if g.questTracker != nil {
+				g.questTracker.UpdateProgress("bonus_secrets", 1)
+			}
+		}
+		return
+	}
+
 	if tile == bsp.TileDoor {
 		requiredColor := g.getDoorColor(mapX, mapY)
 		if requiredColor == "" || g.keycards[requiredColor] {
