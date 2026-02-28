@@ -1,14 +1,18 @@
 package main
 
 import (
+	"image/color"
 	"log"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/opd-ai/violence/pkg/audio"
+	"github.com/opd-ai/violence/pkg/automap"
 	"github.com/opd-ai/violence/pkg/bsp"
 	"github.com/opd-ai/violence/pkg/camera"
 	"github.com/opd-ai/violence/pkg/config"
+	"github.com/opd-ai/violence/pkg/door"
 	"github.com/opd-ai/violence/pkg/engine"
 	"github.com/opd-ai/violence/pkg/input"
 	"github.com/opd-ai/violence/pkg/raycaster"
@@ -47,6 +51,9 @@ type Game struct {
 	currentMap     [][]int
 	genreID        string
 	seed           uint64
+	automap        *automap.Map
+	keycards       map[string]bool
+	automapVisible bool
 }
 
 // NewGame creates and initializes a new game instance.
@@ -81,6 +88,8 @@ func NewGame() *Game {
 		rng:            gameRNG,
 		genreID:        "fantasy",
 		seed:           seed,
+		keycards:       make(map[string]bool),
+		automapVisible: false,
 	}
 
 	// Initialize BSP generator
@@ -163,6 +172,11 @@ func (g *Game) startNewGame() {
 	g.currentMap = tiles
 	g.raycaster.SetMap(tiles)
 
+	// Initialize automap
+	if len(tiles) > 0 && len(tiles[0]) > 0 {
+		g.automap = automap.NewMap(len(tiles[0]), len(tiles))
+	}
+
 	// Set genre for all systems
 	g.world.SetGenre(g.genreID)
 	g.renderer.SetGenre(g.genreID)
@@ -170,6 +184,8 @@ func (g *Game) startNewGame() {
 	camera.SetGenre(g.genreID)
 	g.audioEngine.SetGenre(g.genreID)
 	tutorial.SetGenre(g.genreID)
+	automap.SetGenre(g.genreID)
+	door.SetGenre(g.genreID)
 
 	// Reset player position to a safe starting location
 	g.camera.X = 5.0
@@ -182,6 +198,10 @@ func (g *Game) startNewGame() {
 	g.hud.Health = 100
 	g.hud.Armor = 0
 	g.hud.Ammo = 50
+
+	// Reset keycards
+	g.keycards = make(map[string]bool)
+	g.automapVisible = false
 
 	// Play music
 	g.audioEngine.PlayMusic("theme", 0.5)
@@ -239,6 +259,16 @@ func (g *Game) updatePlaying() error {
 		return nil
 	}
 
+	// Toggle automap
+	if g.input.IsJustPressed(input.ActionAutomap) {
+		g.automapVisible = !g.automapVisible
+	}
+
+	// Check for door interaction
+	if g.input.IsJustPressed(input.ActionInteract) {
+		g.tryInteractDoor()
+	}
+
 	// Movement speed (units per frame at 60 TPS)
 	moveSpeed := 0.05
 	rotSpeed := 0.03
@@ -249,7 +279,7 @@ func (g *Game) updatePlaying() error {
 	deltaDirY := 0.0
 	deltaPitch := 0.0
 
-	// Forward/backward movement
+	// Keyboard: Forward/backward movement
 	if g.input.IsPressed(input.ActionMoveForward) {
 		deltaX += g.camera.DirX * moveSpeed
 		deltaY += g.camera.DirY * moveSpeed
@@ -259,7 +289,7 @@ func (g *Game) updatePlaying() error {
 		deltaY -= g.camera.DirY * moveSpeed
 	}
 
-	// Strafing
+	// Keyboard: Strafing
 	if g.input.IsPressed(input.ActionStrafeLeft) {
 		deltaX += g.camera.DirY * moveSpeed
 		deltaY -= g.camera.DirX * moveSpeed
@@ -269,7 +299,15 @@ func (g *Game) updatePlaying() error {
 		deltaY += g.camera.DirX * moveSpeed
 	}
 
-	// Rotation (keyboard)
+	// Gamepad: Left stick movement
+	leftX, leftY := g.input.GamepadLeftStick()
+	deadzone := 0.15
+	if leftX*leftX+leftY*leftY > deadzone*deadzone {
+		deltaX += (g.camera.DirX*leftY - g.camera.DirY*leftX) * moveSpeed
+		deltaY += (g.camera.DirY*leftY + g.camera.DirX*leftX) * moveSpeed
+	}
+
+	// Keyboard: Rotation
 	if g.input.IsPressed(input.ActionTurnLeft) {
 		g.camera.Rotate(-rotSpeed)
 	}
@@ -282,7 +320,14 @@ func (g *Game) updatePlaying() error {
 	if mouseDX != 0 || mouseDY != 0 {
 		sensitivity := config.C.MouseSensitivity * 0.002
 		g.camera.Rotate(mouseDX * sensitivity)
-		deltaPitch = -mouseDY * sensitivity * 10.0 // Pitch in degrees
+		deltaPitch = -mouseDY * sensitivity * 10.0
+	}
+
+	// Gamepad: Right stick camera
+	rightX, rightY := g.input.GamepadRightStick()
+	if rightX*rightX+rightY*rightY > deadzone*deadzone {
+		g.camera.Rotate(rightX * rotSpeed * 1.5)
+		deltaPitch = -rightY * rotSpeed * 15.0
 	}
 
 	// Collision detection (simple)
@@ -290,6 +335,9 @@ func (g *Game) updatePlaying() error {
 	newY := g.camera.Y + deltaY
 	if g.isWalkable(newX, newY) {
 		g.camera.Update(deltaX, deltaY, deltaDirX, deltaDirY, deltaPitch)
+		if g.automap != nil {
+			g.automap.Reveal(int(newX), int(newY))
+		}
 	}
 
 	// Update ECS world
@@ -320,6 +368,39 @@ func (g *Game) isWalkable(x, y float64) bool {
 	}
 	tile := g.currentMap[mapY][mapX]
 	return tile == bsp.TileFloor || tile == bsp.TileEmpty
+}
+
+// tryInteractDoor checks if player is facing a door and attempts to open it.
+func (g *Game) tryInteractDoor() {
+	checkDist := 1.5
+	checkX := g.camera.X + g.camera.DirX*checkDist
+	checkY := g.camera.Y + g.camera.DirY*checkDist
+	mapX := int(checkX)
+	mapY := int(checkY)
+
+	if g.currentMap == nil || len(g.currentMap) == 0 {
+		return
+	}
+	if mapY < 0 || mapY >= len(g.currentMap) || mapX < 0 || mapX >= len(g.currentMap[0]) {
+		return
+	}
+
+	tile := g.currentMap[mapY][mapX]
+	if tile == bsp.TileDoor {
+		requiredColor := g.getDoorColor(mapX, mapY)
+		if requiredColor == "" || g.keycards[requiredColor] {
+			g.currentMap[mapY][mapX] = bsp.TileFloor
+			g.raycaster.SetMap(g.currentMap)
+			g.audioEngine.PlaySFX("door_open", float64(mapX), float64(mapY))
+		} else {
+			g.hud.ShowMessage("Need " + requiredColor + " keycard")
+		}
+	}
+}
+
+// getDoorColor returns the keycard color required for a door (stub - would be from door metadata).
+func (g *Game) getDoorColor(x, y int) string {
+	return ""
 }
 
 // updatePaused handles pause menu updates.
@@ -420,13 +501,77 @@ func (g *Game) drawPlaying(screen *ebiten.Image) {
 	// Render 3D world
 	g.renderer.Render(screen, g.camera.X, g.camera.Y, g.camera.DirX, g.camera.DirY, g.camera.Pitch)
 
+	// Render automap overlay if visible
+	if g.automapVisible && g.automap != nil {
+		g.drawAutomap(screen)
+	}
+
 	// Render HUD
+	g.hud.Update()
 	ui.DrawHUD(screen, g.hud)
 
 	// Render tutorial prompts
 	if g.tutorialSystem.Active {
 		ui.DrawTutorial(screen, g.tutorialSystem.Current)
 	}
+}
+
+// drawAutomap renders the automap overlay.
+func (g *Game) drawAutomap(screen *ebiten.Image) {
+	bounds := screen.Bounds()
+	w := float32(bounds.Dx())
+
+	overlayX := w*0.75 - 80
+	overlayY := float32(20.0)
+	overlayW := float32(150.0)
+	overlayH := float32(150.0)
+
+	vector.DrawFilledRect(screen, overlayX, overlayY, overlayW, overlayH, color.RGBA{0, 0, 0, 180}, false)
+	vector.StrokeRect(screen, overlayX, overlayY, overlayW, overlayH, 1, color.RGBA{100, 100, 100, 255}, false)
+
+	if g.automap == nil || g.currentMap == nil {
+		return
+	}
+
+	scaleX := overlayW / float32(g.automap.Width)
+	scaleY := overlayH / float32(g.automap.Height)
+	scale := scaleX
+	if scaleY < scaleX {
+		scale = scaleY
+	}
+
+	for y := 0; y < g.automap.Height && y < len(g.currentMap); y++ {
+		for x := 0; x < g.automap.Width && x < len(g.currentMap[0]); x++ {
+			if !g.automap.Revealed[y][x] {
+				continue
+			}
+			tile := g.currentMap[y][x]
+			tileX := overlayX + float32(x)*scale
+			tileY := overlayY + float32(y)*scale
+
+			var tileColor color.RGBA
+			switch tile {
+			case bsp.TileWall:
+				tileColor = color.RGBA{150, 150, 150, 255}
+			case bsp.TileFloor, bsp.TileEmpty:
+				tileColor = color.RGBA{50, 50, 50, 255}
+			case bsp.TileDoor:
+				tileColor = color.RGBA{100, 100, 200, 255}
+			case bsp.TileSecret:
+				tileColor = color.RGBA{200, 200, 50, 255}
+			default:
+				tileColor = color.RGBA{80, 80, 80, 255}
+			}
+			vector.DrawFilledRect(screen, tileX, tileY, scale, scale, tileColor, false)
+		}
+	}
+
+	playerX := overlayX + float32(g.camera.X)*scale
+	playerY := overlayY + float32(g.camera.Y)*scale
+	vector.DrawFilledCircle(screen, playerX, playerY, 2, color.RGBA{255, 255, 0, 255}, false)
+
+	dirLen := scale * 3
+	vector.StrokeLine(screen, playerX, playerY, playerX+float32(g.camera.DirX)*dirLen, playerY+float32(g.camera.DirY)*dirLen, 1, color.RGBA{255, 255, 0, 255}, false)
 }
 
 // drawPaused renders the paused game state.

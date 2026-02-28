@@ -15,16 +15,18 @@ import (
 
 // HUD holds heads-up display state.
 type HUD struct {
-	Health     int
-	Armor      int
-	Ammo       int
-	WeaponID   int
-	Keycards   [3]bool // Red, Blue, Yellow
-	MaxHealth  int
-	MaxArmor   int
-	MaxAmmo    int
-	WeaponName string
-	theme      *Theme
+	Health      int
+	Armor       int
+	Ammo        int
+	WeaponID    int
+	Keycards    [3]bool // Red, Blue, Yellow
+	MaxHealth   int
+	MaxArmor    int
+	MaxAmmo     int
+	WeaponName  string
+	theme       *Theme
+	Message     string
+	MessageTime int
 }
 
 // MenuType represents different menu screens.
@@ -96,16 +98,34 @@ var currentTheme = getDefaultTheme()
 // NewHUD creates a HUD with default values.
 func NewHUD() *HUD {
 	return &HUD{
-		Health:     100,
-		Armor:      0,
-		Ammo:       50,
-		WeaponID:   1,
-		Keycards:   [3]bool{false, false, false},
-		MaxHealth:  100,
-		MaxArmor:   100,
-		MaxAmmo:    200,
-		WeaponName: "Pistol",
-		theme:      currentTheme,
+		Health:      100,
+		Armor:       0,
+		Ammo:        50,
+		WeaponID:    1,
+		Keycards:    [3]bool{false, false, false},
+		MaxHealth:   100,
+		MaxArmor:    100,
+		MaxAmmo:     200,
+		WeaponName:  "Pistol",
+		theme:       currentTheme,
+		Message:     "",
+		MessageTime: 0,
+	}
+}
+
+// ShowMessage displays a temporary message on the HUD.
+func (h *HUD) ShowMessage(msg string) {
+	h.Message = msg
+	h.MessageTime = 180
+}
+
+// Update decrements the message timer.
+func (h *HUD) Update() {
+	if h.MessageTime > 0 {
+		h.MessageTime--
+	}
+	if h.MessageTime == 0 {
+		h.Message = ""
 	}
 }
 
@@ -144,6 +164,12 @@ func DrawHUD(screen *ebiten.Image, h *HUD) {
 		}
 	}
 	drawLabel(screen, keycardX, screenHeight-45, "KEYS", h.theme.TextColor)
+
+	// Center message
+	if h.MessageTime > 0 && h.Message != "" {
+		msgX := centerX - float32(len(h.Message)*7/2)
+		drawLabel(screen, msgX, screenHeight-80, h.Message, h.theme.TextColor)
+	}
 }
 
 // drawStatusBar renders a horizontal status bar.

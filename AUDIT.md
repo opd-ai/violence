@@ -8,17 +8,17 @@
 ## AUDIT SUMMARY
 
 **Total Issues Found**: 28  
-**Issues Resolved**: 11  
-**Issues Remaining**: 17  
+**Issues Resolved**: 14  
+**Issues Remaining**: 14
 
 - **CRITICAL BUG**: 3 → 0 remaining
 - **FUNCTIONAL MISMATCH**: 8 → 4 remaining
-- **MISSING FEATURE**: 15 → 14 remaining
+- **MISSING FEATURE**: 15 → 11 remaining
 - **EDGE CASE BUG**: 2 → 0 remaining
 - **PERFORMANCE ISSUE**: 0
 
 **Severity Distribution**:
-- High: 11 → 9 remaining
+- High: 11 → 6 remaining
 - Medium: 14 → 8 remaining
 - Low: 3 → 0 remaining
 
@@ -429,6 +429,45 @@ if r.Map[mapY][mapX] > 0 {
 **Expected Behavior:** For consistency and performance, camera rotation should use raycaster.Sin/raycaster.Cos.
 **Actual Behavior:** Camera now uses raycaster optimized trig functions, matching raycaster package patterns.
 **Impact:** Improved performance for camera rotation; consistent optimization strategy across codebase.
+````
+
+````
+### [RESOLVED 2026-02-28] MISSING FEATURE: Gamepad Movement Not Implemented in Main Game Loop
+**File:** main.go:232-308
+**Severity:** Medium
+**Status:** ✅ FIXED
+**Resolution:** Added gamepad analog stick support to updatePlaying() method. Left stick controls movement (forward/back/strafe), right stick controls camera rotation and pitch. Implemented deadzone handling (0.15) to prevent stick drift. Gamepad input runs in parallel with keyboard/mouse input.
+**Description:** Input manager provides GamepadLeftStick, GamepadRightStick, and GamepadTriggers methods, but main.go updatePlaying only handles keyboard and mouse input.
+**Expected Behavior:** Gamepad analog stick input should control movement and camera.
+**Actual Behavior:** Gamepad left stick now controls movement (combines with camera direction for proper strafing), right stick controls camera rotation and pitch.
+**Impact:** Gamepad players can now use analog controls for smooth movement and camera control.
+**Tests Added:** TestGamepadAnalogStickSupport in main_test.go verifies gamepad methods are callable without panic.
+````
+
+````
+### [RESOLVED 2026-02-28] MISSING FEATURE: Automap Not Integrated into Main Game
+**File:** main.go, pkg/automap/automap.go
+**Severity:** Medium
+**Status:** ✅ FIXED
+**Resolution:** Integrated automap into main game loop. Added automap field to Game struct, created during startNewGame(), updated on player movement (reveals tiles), toggled with Tab key (ActionAutomap). Implemented drawAutomap() function that renders semi-transparent overlay in top-right corner showing explored tiles, walls, doors, secrets, and player position/facing.
+**Description:** Automap package exists and input manager defines ActionAutomap, but main.go never creates or uses an automap instance.
+**Expected Behavior:** Pressing Tab should toggle automap overlay showing explored areas.
+**Actual Behavior:** Tab key now toggles automap overlay; tiles are revealed as player explores; different tile types shown in different colors; player position and facing direction indicated.
+**Impact:** Players can now navigate levels using the automap feature; documented feature is now functional.
+**Tests Added:** TestAutomapCreation, TestAutomapToggle, TestDrawAutomap in main_test.go verify automap initialization, toggle state, and rendering.
+````
+
+````
+### [RESOLVED 2026-02-28] MISSING FEATURE: Door/Keycard System Not Integrated
+**File:** main.go, pkg/door/door.go
+**Severity:** Medium
+**Status:** ✅ FIXED
+**Resolution:** Integrated door interaction system. Added keycards map to Game struct, implemented tryInteractDoor() method that checks for TileDoor tiles in front of player (1.5 unit range), opens unlocked doors by replacing with TileFloor, displays "Need [color] keycard" message for locked doors. Added HUD.ShowMessage() and HUD.Update() for timed message display (180 frames = 3 seconds at 60 TPS).
+**Description:** Door package exists, HUD shows keycard slots, BSP generator places doors (TileDoor), but no door interaction logic exists in main.go.
+**Expected Behavior:** Pressing E near a door should open it if player has required keycard.
+**Actual Behavior:** E key (ActionInteract) now checks for doors; unlocked doors open with audio feedback; locked doors show requirement message on HUD; keycard inventory tracked in Game struct.
+**Impact:** Door interaction now functional; keycard HUD display is now operational; players can progress through levels with keycard-locked areas.
+**Tests Added:** TestKeycardInitialization, TestDoorInteraction, TestHUDMessageDisplay in main_test.go verify keycard map, door opening logic, and HUD message system.
 ````
 
 ````

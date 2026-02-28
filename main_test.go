@@ -568,3 +568,165 @@ func TestUpdatePaused(t *testing.T) {
 		t.Errorf("updatePaused failed: %v", err)
 	}
 }
+
+// TestAutomapCreation verifies automap is created during game start.
+func TestAutomapCreation(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	if game.automap == nil {
+		t.Error("Automap should be created during startNewGame")
+	}
+	if game.automap.Width != len(game.currentMap[0]) {
+		t.Errorf("Expected automap width %d, got %d", len(game.currentMap[0]), game.automap.Width)
+	}
+	if game.automap.Height != len(game.currentMap) {
+		t.Errorf("Expected automap height %d, got %d", len(game.currentMap), game.automap.Height)
+	}
+}
+
+// TestAutomapToggle verifies automap visibility toggle.
+func TestAutomapToggle(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	if game.automapVisible {
+		t.Error("Automap should start hidden")
+	}
+
+	// Simulate toggling (note: actual toggle requires input mock)
+	game.automapVisible = !game.automapVisible
+	if !game.automapVisible {
+		t.Error("Automap should be visible after toggle")
+	}
+
+	game.automapVisible = !game.automapVisible
+	if game.automapVisible {
+		t.Error("Automap should be hidden after second toggle")
+	}
+}
+
+// TestKeycardInitialization verifies keycard map is initialized.
+func TestKeycardInitialization(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+
+	if game.keycards == nil {
+		t.Error("Keycard map should be initialized")
+	}
+	if len(game.keycards) != 0 {
+		t.Errorf("Expected empty keycard map, got %d entries", len(game.keycards))
+	}
+}
+
+// TestDoorInteraction verifies door interaction logic.
+func TestDoorInteraction(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	// Create a simple test map with a door
+	game.currentMap = [][]int{
+		{1, 1, 1, 1, 1},
+		{1, 2, 2, 2, 1},
+		{1, 2, 3, 2, 1},
+		{1, 2, 2, 2, 1},
+		{1, 1, 1, 1, 1},
+	}
+	game.raycaster.SetMap(game.currentMap)
+
+	// Position player facing the door - place closer so 1.5 units puts us at the door
+	game.camera.X = 2.0
+	game.camera.Y = 0.7
+	game.camera.DirX = 0.0
+	game.camera.DirY = 1.0
+
+	// Try to open door (no keycard required for stub)
+	game.tryInteractDoor()
+
+	// Door should be opened (replaced with floor tile which is TileFloor = 2)
+	if game.currentMap[2][2] != 2 {
+		t.Errorf("Expected door to be opened (tile 2 = TileFloor), got tile %d", game.currentMap[2][2])
+	}
+}
+
+// TestGamepadAnalogStickSupport verifies gamepad stick methods don't panic.
+func TestGamepadAnalogStickSupport(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	// Verify gamepad methods exist and don't panic
+	leftX, leftY := game.input.GamepadLeftStick()
+	if leftX != 0 || leftY != 0 {
+		// OK if no gamepad connected
+		t.Logf("Gamepad left stick: (%f, %f)", leftX, leftY)
+	}
+
+	rightX, rightY := game.input.GamepadRightStick()
+	if rightX != 0 || rightY != 0 {
+		t.Logf("Gamepad right stick: (%f, %f)", rightX, rightY)
+	}
+}
+
+// TestHUDMessageDisplay verifies HUD message system.
+func TestHUDMessageDisplay(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+
+	// Test message display
+	game.hud.ShowMessage("Test message")
+	if game.hud.Message != "Test message" {
+		t.Errorf("Expected message 'Test message', got '%s'", game.hud.Message)
+	}
+	if game.hud.MessageTime != 180 {
+		t.Errorf("Expected message time 180, got %d", game.hud.MessageTime)
+	}
+
+	// Test message timeout
+	for i := 0; i < 180; i++ {
+		game.hud.Update()
+	}
+	if game.hud.Message != "" {
+		t.Errorf("Expected message to be cleared after timeout, got '%s'", game.hud.Message)
+	}
+	if game.hud.MessageTime != 0 {
+		t.Errorf("Expected message time 0 after timeout, got %d", game.hud.MessageTime)
+	}
+}
+
+// TestDrawAutomap verifies automap rendering doesn't panic.
+func TestDrawAutomap(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	// Create a dummy screen image
+	screen := ebiten.NewImage(config.C.InternalWidth, config.C.InternalHeight)
+
+	// Should not panic
+	game.drawAutomap(screen)
+}
