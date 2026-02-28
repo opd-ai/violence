@@ -757,6 +757,79 @@ func BenchmarkGetAnimatedFrame(b *testing.B) {
 	}
 }
 
+func TestGenerateWallSet(t *testing.T) {
+	tests := []struct {
+		name    string
+		genreID string
+	}{
+		{"fantasy walls", "fantasy"},
+		{"scifi walls", "scifi"},
+		{"horror walls", "horror"},
+		{"cyberpunk walls", "cyberpunk"},
+		{"postapoc walls", "postapoc"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			atlas := NewAtlas(12345)
+			atlas.GenerateWallSet(tt.genreID)
+
+			// Verify all 4 wall textures exist
+			for i := 1; i <= 4; i++ {
+				name := "wall_" + string(rune('0'+i))
+				img, ok := atlas.Get(name)
+				if !ok {
+					t.Errorf("Wall texture %q not generated", name)
+				}
+				if img == nil {
+					t.Errorf("Wall texture %q is nil", name)
+				}
+				// Verify texture has expected size
+				if img != nil {
+					bounds := img.Bounds()
+					if bounds.Dx() != 64 || bounds.Dy() != 64 {
+						t.Errorf("Wall texture %q size = %dx%d, want 64x64", name, bounds.Dx(), bounds.Dy())
+					}
+				}
+			}
+
+			// Verify genre was set
+			if atlas.genre != tt.genreID {
+				t.Errorf("Genre = %q, want %q", atlas.genre, tt.genreID)
+			}
+		})
+	}
+}
+
+func TestGenerateWallSet_GenreDifferences(t *testing.T) {
+	// Verify different genres produce different textures
+	atlas1 := NewAtlas(12345)
+	atlas1.GenerateWallSet("fantasy")
+	fantasy1, _ := atlas1.Get("wall_1")
+
+	atlas2 := NewAtlas(12345)
+	atlas2.GenerateWallSet("scifi")
+	scifi1, _ := atlas2.Get("wall_1")
+
+	// Sample a few pixels to verify they differ
+	// (different genre base colors should produce different results)
+	fr, fg, fb, _ := fantasy1.At(10, 10).RGBA()
+	sr, sg, sb, _ := scifi1.At(10, 10).RGBA()
+
+	// Allow some variation but textures should be noticeably different
+	totalDiff := abs(int(fr)-int(sr)) + abs(int(fg)-int(sg)) + abs(int(fb)-int(sb))
+	if totalDiff < 1000 {
+		t.Errorf("Genre textures too similar: diff=%d", totalDiff)
+	}
+}
+
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
 // dummyImage is a minimal image.Image implementation for testing
 type dummyImage struct {
 	id int
@@ -765,3 +838,123 @@ type dummyImage struct {
 func (d *dummyImage) ColorModel() color.Model { return color.RGBAModel }
 func (d *dummyImage) Bounds() image.Rectangle { return image.Rect(0, 0, 1, 1) }
 func (d *dummyImage) At(x, y int) color.Color { return color.RGBA{R: 0, G: 0, B: 0, A: 255} }
+
+func TestAtlas_GenerateGenreAnimations(t *testing.T) {
+	tests := []struct {
+		genre           string
+		expectedPattern string
+	}{
+		{"fantasy", "flicker_torch"},
+		{"scifi", "blink_panel"},
+		{"horror", "drip_water"},
+		{"cyberpunk", "neon_pulse"},
+		{"postapoc", "radiation_glow"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.genre, func(t *testing.T) {
+			atlas := NewAtlas(12345)
+
+			err := atlas.GenerateGenreAnimations(tt.genre)
+			if err != nil {
+				t.Fatalf("GenerateGenreAnimations failed: %v", err)
+			}
+
+			animName := tt.genre + "_anim"
+			frame, ok := atlas.GetAnimatedFrame(animName, 0)
+			if !ok {
+				t.Fatalf("animated texture %s not found", animName)
+			}
+
+			if frame == nil {
+				t.Error("frame is nil")
+			}
+
+			bounds := frame.Bounds()
+			if bounds.Dx() != 64 || bounds.Dy() != 64 {
+				t.Errorf("frame size = %dx%d, want 64x64", bounds.Dx(), bounds.Dy())
+			}
+		})
+	}
+}
+
+func TestAtlas_GenerateGenreAnimations_FrameVariation(t *testing.T) {
+	atlas := NewAtlas(99999)
+
+	err := atlas.GenerateGenreAnimations("cyberpunk")
+	if err != nil {
+		t.Fatalf("GenerateGenreAnimations failed: %v", err)
+	}
+
+	frame0, _ := atlas.GetAnimatedFrame("cyberpunk_anim", 0)
+	frame1, _ := atlas.GetAnimatedFrame("cyberpunk_anim", 30)
+
+	// Frames should be different
+	r0, g0, b0, _ := frame0.At(32, 32).RGBA()
+	r1, g1, b1, _ := frame1.At(32, 32).RGBA()
+
+	if r0 == r1 && g0 == g1 && b0 == b1 {
+		t.Error("animated frames should vary")
+	}
+}
+
+func TestAtlas_GenerateGenreAnimations_Determinism(t *testing.T) {
+	seed := uint64(77777)
+
+	atlas1 := NewAtlas(seed)
+	atlas1.GenerateGenreAnimations("horror")
+
+	atlas2 := NewAtlas(seed)
+	atlas2.GenerateGenreAnimations("horror")
+
+	// Compare frames
+	for tick := 0; tick < 240; tick += 30 {
+		f1, _ := atlas1.GetAnimatedFrame("horror_anim", tick)
+		f2, _ := atlas2.GetAnimatedFrame("horror_anim", tick)
+
+		r1, g1, b1, _ := f1.At(16, 16).RGBA()
+		r2, g2, b2, _ := f2.At(16, 16).RGBA()
+
+		if r1 != r2 || g1 != g2 || b1 != b2 {
+			t.Errorf("tick %d: frames differ", tick)
+		}
+	}
+}
+
+func TestGenerateNeonPulseFrame(t *testing.T) {
+	atlas := NewAtlas(12345)
+	err := atlas.GenerateGenreAnimations("cyberpunk")
+	if err != nil {
+		t.Fatalf("GenerateGenreAnimations failed: %v", err)
+	}
+
+	frame, ok := atlas.GetAnimatedFrame("cyberpunk_anim", 0)
+	if !ok {
+		t.Fatal("neon pulse animation not found")
+	}
+
+	// Verify magenta tint (high R and B, low G)
+	r, g, b, _ := frame.At(32, 32).RGBA()
+	if r>>8 < 80 || b>>8 < 80 || g>>8 > 50 {
+		t.Errorf("neon pulse should be magenta, got R=%d G=%d B=%d", r>>8, g>>8, b>>8)
+	}
+}
+
+func TestGenerateRadiationGlowFrame(t *testing.T) {
+	atlas := NewAtlas(12345)
+	err := atlas.GenerateGenreAnimations("postapoc")
+	if err != nil {
+		t.Fatalf("GenerateGenreAnimations failed: %v", err)
+	}
+
+	frame, ok := atlas.GetAnimatedFrame("postapoc_anim", 0)
+	if !ok {
+		t.Fatal("radiation glow animation not found")
+	}
+
+	// Verify green-yellow tint (high G, medium-high R, low B)
+	r, g, b, _ := frame.At(32, 32).RGBA()
+	if g>>8 < 100 || b>>8 > 100 {
+		t.Errorf("radiation glow should be green-yellow, got R=%d G=%d B=%d", r>>8, g>>8, b>>8)
+	}
+}

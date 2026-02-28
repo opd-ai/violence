@@ -505,8 +505,9 @@ func BenchmarkSampleTexture(b *testing.B) {
 
 // mockAtlas is a minimal texture.Atlas for testing
 type mockAtlas struct {
-	hasFloor   bool
-	hasCeiling bool
+	hasFloor     bool
+	hasCeiling   bool
+	wallTextures map[string]image.Image
 }
 
 func (m *mockAtlas) Get(name string) (image.Image, bool) {
@@ -516,10 +517,19 @@ func (m *mockAtlas) Get(name string) (image.Image, bool) {
 	if name == "ceiling_main" && m.hasCeiling {
 		return &mockTexture{w: 8, h: 8, color: color.RGBA{R: 60, G: 50, B: 40, A: 255}}, true
 	}
+	if m.wallTextures != nil {
+		if tex, ok := m.wallTextures[name]; ok {
+			return tex, true
+		}
+	}
 	return nil, false
 }
 
 func (m *mockAtlas) SetGenre(genreID string) {}
+
+func (m *mockAtlas) GetAnimatedFrame(name string, tick int) (image.Image, bool) {
+	return nil, false
+}
 
 // mockTexture is a simple test texture that returns a constant color
 type mockTexture struct {
@@ -1070,5 +1080,141 @@ func BenchmarkRenderWithPostProcessing(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		r.Render(screen, 5.5, 5.5, 1.0, 0.0, 0.0)
+	}
+}
+
+func TestRenderWallWithTexture(t *testing.T) {
+	// Create a simple test texture
+	testTexture := image.NewRGBA(image.Rect(0, 0, 64, 64))
+	for y := 0; y < 64; y++ {
+		for x := 0; x < 64; x++ {
+			// Gradient texture for testing
+			testTexture.Set(x, y, color.RGBA{R: uint8(x * 4), G: uint8(y * 4), B: 128, A: 255})
+		}
+	}
+
+	// Mock atlas
+	atlas := &mockAtlas{
+		wallTextures: map[string]image.Image{
+			"wall_1": testTexture,
+			"wall_2": testTexture,
+		},
+	}
+
+	world := [][]int{
+		{1, 1, 1, 1, 1},
+		{1, 0, 0, 0, 1},
+		{1, 0, 0, 0, 1},
+		{1, 0, 0, 0, 1},
+		{1, 1, 1, 1, 1},
+	}
+
+	rc := raycaster.NewRaycaster(66.0, 320, 200)
+	rc.SetMap(world)
+
+	r := NewRenderer(320, 200, rc)
+	r.SetTextureAtlas(atlas)
+
+	screen := ebiten.NewImage(320, 200)
+	r.Render(screen, 2.5, 2.5, 1.0, 0.0, 0.0)
+
+	// Verify something was rendered
+	bounds := screen.Bounds()
+	centerPixel := screen.At(bounds.Dx()/2, bounds.Dy()/2)
+	cr, cg, cb, _ := centerPixel.RGBA()
+	if cr == 0 && cg == 0 && cb == 0 {
+		t.Error("Expected textured wall rendering, got black pixel")
+	}
+}
+
+func TestGetWallTextureName(t *testing.T) {
+	tests := []struct {
+		wallType int
+		want     string
+	}{
+		{1, "wall_1"},
+		{2, "wall_2"},
+		{3, "wall_3"},
+		{4, "wall_4"},
+		{0, "wall_1"}, // default
+		{5, "wall_1"}, // default
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.want, func(t *testing.T) {
+			got := getWallTextureName(tt.wallType)
+			if got != tt.want {
+				t.Errorf("getWallTextureName(%d) = %q, want %q", tt.wallType, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSampleWallTexture(t *testing.T) {
+	// Create a simple test texture with distinct colors
+	testTexture := image.NewRGBA(image.Rect(0, 0, 4, 4))
+	for y := 0; y < 4; y++ {
+		for x := 0; x < 4; x++ {
+			testTexture.Set(x, y, color.RGBA{R: uint8(x * 64), G: uint8(y * 64), B: 128, A: 255})
+		}
+	}
+
+	tests := []struct {
+		name       string
+		textureX   float64
+		y          int
+		drawStart  int
+		drawEnd    int
+		checkColor bool
+	}{
+		{"left edge", 0.0, 50, 0, 100, false},
+		{"center", 0.5, 50, 0, 100, false},
+		{"right edge", 0.99, 50, 0, 100, false},
+		{"top of wall", 0.5, 10, 10, 90, false},
+		{"bottom of wall", 0.5, 89, 10, 90, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := sampleWallTexture(testTexture, tt.textureX, tt.y, tt.drawStart, tt.drawEnd)
+			// Just verify we get a valid color
+			if c.A != 255 {
+				t.Errorf("Alpha = %d, want 255", c.A)
+			}
+		})
+	}
+}
+
+func TestSampleWallTexture_Bounds(t *testing.T) {
+	// Create texture and test edge cases
+	testTexture := image.NewRGBA(image.Rect(0, 0, 64, 64))
+	for y := 0; y < 64; y++ {
+		for x := 0; x < 64; x++ {
+			testTexture.Set(x, y, color.RGBA{R: 255, G: 128, B: 64, A: 255})
+		}
+	}
+
+	// Test with extreme values to ensure no panics
+	tests := []struct {
+		name      string
+		textureX  float64
+		y         int
+		drawStart int
+		drawEnd   int
+	}{
+		{"negative textureX", -0.5, 50, 0, 100},
+		{"textureX > 1.0", 1.5, 50, 0, 100},
+		{"y before drawStart", 5, 10, 10, 100},
+		{"y after drawEnd", 105, 10, 10, 100},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Should not panic
+			c := sampleWallTexture(testTexture, tt.textureX, tt.y, tt.drawStart, tt.drawEnd)
+			if c.A != 255 {
+				t.Errorf("Alpha = %d, want 255", c.A)
+			}
+		})
 	}
 }

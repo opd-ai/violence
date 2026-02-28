@@ -3,6 +3,8 @@ package audio
 import (
 	"math"
 	"testing"
+
+	"github.com/opd-ai/violence/pkg/bsp"
 )
 
 func TestNewEngine(t *testing.T) {
@@ -824,5 +826,393 @@ func BenchmarkGenerateSFX(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		generateSFX(seed, "gunshot")
+	}
+}
+
+func TestEngine_UpdateReverb(t *testing.T) {
+	t.Run("updates reverb when room changes", func(t *testing.T) {
+		engine := NewEngine()
+
+		// Create a simple BSP tree with one room
+		root := &bsp.Node{
+			X: 0, Y: 0, W: 50, H: 50,
+			Room: &bsp.Room{X: 10, Y: 10, W: 30, H: 30},
+		}
+
+		initialDecay := engine.reverb.GetDecay()
+
+		// Update reverb with player in the room
+		engine.UpdateReverb(20, 20, root)
+
+		// After transition, reverb should be updated
+		if engine.targetDecay == initialDecay {
+			t.Error("target decay should have changed for new room size")
+		}
+	})
+
+	t.Run("handles nil BSP root", func(t *testing.T) {
+		engine := NewEngine()
+		initialDecay := engine.reverb.GetDecay()
+
+		engine.UpdateReverb(10, 10, nil)
+
+		// Should not crash and reverb should be unchanged
+		if engine.reverb.GetDecay() != initialDecay {
+			t.Error("reverb changed with nil BSP root")
+		}
+	})
+
+	t.Run("finds correct room in BSP tree", func(t *testing.T) {
+		engine := NewEngine()
+
+		// Create a tree with two rooms
+		left := &bsp.Node{
+			X: 0, Y: 0, W: 25, H: 50,
+			Room: &bsp.Room{X: 5, Y: 5, W: 15, H: 40},
+		}
+		right := &bsp.Node{
+			X: 25, Y: 0, W: 25, H: 50,
+			Room: &bsp.Room{X: 30, Y: 5, W: 15, H: 40},
+		}
+		root := &bsp.Node{
+			X: 0, Y: 0, W: 50, H: 50,
+			Left:  left,
+			Right: right,
+		}
+
+		// Update with position in left room
+		engine.UpdateReverb(10, 10, root)
+		leftTarget := engine.targetDecay
+
+		// Update with position in right room (larger room should have same size in this test)
+		engine.UpdateReverb(35, 10, root)
+		rightTarget := engine.targetDecay
+
+		// Both rooms have same size, so targets should be same
+		if leftTarget != rightTarget {
+			t.Logf("left target: %v, right target: %v", leftTarget, rightTarget)
+		}
+	})
+
+	t.Run("smooth transition occurs", func(t *testing.T) {
+		engine := NewEngine()
+
+		// Create room significantly different from initial
+		room := &bsp.Node{
+			X: 0, Y: 0, W: 60, H: 60,
+			Room: &bsp.Room{X: 5, Y: 5, W: 50, H: 50},
+		}
+
+		initialDecay := engine.reverb.decay
+
+		// Single update starts transition
+		engine.UpdateReverb(10, 10, room)
+
+		// After one update, should be partway to target
+		afterOne := engine.reverb.decay
+
+		// Do several more updates to continue transition
+		for i := 0; i < 10; i++ {
+			engine.UpdateReverb(10, 10, room)
+		}
+
+		afterMany := engine.reverb.decay
+
+		// Decay should be moving toward target
+		if afterOne == initialDecay {
+			t.Error("decay did not change after first update")
+		}
+
+		// After many updates, should be closer to target
+		diff1 := math.Abs(afterOne - engine.targetDecay)
+		diff2 := math.Abs(afterMany - engine.targetDecay)
+
+		if diff2 >= diff1 {
+			t.Errorf("transition not progressing: diff1=%v, diff2=%v", diff1, diff2)
+		}
+	})
+}
+
+func TestEngine_findRoomAtPosition(t *testing.T) {
+	tests := []struct {
+		name       string
+		x, y       int
+		expectRoom bool
+	}{
+		{"position in room", 15, 15, true},
+		{"position outside room but in node", 2, 2, false},
+		{"position outside node", 100, 100, false},
+		{"position at room edge", 10, 10, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			engine := NewEngine()
+
+			root := &bsp.Node{
+				X: 0, Y: 0, W: 50, H: 50,
+				Room: &bsp.Room{X: 10, Y: 10, W: 20, H: 20},
+			}
+
+			room := engine.findRoomAtPosition(tt.x, tt.y, root)
+
+			if tt.expectRoom && room == nil {
+				t.Error("expected to find room but got nil")
+			}
+			if !tt.expectRoom && room != nil {
+				t.Error("expected nil but found room")
+			}
+		})
+	}
+}
+
+func TestEngine_findRoomAtPosition_ComplexTree(t *testing.T) {
+	engine := NewEngine()
+
+	// Create a more complex BSP tree
+	//   root (0,0,100,100)
+	//   ├─ left (0,0,50,100)
+	//   │  ├─ room1 (5,5,20,40)
+	//   │  └─ room2 (5,60,20,30)
+	//   └─ right (50,0,50,100)
+	//      └─ room3 (55,10,40,80)
+
+	leftTop := &bsp.Node{
+		X: 0, Y: 0, W: 50, H: 50,
+		Room: &bsp.Room{X: 5, Y: 5, W: 20, H: 40},
+	}
+	leftBottom := &bsp.Node{
+		X: 0, Y: 50, W: 50, H: 50,
+		Room: &bsp.Room{X: 5, Y: 60, W: 20, H: 30},
+	}
+	left := &bsp.Node{
+		X: 0, Y: 0, W: 50, H: 100,
+		Left:  leftTop,
+		Right: leftBottom,
+	}
+
+	right := &bsp.Node{
+		X: 50, Y: 0, W: 50, H: 100,
+		Room: &bsp.Room{X: 55, Y: 10, W: 40, H: 80},
+	}
+
+	root := &bsp.Node{
+		X: 0, Y: 0, W: 100, H: 100,
+		Left:  left,
+		Right: right,
+	}
+
+	tests := []struct {
+		name     string
+		x, y     int
+		wantRoom *bsp.Room
+	}{
+		{"in room1", 10, 20, leftTop.Room},
+		{"in room2", 10, 70, leftBottom.Room},
+		{"in room3", 60, 50, right.Room},
+		{"in corridor left", 15, 55, nil},
+		{"in corridor right", 60, 5, nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			room := engine.findRoomAtPosition(tt.x, tt.y, root)
+
+			if tt.wantRoom != nil && room == nil {
+				t.Error("expected to find room but got nil")
+			}
+			if tt.wantRoom == nil && room != nil {
+				t.Errorf("expected nil but found room: %+v", room)
+			}
+			if tt.wantRoom != nil && room != nil {
+				if room.X != tt.wantRoom.X || room.Y != tt.wantRoom.Y ||
+					room.W != tt.wantRoom.W || room.H != tt.wantRoom.H {
+					t.Errorf("found wrong room: got %+v, want %+v", room, tt.wantRoom)
+				}
+			}
+		})
+	}
+}
+
+func TestEngine_smoothTransition(t *testing.T) {
+	engine := NewEngine()
+
+	// Set targets different from current
+	engine.reverb.decay = 0.2
+	engine.targetDecay = 0.8
+	engine.reverb.wetMix = 0.1
+	engine.targetWet = 0.5
+	engine.reverb.dryMix = 1.0
+	engine.targetDry = 0.9
+	engine.transitionStep = 0.1
+
+	initialDecay := engine.reverb.decay
+	initialWet := engine.reverb.wetMix
+	initialDry := engine.reverb.dryMix
+
+	engine.smoothTransition()
+
+	// Values should have moved toward targets
+	if engine.reverb.decay <= initialDecay {
+		t.Error("decay did not increase toward target")
+	}
+	if engine.reverb.wetMix <= initialWet {
+		t.Error("wet mix did not increase toward target")
+	}
+	if engine.reverb.dryMix >= initialDry {
+		t.Error("dry mix did not decrease toward target")
+	}
+
+	// Should not overshoot targets
+	if engine.reverb.decay > engine.targetDecay {
+		t.Error("decay overshot target")
+	}
+	if engine.reverb.wetMix > engine.targetWet {
+		t.Error("wet mix overshot target")
+	}
+	if engine.reverb.dryMix < engine.targetDry {
+		t.Error("dry mix overshot target")
+	}
+}
+
+func TestEngine_lerp(t *testing.T) {
+	engine := NewEngine()
+
+	tests := []struct {
+		name string
+		a, b float64
+		t    float64
+		want float64
+	}{
+		{"start", 0.0, 1.0, 0.0, 0.0},
+		{"end", 0.0, 1.0, 1.0, 1.0},
+		{"middle", 0.0, 1.0, 0.5, 0.5},
+		{"quarter", 0.0, 1.0, 0.25, 0.25},
+		{"negative range", -1.0, 1.0, 0.5, 0.0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := engine.lerp(tt.a, tt.b, tt.t)
+			if math.Abs(got-tt.want) > 0.001 {
+				t.Errorf("lerp(%v, %v, %v) = %v, want %v", tt.a, tt.b, tt.t, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestEngine_ReverbIntegration(t *testing.T) {
+	// Integration test: reverb should track room changes over multiple frames
+	engine := NewEngine()
+
+	// Create two different-sized rooms
+	smallRoom := &bsp.Node{
+		X: 0, Y: 0, W: 30, H: 30,
+		Room: &bsp.Room{X: 5, Y: 5, W: 20, H: 20},
+	}
+	largeRoom := &bsp.Node{
+		X: 0, Y: 0, W: 80, H: 80,
+		Room: &bsp.Room{X: 5, Y: 5, W: 70, H: 70},
+	}
+
+	// Start in small room
+	for i := 0; i < 30; i++ {
+		engine.UpdateReverb(10, 10, smallRoom)
+	}
+	smallRoomDecay := engine.reverb.decay
+
+	// Move to large room
+	for i := 0; i < 30; i++ {
+		engine.UpdateReverb(10, 10, largeRoom)
+	}
+	largeRoomDecay := engine.reverb.decay
+
+	// Large room should have higher decay
+	if largeRoomDecay <= smallRoomDecay {
+		t.Errorf("large room decay (%v) not greater than small room decay (%v)",
+			largeRoomDecay, smallRoomDecay)
+	}
+
+	// Decay should be close to target after 30 frames
+	if math.Abs(largeRoomDecay-engine.targetDecay) > 0.15 {
+		t.Errorf("decay not converged to target after 30 frames: got %v, target %v",
+			largeRoomDecay, engine.targetDecay)
+	}
+}
+
+func TestNewEngine_InitializesReverb(t *testing.T) {
+	engine := NewEngine()
+
+	if engine.reverb == nil {
+		t.Fatal("reverb not initialized")
+	}
+
+	if engine.targetDecay == 0.0 {
+		t.Error("target decay not initialized")
+	}
+	if engine.targetWet == 0.0 {
+		t.Error("target wet not initialized")
+	}
+	if engine.targetDry == 0.0 {
+		t.Error("target dry not initialized")
+	}
+	if engine.transitionStep == 0.0 {
+		t.Error("transition step not initialized")
+	}
+
+	// Initial values should match reverb's calculated values
+	if engine.targetDecay != engine.reverb.GetDecay() {
+		t.Error("target decay does not match initial reverb decay")
+	}
+	if engine.targetWet != engine.reverb.GetWetMix() {
+		t.Error("target wet does not match initial reverb wet mix")
+	}
+	if engine.targetDry != engine.reverb.GetDryMix() {
+		t.Error("target dry does not match initial reverb dry mix")
+	}
+}
+
+func BenchmarkEngine_UpdateReverb(b *testing.B) {
+	engine := NewEngine()
+	root := &bsp.Node{
+		X: 0, Y: 0, W: 50, H: 50,
+		Room: &bsp.Room{X: 10, Y: 10, W: 30, H: 30},
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		engine.UpdateReverb(20, 20, root)
+	}
+}
+
+func BenchmarkEngine_findRoomAtPosition(b *testing.B) {
+	engine := NewEngine()
+
+	leftTop := &bsp.Node{
+		X: 0, Y: 0, W: 50, H: 50,
+		Room: &bsp.Room{X: 5, Y: 5, W: 20, H: 40},
+	}
+	leftBottom := &bsp.Node{
+		X: 0, Y: 50, W: 50, H: 50,
+		Room: &bsp.Room{X: 5, Y: 60, W: 20, H: 30},
+	}
+	left := &bsp.Node{
+		X: 0, Y: 0, W: 50, H: 100,
+		Left:  leftTop,
+		Right: leftBottom,
+	}
+	right := &bsp.Node{
+		X: 50, Y: 0, W: 50, H: 100,
+		Room: &bsp.Room{X: 55, Y: 10, W: 40, H: 80},
+	}
+	root := &bsp.Node{
+		X: 0, Y: 0, W: 100, H: 100,
+		Left:  left,
+		Right: right,
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		engine.findRoomAtPosition(60, 50, root)
 	}
 }

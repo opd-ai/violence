@@ -39,6 +39,7 @@ type RayHit struct {
 	Side     int     // 0 = horizontal, 1 = vertical wall face
 	HitX     float64 // Exact X coordinate of wall hit
 	HitY     float64 // Exact Y coordinate of wall hit
+	TextureX float64 // Texture coordinate along wall (0.0-1.0)
 }
 
 // CastRays casts all rays for a single frame using DDA algorithm.
@@ -164,12 +165,23 @@ func (r *Raycaster) castRay(posX, posY, rayDirX, rayDirY float64) RayHit {
 		hitX = posX + perpWallDist*rayDirX
 	}
 
+	// Calculate texture coordinate (0.0-1.0) along wall
+	var textureX float64
+	if side == 0 {
+		// Vertical wall: use Y coordinate fractional part
+		textureX = hitY - math.Floor(hitY)
+	} else {
+		// Horizontal wall: use X coordinate fractional part
+		textureX = hitX - math.Floor(hitX)
+	}
+
 	return RayHit{
 		Distance: math.Abs(perpWallDist),
 		WallType: r.Map[mapY][mapX],
 		Side:     side,
 		HitX:     hitX,
 		HitY:     hitY,
+		TextureX: textureX,
 	}
 }
 

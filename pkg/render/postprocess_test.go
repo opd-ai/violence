@@ -612,3 +612,242 @@ func BenchmarkApply(b *testing.B) {
 		pp.Apply(fb)
 	}
 }
+
+func TestApplyStaticBurst(t *testing.T) {
+	tests := []struct {
+		name   string
+		config StaticBurstConfig
+	}{
+		{
+			name: "disabled",
+			config: StaticBurstConfig{
+				Enabled:     false,
+				Probability: 0.5,
+				Intensity:   0.8,
+				Duration:    3,
+			},
+		},
+		{
+			name: "low_probability",
+			config: StaticBurstConfig{
+				Enabled:     true,
+				Probability: 0.01,
+				Intensity:   0.6,
+				Duration:    2,
+			},
+		},
+		{
+			name: "high_probability",
+			config: StaticBurstConfig{
+				Enabled:     true,
+				Probability: 1.0, // Always trigger
+				Intensity:   0.9,
+				Duration:    5,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pp := NewPostProcessor(100, 100, 42)
+			fb := createTestFramebuffer(100, 100, color.RGBA{R: 128, G: 128, B: 128, A: 255})
+			original := make([]byte, len(fb))
+			copy(original, fb)
+
+			// Apply multiple times to potentially trigger burst
+			for i := 0; i < 10; i++ {
+				pp.ApplyStaticBurst(fb, tt.config)
+			}
+
+			// If always enabled, should have modified framebuffer
+			if tt.config.Enabled && tt.config.Probability == 1.0 {
+				modified := false
+				for i := 0; i < len(fb); i++ {
+					if fb[i] != original[i] {
+						modified = true
+						break
+					}
+				}
+				if !modified {
+					t.Error("static burst with probability 1.0 did not modify framebuffer")
+				}
+			}
+		})
+	}
+}
+
+func TestApplyStaticBurstDuration(t *testing.T) {
+	pp := NewPostProcessor(50, 50, 42)
+	config := StaticBurstConfig{
+		Enabled:     true,
+		Probability: 1.0, // Always trigger
+		Intensity:   0.8,
+		Duration:    3,
+	}
+
+	// Trigger burst
+	fb1 := createTestFramebuffer(50, 50, color.RGBA{R: 100, G: 100, B: 100, A: 255})
+	pp.ApplyStaticBurst(fb1, config)
+
+	// Should still be active for duration frames
+	fb2 := createTestFramebuffer(50, 50, color.RGBA{R: 100, G: 100, B: 100, A: 255})
+	pp.ApplyStaticBurst(fb2, config)
+
+	modified := false
+	for i := 0; i < len(fb2); i++ {
+		if fb2[i] != 100 {
+			modified = true
+			break
+		}
+	}
+
+	if !modified {
+		t.Error("static burst should persist for duration frames")
+	}
+}
+
+func TestApplyFilmScratches(t *testing.T) {
+	tests := []struct {
+		name   string
+		config FilmScratchesConfig
+	}{
+		{
+			name: "disabled",
+			config: FilmScratchesConfig{
+				Enabled: false,
+				Density: 0.05,
+				Length:  0.8,
+			},
+		},
+		{
+			name: "low_density",
+			config: FilmScratchesConfig{
+				Enabled: true,
+				Density: 0.01,
+				Length:  0.5,
+			},
+		},
+		{
+			name: "high_density",
+			config: FilmScratchesConfig{
+				Enabled: true,
+				Density: 0.1,
+				Length:  0.9,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pp := NewPostProcessor(100, 100, 42)
+			fb := createTestFramebuffer(100, 100, color.RGBA{R: 50, G: 50, B: 50, A: 255})
+			original := make([]byte, len(fb))
+			copy(original, fb)
+
+			pp.ApplyFilmScratches(fb, tt.config)
+
+			// If enabled, should have modified some pixels
+			if tt.config.Enabled {
+				modified := false
+				for i := 0; i < len(fb); i += 4 {
+					if fb[i] != original[i] || fb[i+1] != original[i+1] || fb[i+2] != original[i+2] {
+						modified = true
+						break
+					}
+				}
+				if !modified {
+					t.Error("film scratches did not modify framebuffer")
+				}
+			}
+		})
+	}
+}
+
+func TestApplyFilmScratchesDeterminism(t *testing.T) {
+	seed := int64(12345)
+	pp1 := NewPostProcessor(100, 100, seed)
+	pp2 := NewPostProcessor(100, 100, seed)
+
+	config := FilmScratchesConfig{
+		Enabled: true,
+		Density: 0.05,
+		Length:  0.6,
+	}
+
+	fb1 := createTestFramebuffer(100, 100, color.RGBA{R: 80, G: 80, B: 80, A: 255})
+	fb2 := createTestFramebuffer(100, 100, color.RGBA{R: 80, G: 80, B: 80, A: 255})
+
+	pp1.ApplyFilmScratches(fb1, config)
+	pp2.ApplyFilmScratches(fb2, config)
+
+	// Should produce identical results
+	for i := 0; i < len(fb1); i++ {
+		if fb1[i] != fb2[i] {
+			t.Errorf("non-deterministic scratches at byte %d: %d != %d", i, fb1[i], fb2[i])
+			break
+		}
+	}
+}
+
+func TestGenrePresetHorrorStaticBurst(t *testing.T) {
+	preset := GetGenrePreset("horror")
+
+	if !preset.StaticBurst.Enabled {
+		t.Error("horror genre should have static burst enabled")
+	}
+
+	if preset.StaticBurst.Probability <= 0 {
+		t.Error("horror static burst probability should be > 0")
+	}
+
+	if preset.StaticBurst.Duration <= 0 {
+		t.Error("horror static burst duration should be > 0")
+	}
+}
+
+func TestGenrePresetPostapocFilmScratches(t *testing.T) {
+	preset := GetGenrePreset("postapoc")
+
+	if !preset.FilmScratches.Enabled {
+		t.Error("postapoc genre should have film scratches enabled")
+	}
+
+	if preset.FilmScratches.Density <= 0 {
+		t.Error("postapoc film scratches density should be > 0")
+	}
+
+	if preset.FilmScratches.Length <= 0 || preset.FilmScratches.Length > 1.0 {
+		t.Error("postapoc film scratches length should be in range (0, 1]")
+	}
+}
+
+func BenchmarkApplyStaticBurst(b *testing.B) {
+	pp := NewPostProcessor(640, 480, 42)
+	fb := createTestFramebuffer(640, 480, color.RGBA{R: 128, G: 128, B: 128, A: 255})
+	cfg := StaticBurstConfig{
+		Enabled:     true,
+		Probability: 1.0,
+		Intensity:   0.8,
+		Duration:    3,
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		pp.ApplyStaticBurst(fb, cfg)
+	}
+}
+
+func BenchmarkApplyFilmScratches(b *testing.B) {
+	pp := NewPostProcessor(640, 480, 42)
+	fb := createTestFramebuffer(640, 480, color.RGBA{R: 128, G: 128, B: 128, A: 255})
+	cfg := FilmScratchesConfig{
+		Enabled: true,
+		Density: 0.02,
+		Length:  0.6,
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		pp.ApplyFilmScratches(fb, cfg)
+	}
+}

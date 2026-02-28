@@ -9,6 +9,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2/audio"
 	"github.com/hajimehoshi/ebiten/v2/audio/wav"
+	"github.com/opd-ai/violence/pkg/bsp"
 )
 
 const sampleRate = 48000
@@ -28,20 +29,31 @@ func getAudioContext() *audio.Context {
 
 // Engine handles audio playback with adaptive music intensity and 3D positioning.
 type Engine struct {
-	musicLayers []*audio.Player
-	sfxPlayers  map[string]*audio.Player
-	intensity   float64
-	genreID     string
-	listenerX   float64
-	listenerY   float64
-	mu          sync.RWMutex
+	musicLayers    []*audio.Player
+	sfxPlayers     map[string]*audio.Player
+	intensity      float64
+	genreID        string
+	listenerX      float64
+	listenerY      float64
+	reverb         *ReverbCalculator
+	targetDecay    float64
+	targetWet      float64
+	targetDry      float64
+	transitionStep float64
+	mu             sync.RWMutex
 }
 
 // NewEngine creates a new audio engine.
 func NewEngine() *Engine {
+	reverb := NewReverbCalculator(20, 20)
 	return &Engine{
-		sfxPlayers: make(map[string]*audio.Player),
-		intensity:  0.5,
+		sfxPlayers:     make(map[string]*audio.Player),
+		intensity:      0.5,
+		reverb:         reverb,
+		targetDecay:    reverb.GetDecay(),
+		targetWet:      reverb.GetWetMix(),
+		targetDry:      reverb.GetDryMix(),
+		transitionStep: 0.05,
 	}
 }
 
@@ -167,6 +179,75 @@ func (e *Engine) SetGenre(genreID string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.genreID = genreID
+}
+
+// UpdateReverb detects room changes and smoothly transitions reverb parameters.
+// Call this each frame with the current player position and level BSP tree.
+func (e *Engine) UpdateReverb(playerX, playerY int, root *bsp.Node) {
+	if root == nil {
+		return
+	}
+
+	room := e.findRoomAtPosition(playerX, playerY, root)
+	if room == nil {
+		return
+	}
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	// Check if room dimensions changed
+	if e.reverb.roomWidth != room.W || e.reverb.roomHeight != room.H {
+		// Calculate new target reverb parameters
+		tempReverb := NewReverbCalculator(room.W, room.H)
+		e.targetDecay = tempReverb.GetDecay()
+		e.targetWet = tempReverb.GetWetMix()
+		e.targetDry = tempReverb.GetDryMix()
+	}
+
+	// Smooth transition to target values
+	e.smoothTransition()
+}
+
+// findRoomAtPosition searches the BSP tree for the room containing the given position.
+func (e *Engine) findRoomAtPosition(x, y int, node *bsp.Node) *bsp.Room {
+	if node == nil {
+		return nil
+	}
+
+	// Check if position is within this node's bounds
+	if x < node.X || x >= node.X+node.W || y < node.Y || y >= node.Y+node.H {
+		return nil
+	}
+
+	// Leaf node with room
+	if node.Room != nil {
+		// Check if position is within the room
+		if x >= node.Room.X && x < node.Room.X+node.Room.W &&
+			y >= node.Room.Y && y < node.Room.Y+node.Room.H {
+			return node.Room
+		}
+		return nil
+	}
+
+	// Search children
+	if leftRoom := e.findRoomAtPosition(x, y, node.Left); leftRoom != nil {
+		return leftRoom
+	}
+	return e.findRoomAtPosition(x, y, node.Right)
+}
+
+// smoothTransition gradually interpolates current reverb parameters toward targets.
+func (e *Engine) smoothTransition() {
+	// Linear interpolation with small step size for smooth transition
+	e.reverb.decay = e.lerp(e.reverb.decay, e.targetDecay, e.transitionStep)
+	e.reverb.wetMix = e.lerp(e.reverb.wetMix, e.targetWet, e.transitionStep)
+	e.reverb.dryMix = e.lerp(e.reverb.dryMix, e.targetDry, e.transitionStep)
+}
+
+// lerp performs linear interpolation between a and b by amount t.
+func (e *Engine) lerp(a, b, t float64) float64 {
+	return a + (b-a)*t
 }
 
 // calculateLayerVolume computes volume for a given music layer based on intensity.

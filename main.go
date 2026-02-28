@@ -19,13 +19,16 @@ import (
 	"github.com/opd-ai/violence/pkg/door"
 	"github.com/opd-ai/violence/pkg/engine"
 	"github.com/opd-ai/violence/pkg/input"
+	"github.com/opd-ai/violence/pkg/lighting"
 	"github.com/opd-ai/violence/pkg/loot"
+	"github.com/opd-ai/violence/pkg/particle"
 	"github.com/opd-ai/violence/pkg/progression"
 	"github.com/opd-ai/violence/pkg/raycaster"
 	"github.com/opd-ai/violence/pkg/render"
 	"github.com/opd-ai/violence/pkg/rng"
 	"github.com/opd-ai/violence/pkg/save"
 	"github.com/opd-ai/violence/pkg/status"
+	"github.com/opd-ai/violence/pkg/texture"
 	"github.com/opd-ai/violence/pkg/tutorial"
 	"github.com/opd-ai/violence/pkg/ui"
 	"github.com/opd-ai/violence/pkg/weapon"
@@ -72,6 +75,15 @@ type Game struct {
 	progression  *progression.Progression
 	aiAgents     []*ai.Agent
 	playerClass  string
+
+	// v3.0 systems
+	textureAtlas    *texture.Atlas
+	lightMap        *lighting.SectorLightMap
+	particleSystem  *particle.ParticleSystem
+	weatherEmitter  *particle.WeatherEmitter
+	postProcessor   *render.PostProcessor
+	currentBSPTree  *bsp.Node
+	animationTicker int
 }
 
 // NewGame creates and initializes a new game instance.
@@ -116,6 +128,12 @@ func NewGame() *Game {
 		progression:    progression.NewProgression(),
 		aiAgents:       make([]*ai.Agent, 0),
 		playerClass:    class.Grunt,
+		// v3.0 systems
+		textureAtlas:    texture.NewAtlas(seed),
+		lightMap:        lighting.NewSectorLightMap(64, 64, 0.3),
+		particleSystem:  particle.NewParticleSystem(1024, int64(seed)),
+		postProcessor:   render.NewPostProcessor(config.C.InternalWidth, config.C.InternalHeight, int64(seed)),
+		animationTicker: 0,
 	}
 
 	// Initialize BSP generator
@@ -194,8 +212,9 @@ func (g *Game) startNewGame() {
 
 	// Generate level
 	g.bspGenerator.SetGenre(g.genreID)
-	_, tiles := g.bspGenerator.Generate()
+	bspTree, tiles := g.bspGenerator.Generate()
 	g.currentMap = tiles
+	g.currentBSPTree = bspTree
 	g.raycaster.SetMap(tiles)
 
 	// Initialize automap
@@ -203,23 +222,13 @@ func (g *Game) startNewGame() {
 		g.automap = automap.NewMap(len(tiles[0]), len(tiles))
 	}
 
-	// Set genre for all systems
-	g.world.SetGenre(g.genreID)
-	g.renderer.SetGenre(g.genreID)
-	g.raycaster.SetGenre(g.genreID)
-	camera.SetGenre(g.genreID)
-	g.audioEngine.SetGenre(g.genreID)
-	tutorial.SetGenre(g.genreID)
-	automap.SetGenre(g.genreID)
-	door.SetGenre(g.genreID)
-	g.arsenal.SetGenre(g.genreID)
-	ammo.SetGenre(g.genreID)
-	g.combatSystem.SetGenre(g.genreID)
-	status.SetGenre(g.genreID)
-	loot.SetGenre(g.genreID)
-	progression.SetGenre(g.genreID)
-	class.SetGenre(g.genreID)
-	ai.SetGenre(g.genreID)
+	// Initialize v3.0 systems with correct dimensions
+	g.lightMap = lighting.NewSectorLightMap(len(tiles[0]), len(tiles), 0.3)
+	g.weatherEmitter = particle.NewWeatherEmitter(g.particleSystem, g.genreID, 0, 0, float64(len(tiles[0])), float64(len(tiles)))
+
+	// Set genre for all systems (Step 29: SetGenre cascade)
+	g.setGenre(g.genreID)
+
 	// Reset player position to a safe starting location
 	g.camera.X = 5.0
 	g.camera.Y = 5.0
@@ -268,6 +277,44 @@ func (g *Game) startNewGame() {
 
 	// Show movement tutorial
 	g.tutorialSystem.ShowPrompt(tutorial.PromptMovement, tutorial.GetMessage(tutorial.PromptMovement))
+}
+
+// setGenre propagates genre setting to all v3.0 systems (Step 29).
+func (g *Game) setGenre(genreID string) {
+	g.genreID = genreID
+
+	// v1.0 systems
+	g.world.SetGenre(genreID)
+	g.raycaster.SetGenre(genreID)
+	camera.SetGenre(genreID)
+	g.audioEngine.SetGenre(genreID)
+	tutorial.SetGenre(genreID)
+	automap.SetGenre(genreID)
+	door.SetGenre(genreID)
+
+	// v2.0 systems
+	g.arsenal.SetGenre(genreID)
+	ammo.SetGenre(genreID)
+	g.combatSystem.SetGenre(genreID)
+	status.SetGenre(genreID)
+	loot.SetGenre(genreID)
+	progression.SetGenre(genreID)
+	class.SetGenre(genreID)
+	ai.SetGenre(genreID)
+
+	// v3.0 systems
+	g.textureAtlas.SetGenre(genreID)
+	g.lightMap.SetGenre(genreID)
+	g.postProcessor.SetGenre(genreID)
+	g.renderer.SetGenre(genreID)
+	// WeatherEmitter doesn't have SetGenre - recreate it on genre change
+	if g.particleSystem != nil && len(g.currentMap) > 0 && len(g.currentMap[0]) > 0 {
+		g.weatherEmitter = particle.NewWeatherEmitter(g.particleSystem, genreID, 0, 0, float64(len(g.currentMap[0])), float64(len(g.currentMap)))
+	}
+
+	// Generate genre-specific textures
+	g.textureAtlas.GenerateWallSet(genreID)
+	g.textureAtlas.GenerateGenreAnimations(genreID)
 }
 
 // loadGame loads a saved game state.
@@ -444,6 +491,38 @@ func (g *Game) updatePlaying() error {
 
 	// Progression updates happen automatically
 	// TODO: Add Level and XP to HUD display
+
+	// Update v3.0 systems (Step 28: Wire to game loop)
+	// Update particles (assuming 60 TPS = 1/60 second per frame)
+	deltaTime := 1.0 / 60.0
+	if g.particleSystem != nil {
+		g.particleSystem.Update(deltaTime)
+	}
+
+	// Update weather emitter
+	if g.weatherEmitter != nil {
+		g.weatherEmitter.Update(deltaTime)
+	}
+
+	// Recalculate lighting with flashlight
+	if g.lightMap != nil {
+		// Create genre-specific flashlight
+		preset := lighting.GetFlashlightPreset(g.genreID)
+		flashlight := lighting.NewConeLight(g.camera.X, g.camera.Y, g.camera.DirX, g.camera.DirY, preset)
+		
+		// Clear previous lights and add current flashlight
+		g.lightMap.Clear()
+		g.lightMap.AddLight(flashlight.GetContributionAsPointLight())
+		g.lightMap.Calculate()
+	}
+
+	// Update reverb based on current room position
+	if g.currentBSPTree != nil {
+		g.audioEngine.UpdateReverb(int(g.camera.X), int(g.camera.Y), g.currentBSPTree)
+	}
+
+	// Increment animation ticker for animated textures
+	g.animationTicker++
 
 	// Movement speed (units per frame at 60 TPS)
 	moveSpeed := 0.05
@@ -674,8 +753,20 @@ func (g *Game) drawMenu(screen *ebiten.Image) {
 
 // drawPlaying renders the game world and HUD.
 func (g *Game) drawPlaying(screen *ebiten.Image) {
+	// Wire v3.0 systems to renderer (Step 28)
+	g.renderer.SetTextureAtlas(g.textureAtlas)
+	g.renderer.SetLightMap(g.lightMap)
+	g.renderer.SetPostProcessor(g.postProcessor)
+	g.renderer.Tick() // Increment animation ticker
+
 	// Render 3D world
 	g.renderer.Render(screen, g.camera.X, g.camera.Y, g.camera.DirX, g.camera.DirY, g.camera.Pitch)
+
+	// Render particles on top of 3D world (simple sprite overlay for now)
+	// TODO: Add particle rendering to renderer or as separate overlay
+	if g.particleSystem != nil {
+		g.renderParticles(screen)
+	}
 
 	// Render automap overlay if visible
 	if g.automapVisible && g.automap != nil {
@@ -689,6 +780,29 @@ func (g *Game) drawPlaying(screen *ebiten.Image) {
 	// Render tutorial prompts
 	if g.tutorialSystem.Active {
 		ui.DrawTutorial(screen, g.tutorialSystem.Current)
+	}
+}
+
+// renderParticles draws particles as simple colored pixels (placeholder implementation).
+func (g *Game) renderParticles(screen *ebiten.Image) {
+	// Simplified particle rendering - just draw colored points
+	// A full implementation would project 3D particles to screen space
+	particles := g.particleSystem.GetActiveParticles()
+	for _, p := range particles {
+		// Simple 2D projection (would need proper 3D-to-2D projection)
+		dx := p.X - g.camera.X
+		dy := p.Y - g.camera.Y
+		dist := dx*dx + dy*dy
+		if dist < 400 { // Only render nearby particles
+			// Very simplified screen position calculation
+			screenX := config.C.InternalWidth/2 + int(dx*10)
+			screenY := config.C.InternalHeight/2 + int(dy*10)
+			if screenX >= 0 && screenX < config.C.InternalWidth && screenY >= 0 && screenY < config.C.InternalHeight {
+				// Draw a small colored rectangle
+				particleColor := color.RGBA{R: p.R, G: p.G, B: p.B, A: p.A}
+				vector.DrawFilledRect(screen, float32(screenX), float32(screenY), 2, 2, particleColor, false)
+			}
+		}
 	}
 }
 

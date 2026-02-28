@@ -163,3 +163,28 @@ func min(a, b int) int {
 	}
 	return b
 }
+
+// SetGenre configures ambient light level for a specific genre.
+// Fantasy=0.3, Scifi=0.5, Horror=0.15, Cyberpunk=0.25, Postapoc=0.35
+func (s *SectorLightMap) SetGenre(genreID string) {
+	ambient := genreAmbientLevel(genreID)
+	s.SetAmbient(ambient)
+}
+
+// genreAmbientLevel returns the base ambient light level for a genre.
+func genreAmbientLevel(genreID string) float64 {
+	switch genreID {
+	case "fantasy":
+		return 0.3
+	case "scifi":
+		return 0.5
+	case "horror":
+		return 0.15
+	case "cyberpunk":
+		return 0.25
+	case "postapoc":
+		return 0.35
+	default:
+		return 0.3 // Default to fantasy
+	}
+}

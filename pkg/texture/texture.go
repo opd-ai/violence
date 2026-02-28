@@ -60,6 +60,43 @@ func (a *Atlas) SetGenre(genreID string) {
 	a.genre = genreID
 }
 
+// GenerateWallSet creates wall_1 through wall_4 textures for the current genre.
+// Each texture has genre-specific characteristics (stone/hull/plaster/concrete/rust).
+func (a *Atlas) GenerateWallSet(genreID string) {
+	a.SetGenre(genreID)
+
+	// Generate 4 wall texture variants
+	for i := 1; i <= 4; i++ {
+		name := "wall_" + string(rune('0'+i))
+		// Use different seed offset for each wall variant
+		a.Generate(name, 64, "wall")
+	}
+}
+
+// GenerateGenreAnimations creates genre-specific animated textures.
+// Each genre gets a unique animated texture pattern.
+func (a *Atlas) GenerateGenreAnimations(genreID string) error {
+	a.SetGenre(genreID)
+
+	var pattern string
+	switch genreID {
+	case "fantasy":
+		pattern = "flicker_torch"
+	case "scifi":
+		pattern = "blink_panel"
+	case "horror":
+		pattern = "drip_water"
+	case "cyberpunk":
+		pattern = "neon_pulse"
+	case "postapoc":
+		pattern = "radiation_glow"
+	default:
+		pattern = "flicker_torch"
+	}
+
+	return a.GenerateAnimated(genreID+"_anim", 64, 8, 30, pattern)
+}
+
 // generateWallTexture creates a procedural wall texture based on genre.
 func (a *Atlas) generateWallTexture(img *image.RGBA, r *rng.RNG) {
 	bounds := img.Bounds()

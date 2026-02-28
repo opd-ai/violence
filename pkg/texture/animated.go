@@ -64,6 +64,10 @@ func (a *Atlas) GenerateAnimated(name string, size, frameCount, fps int, pattern
 			a.generateBlinkPanelFrame(img, r, i, frameCount)
 		case "drip_water":
 			a.generateDripWaterFrame(img, r, i, frameCount)
+		case "neon_pulse":
+			a.generateNeonPulseFrame(img, r, i, frameCount)
+		case "radiation_glow":
+			a.generateRadiationGlowFrame(img, r, i, frameCount)
 		default:
 			a.generateFlickerTorchFrame(img, r, i, frameCount)
 		}
@@ -200,6 +204,88 @@ func (a *Atlas) generateDripWaterFrame(img *image.RGBA, r *rng.RNG, frame, total
 				}
 			}
 
+			img.Set(x, y, c)
+		}
+	}
+}
+
+// generateNeonPulseFrame creates a cyberpunk neon pulsing effect.
+// Neon colors pulse with sine wave intensity.
+func (a *Atlas) generateNeonPulseFrame(img *image.RGBA, r *rng.RNG, frame, totalFrames int) {
+	bounds := img.Bounds()
+
+	// Pulsing intensity based on sine wave
+	t := float64(frame) / float64(totalFrames)
+	pulse := 0.5 + 0.5*math.Sin(t*math.Pi*2.0)
+
+	baseR, baseG, baseB := 255, 0, 255 // Magenta neon
+
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			// Horizontal neon bars
+			barHeight := bounds.Max.Y / 4
+			barIndex := y / barHeight
+
+			intensity := pulse
+			if barIndex%2 == 1 {
+				// Alternate bars pulse opposite phase
+				intensity = 1.0 - pulse
+			}
+
+			// Add scan line effect
+			if y%2 == 0 {
+				intensity *= 0.8
+			}
+
+			// Add subtle noise
+			noise := a.perlinNoise(float64(x)/20.0, float64(y)/20.0, r) * 0.1
+
+			finalIntensity := math.Max(0.2, math.Min(1.0, intensity+noise))
+
+			c := color.RGBA{
+				R: clampUint8(float64(baseR) * finalIntensity),
+				G: clampUint8(float64(baseG) * finalIntensity),
+				B: clampUint8(float64(baseB) * finalIntensity),
+				A: 255,
+			}
+			img.Set(x, y, c)
+		}
+	}
+}
+
+// generateRadiationGlowFrame creates a post-apocalyptic radiation glow effect.
+// Green/yellow glow pulses and shimmers.
+func (a *Atlas) generateRadiationGlowFrame(img *image.RGBA, r *rng.RNG, frame, totalFrames int) {
+	bounds := img.Bounds()
+
+	// Pulsing glow based on frame
+	t := float64(frame) / float64(totalFrames)
+	glow := 0.6 + 0.4*math.Sin(t*math.Pi*2.0)
+
+	baseR, baseG, baseB := 200, 255, 50 // Radioactive green-yellow
+
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			// Radial glow from center
+			cx, cy := float64(bounds.Max.X)/2, float64(bounds.Max.Y)/2
+			dx := float64(x) - cx
+			dy := float64(y) - cy
+			dist := math.Sqrt(dx*dx+dy*dy) / (float64(bounds.Max.X) / 2)
+
+			// Glow is stronger at center
+			intensity := (1.0 - dist*0.7) * glow
+
+			// Add organic shimmer
+			noise := a.perlinNoise(float64(x)/10.0+t*5, float64(y)/10.0, r) * 0.3
+
+			finalIntensity := math.Max(0.1, math.Min(1.0, intensity+noise))
+
+			c := color.RGBA{
+				R: clampUint8(float64(baseR) * finalIntensity),
+				G: clampUint8(float64(baseG) * finalIntensity),
+				B: clampUint8(float64(baseB) * finalIntensity),
+				A: 255,
+			}
 			img.Set(x, y, c)
 		}
 	}

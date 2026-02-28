@@ -1164,3 +1164,135 @@ func TestRaycaster_CastFloorCeiling_HorizonWithPitch(t *testing.T) {
 		}
 	}
 }
+
+func TestRayHit_TextureX(t *testing.T) {
+	tests := []struct {
+		name     string
+		testMap  [][]int
+		posX     float64
+		posY     float64
+		dirX     float64
+		dirY     float64
+		wantSide int
+		checkTex bool
+	}{
+		{
+			name: "vertical wall hit",
+			testMap: [][]int{
+				{1, 1, 1, 1, 1},
+				{1, 0, 0, 0, 1},
+				{1, 0, 0, 0, 1},
+				{1, 0, 0, 0, 1},
+				{1, 1, 1, 1, 1},
+			},
+			posX:     2.5,
+			posY:     2.5,
+			dirX:     1.0,
+			dirY:     0.0,
+			wantSide: 0, // vertical
+			checkTex: true,
+		},
+		{
+			name: "horizontal wall hit",
+			testMap: [][]int{
+				{1, 1, 1, 1, 1},
+				{1, 0, 0, 0, 1},
+				{1, 0, 0, 0, 1},
+				{1, 0, 0, 0, 1},
+				{1, 1, 1, 1, 1},
+			},
+			posX:     2.5,
+			posY:     2.5,
+			dirX:     0.0,
+			dirY:     1.0,
+			wantSide: 1, // horizontal
+			checkTex: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := NewRaycaster(66.0, 320, 200)
+			r.SetMap(tt.testMap)
+
+			hits := r.CastRays(tt.posX, tt.posY, tt.dirX, tt.dirY)
+			if len(hits) == 0 {
+				t.Fatal("No hits returned")
+			}
+
+			centerHit := hits[r.Width/2]
+
+			// Verify TextureX is in valid range
+			if centerHit.TextureX < 0.0 || centerHit.TextureX > 1.0 {
+				t.Errorf("TextureX = %f, want in range [0.0, 1.0]", centerHit.TextureX)
+			}
+
+			// Verify side matches expectation
+			if tt.checkTex && centerHit.Side != tt.wantSide {
+				t.Errorf("Side = %d, want %d", centerHit.Side, tt.wantSide)
+			}
+		})
+	}
+}
+
+func TestRayHit_TextureX_Consistency(t *testing.T) {
+	// Test that adjacent rays have consistent texture coordinates
+	testMap := [][]int{
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+	}
+
+	r := NewRaycaster(66.0, 320, 200)
+	r.SetMap(testMap)
+
+	hits := r.CastRays(5.0, 2.5, 1.0, 0.0)
+
+	// All rays hitting same wall should have valid TextureX
+	for i, hit := range hits {
+		if hit.TextureX < 0.0 || hit.TextureX > 1.0 {
+			t.Errorf("Ray %d: TextureX = %f, want in range [0.0, 1.0]", i, hit.TextureX)
+		}
+	}
+}
+
+func TestRayHit_TextureX_DifferentPositions(t *testing.T) {
+	testMap := [][]int{
+		{1, 1, 1, 1, 1},
+		{1, 0, 0, 0, 1},
+		{1, 0, 0, 0, 1},
+		{1, 0, 0, 0, 1},
+		{1, 1, 1, 1, 1},
+	}
+
+	tests := []struct {
+		name string
+		posX float64
+		posY float64
+		dirX float64
+		dirY float64
+	}{
+		{"facing east", 2.5, 2.5, 1.0, 0.0},
+		{"facing west", 2.5, 2.5, -1.0, 0.0},
+		{"facing north", 2.5, 2.5, 0.0, -1.0},
+		{"facing south", 2.5, 2.5, 0.0, 1.0},
+		{"diagonal NE", 2.5, 2.5, 0.707, -0.707},
+		{"diagonal SE", 2.5, 2.5, 0.707, 0.707},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := NewRaycaster(66.0, 320, 200)
+			r.SetMap(testMap)
+
+			hits := r.CastRays(tt.posX, tt.posY, tt.dirX, tt.dirY)
+			centerHit := hits[r.Width/2]
+
+			if centerHit.TextureX < 0.0 || centerHit.TextureX > 1.0 {
+				t.Errorf("TextureX = %f, want in range [0.0, 1.0]", centerHit.TextureX)
+			}
+		})
+	}
+}

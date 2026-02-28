@@ -3,6 +3,8 @@ package audio
 import (
 	"bytes"
 	"testing"
+
+	"github.com/opd-ai/violence/pkg/bsp"
 )
 
 func TestNewReverbCalculator(t *testing.T) {
@@ -377,5 +379,80 @@ func BenchmarkReverbCalculator_ApplyReverb(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = calc.applyReverb(samples)
+	}
+}
+
+func TestReverbCalculator_SetRoomFromBSP(t *testing.T) {
+	calc := NewReverbCalculator(10, 10)
+	initialDecay := calc.GetDecay()
+
+	t.Run("sets room dimensions from BSP room", func(t *testing.T) {
+		room := &bsp.Room{X: 5, Y: 5, W: 30, H: 25}
+		calc.SetRoomFromBSP(room)
+
+		if calc.roomWidth != 30 {
+			t.Errorf("roomWidth = %v, want 30", calc.roomWidth)
+		}
+		if calc.roomHeight != 25 {
+			t.Errorf("roomHeight = %v, want 25", calc.roomHeight)
+		}
+
+		// Larger room should have more decay
+		if calc.GetDecay() <= initialDecay {
+			t.Errorf("decay did not increase: %v -> %v", initialDecay, calc.GetDecay())
+		}
+	})
+
+	t.Run("handles nil room gracefully", func(t *testing.T) {
+		calc := NewReverbCalculator(10, 10)
+		origWidth := calc.roomWidth
+		origHeight := calc.roomHeight
+
+		calc.SetRoomFromBSP(nil)
+
+		if calc.roomWidth != origWidth || calc.roomHeight != origHeight {
+			t.Error("nil room changed dimensions")
+		}
+	})
+
+	t.Run("recalculates reverb parameters", func(t *testing.T) {
+		calc := NewReverbCalculator(10, 10)
+		smallDecay := calc.GetDecay()
+		smallWet := calc.GetWetMix()
+
+		largeRoom := &bsp.Room{X: 0, Y: 0, W: 50, H: 50}
+		calc.SetRoomFromBSP(largeRoom)
+
+		if calc.GetDecay() <= smallDecay {
+			t.Errorf("decay not increased for large room")
+		}
+		if calc.GetWetMix() <= smallWet {
+			t.Errorf("wet mix not increased for large room")
+		}
+	})
+}
+
+func TestReverbCalculator_BSPRoomSizeMapping(t *testing.T) {
+	tests := []struct {
+		name     string
+		room     *bsp.Room
+		minDecay float64
+		maxDecay float64
+	}{
+		{"small BSP room", &bsp.Room{X: 0, Y: 0, W: 8, H: 8}, 0.1, 0.2},
+		{"medium BSP room", &bsp.Room{X: 0, Y: 0, W: 20, H: 20}, 0.2, 0.4},
+		{"large BSP room", &bsp.Room{X: 0, Y: 0, W: 40, H: 40}, 0.4, 0.7},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			calc := NewReverbCalculator(10, 10)
+			calc.SetRoomFromBSP(tt.room)
+
+			decay := calc.GetDecay()
+			if decay < tt.minDecay || decay > tt.maxDecay {
+				t.Errorf("decay = %v, want between %v and %v", decay, tt.minDecay, tt.maxDecay)
+			}
+		})
 	}
 }

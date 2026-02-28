@@ -13,6 +13,7 @@ import (
 // Allows testing with mocks while supporting the full texture.Atlas.
 type TextureAtlas interface {
 	Get(name string) (image.Image, bool)
+	GetAnimatedFrame(name string, tick int) (image.Image, bool)
 	SetGenre(genreID string)
 }
 
@@ -34,6 +35,7 @@ type Renderer struct {
 	atlas         TextureAtlas
 	lightMap      LightMap
 	postProcessor *PostProcessor
+	tick          int
 }
 
 // NewRenderer creates a renderer with the given internal resolution.
@@ -64,6 +66,11 @@ func (r *Renderer) SetLightMap(lightMap LightMap) {
 // SetPostProcessor assigns a post-processor for visual effects.
 func (r *Renderer) SetPostProcessor(pp *PostProcessor) {
 	r.postProcessor = pp
+}
+
+// Tick increments the frame counter for animated textures.
+func (r *Renderer) Tick() {
+	r.tick++
 }
 
 // Render draws a frame to the given screen image.
@@ -124,7 +131,30 @@ func (r *Renderer) renderWall(x, y int, hit raycaster.RayHit) color.RGBA {
 		return color.RGBA{0, 0, 0, 0}
 	}
 
-	baseColor := r.palette[hit.WallType]
+	var baseColor color.RGBA
+
+	// Try to sample from texture atlas if available
+	if r.atlas != nil {
+		// First try animated texture (for special wall types)
+		animName := r.genreID + "_anim"
+		if animFrame, ok := r.atlas.GetAnimatedFrame(animName, r.tick); ok && hit.WallType == 5 {
+			baseColor = sampleWallTexture(animFrame, hit.TextureX, y, drawStart, drawEnd)
+		} else {
+			// Fall back to static texture
+			textureName := getWallTextureName(hit.WallType)
+			if texture, ok := r.atlas.Get(textureName); ok {
+				baseColor = sampleWallTexture(texture, hit.TextureX, y, drawStart, drawEnd)
+			} else {
+				// Fallback to palette if texture not found
+				baseColor = r.palette[hit.WallType]
+			}
+		}
+	} else {
+		// No atlas: use palette color
+		baseColor = r.palette[hit.WallType]
+	}
+
+	// Darken horizontal walls for visual distinction
 	if hit.Side == 1 {
 		baseColor.R = baseColor.R / 2
 		baseColor.G = baseColor.G / 2
@@ -148,6 +178,60 @@ func (r *Renderer) renderWall(x, y int, hit raycaster.RayHit) color.RGBA {
 		G: uint8(foggedColor[1] * 255),
 		B: uint8(foggedColor[2] * 255),
 		A: 255,
+	}
+}
+
+// getWallTextureName maps wall type to texture name.
+func getWallTextureName(wallType int) string {
+	// Map wall types 1-4 to corresponding wall textures
+	switch wallType {
+	case 1:
+		return "wall_1"
+	case 2:
+		return "wall_2"
+	case 3:
+		return "wall_3"
+	case 4:
+		return "wall_4"
+	default:
+		return "wall_1"
+	}
+}
+
+// sampleWallTexture samples a texture at the given coordinates.
+// textureX is the horizontal position along the wall (0.0-1.0).
+// y is the screen row, drawStart/drawEnd define the visible wall segment.
+func sampleWallTexture(texture image.Image, textureX float64, y, drawStart, drawEnd int) color.RGBA {
+	bounds := texture.Bounds()
+	texWidth := bounds.Dx()
+	texHeight := bounds.Dy()
+
+	// Map screen Y to texture Y
+	d := y - drawStart
+	texY := (d * texHeight) / (drawEnd - drawStart)
+	if texY < 0 {
+		texY = 0
+	}
+	if texY >= texHeight {
+		texY = texHeight - 1
+	}
+
+	// Map texture X coordinate
+	texX := int(textureX * float64(texWidth))
+	if texX < 0 {
+		texX = 0
+	}
+	if texX >= texWidth {
+		texX = texWidth - 1
+	}
+
+	// Sample the texture
+	r, g, b, a := texture.At(texX+bounds.Min.X, texY+bounds.Min.Y).RGBA()
+	return color.RGBA{
+		R: uint8(r >> 8),
+		G: uint8(g >> 8),
+		B: uint8(b >> 8),
+		A: uint8(a >> 8),
 	}
 }
 

@@ -501,6 +501,85 @@ func TestMaxMin(t *testing.T) {
 	}
 }
 
+func TestSetGenre(t *testing.T) {
+	tests := []struct {
+		name        string
+		genreID     string
+		wantAmbient float64
+	}{
+		{"fantasy", "fantasy", 0.3},
+		{"scifi", "scifi", 0.5},
+		{"horror", "horror", 0.15},
+		{"cyberpunk", "cyberpunk", 0.25},
+		{"postapoc", "postapoc", 0.35},
+		{"unknown defaults to fantasy", "unknown", 0.3},
+		{"empty defaults to fantasy", "", 0.3},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			slm := NewSectorLightMap(10, 10, 0.5)
+			slm.dirty = false
+			slm.SetGenre(tt.genreID)
+			if math.Abs(slm.Ambient-tt.wantAmbient) > 0.001 {
+				t.Errorf("SetGenre(%q): Ambient = %f, want %f", tt.genreID, slm.Ambient, tt.wantAmbient)
+			}
+			if !slm.dirty {
+				t.Error("dirty = false, want true after SetGenre")
+			}
+		})
+	}
+}
+
+func TestGenreAmbientLevel(t *testing.T) {
+	tests := []struct {
+		genreID string
+		want    float64
+	}{
+		{"fantasy", 0.3},
+		{"scifi", 0.5},
+		{"horror", 0.15},
+		{"cyberpunk", 0.25},
+		{"postapoc", 0.35},
+		{"invalid", 0.3},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.genreID, func(t *testing.T) {
+			got := genreAmbientLevel(tt.genreID)
+			if got != tt.want {
+				t.Errorf("genreAmbientLevel(%q) = %f, want %f", tt.genreID, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSetGenre_IntegrationWithLighting(t *testing.T) {
+	slm := NewSectorLightMap(10, 10, 0.5)
+	slm.AddLight(Light{X: 5, Y: 5, Radius: 3, Intensity: 1.0})
+
+	// Set to horror (very dark)
+	slm.SetGenre("horror")
+	slm.Calculate()
+	horrorLight := slm.GetLight(0, 0) // Far from light
+	if math.Abs(horrorLight-0.15) > 0.01 {
+		t.Errorf("Horror ambient at (0,0) = %f, want ~0.15", horrorLight)
+	}
+
+	// Set to scifi (brighter)
+	slm.SetGenre("scifi")
+	slm.Calculate()
+	scifiLight := slm.GetLight(0, 0)
+	if math.Abs(scifiLight-0.5) > 0.01 {
+		t.Errorf("Scifi ambient at (0,0) = %f, want ~0.5", scifiLight)
+	}
+
+	// Verify scifi is brighter than horror
+	if scifiLight <= horrorLight {
+		t.Errorf("Scifi light %f should be > horror light %f", scifiLight, horrorLight)
+	}
+}
+
 // BenchmarkCalculate measures lighting calculation performance
 func BenchmarkCalculate(b *testing.B) {
 	slm := NewSectorLightMap(100, 100, 0.2)

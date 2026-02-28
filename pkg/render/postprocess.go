@@ -9,11 +9,12 @@ import (
 
 // PostProcessor applies post-processing effects to a framebuffer.
 type PostProcessor struct {
-	width   int
-	height  int
-	seed    int64
-	rng     *rand.Rand
-	genreID string
+	width            int
+	height           int
+	seed             int64
+	rng              *rand.Rand
+	genreID          string
+	staticBurstTimer int // Frame counter for static burst timing
 }
 
 // NewPostProcessor creates a post-processor for the given dimensions.
@@ -40,7 +41,7 @@ func (p *PostProcessor) Apply(framebuffer []byte) {
 	// Reset RNG for deterministic effects
 	p.rng = rand.New(rand.NewSource(p.seed))
 
-	// Apply effects in order: Color Grade → Vignette → Film Grain → Scanlines → Chromatic Aberration → Bloom
+	// Apply effects in order: Color Grade → Vignette → Film Grain → Scanlines → Chromatic Aberration → Bloom → Static Burst → Film Scratches
 	if preset.ColorGrade.Enabled {
 		p.ApplyColorGrade(framebuffer, preset.ColorGrade)
 	}
@@ -58,6 +59,12 @@ func (p *PostProcessor) Apply(framebuffer []byte) {
 	}
 	if preset.Bloom.Enabled {
 		p.ApplyBloom(framebuffer, preset.Bloom)
+	}
+	if preset.StaticBurst.Enabled {
+		p.ApplyStaticBurst(framebuffer, preset.StaticBurst)
+	}
+	if preset.FilmScratches.Enabled {
+		p.ApplyFilmScratches(framebuffer, preset.FilmScratches)
 	}
 }
 
@@ -278,6 +285,8 @@ type GenrePreset struct {
 	ChromaticAberration ChromaticAberrationConfig
 	Bloom               BloomConfig
 	ColorGrade          ColorGradeConfig
+	StaticBurst         StaticBurstConfig
+	FilmScratches       FilmScratchesConfig
 }
 
 // VignetteConfig controls vignette effect.
@@ -323,6 +332,88 @@ type ColorGradeConfig struct {
 	Warmth     float64 // -1.0 to 1.0 (0 = neutral, + = warm, - = cool)
 }
 
+// StaticBurstConfig controls horror static burst effect.
+type StaticBurstConfig struct {
+	Enabled     bool
+	Probability float64 // Per-frame chance (0.0-1.0)
+	Intensity   float64 // Noise strength (0.0-1.0)
+	Duration    int     // Frames to persist
+}
+
+// FilmScratchesConfig controls film scratch effect.
+type FilmScratchesConfig struct {
+	Enabled bool
+	Density float64 // Scratches per screen width (e.g., 0.05 = 5% of width)
+	Length  float64 // Scratch length as fraction of height (0.0-1.0)
+}
+
+// ApplyStaticBurst overlays noise on the screen for horror genre.
+func (p *PostProcessor) ApplyStaticBurst(framebuffer []byte, cfg StaticBurstConfig) {
+	// Check if we should trigger a new burst
+	if p.staticBurstTimer <= 0 {
+		// Random chance to trigger burst
+		if p.rng.Float64() < cfg.Probability {
+			p.staticBurstTimer = cfg.Duration
+		}
+	}
+
+	// Apply static if burst is active
+	if p.staticBurstTimer > 0 {
+		p.staticBurstTimer--
+
+		for y := 0; y < p.height; y++ {
+			for x := 0; x < p.width; x++ {
+				idx := (y*p.width + x) * 4
+
+				// Generate strong random noise
+				noise := p.rng.Float64() * cfg.Intensity
+
+				r := float64(framebuffer[idx])/255.0*(1.0-noise) + noise
+				g := float64(framebuffer[idx+1])/255.0*(1.0-noise) + noise
+				b := float64(framebuffer[idx+2])/255.0*(1.0-noise) + noise
+
+				framebuffer[idx] = uint8(clamp(r * 255.0))
+				framebuffer[idx+1] = uint8(clamp(g * 255.0))
+				framebuffer[idx+2] = uint8(clamp(b * 255.0))
+			}
+		}
+	}
+}
+
+// ApplyFilmScratches draws vertical scratch lines for postapoc genre.
+func (p *PostProcessor) ApplyFilmScratches(framebuffer []byte, cfg FilmScratchesConfig) {
+	scratchCount := int(float64(p.width) * cfg.Density)
+	scratchLength := int(float64(p.height) * cfg.Length)
+
+	for i := 0; i < scratchCount; i++ {
+		// Random X position
+		x := p.rng.Intn(p.width)
+
+		// Random start Y position
+		startY := p.rng.Intn(p.height - scratchLength)
+		if startY < 0 {
+			startY = 0
+		}
+
+		// Random scratch brightness (dim scratches)
+		brightness := uint8(100 + p.rng.Intn(100))
+
+		// Draw vertical line
+		for y := startY; y < startY+scratchLength && y < p.height; y++ {
+			idx := (y*p.width + x) * 4
+
+			// Brighten pixel (additive)
+			r := uint8(clampInt(int(framebuffer[idx])+int(brightness), 0, 255))
+			g := uint8(clampInt(int(framebuffer[idx+1])+int(brightness), 0, 255))
+			b := uint8(clampInt(int(framebuffer[idx+2])+int(brightness), 0, 255))
+
+			framebuffer[idx] = r
+			framebuffer[idx+1] = g
+			framebuffer[idx+2] = b
+		}
+	}
+}
+
 // GetGenrePreset returns the post-processing preset for a genre.
 func GetGenrePreset(genreID string) GenrePreset {
 	switch genreID {
@@ -352,6 +443,12 @@ func GetGenrePreset(genreID string) GenrePreset {
 				Enabled: false,
 			},
 			Bloom: BloomConfig{
+				Enabled: false,
+			},
+			StaticBurst: StaticBurstConfig{
+				Enabled: false,
+			},
+			FilmScratches: FilmScratchesConfig{
 				Enabled: false,
 			},
 		}
@@ -387,6 +484,12 @@ func GetGenrePreset(genreID string) GenrePreset {
 			Bloom: BloomConfig{
 				Enabled: false,
 			},
+			StaticBurst: StaticBurstConfig{
+				Enabled: false,
+			},
+			FilmScratches: FilmScratchesConfig{
+				Enabled: false,
+			},
 		}
 
 	case "horror":
@@ -415,6 +518,16 @@ func GetGenrePreset(genreID string) GenrePreset {
 				Enabled: false,
 			},
 			Bloom: BloomConfig{
+				Enabled: false,
+			},
+			StaticBurst: StaticBurstConfig{
+				Enabled:     true,
+				Probability: 0.01, // 1% chance per frame
+				Intensity:   0.8,  // Strong noise
+				Duration:    3,    // 3 frames
+
+			},
+			FilmScratches: FilmScratchesConfig{
 				Enabled: false,
 			},
 		}
@@ -451,6 +564,12 @@ func GetGenrePreset(genreID string) GenrePreset {
 				Intensity: 0.5,
 				Radius:    3,
 			},
+			StaticBurst: StaticBurstConfig{
+				Enabled: false,
+			},
+			FilmScratches: FilmScratchesConfig{
+				Enabled: false,
+			},
 		}
 
 	case "postapoc":
@@ -481,6 +600,15 @@ func GetGenrePreset(genreID string) GenrePreset {
 			Bloom: BloomConfig{
 				Enabled: false,
 			},
+			StaticBurst: StaticBurstConfig{
+				Enabled: false,
+			},
+			FilmScratches: FilmScratchesConfig{
+				Enabled: true,
+				Density: 0.02, // 2% of width
+				Length:  0.6,  // 60% of height
+
+			},
 		}
 
 	default:
@@ -492,6 +620,8 @@ func GetGenrePreset(genreID string) GenrePreset {
 			Scanlines:           ScanlinesConfig{Enabled: false},
 			ChromaticAberration: ChromaticAberrationConfig{Enabled: false},
 			Bloom:               BloomConfig{Enabled: false},
+			StaticBurst:         StaticBurstConfig{Enabled: false},
+			FilmScratches:       FilmScratchesConfig{Enabled: false},
 		}
 	}
 }

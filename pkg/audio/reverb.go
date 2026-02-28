@@ -4,6 +4,8 @@ package audio
 import (
 	"bytes"
 	"math"
+
+	"github.com/opd-ai/violence/pkg/bsp"
 )
 
 // ReverbCalculator computes reverb parameters based on room dimensions.
@@ -31,6 +33,14 @@ func (r *ReverbCalculator) SetRoomSize(width, height int) {
 	r.roomWidth = width
 	r.roomHeight = height
 	r.calculate()
+}
+
+// SetRoomFromBSP extracts room dimensions from a BSP room and recalculates reverb.
+func (r *ReverbCalculator) SetRoomFromBSP(room *bsp.Room) {
+	if room == nil {
+		return
+	}
+	r.SetRoomSize(room.W, room.H)
 }
 
 // GetDecay returns the reverb decay time (0.0-1.0).
