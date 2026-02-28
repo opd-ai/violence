@@ -93,6 +93,16 @@ func NewGameServer(port int, world *engine.World) (*GameServer, error) {
 	}, nil
 }
 
+// GetAddr returns the server's listening address.
+func (s *GameServer) GetAddr() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.listener == nil {
+		return ""
+	}
+	return s.listener.Addr().String()
+}
+
 // SetValidator sets a custom command validator.
 func (s *GameServer) SetValidator(v CommandValidator) {
 	s.mu.Lock()

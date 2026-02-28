@@ -863,3 +863,54 @@ func TestGameServer_GetTickNumber(t *testing.T) {
 		t.Errorf("Initial tick should be 0, got %d", initialTick)
 	}
 }
+
+func TestGameServer_GetAddr(t *testing.T) {
+	tests := []struct {
+		name    string
+		started bool
+	}{
+		{
+			name:    "server started",
+			started: true,
+		},
+		{
+			name:    "server not started",
+			started: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			world := engine.NewWorld()
+			server, err := NewGameServer(0, world)
+			if err != nil {
+				t.Fatalf("Failed to create server: %v", err)
+			}
+			defer server.Stop()
+
+			if tt.started {
+				if err := server.Start(); err != nil {
+					t.Fatalf("Failed to start server: %v", err)
+				}
+				time.Sleep(50 * time.Millisecond)
+			}
+
+			addr := server.GetAddr()
+
+			if tt.started {
+				if addr == "" {
+					t.Error("GetAddr() returned empty string for started server")
+				}
+				if !validateAddress(addr) {
+					t.Errorf("GetAddr() returned invalid address: %s", addr)
+				}
+			}
+		})
+	}
+}
+
+// validateAddress checks if an address string is valid.
+func validateAddress(addr string) bool {
+	_, _, err := net.SplitHostPort(addr)
+	return err == nil
+}

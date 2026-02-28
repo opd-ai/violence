@@ -1,0 +1,28 @@
+# Git
+.git
+.gitignore
+.github
+
+# Documentation
+*.md
+docs/
+
+# Coverage files
+coverage*.out
+
+# Test binaries
+*.test
+
+# Build artifacts
+violence
+
+# IDE files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
