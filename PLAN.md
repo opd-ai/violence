@@ -105,7 +105,7 @@
   - Thread-safe inventory operations using sync.RWMutex for concurrent access
   - Test coverage: 95.4% (21 test cases including concurrent access)
 
-### 7. Crafting System (`pkg/crafting/`)
+### 7. Crafting System (`pkg/crafting/`) ✅
 - **Deliverable**: Extended `crafting.go` with scrap-to-ammo recipes
 - **Dependencies**: `pkg/inventory` (scrap storage), `pkg/ammo` (ammo creation)
 - **Implementation**:
@@ -113,6 +113,15 @@
   - Create `Recipe` struct mapping scrap amounts to output items
   - Implement `CraftingMenu` UI with available recipe list
   - Add scrap drops to loot tables (enemies, destructibles)
+- **Completed**: 2026-02-28
+  - Implemented `Scrap` struct and `ScrapStorage` for thread-safe scrap management
+  - `ScrapStorage` with `Add()`, `Remove()`, `Get()`, `GetAll()` operations
+  - `CraftingMenu` integrates storage with recipes for UI presentation
+  - `GetAvailableRecipes()` filters recipes by current scrap amounts
+  - `Craft(recipeID)` validates materials, consumes scrap, and returns crafted items
+  - `GetScrapNameForGenre()` returns genre-specific scrap names
+  - Genre-specific recipes already existed with 5 recipes per genre (arrows, bolts, mana, explosives, potion variants)
+  - Test coverage: 97.8% (27 test cases including concurrent access)
 
 ### 8. Level Objectives System (`pkg/quest/`)
 - **Deliverable**: Extended `quest.go` with procedural objective generation

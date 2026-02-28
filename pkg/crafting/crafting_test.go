@@ -354,3 +354,374 @@ func TestUnknownGenreFallback(t *testing.T) {
 		t.Error("Unknown genre fallback should use 'scrap' as input type")
 	}
 }
+
+// ScrapStorage tests
+
+func TestNewScrapStorage(t *testing.T) {
+	storage := NewScrapStorage()
+	if storage == nil {
+		t.Fatal("NewScrapStorage returned nil")
+	}
+	if storage.scrap == nil {
+		t.Fatal("scrap map not initialized")
+	}
+}
+
+func TestScrapStorage_AddAndGet(t *testing.T) {
+	storage := NewScrapStorage()
+
+	storage.Add("scrap", 10)
+	if storage.Get("scrap") != 10 {
+		t.Errorf("Get(scrap) = %d, want 10", storage.Get("scrap"))
+	}
+
+	storage.Add("scrap", 5)
+	if storage.Get("scrap") != 15 {
+		t.Errorf("Get(scrap) after second add = %d, want 15", storage.Get("scrap"))
+	}
+
+	// Get non-existent type
+	if storage.Get("nonexistent") != 0 {
+		t.Errorf("Get(nonexistent) = %d, want 0", storage.Get("nonexistent"))
+	}
+}
+
+func TestScrapStorage_Remove(t *testing.T) {
+	tests := []struct {
+		name         string
+		initialScrap map[string]int
+		removeType   string
+		removeAmount int
+		wantSuccess  bool
+		wantRemain   int
+	}{
+		{
+			name:         "remove partial amount",
+			initialScrap: map[string]int{"scrap": 10},
+			removeType:   "scrap",
+			removeAmount: 3,
+			wantSuccess:  true,
+			wantRemain:   7,
+		},
+		{
+			name:         "remove exact amount",
+			initialScrap: map[string]int{"scrap": 10},
+			removeType:   "scrap",
+			removeAmount: 10,
+			wantSuccess:  true,
+			wantRemain:   0,
+		},
+		{
+			name:         "remove more than available",
+			initialScrap: map[string]int{"scrap": 5},
+			removeType:   "scrap",
+			removeAmount: 10,
+			wantSuccess:  false,
+			wantRemain:   5,
+		},
+		{
+			name:         "remove from non-existent type",
+			initialScrap: map[string]int{},
+			removeType:   "scrap",
+			removeAmount: 5,
+			wantSuccess:  false,
+			wantRemain:   0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			storage := NewScrapStorage()
+			for scrapType, amount := range tt.initialScrap {
+				storage.Add(scrapType, amount)
+			}
+
+			success := storage.Remove(tt.removeType, tt.removeAmount)
+			if success != tt.wantSuccess {
+				t.Errorf("Remove() = %v, want %v", success, tt.wantSuccess)
+			}
+
+			remaining := storage.Get(tt.removeType)
+			if remaining != tt.wantRemain {
+				t.Errorf("After Remove(), remaining = %d, want %d", remaining, tt.wantRemain)
+			}
+		})
+	}
+}
+
+func TestScrapStorage_GetAll(t *testing.T) {
+	storage := NewScrapStorage()
+	storage.Add("scrap", 10)
+	storage.Add("bone_chips", 5)
+	storage.Add("circuit_boards", 3)
+
+	all := storage.GetAll()
+	if len(all) != 3 {
+		t.Fatalf("GetAll() returned %d types, want 3", len(all))
+	}
+
+	expected := map[string]int{
+		"scrap":          10,
+		"bone_chips":     5,
+		"circuit_boards": 3,
+	}
+
+	for scrapType, amount := range expected {
+		if all[scrapType] != amount {
+			t.Errorf("GetAll()[%s] = %d, want %d", scrapType, all[scrapType], amount)
+		}
+	}
+
+	// Verify it's a copy, not the original map
+	all["scrap"] = 999
+	if storage.Get("scrap") == 999 {
+		t.Error("GetAll() should return a copy, not the original map")
+	}
+}
+
+// CraftingMenu tests
+
+func TestNewCraftingMenu(t *testing.T) {
+	storage := NewScrapStorage()
+	storage.Add("bone_chips", 100)
+
+	menu := NewCraftingMenu(storage, "fantasy")
+	if menu == nil {
+		t.Fatal("NewCraftingMenu returned nil")
+	}
+	if menu.storage == nil {
+		t.Fatal("menu.storage is nil")
+	}
+	if len(menu.recipes) == 0 {
+		t.Fatal("menu.recipes is empty")
+	}
+	if menu.genreID != "fantasy" {
+		t.Errorf("menu.genreID = %s, want fantasy", menu.genreID)
+	}
+}
+
+func TestNewCraftingMenu_NilStorage(t *testing.T) {
+	menu := NewCraftingMenu(nil, "scifi")
+	if menu == nil {
+		t.Fatal("NewCraftingMenu returned nil")
+	}
+	if menu.storage == nil {
+		t.Fatal("NewCraftingMenu should create storage if nil")
+	}
+}
+
+func TestCraftingMenu_GetAllRecipes(t *testing.T) {
+	menu := NewCraftingMenu(nil, "fantasy")
+	recipes := menu.GetAllRecipes()
+
+	if len(recipes) == 0 {
+		t.Fatal("GetAllRecipes() returned empty slice")
+	}
+
+	// Should have fantasy recipes
+	found := false
+	for _, r := range recipes {
+		if r.ID == "arrows" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("GetAllRecipes() should return fantasy-specific recipes")
+	}
+}
+
+func TestCraftingMenu_GetAvailableRecipes(t *testing.T) {
+	storage := NewScrapStorage()
+	storage.Add("bone_chips", 10) // Enough for arrows (5) but not explosives (15)
+
+	menu := NewCraftingMenu(storage, "fantasy")
+	available := menu.GetAvailableRecipes()
+
+	// Should be able to craft arrows and bolts
+	canCraftArrows := false
+	canCraftExplosives := false
+
+	for _, r := range available {
+		if r.ID == "arrows" {
+			canCraftArrows = true
+		}
+		if r.ID == "explosives" {
+			canCraftExplosives = true
+		}
+	}
+
+	if !canCraftArrows {
+		t.Error("Should be able to craft arrows with 10 bone_chips")
+	}
+	if canCraftExplosives {
+		t.Error("Should NOT be able to craft explosives with only 10 bone_chips")
+	}
+}
+
+func TestCraftingMenu_Craft(t *testing.T) {
+	tests := []struct {
+		name           string
+		initialScrap   map[string]int
+		recipeID       string
+		wantOutputID   string
+		wantOutputQty  int
+		wantErr        bool
+		wantScrapAfter int
+	}{
+		{
+			name:           "successful craft",
+			initialScrap:   map[string]int{"bone_chips": 10},
+			recipeID:       "arrows",
+			wantOutputID:   "arrows",
+			wantOutputQty:  10,
+			wantErr:        false,
+			wantScrapAfter: 5, // 10 - 5 = 5
+		},
+		{
+			name:           "insufficient materials",
+			initialScrap:   map[string]int{"bone_chips": 3},
+			recipeID:       "arrows",
+			wantOutputID:   "",
+			wantOutputQty:  0,
+			wantErr:        true,
+			wantScrapAfter: 3,
+		},
+		{
+			name:           "recipe not found",
+			initialScrap:   map[string]int{"bone_chips": 100},
+			recipeID:       "nonexistent",
+			wantOutputID:   "",
+			wantOutputQty:  0,
+			wantErr:        true,
+			wantScrapAfter: 100,
+		},
+		{
+			name:           "exact materials consumed",
+			initialScrap:   map[string]int{"bone_chips": 15},
+			recipeID:       "explosives",
+			wantOutputID:   "explosives",
+			wantOutputQty:  2,
+			wantErr:        false,
+			wantScrapAfter: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			storage := NewScrapStorage()
+			for scrapType, amount := range tt.initialScrap {
+				storage.Add(scrapType, amount)
+			}
+
+			menu := NewCraftingMenu(storage, "fantasy")
+			outputID, outputQty, err := menu.Craft(tt.recipeID)
+
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("Craft() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			if outputID != tt.wantOutputID {
+				t.Errorf("Craft() outputID = %s, want %s", outputID, tt.wantOutputID)
+			}
+
+			if outputQty != tt.wantOutputQty {
+				t.Errorf("Craft() outputQty = %d, want %d", outputQty, tt.wantOutputQty)
+			}
+
+			// Check scrap was consumed correctly
+			remaining := storage.Get("bone_chips")
+			if remaining != tt.wantScrapAfter {
+				t.Errorf("After Craft(), scrap = %d, want %d", remaining, tt.wantScrapAfter)
+			}
+		})
+	}
+}
+
+func TestCraftingMenu_GetScrapAmounts(t *testing.T) {
+	storage := NewScrapStorage()
+	storage.Add("bone_chips", 10)
+	storage.Add("salvage", 5)
+
+	menu := NewCraftingMenu(storage, "fantasy")
+	amounts := menu.GetScrapAmounts()
+
+	if amounts["bone_chips"] != 10 {
+		t.Errorf("GetScrapAmounts()[bone_chips] = %d, want 10", amounts["bone_chips"])
+	}
+	if amounts["salvage"] != 5 {
+		t.Errorf("GetScrapAmounts()[salvage] = %d, want 5", amounts["salvage"])
+	}
+}
+
+func TestGetScrapNameForGenre(t *testing.T) {
+	tests := []struct {
+		genreID  string
+		wantName string
+	}{
+		{"fantasy", "bone_chips"},
+		{"scifi", "circuit_boards"},
+		{"horror", "flesh"},
+		{"cyberpunk", "data_shards"},
+		{"postapoc", "salvage"},
+		{"unknown", "scrap"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.genreID, func(t *testing.T) {
+			name := GetScrapNameForGenre(tt.genreID)
+			if name != tt.wantName {
+				t.Errorf("GetScrapNameForGenre(%s) = %s, want %s", tt.genreID, name, tt.wantName)
+			}
+		})
+	}
+}
+
+func TestCraftingMenu_MultipleCrafts(t *testing.T) {
+	storage := NewScrapStorage()
+	storage.Add("bone_chips", 50)
+
+	menu := NewCraftingMenu(storage, "fantasy")
+
+	// Craft arrows twice
+	_, _, err := menu.Craft("arrows")
+	if err != nil {
+		t.Fatalf("First craft failed: %v", err)
+	}
+
+	_, _, err = menu.Craft("arrows")
+	if err != nil {
+		t.Fatalf("Second craft failed: %v", err)
+	}
+
+	// Should have consumed 10 bone_chips (5+5)
+	remaining := storage.Get("bone_chips")
+	if remaining != 40 {
+		t.Errorf("After 2 crafts, bone_chips = %d, want 40", remaining)
+	}
+}
+
+func TestCraftingMenu_ConcurrentAccess(t *testing.T) {
+	storage := NewScrapStorage()
+	storage.Add("bone_chips", 1000)
+
+	menu := NewCraftingMenu(storage, "fantasy")
+
+	done := make(chan bool)
+
+	// Multiple goroutines crafting
+	for i := 0; i < 10; i++ {
+		go func() {
+			for j := 0; j < 10; j++ {
+				menu.Craft("arrows")
+				menu.GetAvailableRecipes()
+				menu.GetAllRecipes()
+			}
+			done <- true
+		}()
+	}
+
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+}
