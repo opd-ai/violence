@@ -438,3 +438,226 @@ func TestUpdate(t *testing.T) {
 		t.Errorf("Expected FramesSinceFire to increment to 6, got %d", a.FramesSinceFire[1])
 	}
 }
+
+func TestWeaponAnimatorCreation(t *testing.T) {
+	wa := NewWeaponAnimator(42)
+	if wa == nil {
+		t.Fatal("NewWeaponAnimator returned nil")
+	}
+	if wa.Seed != 42 {
+		t.Errorf("Expected seed 42, got %d", wa.Seed)
+	}
+	if wa.CurrentState != AnimIdle {
+		t.Errorf("Expected initial state AnimIdle, got %d", wa.CurrentState)
+	}
+	if len(wa.Animations) != 5 {
+		t.Errorf("Expected 5 animation states, got %d", len(wa.Animations))
+	}
+}
+
+func TestAnimationStatesExist(t *testing.T) {
+	wa := NewWeaponAnimator(123)
+
+	states := []AnimState{AnimIdle, AnimRaise, AnimLower, AnimFire, AnimReload}
+	for _, state := range states {
+		anim, ok := wa.Animations[state]
+		if !ok {
+			t.Errorf("Animation for state %d not found", state)
+		}
+		if len(anim.Frames) == 0 {
+			t.Errorf("Animation for state %d has no frames", state)
+		}
+	}
+}
+
+func TestAnimationFrameAdvancement(t *testing.T) {
+	wa := NewWeaponAnimator(42)
+	wa.SetState(AnimFire)
+
+	initialFrame := wa.CurrentFrame
+
+	// Update several times
+	for i := 0; i < 10; i++ {
+		wa.UpdateAnimation()
+	}
+
+	// Frame should have advanced
+	if wa.CurrentFrame == initialFrame && wa.FrameCounter > 0 {
+		t.Error("Animation frame did not advance")
+	}
+}
+
+func TestAnimationStateTransition(t *testing.T) {
+	wa := NewWeaponAnimator(42)
+	wa.SetState(AnimIdle)
+
+	if wa.CurrentState != AnimIdle {
+		t.Errorf("Expected state AnimIdle, got %d", wa.CurrentState)
+	}
+
+	wa.SetState(AnimFire)
+	if wa.CurrentState != AnimFire {
+		t.Errorf("Expected state AnimFire, got %d", wa.CurrentState)
+	}
+	if wa.CurrentFrame != 0 {
+		t.Error("Frame should reset to 0 on state change")
+	}
+	if wa.FrameCounter != 0 {
+		t.Error("Frame counter should reset to 0 on state change")
+	}
+}
+
+func TestAnimationLooping(t *testing.T) {
+	wa := NewWeaponAnimator(42)
+	wa.SetState(AnimIdle)
+
+	idleAnim := wa.Animations[AnimIdle]
+	if !idleAnim.Loop {
+		t.Error("Idle animation should loop")
+	}
+
+	// Advance past all frames
+	totalFrames := len(idleAnim.Frames) * idleAnim.FrameDuration
+	for i := 0; i < totalFrames+10; i++ {
+		wa.UpdateAnimation()
+	}
+
+	// Should have looped back
+	if wa.CurrentFrame >= len(idleAnim.Frames) {
+		t.Errorf("Looping animation frame %d exceeds frame count %d", wa.CurrentFrame, len(idleAnim.Frames))
+	}
+}
+
+func TestAnimationNonLooping(t *testing.T) {
+	wa := NewWeaponAnimator(42)
+	wa.SetState(AnimFire)
+
+	fireAnim := wa.Animations[AnimFire]
+	if fireAnim.Loop {
+		t.Error("Fire animation should not loop")
+	}
+
+	// Advance past all frames
+	totalFrames := len(fireAnim.Frames) * fireAnim.FrameDuration
+	for i := 0; i < totalFrames+20; i++ {
+		wa.UpdateAnimation()
+	}
+
+	// Should transition back to idle
+	if wa.CurrentState != AnimIdle {
+		t.Errorf("Expected transition to AnimIdle after fire, got %d", wa.CurrentState)
+	}
+}
+
+func TestGetCurrentFrame(t *testing.T) {
+	wa := NewWeaponAnimator(42)
+	wa.SetState(AnimIdle)
+
+	frame := wa.GetCurrentFrame()
+	if frame.Scale <= 0 {
+		t.Error("Frame scale should be positive")
+	}
+	if frame.Brightness <= 0 {
+		t.Error("Frame brightness should be positive")
+	}
+}
+
+func TestFireTriggersAnimation(t *testing.T) {
+	a := NewArsenal()
+	a.SwitchTo(1) // Pistol
+
+	mockRaycast := func(x, y, dx, dy, maxDist float64) (bool, float64, float64, float64, uint64) {
+		return true, 10, 10, 10, 0
+	}
+
+	a.Fire(0, 0, 1, 0, mockRaycast)
+
+	if a.Animator.CurrentState != AnimFire {
+		t.Errorf("Expected AnimFire after firing, got %d", a.Animator.CurrentState)
+	}
+}
+
+func TestReloadTriggersAnimation(t *testing.T) {
+	a := NewArsenal()
+	a.SwitchTo(1)
+	a.Clips[1] = 5
+	a.Ammo["bullets"] = 100
+
+	a.Reload()
+
+	if a.Animator.CurrentState != AnimReload {
+		t.Errorf("Expected AnimReload after reloading, got %d", a.Animator.CurrentState)
+	}
+}
+
+func TestSwitchTriggersAnimation(t *testing.T) {
+	a := NewArsenal()
+	a.SwitchTo(1)
+
+	// Switch to different weapon
+	a.SwitchTo(2)
+
+	if a.Animator.CurrentState != AnimRaise {
+		t.Errorf("Expected AnimRaise after switching, got %d", a.Animator.CurrentState)
+	}
+}
+
+func TestAnimationFrameParameters(t *testing.T) {
+	wa := NewWeaponAnimator(42)
+
+	tests := []struct {
+		state       AnimState
+		checkScale  bool
+		checkBright bool
+	}{
+		{AnimIdle, true, true},
+		{AnimRaise, true, true},
+		{AnimLower, true, true},
+		{AnimFire, true, true},
+		{AnimReload, true, true},
+	}
+
+	for _, tt := range tests {
+		t.Run("State_"+string(rune(tt.state)), func(t *testing.T) {
+			wa.SetState(tt.state)
+			frame := wa.GetCurrentFrame()
+
+			if tt.checkScale && frame.Scale <= 0 {
+				t.Errorf("State %d: scale should be positive, got %f", tt.state, frame.Scale)
+			}
+			if tt.checkBright && frame.Brightness <= 0 {
+				t.Errorf("State %d: brightness should be positive, got %f", tt.state, frame.Brightness)
+			}
+		})
+	}
+}
+
+func TestDeterministicAnimationGeneration(t *testing.T) {
+	wa1 := NewWeaponAnimator(42)
+	wa2 := NewWeaponAnimator(42)
+
+	// Same seed should produce identical animations
+	for state := AnimIdle; state <= AnimReload; state++ {
+		anim1 := wa1.Animations[state]
+		anim2 := wa2.Animations[state]
+
+		if len(anim1.Frames) != len(anim2.Frames) {
+			t.Errorf("State %d: different frame counts %d vs %d", state, len(anim1.Frames), len(anim2.Frames))
+		}
+	}
+}
+
+func TestUpdateAdvancesAnimation(t *testing.T) {
+	a := NewArsenal()
+	a.Animator.SetState(AnimFire)
+
+	initialFrame := a.Animator.CurrentFrame
+	initialCounter := a.Animator.FrameCounter
+
+	a.Update()
+
+	// Either frame or counter should have advanced
+	if a.Animator.CurrentFrame == initialFrame && a.Animator.FrameCounter == initialCounter {
+		t.Error("Update should advance animation state")
+	}
+}

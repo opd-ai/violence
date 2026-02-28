@@ -5,8 +5,9 @@ import "testing"
 // TestTryOpenUnlocked verifies opening an unlocked door.
 func TestTryOpenUnlocked(t *testing.T) {
 	door := &Door{
-		ID:     "door1",
-		Locked: false,
+		ID:              "door1",
+		Locked:          false,
+		RequiredKeycard: "",
 	}
 	keycard := &Keycard{Color: "red"}
 
@@ -32,9 +33,9 @@ func TestTryOpenLockedWithCorrectKeycard(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			door := &Door{
-				ID:       "door1",
-				Locked:   true,
-				Required: tt.required,
+				ID:              "door1",
+				Locked:          true,
+				RequiredKeycard: tt.required,
 			}
 			keycard := &Keycard{Color: tt.color}
 
@@ -62,9 +63,9 @@ func TestTryOpenLockedWithWrongKeycard(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			door := &Door{
-				ID:       "door1",
-				Locked:   true,
-				Required: tt.required,
+				ID:              "door1",
+				Locked:          true,
+				RequiredKeycard: tt.required,
 			}
 			keycard := &Keycard{Color: tt.color}
 
@@ -78,9 +79,9 @@ func TestTryOpenLockedWithWrongKeycard(t *testing.T) {
 // TestDoorStruct verifies Door structure.
 func TestDoorStruct(t *testing.T) {
 	door := &Door{
-		ID:       "test_door",
-		Locked:   true,
-		Required: "red",
+		ID:              "test_door",
+		Locked:          true,
+		RequiredKeycard: "red",
 	}
 
 	if door.ID != "test_door" {
@@ -89,8 +90,8 @@ func TestDoorStruct(t *testing.T) {
 	if !door.Locked {
 		t.Error("Expected Locked = true")
 	}
-	if door.Required != "red" {
-		t.Errorf("Expected Required 'red', got %s", door.Required)
+	if door.RequiredKeycard != "red" {
+		t.Errorf("Expected RequiredKeycard 'red', got %s", door.RequiredKeycard)
 	}
 }
 
@@ -128,9 +129,9 @@ func TestSetGenre(t *testing.T) {
 // TestMultipleDoors verifies multiple doors with different keycards.
 func TestMultipleDoors(t *testing.T) {
 	doors := []*Door{
-		{ID: "door1", Locked: true, Required: "red"},
-		{ID: "door2", Locked: true, Required: "blue"},
-		{ID: "door3", Locked: false, Required: ""},
+		{ID: "door1", Locked: true, RequiredKeycard: "red"},
+		{ID: "door2", Locked: true, RequiredKeycard: "blue"},
+		{ID: "door3", Locked: false, RequiredKeycard: ""},
 	}
 
 	redKey := &Keycard{Color: "red"}
@@ -177,10 +178,232 @@ func BenchmarkTryOpenUnlocked(b *testing.B) {
 
 // BenchmarkTryOpenLocked benchmarks opening locked doors.
 func BenchmarkTryOpenLocked(b *testing.B) {
-	door := &Door{ID: "door1", Locked: true, Required: "red"}
+	door := &Door{ID: "door1", Locked: true, RequiredKeycard: "red"}
 	keycard := &Keycard{Color: "red"}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = TryOpen(door, keycard)
+	}
+}
+
+// TestKeycardInventory verifies KeycardInventory functionality.
+func TestKeycardInventory(t *testing.T) {
+	inv := NewKeycardInventory()
+
+	// Initially empty
+	if inv.HasKeycard("red") {
+		t.Error("Expected empty inventory")
+	}
+
+	// Add red keycard
+	inv.AddKeycard("red")
+	if !inv.HasKeycard("red") {
+		t.Error("Expected red keycard in inventory")
+	}
+
+	// Add blue and yellow
+	inv.AddKeycard("blue")
+	inv.AddKeycard("yellow")
+
+	if !inv.HasKeycard("blue") {
+		t.Error("Expected blue keycard in inventory")
+	}
+	if !inv.HasKeycard("yellow") {
+		t.Error("Expected yellow keycard in inventory")
+	}
+	if inv.HasKeycard("green") {
+		t.Error("Expected green keycard NOT in inventory")
+	}
+
+	// Get all keycards
+	all := inv.GetAll()
+	if len(all) != 3 {
+		t.Errorf("Expected 3 keycards, got %d", len(all))
+	}
+}
+
+// TestDoorSystem verifies DoorSystem functionality.
+func TestDoorSystem(t *testing.T) {
+	ds := NewDoorSystem()
+	inv := NewKeycardInventory()
+
+	// Create doors
+	door1 := NewDoor("door1", 10.0, 20.0, TypeSwing, true, "red")
+	door2 := NewDoor("door2", 30.0, 40.0, TypeSliding, false, "")
+
+	ds.AddDoor(door1)
+	ds.AddDoor(door2)
+
+	// Try to open locked door without keycard
+	success, msg := ds.TryOpen(door1, inv)
+	if success {
+		t.Error("Expected locked door to reject opening without keycard")
+	}
+	if msg != "Need red keycard" {
+		t.Errorf("Expected 'Need red keycard', got '%s'", msg)
+	}
+
+	// Add red keycard and try again
+	inv.AddKeycard("red")
+	success, msg = ds.TryOpen(door1, inv)
+	if !success {
+		t.Errorf("Expected door to open with red keycard, got: %s", msg)
+	}
+	if door1.State != StateOpening {
+		t.Errorf("Expected door state StateOpening, got %d", door1.State)
+	}
+
+	// Animate door opening
+	for door1.State == StateOpening {
+		ds.Update()
+	}
+
+	if door1.State != StateOpen {
+		t.Errorf("Expected door state StateOpen after animation, got %d", door1.State)
+	}
+
+	// Try to open already open door
+	success, _ = ds.TryOpen(door1, inv)
+	if success {
+		t.Error("Expected already open door to not re-open")
+	}
+
+	// Close door
+	if !ds.Close(door1) {
+		t.Error("Expected door to close")
+	}
+	if door1.State != StateClosing {
+		t.Errorf("Expected door state StateClosing, got %d", door1.State)
+	}
+
+	// Animate door closing
+	for door1.State == StateClosing {
+		ds.Update()
+	}
+
+	if door1.State != StateClosed {
+		t.Errorf("Expected door state StateClosed after animation, got %d", door1.State)
+	}
+}
+
+// TestDoorStates verifies door state transitions.
+func TestDoorStates(t *testing.T) {
+	door := NewDoor("test", 0, 0, TypeSwing, false, "")
+
+	if door.State != StateClosed {
+		t.Error("Expected new door to be StateClosed")
+	}
+
+	door.State = StateOpening
+	door.AnimationFrame = 0
+
+	ds := NewDoorSystem()
+	ds.AddDoor(door)
+
+	// Simulate animation
+	for i := 0; i < door.MaxFrames; i++ {
+		ds.Update()
+	}
+
+	if door.State != StateOpen {
+		t.Errorf("Expected StateOpen after animation, got %d", door.State)
+	}
+	if door.AnimationFrame != door.MaxFrames {
+		t.Errorf("Expected frame %d, got %d", door.MaxFrames, door.AnimationFrame)
+	}
+}
+
+// TestDoorTypes verifies all door types can be created.
+func TestDoorTypes(t *testing.T) {
+	types := []DoorType{TypeSwing, TypeSliding, TypePortcullis, TypeShutter, TypeLaserBarrier}
+
+	for _, dt := range types {
+		door := NewDoor("test", 0, 0, dt, false, "")
+		if door.Type != dt {
+			t.Errorf("Expected door type %d, got %d", dt, door.Type)
+		}
+	}
+}
+
+// TestSetGenreKeycardNames verifies genre-specific keycard names.
+func TestSetGenreKeycardNames(t *testing.T) {
+	tests := []struct {
+		genre    string
+		color    string
+		expected string
+	}{
+		{"fantasy", "red", "Crimson Rune"},
+		{"scifi", "blue", "Blue Clearance"},
+		{"horror", "yellow", "Rusty Key"},
+		{"cyberpunk", "red", "Red Biometric"},
+		{"postapoc", "blue", "Blue Badge"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.genre+"_"+tt.color, func(t *testing.T) {
+			SetGenre(tt.genre)
+			name := GetKeycardDisplayName(tt.color)
+			if name != tt.expected {
+				t.Errorf("Expected '%s', got '%s'", tt.expected, name)
+			}
+		})
+	}
+}
+
+// TestGenreDoorTypes verifies genre-specific door types.
+func TestGenreDoorTypes(t *testing.T) {
+	tests := []struct {
+		genre    string
+		expected DoorType
+	}{
+		{"fantasy", TypePortcullis},
+		{"scifi", TypeSliding},
+		{"horror", TypeSwing},
+		{"cyberpunk", TypeShutter},
+		{"postapoc", TypeSwing},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.genre, func(t *testing.T) {
+			SetGenre(tt.genre)
+			doorType := GetGenreDoorType()
+			if doorType != tt.expected {
+				t.Errorf("Expected door type %d, got %d", tt.expected, doorType)
+			}
+		})
+	}
+}
+
+// TestLockedDoorRejection verifies locked door behavior in DoorSystem.
+func TestLockedDoorRejection(t *testing.T) {
+	ds := NewDoorSystem()
+	inv := NewKeycardInventory()
+	door := NewDoor("locked", 0, 0, TypeSwing, true, "blue")
+	ds.AddDoor(door)
+
+	// Try without keycard
+	success, msg := ds.TryOpen(door, inv)
+	if success {
+		t.Error("Expected failure without keycard")
+	}
+	if msg != "Need blue keycard" {
+		t.Errorf("Expected 'Need blue keycard', got '%s'", msg)
+	}
+
+	// Try with wrong keycard
+	inv.AddKeycard("red")
+	success, msg = ds.TryOpen(door, inv)
+	if success {
+		t.Error("Expected failure with wrong keycard")
+	}
+	if msg != "Need blue keycard" {
+		t.Errorf("Expected 'Need blue keycard', got '%s'", msg)
+	}
+
+	// Try with correct keycard
+	inv.AddKeycard("blue")
+	success, _ = ds.TryOpen(door, inv)
+	if !success {
+		t.Error("Expected success with correct keycard")
 	}
 }

@@ -15,6 +15,17 @@ const (
 	TypeMelee                        // Short-range melee attack
 )
 
+// AnimState represents weapon animation state.
+type AnimState int
+
+const (
+	AnimIdle   AnimState = iota // Weapon ready, idle bobbing
+	AnimRaise                   // Weapon being raised
+	AnimLower                   // Weapon being lowered
+	AnimFire                    // Weapon firing
+	AnimReload                  // Weapon reloading
+)
+
 // Weapon represents a player weapon.
 type Weapon struct {
 	Name        string
@@ -29,6 +40,31 @@ type Weapon struct {
 	Projectile  bool    // True if spawns projectile entity
 }
 
+// AnimFrame represents a single animation frame with procedural parameters.
+type AnimFrame struct {
+	OffsetX    float64 // Horizontal offset
+	OffsetY    float64 // Vertical offset
+	Scale      float64 // Size scale
+	Rotation   float64 // Rotation in radians
+	Brightness float64 // Brightness multiplier (0-1)
+}
+
+// Animation holds frames for a specific animation state.
+type Animation struct {
+	Frames        []AnimFrame
+	FrameDuration int // Frames per animation frame at 60 TPS
+	Loop          bool
+}
+
+// WeaponAnimator manages weapon animation state.
+type WeaponAnimator struct {
+	CurrentState AnimState
+	CurrentFrame int
+	FrameCounter int
+	Animations   map[AnimState]Animation
+	Seed         int64
+}
+
 // Arsenal manages the player's collection of weapons.
 type Arsenal struct {
 	Weapons         []Weapon
@@ -37,6 +73,7 @@ type Arsenal struct {
 	Clips           map[int]int    // Weapon slot -> ammo in clip
 	FramesSinceFire map[int]int    // Weapon slot -> cooldown counter
 	genre           string
+	Animator        *WeaponAnimator
 }
 
 // NewArsenal creates an empty arsenal with default weapons.
@@ -48,6 +85,7 @@ func NewArsenal() *Arsenal {
 		Clips:           make(map[int]int),
 		FramesSinceFire: make(map[int]int),
 		genre:           "fantasy",
+		Animator:        NewWeaponAnimator(42),
 	}
 	a.loadDefaultWeapons()
 	// Initialize cooldowns to allow immediate fire
@@ -111,6 +149,11 @@ func (a *Arsenal) Fire(posX, posY, dirX, dirY float64, raycast func(x, y, dx, dy
 
 	// Reset cooldown
 	a.FramesSinceFire[a.CurrentSlot] = 0
+
+	// Trigger fire animation
+	if a.Animator != nil {
+		a.Animator.SetState(AnimFire)
+	}
 
 	results := make([]HitResult, 0, weapon.RayCount)
 
@@ -180,6 +223,11 @@ func (a *Arsenal) Reload() bool {
 	a.Clips[a.CurrentSlot] += toReload
 	a.Ammo[weapon.AmmoType] -= toReload
 
+	// Trigger reload animation
+	if a.Animator != nil {
+		a.Animator.SetState(AnimReload)
+	}
+
 	return true
 }
 
@@ -188,14 +236,31 @@ func (a *Arsenal) SwitchTo(slot int) bool {
 	if slot < 0 || slot >= len(a.Weapons) {
 		return false
 	}
+
+	// Trigger lower animation for current weapon, then raise for new
+	if a.Animator != nil && slot != a.CurrentSlot {
+		a.Animator.SetState(AnimLower)
+	}
+
 	a.CurrentSlot = slot
+
+	// After switching, trigger raise animation
+	if a.Animator != nil {
+		a.Animator.SetState(AnimRaise)
+	}
+
 	return true
 }
 
-// Update increments frame counters for cooldown tracking.
+// Update increments frame counters for cooldown tracking and animations.
 func (a *Arsenal) Update() {
 	for i := range a.FramesSinceFire {
 		a.FramesSinceFire[i]++
+	}
+
+	// Update weapon animation
+	if a.Animator != nil {
+		a.Animator.UpdateAnimation()
 	}
 }
 
@@ -254,6 +319,172 @@ func (a *Arsenal) applyGenreNames() {
 		a.Weapons[5].Name = "Arcane Staff"
 		a.Weapons[6].Name = "Dagger"
 	}
+}
+
+// NewWeaponAnimator creates an animator with procedurally generated animations.
+func NewWeaponAnimator(seed int64) *WeaponAnimator {
+	wa := &WeaponAnimator{
+		CurrentState: AnimIdle,
+		CurrentFrame: 0,
+		FrameCounter: 0,
+		Animations:   make(map[AnimState]Animation),
+		Seed:         seed,
+	}
+	wa.generateAnimations()
+	return wa
+}
+
+// generateAnimations procedurally generates all animation frames from seed.
+func (wa *WeaponAnimator) generateAnimations() {
+	rng := rand.New(rand.NewSource(wa.Seed))
+
+	wa.Animations[AnimIdle] = wa.generateIdleAnimation(rng)
+	wa.Animations[AnimRaise] = wa.generateRaiseAnimation(rng)
+	wa.Animations[AnimLower] = wa.generateLowerAnimation(rng)
+	wa.Animations[AnimFire] = wa.generateFireAnimation(rng)
+	wa.Animations[AnimReload] = wa.generateReloadAnimation(rng)
+}
+
+// generateIdleAnimation creates idle bobbing animation.
+func (wa *WeaponAnimator) generateIdleAnimation(rng *rand.Rand) Animation {
+	frames := make([]AnimFrame, 30)
+	for i := range frames {
+		t := float64(i) / float64(len(frames))
+		bobY := math.Sin(t*2*math.Pi) * 0.02
+		bobX := math.Cos(t*2*math.Pi) * 0.01
+		frames[i] = AnimFrame{
+			OffsetX:    bobX,
+			OffsetY:    bobY,
+			Scale:      1.0,
+			Rotation:   0,
+			Brightness: 1.0,
+		}
+	}
+	return Animation{Frames: frames, FrameDuration: 2, Loop: true}
+}
+
+// generateRaiseAnimation creates weapon raise animation.
+func (wa *WeaponAnimator) generateRaiseAnimation(rng *rand.Rand) Animation {
+	frames := make([]AnimFrame, 8)
+	for i := range frames {
+		t := float64(i) / float64(len(frames)-1)
+		offsetY := (1.0 - t) * 0.5
+		scale := 0.5 + t*0.5
+		frames[i] = AnimFrame{
+			OffsetX:    0,
+			OffsetY:    offsetY,
+			Scale:      scale,
+			Rotation:   0,
+			Brightness: 0.6 + t*0.4,
+		}
+	}
+	return Animation{Frames: frames, FrameDuration: 2, Loop: false}
+}
+
+// generateLowerAnimation creates weapon lower animation.
+func (wa *WeaponAnimator) generateLowerAnimation(rng *rand.Rand) Animation {
+	frames := make([]AnimFrame, 8)
+	for i := range frames {
+		t := float64(i) / float64(len(frames)-1)
+		offsetY := t * 0.5
+		scale := 1.0 - t*0.5
+		frames[i] = AnimFrame{
+			OffsetX:    0,
+			OffsetY:    offsetY,
+			Scale:      scale,
+			Rotation:   0,
+			Brightness: 1.0 - t*0.4,
+		}
+	}
+	return Animation{Frames: frames, FrameDuration: 2, Loop: false}
+}
+
+// generateFireAnimation creates weapon fire animation.
+func (wa *WeaponAnimator) generateFireAnimation(rng *rand.Rand) Animation {
+	frames := make([]AnimFrame, 6)
+	for i := range frames {
+		recoil := 0.0
+		if i < 2 {
+			recoil = -0.1 * (1.0 - float64(i)/2.0)
+		}
+		flash := 0.0
+		if i < 2 {
+			flash = 0.3 * (1.0 - float64(i)/2.0)
+		}
+		frames[i] = AnimFrame{
+			OffsetX:    rng.Float64()*0.01 - 0.005,
+			OffsetY:    recoil,
+			Scale:      1.0,
+			Rotation:   (rng.Float64()*0.04 - 0.02),
+			Brightness: 1.0 + flash,
+		}
+	}
+	return Animation{Frames: frames, FrameDuration: 1, Loop: false}
+}
+
+// generateReloadAnimation creates weapon reload animation.
+func (wa *WeaponAnimator) generateReloadAnimation(rng *rand.Rand) Animation {
+	frames := make([]AnimFrame, 20)
+	for i := range frames {
+		t := float64(i) / float64(len(frames)-1)
+		offsetY := math.Sin(t*math.Pi) * 0.15
+		rotation := math.Sin(t*math.Pi) * 0.2
+		frames[i] = AnimFrame{
+			OffsetX:    0,
+			OffsetY:    offsetY,
+			Scale:      1.0,
+			Rotation:   rotation,
+			Brightness: 1.0,
+		}
+	}
+	return Animation{Frames: frames, FrameDuration: 2, Loop: false}
+}
+
+// SetState transitions to a new animation state.
+func (wa *WeaponAnimator) SetState(state AnimState) {
+	if wa.CurrentState == state {
+		return
+	}
+	wa.CurrentState = state
+	wa.CurrentFrame = 0
+	wa.FrameCounter = 0
+}
+
+// Update advances the animation state machine.
+func (wa *WeaponAnimator) UpdateAnimation() {
+	anim, ok := wa.Animations[wa.CurrentState]
+	if !ok {
+		return
+	}
+
+	wa.FrameCounter++
+	if wa.FrameCounter >= anim.FrameDuration {
+		wa.FrameCounter = 0
+		wa.CurrentFrame++
+
+		if wa.CurrentFrame >= len(anim.Frames) {
+			if anim.Loop {
+				wa.CurrentFrame = 0
+			} else {
+				wa.CurrentFrame = len(anim.Frames) - 1
+				if wa.CurrentState != AnimIdle {
+					wa.SetState(AnimIdle)
+				}
+			}
+		}
+	}
+}
+
+// GetCurrentFrame returns the current animation frame.
+func (wa *WeaponAnimator) GetCurrentFrame() AnimFrame {
+	anim, ok := wa.Animations[wa.CurrentState]
+	if !ok || len(anim.Frames) == 0 {
+		return AnimFrame{Scale: 1.0, Brightness: 1.0}
+	}
+	if wa.CurrentFrame >= len(anim.Frames) {
+		return anim.Frames[len(anim.Frames)-1]
+	}
+	return anim.Frames[wa.CurrentFrame]
 }
 
 // FireProjectile spawns a projectile entity for projectile weapons.

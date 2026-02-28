@@ -188,14 +188,17 @@ func TestGenerateSecretPlacement(t *testing.T) {
 
 func TestSetGenre(t *testing.T) {
 	tests := []struct {
-		name    string
-		genreID string
+		name          string
+		genreID       string
+		expectedWall  int
+		expectedFloor int
 	}{
-		{"fantasy", genre.Fantasy},
-		{"scifi", genre.SciFi},
-		{"horror", genre.Horror},
-		{"cyberpunk", genre.Cyberpunk},
-		{"postapoc", genre.PostApoc},
+		{"fantasy", genre.Fantasy, TileWallStone, TileFloorStone},
+		{"scifi", genre.SciFi, TileWallHull, TileFloorHull},
+		{"horror", genre.Horror, TileWallPlaster, TileFloorWood},
+		{"cyberpunk", genre.Cyberpunk, TileWallConcrete, TileFloorConcrete},
+		{"postapoc", genre.PostApoc, TileWallRust, TileFloorDirt},
+		{"unknown", "unknown", TileWall, TileFloor}, // Fallback to generic
 	}
 
 	for _, tt := range tests {
@@ -205,6 +208,57 @@ func TestSetGenre(t *testing.T) {
 			g.SetGenre(tt.genreID)
 			if g.genre != tt.genreID {
 				t.Errorf("genre = %s, want %s", g.genre, tt.genreID)
+			}
+			if g.wallTile != tt.expectedWall {
+				t.Errorf("wallTile = %d, want %d", g.wallTile, tt.expectedWall)
+			}
+			if g.floorTile != tt.expectedFloor {
+				t.Errorf("floorTile = %d, want %d", g.floorTile, tt.expectedFloor)
+			}
+		})
+	}
+}
+
+// TestGenreTileGeneration verifies generated maps use genre-specific tiles.
+func TestGenreTileGeneration(t *testing.T) {
+	tests := []struct {
+		name          string
+		genreID       string
+		expectedWall  int
+		expectedFloor int
+	}{
+		{"fantasy_tiles", genre.Fantasy, TileWallStone, TileFloorStone},
+		{"scifi_tiles", genre.SciFi, TileWallHull, TileFloorHull},
+		{"horror_tiles", genre.Horror, TileWallPlaster, TileFloorWood},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := rng.NewRNG(54321)
+			g := NewGenerator(32, 32, r)
+			g.SetGenre(tt.genreID)
+			_, tiles := g.Generate()
+
+			// Verify at least some tiles use genre-specific wall type
+			hasGenreWall := false
+			hasGenreFloor := false
+
+			for y := range tiles {
+				for x := range tiles[y] {
+					if tiles[y][x] == tt.expectedWall {
+						hasGenreWall = true
+					}
+					if tiles[y][x] == tt.expectedFloor {
+						hasGenreFloor = true
+					}
+				}
+			}
+
+			if !hasGenreWall {
+				t.Errorf("Generated map has no genre-specific wall tiles (expected %d)", tt.expectedWall)
+			}
+			if !hasGenreFloor {
+				t.Errorf("Generated map has no genre-specific floor tiles (expected %d)", tt.expectedFloor)
 			}
 		})
 	}

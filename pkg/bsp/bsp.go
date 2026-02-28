@@ -12,6 +12,20 @@ const (
 	TileFloor  = 2
 	TileDoor   = 3
 	TileSecret = 4
+
+	// Genre-specific wall tile variants (for texture selection)
+	TileWallStone    = 10 // Fantasy - stone walls
+	TileWallHull     = 11 // SciFi - metal hull
+	TileWallPlaster  = 12 // Horror - cracked plaster
+	TileWallConcrete = 13 // Cyberpunk - glass/concrete
+	TileWallRust     = 14 // PostApoc - rusted metal/rubble
+
+	// Genre-specific floor tile variants
+	TileFloorStone    = 20 // Fantasy - stone floor
+	TileFloorHull     = 21 // SciFi - metal grating
+	TileFloorWood     = 22 // Horror - wooden floor
+	TileFloorConcrete = 23 // Cyberpunk - polished concrete
+	TileFloorDirt     = 24 // PostApoc - dirt/debris
 )
 
 // Node represents a BSP tree node used during level generation.
@@ -61,8 +75,29 @@ func NewGenerator(width, height int, r *rng.RNG) *Generator {
 // SetGenre configures level generation parameters for a genre.
 func (g *Generator) SetGenre(genreID string) {
 	g.genre = genreID
-	// Genre-specific wall/floor tiles can be set here
-	// For now, all genres use the same tile constants
+
+	// Set genre-specific wall and floor tile types
+	switch genreID {
+	case genre.Fantasy:
+		g.wallTile = TileWallStone
+		g.floorTile = TileFloorStone
+	case genre.SciFi:
+		g.wallTile = TileWallHull
+		g.floorTile = TileFloorHull
+	case genre.Horror:
+		g.wallTile = TileWallPlaster
+		g.floorTile = TileFloorWood
+	case genre.Cyberpunk:
+		g.wallTile = TileWallConcrete
+		g.floorTile = TileFloorConcrete
+	case genre.PostApoc:
+		g.wallTile = TileWallRust
+		g.floorTile = TileFloorDirt
+	default:
+		// Fallback to generic tiles
+		g.wallTile = TileWall
+		g.floorTile = TileFloor
+	}
 }
 
 // Generate produces a BSP tree and tile map.
