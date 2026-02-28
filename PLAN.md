@@ -56,9 +56,10 @@
    - **Completed**: Implemented comprehensive integration test suite (`coop_integration_test.go`) covering: (1) full 4-player session with join/combat/respawn/objective completion, (2) party wipe and level restart, (3) player disconnect/reconnect, (4) concurrent actions for thread safety, (5) shared objective tracking, (6) sequential respawn chain, (7) genre configuration, (8) edge cases (session full, insufficient players, duplicate adds), and (9) combat system integration. All 9 test scenarios pass with 94.5% package coverage
 
 ### Deathmatch Mode (`pkg/network`)
-10. Implement free-for-all deathmatch
+10. [x] Implement free-for-all deathmatch (2026-02-28)
     - **Deliverable**: `FFAMatch` struct with configurable frag limit, time limit, instant respawn at random spawn points
     - **Dependencies**: Steps 1–2
+    - **Completed**: Implemented `FFAMatch` with player management (2-8 players), configurable frag/time limits, `OnPlayerKill()`/`OnPlayerSuicide()` for score tracking, `ProcessRespawns()` for 3-second respawn delay, deterministic spawn point generation using match seed, leaderboard sorting, win condition detection (frag limit or time limit), and comprehensive tests achieving 95.9% package coverage
 
 11. Implement team deathmatch
     - **Deliverable**: `TeamMatch` struct with team assignment, team-colored player indicators, team score tracking
