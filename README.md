@@ -68,6 +68,19 @@ Or run directly:
 go run .
 ```
 
+## Dedicated Server
+
+Run a dedicated multiplayer server:
+
+```sh
+go build -o violence-server ./cmd/server
+./violence-server -port 7777 -log-level info
+```
+
+Server flags:
+- `-port` — UDP port to listen on (default: 7777)
+- `-log-level` — Logging verbosity: debug, info, warn, error (default: info)
+
 ## Configuration
 
 Configuration is loaded from `config.toml` in the working directory or `$HOME/.violence/config.toml`.
