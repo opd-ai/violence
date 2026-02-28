@@ -155,9 +155,10 @@
     - **Dependencies**: Step 26
     - **Completed**: Implemented `Matchmaker` with player queue management (enqueue/dequeue), game mode support (co-op/FFA/TDM/territory), configurable min/max players per mode, player grouping by genre/region, automatic match creation when sufficient players available, server capacity checking, 60-second queue timeout with automatic cleanup, 2-second match processing interval, and comprehensive tests (17 test scenarios covering enqueue/dequeue, grouping, matching, timeouts, server capacity, and integration) achieving 93.9% package coverage
 
-29. Add integration tests for federation
+29. [x] Add integration tests for federation (2026-02-28)
     - **Deliverable**: Simulated multi-server federation with player lookup and matchmaking
     - **Dependencies**: Steps 26–28
+    - **Completed**: Implemented comprehensive integration test suite (`federation_integration_test.go`) with 5 test scenarios: (1) full multi-server federation test with 3 servers covering server query by region/genre/combined filters, player lookup across servers, cross-server player migration, matchmaking with FFA mode, server capacity filtering, and stale server cleanup, (2) matchmaking across all game modes (co-op/FFA/TDM/territory) with min player requirements, (3) concurrent server announcements testing hub stability with 10 simultaneous servers, (4) region-based matchmaking ensuring players match within their regions across 4 regions (US-East/West, EU-West, Asia-Pac). Added `SetInterval()` method to `ServerAnnouncer` and `SetCleanupInterval()`/`SetStaleTimeout()` methods to `FederationHub` for test configurability. All integration tests pass with 93.5% federation package coverage
 
 ### CI/CD — Full Production
 30. Create multi-platform build matrix

@@ -309,6 +309,20 @@ func (h *FederationHub) GetServerCount() int {
 	return len(h.servers)
 }
 
+// SetCleanupInterval updates the cleanup interval (primarily for testing).
+func (h *FederationHub) SetCleanupInterval(interval time.Duration) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.cleanupInterval = interval
+}
+
+// SetStaleTimeout updates the stale timeout (primarily for testing).
+func (h *FederationHub) SetStaleTimeout(timeout time.Duration) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.staleTimeout = timeout
+}
+
 // ServerAnnouncer sends periodic announcements to the federation hub.
 type ServerAnnouncer struct {
 	hubURL       string
@@ -330,6 +344,13 @@ func NewServerAnnouncer(hubURL string, announcement ServerAnnouncement) *ServerA
 		ctx:          ctx,
 		cancel:       cancel,
 	}
+}
+
+// SetInterval sets the announcement interval (primarily for testing).
+func (a *ServerAnnouncer) SetInterval(interval time.Duration) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.interval = interval
 }
 
 // Start begins announcing to the federation hub.
