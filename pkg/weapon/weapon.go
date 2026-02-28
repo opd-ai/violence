@@ -1,30 +1,294 @@
 // Package weapon implements the weapon and firing system.
 package weapon
 
+import (
+	"math"
+	"math/rand"
+)
+
+// WeaponType defines the weapon firing mechanic.
+type WeaponType int
+
+const (
+	TypeHitscan    WeaponType = iota // Instant ray-cast hit
+	TypeProjectile                   // In-world projectile simulation
+	TypeMelee                        // Short-range melee attack
+)
+
 // Weapon represents a player weapon.
 type Weapon struct {
-	Name     string
-	Damage   float64
-	FireRate float64
-	Ammo     string
+	Name        string
+	Type        WeaponType
+	Damage      float64
+	FireRate    float64 // Frames between shots (60 TPS)
+	AmmoType    string  // bullets, shells, cells, rockets
+	ClipSize    int
+	SpreadAngle float64 // Degrees; for shotgun multi-ray spread
+	RayCount    int     // Number of rays per shot (shotgun = 7, others = 1)
+	Range       float64 // Max distance; melee = 1.5, hitscan = 100
+	Projectile  bool    // True if spawns projectile entity
 }
 
 // Arsenal manages the player's collection of weapons.
 type Arsenal struct {
-	Weapons []Weapon
-	Current int
+	Weapons         []Weapon
+	CurrentSlot     int
+	Ammo            map[string]int // AmmoType -> count
+	Clips           map[int]int    // Weapon slot -> ammo in clip
+	FramesSinceFire map[int]int    // Weapon slot -> cooldown counter
+	genre           string
 }
 
-// NewArsenal creates an empty arsenal.
+// NewArsenal creates an empty arsenal with default weapons.
 func NewArsenal() *Arsenal {
-	return &Arsenal{}
+	a := &Arsenal{
+		Weapons:         make([]Weapon, 7),
+		CurrentSlot:     1,
+		Ammo:            make(map[string]int),
+		Clips:           make(map[int]int),
+		FramesSinceFire: make(map[int]int),
+		genre:           "fantasy",
+	}
+	a.loadDefaultWeapons()
+	// Initialize cooldowns to allow immediate fire
+	for i := range a.Weapons {
+		a.FramesSinceFire[i] = 1000
+	}
+	return a
+}
+
+// loadDefaultWeapons initializes the 7-weapon loadout.
+func (a *Arsenal) loadDefaultWeapons() {
+	a.Weapons[0] = Weapon{Name: "Fist", Type: TypeMelee, Damage: 10, FireRate: 20, Range: 1.2, RayCount: 1}
+	a.Weapons[1] = Weapon{Name: "Pistol", Type: TypeHitscan, Damage: 15, FireRate: 15, AmmoType: "bullets", ClipSize: 12, Range: 100, RayCount: 1}
+	a.Weapons[2] = Weapon{Name: "Shotgun", Type: TypeHitscan, Damage: 10, FireRate: 30, AmmoType: "shells", ClipSize: 8, SpreadAngle: 10, RayCount: 7, Range: 30}
+	a.Weapons[3] = Weapon{Name: "Chaingun", Type: TypeHitscan, Damage: 12, FireRate: 5, AmmoType: "bullets", ClipSize: 100, Range: 100, RayCount: 1}
+	a.Weapons[4] = Weapon{Name: "Rocket Launcher", Type: TypeProjectile, Damage: 100, FireRate: 45, AmmoType: "rockets", ClipSize: 5, Range: 200, RayCount: 1, Projectile: true}
+	a.Weapons[5] = Weapon{Name: "Plasma Gun", Type: TypeProjectile, Damage: 40, FireRate: 10, AmmoType: "cells", ClipSize: 40, Range: 150, RayCount: 1, Projectile: true}
+	a.Weapons[6] = Weapon{Name: "Knife", Type: TypeMelee, Damage: 25, FireRate: 18, Range: 1.5, RayCount: 1}
+
+	// Initialize ammo pools
+	a.Ammo["bullets"] = 50
+	a.Ammo["shells"] = 8
+	a.Ammo["cells"] = 40
+	a.Ammo["rockets"] = 5
+
+	// Initialize clips
+	for i := range a.Weapons {
+		a.Clips[i] = a.Weapons[i].ClipSize
+	}
+}
+
+// HitResult contains the result of a weapon firing.
+type HitResult struct {
+	Hit      bool
+	Distance float64
+	Damage   float64
+	HitX     float64
+	HitY     float64
+	EntityID uint64 // 0 if no entity hit, otherwise entity ID
 }
 
 // Fire discharges the current weapon.
-func (a *Arsenal) Fire() {}
+// Returns hit results for each ray cast (shotgun = 7, others = 1).
+// posX, posY: shooter position; dirX, dirY: aim direction normalized.
+// raycast: function that casts a ray and returns (hit, distance, hitX, hitY, entityID).
+func (a *Arsenal) Fire(posX, posY, dirX, dirY float64, raycast func(x, y, dx, dy, maxDist float64) (bool, float64, float64, float64, uint64)) []HitResult {
+	weapon := a.Weapons[a.CurrentSlot]
 
-// Reload reloads the current weapon.
-func (a *Arsenal) Reload() {}
+	// Check cooldown
+	if a.FramesSinceFire[a.CurrentSlot] < int(weapon.FireRate) {
+		return nil
+	}
 
-// SetGenre configures the weapon set for a genre.
-func SetGenre(genreID string) {}
+	// Check ammo for non-melee
+	if weapon.Type != TypeMelee {
+		if a.Clips[a.CurrentSlot] <= 0 {
+			return nil // Out of ammo
+		}
+		a.Clips[a.CurrentSlot]--
+	}
+
+	// Reset cooldown
+	a.FramesSinceFire[a.CurrentSlot] = 0
+
+	results := make([]HitResult, 0, weapon.RayCount)
+
+	for i := 0; i < weapon.RayCount; i++ {
+		// Calculate spread offset for shotgun
+		spreadOffset := 0.0
+		if weapon.RayCount > 1 {
+			// Distribute rays across spread angle
+			spreadOffset = weapon.SpreadAngle * (float64(i)/float64(weapon.RayCount-1) - 0.5) * math.Pi / 180.0
+		}
+
+		// Rotate direction by spread offset
+		cos := math.Cos(spreadOffset)
+		sin := math.Sin(spreadOffset)
+		rayDirX := dirX*cos - dirY*sin
+		rayDirY := dirX*sin + dirY*cos
+
+		// Cast ray
+		hit, dist, hitX, hitY, entityID := raycast(posX, posY, rayDirX, rayDirY, weapon.Range)
+
+		result := HitResult{
+			Hit:      hit,
+			Distance: dist,
+			HitX:     hitX,
+			HitY:     hitY,
+			EntityID: entityID,
+		}
+
+		if hit && dist <= weapon.Range {
+			result.Damage = weapon.Damage
+		}
+
+		results = append(results, result)
+	}
+
+	return results
+}
+
+// Reload reloads the current weapon from the ammo pool.
+func (a *Arsenal) Reload() bool {
+	weapon := a.Weapons[a.CurrentSlot]
+
+	// Melee weapons don't reload
+	if weapon.Type == TypeMelee {
+		return false
+	}
+
+	// Already full
+	if a.Clips[a.CurrentSlot] >= weapon.ClipSize {
+		return false
+	}
+
+	// Check ammo pool
+	available := a.Ammo[weapon.AmmoType]
+	if available <= 0 {
+		return false
+	}
+
+	// Calculate ammo needed
+	needed := weapon.ClipSize - a.Clips[a.CurrentSlot]
+	toReload := needed
+	if available < needed {
+		toReload = available
+	}
+
+	// Transfer ammo from pool to clip
+	a.Clips[a.CurrentSlot] += toReload
+	a.Ammo[weapon.AmmoType] -= toReload
+
+	return true
+}
+
+// SwitchTo changes the active weapon slot (0-6).
+func (a *Arsenal) SwitchTo(slot int) bool {
+	if slot < 0 || slot >= len(a.Weapons) {
+		return false
+	}
+	a.CurrentSlot = slot
+	return true
+}
+
+// Update increments frame counters for cooldown tracking.
+func (a *Arsenal) Update() {
+	for i := range a.FramesSinceFire {
+		a.FramesSinceFire[i]++
+	}
+}
+
+// GetCurrentWeapon returns the active weapon.
+func (a *Arsenal) GetCurrentWeapon() Weapon {
+	return a.Weapons[a.CurrentSlot]
+}
+
+// AddAmmo adds ammo to the pool.
+func (a *Arsenal) AddAmmo(ammoType string, amount int) {
+	a.Ammo[ammoType] += amount
+}
+
+// SetGenre configures weapon names and visuals for a genre.
+func (a *Arsenal) SetGenre(genreID string) {
+	a.genre = genreID
+	a.applyGenreNames()
+}
+
+// applyGenreNames remaps weapon names per genre.
+func (a *Arsenal) applyGenreNames() {
+	switch a.genre {
+	case "scifi":
+		a.Weapons[1].Name = "Blaster"
+		a.Weapons[2].Name = "Scatter Cannon"
+		a.Weapons[3].Name = "Pulse Rifle"
+		a.Weapons[4].Name = "Missile Launcher"
+		a.Weapons[5].Name = "Plasma Gun"
+		a.Weapons[6].Name = "Combat Knife"
+	case "horror":
+		a.Weapons[1].Name = "Revolver"
+		a.Weapons[2].Name = "Sawed-off Shotgun"
+		a.Weapons[3].Name = "Submachine Gun"
+		a.Weapons[4].Name = "Grenade Launcher"
+		a.Weapons[5].Name = "Flamethrower"
+		a.Weapons[6].Name = "Rusty Blade"
+	case "cyberpunk":
+		a.Weapons[1].Name = "Smart Pistol"
+		a.Weapons[2].Name = "Auto-Shotgun"
+		a.Weapons[3].Name = "Minigun"
+		a.Weapons[4].Name = "Rocket Pod"
+		a.Weapons[5].Name = "Energy Rifle"
+		a.Weapons[6].Name = "Mono-Blade"
+	case "postapoc":
+		a.Weapons[1].Name = "Makeshift Pistol"
+		a.Weapons[2].Name = "Pipe Shotgun"
+		a.Weapons[3].Name = "Scrap Rifle"
+		a.Weapons[4].Name = "Improvised Launcher"
+		a.Weapons[5].Name = "Jury-Rigged Laser"
+		a.Weapons[6].Name = "Sharpened Rebar"
+	default: // fantasy
+		a.Weapons[1].Name = "Crossbow"
+		a.Weapons[2].Name = "Blunderbuss"
+		a.Weapons[3].Name = "Repeating Crossbow"
+		a.Weapons[4].Name = "Explosive Orb"
+		a.Weapons[5].Name = "Arcane Staff"
+		a.Weapons[6].Name = "Dagger"
+	}
+}
+
+// FireProjectile spawns a projectile entity for projectile weapons.
+// Returns projectile initial velocity and true if projectile spawned.
+func (a *Arsenal) FireProjectile(posX, posY, dirX, dirY float64, rng *rand.Rand) (velX, velY float64, spawned bool) {
+	weapon := a.Weapons[a.CurrentSlot]
+
+	if weapon.Type != TypeProjectile {
+		return 0, 0, false
+	}
+
+	// Check cooldown
+	if a.FramesSinceFire[a.CurrentSlot] < int(weapon.FireRate) {
+		return 0, 0, false
+	}
+
+	// Check ammo
+	if a.Clips[a.CurrentSlot] <= 0 {
+		return 0, 0, false
+	}
+
+	a.Clips[a.CurrentSlot]--
+	a.FramesSinceFire[a.CurrentSlot] = 0
+
+	// Projectile velocity based on weapon
+	speed := 0.3 // units per frame at 60 TPS
+	if weapon.Name == "Rocket Launcher" || weapon.Name == "Missile Launcher" || weapon.Name == "Improvised Launcher" {
+		speed = 0.25
+	}
+
+	return dirX * speed, dirY * speed, true
+}
+
+// SetGenre configures the weapon system for a genre (global).
+func SetGenre(genreID string) {
+	// Global genre setting would affect default weapon templates
+	// For now, genre is applied per-arsenal instance
+}

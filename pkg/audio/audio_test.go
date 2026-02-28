@@ -423,3 +423,406 @@ func BenchmarkCalculatePan(b *testing.B) {
 		engine.calculatePan(float64(i%20) - 10.0)
 	}
 }
+
+func TestProceduralMusicGeneration(t *testing.T) {
+	tests := []struct {
+		name    string
+		track   string
+		layer   int
+		genreID string
+		minSize int
+	}{
+		{"fantasy base layer", "combat", 0, "fantasy", 1000},
+		{"scifi layer 1", "ambient", 1, "scifi", 1000},
+		{"horror layer 2", "boss", 2, "horror", 1000},
+		{"cyberpunk layer 3", "stealth", 3, "cyberpunk", 1000},
+		{"postapoc base", "explore", 0, "postapoc", 1000},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			engine := NewEngine()
+			engine.SetGenre(tt.genreID)
+
+			data := engine.getMusicData(tt.track, tt.layer)
+			if data == nil {
+				t.Fatal("getMusicData returned nil")
+			}
+			if len(data) < tt.minSize {
+				t.Errorf("music data too small: got %d bytes, want >= %d", len(data), tt.minSize)
+			}
+
+			// Verify WAV header
+			if len(data) < 44 {
+				t.Fatal("data too small for WAV header")
+			}
+			if string(data[0:4]) != "RIFF" {
+				t.Error("missing RIFF header")
+			}
+			if string(data[8:12]) != "WAVE" {
+				t.Error("missing WAVE header")
+			}
+		})
+	}
+}
+
+func TestProceduralMusicDeterminism(t *testing.T) {
+	engine := NewEngine()
+	engine.SetGenre("fantasy")
+
+	data1 := engine.getMusicData("combat", 0)
+	data2 := engine.getMusicData("combat", 0)
+
+	if len(data1) != len(data2) {
+		t.Errorf("music data length mismatch: %d vs %d", len(data1), len(data2))
+	}
+
+	if len(data1) > 0 && len(data2) > 0 {
+		match := true
+		for i := 0; i < len(data1) && i < len(data2); i++ {
+			if data1[i] != data2[i] {
+				match = false
+				break
+			}
+		}
+		if !match {
+			t.Error("music data not deterministic for same input")
+		}
+	}
+}
+
+func TestProceduralMusicGenreVariety(t *testing.T) {
+	genres := []string{"fantasy", "scifi", "horror", "cyberpunk", "postapoc"}
+	results := make(map[string][]byte)
+
+	for _, genre := range genres {
+		engine := NewEngine()
+		engine.SetGenre(genre)
+		results[genre] = engine.getMusicData("test", 0)
+	}
+
+	// Verify different genres produce different output
+	foundDifferences := 0
+	for i, g1 := range genres {
+		for j, g2 := range genres {
+			if i >= j {
+				continue
+			}
+
+			d1 := results[g1]
+			d2 := results[g2]
+
+			if len(d1) == 0 || len(d2) == 0 {
+				continue
+			}
+
+			// Compare PCM data starting after WAV header
+			// Skip first 1000 bytes to avoid header
+			// Check last 80% of file for differences
+			start := 1000
+			maxLen := len(d1)
+			if len(d2) < maxLen {
+				maxLen = len(d2)
+			}
+
+			if maxLen <= start {
+				t.Errorf("music files too small: %d bytes", maxLen)
+				continue
+			}
+
+			// Count differences
+			diffCount := 0
+			checkLen := maxLen - start
+			for i := start; i < maxLen; i++ {
+				if d1[i] != d2[i] {
+					diffCount++
+				}
+			}
+
+			// At least 5% of samples should be different between genres
+			diffRatio := float64(diffCount) / float64(checkLen)
+			if diffRatio > 0.05 {
+				foundDifferences++
+			} else {
+				t.Logf("genres %s and %s have only %.2f%% differences", g1, g2, diffRatio*100)
+			}
+		}
+	}
+
+	// We should find differences in at least some genre pairs
+	if foundDifferences == 0 {
+		t.Error("no significant differences found between any genre pairs")
+	}
+}
+
+func TestProceduralSFXGeneration(t *testing.T) {
+	tests := []struct {
+		name    string
+		sfxName string
+		minSize int
+	}{
+		{"gunshot", "gunshot", 1000},
+		{"footstep", "footstep", 1000},
+		{"door open", "door_open", 1000},
+		{"explosion", "explosion", 1000},
+		{"pickup item", "pickup_item", 1000},
+		{"pain sound", "pain", 1000},
+		{"reload", "reload", 1000},
+		{"pistol fire", "pistol_fire", 1000},
+		{"walk left", "walk_left", 1000},
+		{"unknown sfx", "unknown_sfx", 1000},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			engine := NewEngine()
+			data := engine.getSFXData(tt.sfxName)
+
+			if data == nil {
+				t.Fatal("getSFXData returned nil")
+			}
+			if len(data) < tt.minSize {
+				t.Errorf("SFX data too small: got %d bytes, want >= %d", len(data), tt.minSize)
+			}
+
+			// Verify WAV header
+			if len(data) < 44 {
+				t.Fatal("data too small for WAV header")
+			}
+			if string(data[0:4]) != "RIFF" {
+				t.Error("missing RIFF header")
+			}
+			if string(data[8:12]) != "WAVE" {
+				t.Error("missing WAVE header")
+			}
+		})
+	}
+}
+
+func TestProceduralSFXDeterminism(t *testing.T) {
+	engine := NewEngine()
+
+	sfxNames := []string{"gunshot", "footstep", "door_open", "explosion"}
+
+	for _, name := range sfxNames {
+		t.Run(name, func(t *testing.T) {
+			data1 := engine.getSFXData(name)
+			data2 := engine.getSFXData(name)
+
+			if len(data1) != len(data2) {
+				t.Errorf("SFX data length mismatch: %d vs %d", len(data1), len(data2))
+			}
+
+			if len(data1) > 0 && len(data2) > 0 {
+				match := true
+				for i := 0; i < len(data1) && i < len(data2); i++ {
+					if data1[i] != data2[i] {
+						match = false
+						break
+					}
+				}
+				if !match {
+					t.Errorf("SFX data not deterministic for %s", name)
+				}
+			}
+		})
+	}
+}
+
+func TestProceduralSFXVariety(t *testing.T) {
+	engine := NewEngine()
+	sfxNames := []string{"gunshot", "footstep", "door_open", "explosion", "pickup"}
+
+	results := make(map[string][]byte)
+	for _, name := range sfxNames {
+		results[name] = engine.getSFXData(name)
+	}
+
+	// Verify different SFX produce different output
+	for i, name1 := range sfxNames {
+		for j, name2 := range sfxNames {
+			if i >= j {
+				continue
+			}
+
+			d1 := results[name1]
+			d2 := results[name2]
+
+			if len(d1) == 0 || len(d2) == 0 {
+				continue
+			}
+
+			// Compare a sample of the data
+			sampleStart := 50
+			sampleEnd := 200
+			minLen := len(d1)
+			if len(d2) < minLen {
+				minLen = len(d2)
+			}
+			if minLen < sampleEnd {
+				sampleEnd = minLen
+			}
+			if sampleStart >= sampleEnd {
+				continue
+			}
+
+			identical := true
+			for i := sampleStart; i < sampleEnd; i++ {
+				if d1[i] != d2[i] {
+					identical = false
+					break
+				}
+			}
+
+			if identical {
+				t.Errorf("SFX %s and %s produced identical data", name1, name2)
+			}
+		}
+	}
+}
+
+func TestHashString(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"empty", ""},
+		{"simple", "test"},
+		{"combat", "combat"},
+		{"gunshot", "gunshot"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h1 := hashString(tt.input)
+			h2 := hashString(tt.input)
+
+			if h1 != h2 {
+				t.Error("hashString not deterministic")
+			}
+
+			// Different inputs should produce different hashes
+			if tt.input != "" {
+				diff := hashString(tt.input + "x")
+				if diff == h1 {
+					t.Error("different inputs produced same hash")
+				}
+			}
+		})
+	}
+}
+
+func TestMidiToFreq(t *testing.T) {
+	tests := []struct {
+		midi int
+		freq float64
+	}{
+		{69, 440.0},  // A4
+		{60, 261.63}, // C4 (approximate)
+		{57, 220.0},  // A3
+	}
+
+	for _, tt := range tests {
+		t.Run(string(rune(tt.midi)), func(t *testing.T) {
+			freq := midiToFreq(tt.midi)
+			tolerance := 0.5
+			if math.Abs(freq-tt.freq) > tolerance {
+				t.Errorf("midiToFreq(%d) = %.2f, want %.2f", tt.midi, freq, tt.freq)
+			}
+		})
+	}
+}
+
+func TestADSREnvelope(t *testing.T) {
+	totalSamples := 1000
+
+	// Test attack phase
+	val := adsrEnvelope(10, totalSamples, 0.1, 0.1, 0.7, 0.2)
+	if val <= 0 || val > 1 {
+		t.Errorf("attack phase value out of range: %f", val)
+	}
+
+	// Test sustain phase
+	val = adsrEnvelope(500, totalSamples, 0.1, 0.1, 0.7, 0.2)
+	if math.Abs(val-0.7) > 0.05 {
+		t.Errorf("sustain phase value = %f, want 0.7", val)
+	}
+
+	// Test release phase
+	val = adsrEnvelope(950, totalSamples, 0.1, 0.1, 0.7, 0.2)
+	if val <= 0 || val >= 0.7 {
+		t.Errorf("release phase value out of range: %f", val)
+	}
+}
+
+func TestContainsAny(t *testing.T) {
+	tests := []struct {
+		name     string
+		str      string
+		substrs  []string
+		expected bool
+	}{
+		{"match single", "gunshot", []string{"gun", "fire"}, true},
+		{"match multiple", "pistol_fire", []string{"gun", "pistol"}, true},
+		{"no match", "footstep", []string{"gun", "door"}, false},
+		{"exact match", "door", []string{"door"}, true},
+		{"partial match", "door_open", []string{"door", "close"}, true},
+		{"empty string", "", []string{"test"}, false},
+		{"empty substrs", "test", []string{}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := containsAny(tt.str, tt.substrs...)
+			if result != tt.expected {
+				t.Errorf("containsAny(%q, %v) = %v, want %v", tt.str, tt.substrs, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestLocalRNG(t *testing.T) {
+	seed := uint64(12345)
+	rng1 := newLocalRNG(seed)
+	rng2 := newLocalRNG(seed)
+
+	// Test determinism
+	for i := 0; i < 10; i++ {
+		v1 := rng1.Float64()
+		v2 := rng2.Float64()
+
+		if v1 != v2 {
+			t.Errorf("RNG not deterministic at iteration %d", i)
+		}
+
+		if v1 < 0 || v1 >= 1 {
+			t.Errorf("Float64() out of range: %f", v1)
+		}
+	}
+
+	// Test Intn
+	rng3 := newLocalRNG(seed)
+	for i := 0; i < 10; i++ {
+		v := rng3.Intn(100)
+		if v < 0 || v >= 100 {
+			t.Errorf("Intn(100) out of range: %d", v)
+		}
+	}
+}
+
+func BenchmarkGenerateMusic(b *testing.B) {
+	seed := uint64(12345)
+	samples := sampleRate * 2
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		generateMusic(seed, samples, "fantasy", 0)
+	}
+}
+
+func BenchmarkGenerateSFX(b *testing.B) {
+	seed := uint64(12345)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		generateSFX(seed, "gunshot")
+	}
+}
