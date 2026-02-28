@@ -176,13 +176,15 @@
     - **Dependencies**: Step 1
     - **Completed**: Implemented dedicated server command in `cmd/server/main.go` with port and log-level flags, multi-stage Dockerfile using `golang:1.24-alpine` builder and `gcr.io/distroless/static-debian12` runtime (15-20MB final image), `.dockerignore` for optimized builds, comprehensive test suite (10 test scenarios) for server lifecycle/connections/commands/shutdown/edge cases, `GetAddr()` method added to GameServer for test infrastructure, documentation in `docs/DOCKER_SERVER.md` covering build/deployment/monitoring/K8s/GHCR/security best practices. All tests pass with 96.7% network package coverage
 
-33. Implement binary signing
+33. [x] Implement binary signing (2026-02-28)
     - **Deliverable**: GPG signing for Linux/Windows; notarization workflow for macOS
     - **Dependencies**: Step 30
+    - **Completed**: Added GPG binary signing steps to `build.yml` for Linux (amd64/arm64) and Windows (amd64) with `--detach-sign --armor` producing `.asc` signature files, SHA256 checksum generation (`.sha256` files), macOS notarization via `codesign` + `notarytool` with Apple Developer certificate import, tag-only signing (`startsWith(github.ref, 'refs/tags/v')`), secrets for `GPG_PRIVATE_KEY`, `GPG_PASSPHRASE`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`, `APPLE_CERT_BASE64`, `APPLE_CERT_PASSWORD`, added `workflow_call` trigger with optional secrets for reusable workflow support. 7 build tests pass including 2 new signing tests
 
-34. Implement release automation
+34. [x] Implement release automation (2026-02-28)
     - **Deliverable**: Git tag triggers draft release with all platform artifacts uploaded
     - **Dependencies**: Steps 30–33
+    - **Completed**: Created `.github/workflows/release.yml` triggered by `v*` tags, calls `build.yml` as reusable workflow with `secrets: inherit`, downloads all build artifacts, collects platform binaries + signatures + checksums into release directory, generates combined `CHECKSUMS-SHA256.txt`, auto-generates release notes from git log between tags with platform download table and verification instructions, creates draft release via `softprops/action-gh-release@v2` with all assets. 2 new tests validate workflow structure, tag trigger, draft creation, artifact collection, and secrets inheritance
 
 ### Documentation Suite
 35. Create CHANGELOG.md with semver format
