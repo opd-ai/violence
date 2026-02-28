@@ -189,13 +189,6 @@ func TestGenerator_UnknownGenre(t *testing.T) {
 	}
 }
 
-func TestSetGenre(t *testing.T) {
-	// Should not panic
-	SetGenre("fantasy")
-	SetGenre("scifi")
-	SetGenre("")
-}
-
 func TestHashString(t *testing.T) {
 	// Same input produces same hash
 	h1 := hashString("test")

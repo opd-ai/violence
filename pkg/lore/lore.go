@@ -298,9 +298,6 @@ func hashString(s string) int64 {
 	return hash
 }
 
-// SetGenre configures lore content for a genre.
-func SetGenre(genreID string) {}
-
 // GenerateLoreText creates procedural narrative text based on genre and context.
 func (g *Generator) GenerateLoreText(seed int64, context ContextType) string {
 	localRng := rand.New(rand.NewSource(seed))

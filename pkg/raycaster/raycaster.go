@@ -437,6 +437,3 @@ func (r *Raycaster) SetGenre(genreID string) {
 		r.FogDensity = 0.05
 	}
 }
-
-// Package-level SetGenre for compatibility.
-func SetGenre(genreID string) {}

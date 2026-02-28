@@ -230,13 +230,6 @@ func TestChat_EncryptLongMessage(t *testing.T) {
 	}
 }
 
-func TestSetGenre(t *testing.T) {
-	// Should not panic
-	SetGenre("fantasy")
-	SetGenre("scifi")
-	SetGenre("")
-}
-
 func TestFilterProfanity_Disabled(t *testing.T) {
 	tests := []struct {
 		name     string

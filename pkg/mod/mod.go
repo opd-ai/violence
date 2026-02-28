@@ -210,7 +210,3 @@ func (l *Loader) UnloadPlugin(name string) error {
 	defer l.mu.Unlock()
 	return l.pluginManager.UnloadPlugin(name)
 }
-
-// SetGenre configures the mod system for a genre.
-// This triggers the HookTypeGenreSet hook for all registered plugins.
-func SetGenre(genreID string) {}

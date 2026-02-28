@@ -217,8 +217,3 @@ func DeleteSlot(slot int) error {
 
 	return nil
 }
-
-// SetGenre configures the save system for a genre.
-func SetGenre(genreID string) {
-	// Genre-specific save behavior can be configured here if needed
-}

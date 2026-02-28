@@ -126,28 +126,6 @@ func TestMultipleGenres(t *testing.T) {
 	}
 }
 
-// TestSetGenre verifies SetGenre function exists and doesn't panic.
-func TestSetGenre(t *testing.T) {
-	tests := []struct {
-		name    string
-		genreID string
-	}{
-		{"fantasy", Fantasy},
-		{"scifi", SciFi},
-		{"horror", Horror},
-		{"cyberpunk", Cyberpunk},
-		{"postapoc", PostApoc},
-		{"unknown", "unknown"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Should not panic
-			SetGenre(tt.genreID)
-		})
-	}
-}
-
 // TestGenreConstants verifies genre constant values.
 func TestGenreConstants(t *testing.T) {
 	tests := []struct {

@@ -337,13 +337,6 @@ func TestLoader_SetGetModsDir(t *testing.T) {
 	}
 }
 
-func TestSetGenre(t *testing.T) {
-	// Should not panic
-	SetGenre("fantasy")
-	SetGenre("scifi")
-	SetGenre("")
-}
-
 func TestLoader_PluginIntegration(t *testing.T) {
 	t.Run("PluginManagerAccess", func(t *testing.T) {
 		loader := NewLoader()

@@ -555,17 +555,6 @@ func TestCrossPlatformPath(t *testing.T) {
 	t.Logf("Cross-platform slot path: %s", slotPath)
 }
 
-func TestSetGenre(t *testing.T) {
-	// SetGenre currently does nothing but should not panic
-	genres := []string{"fantasy", "scifi", "horror", "cyberpunk", "postapoc"}
-	for _, genre := range genres {
-		t.Run(genre, func(t *testing.T) {
-			SetGenre(genre)
-			// Should not panic
-		})
-	}
-}
-
 func BenchmarkSave(b *testing.B) {
 	tempDir, err := os.MkdirTemp("", "violence_save_bench_*")
 	if err != nil {

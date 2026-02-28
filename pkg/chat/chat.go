@@ -158,9 +158,6 @@ func (c *Chat) Decrypt(ciphertext string) (string, error) {
 	return string(plaintext), nil
 }
 
-// SetGenre configures the chat system for a genre.
-func SetGenre(genreID string) {}
-
 // profanityWords contains commonly filtered words.
 // Note: This is a minimal list. Production would use localized word lists.
 var profanityWords = []string{

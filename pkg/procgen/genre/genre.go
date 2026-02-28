@@ -35,6 +35,3 @@ func (r *Registry) Get(id string) (Genre, bool) {
 	g, ok := r.genres[id]
 	return g, ok
 }
-
-// SetGenre selects the active genre by ID.
-func SetGenre(genreID string) {}
