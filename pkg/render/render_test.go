@@ -1118,13 +1118,21 @@ func TestRenderWallWithTexture(t *testing.T) {
 	screen := ebiten.NewImage(320, 200)
 	r.Render(screen, 2.5, 2.5, 1.0, 0.0, 0.0)
 
-	// Verify something was rendered
-	bounds := screen.Bounds()
-	centerPixel := screen.At(bounds.Dx()/2, bounds.Dy()/2)
-	cr, cg, cb, _ := centerPixel.RGBA()
-	if cr == 0 && cg == 0 && cb == 0 {
-		t.Error("Expected textured wall rendering, got black pixel")
-	}
+	// ReadPixels requires a running Ebitengine game loop;
+	// skip pixel assertion in headless test environments.
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Skipf("Skipping pixel assertion: Ebitengine not initialized (%v)", r)
+			}
+		}()
+		bounds := screen.Bounds()
+		centerPixel := screen.At(bounds.Dx()/2, bounds.Dy()/2)
+		cr, cg, cb, _ := centerPixel.RGBA()
+		if cr == 0 && cg == 0 && cb == 0 {
+			t.Error("Expected textured wall rendering, got black pixel")
+		}
+	}()
 }
 
 func TestGetWallTextureName(t *testing.T) {

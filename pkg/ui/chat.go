@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"image/color"
+	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text"
@@ -25,6 +26,7 @@ type ChatMessage struct {
 
 // ChatOverlay displays in-game chat UI overlay.
 type ChatOverlay struct {
+	mu             sync.Mutex
 	Visible        bool
 	Messages       []ChatMessage
 	InputBuffer    string
@@ -77,8 +79,11 @@ func (co *ChatOverlay) IsVisible() bool {
 	return co.Visible
 }
 
-// AddMessage adds a message to the chat history.
+// AddMessage adds a message to the chat history. Safe for concurrent use.
 func (co *ChatOverlay) AddMessage(sender, content string, timestamp int64) {
+	co.mu.Lock()
+	defer co.mu.Unlock()
+
 	msg := ChatMessage{
 		Sender:  sender,
 		Content: content,
