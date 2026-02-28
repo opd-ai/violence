@@ -203,3 +203,31 @@ func TestGetAmmo(t *testing.T) {
 		})
 	}
 }
+
+func TestSetAmmo(t *testing.T) {
+	tests := []struct {
+		name     string
+		ammoType string
+		setValue int
+		expected int
+	}{
+		{"set_bullets", Bullets, 100, 100},
+		{"set_shells", Shells, 50, 50},
+		{"set_zero", Rockets, 0, 0},
+		{"overwrite_existing", Cells, 200, 200},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pool := NewPool()
+			if tt.name == "overwrite_existing" {
+				pool.Add(tt.ammoType, 999) // Add initial value
+			}
+			pool.Set(tt.ammoType, tt.setValue)
+			got := pool.Get(tt.ammoType)
+			if got != tt.expected {
+				t.Errorf("After Set(%d), Get() = %d, want %d", tt.setValue, got, tt.expected)
+			}
+		})
+	}
+}

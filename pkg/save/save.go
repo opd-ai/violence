@@ -22,13 +22,16 @@ var (
 
 // GameState represents the complete serializable game state.
 type GameState struct {
-	Version   string    `json:"version"`
-	Seed      int64     `json:"seed"`
-	Timestamp time.Time `json:"timestamp"`
-	Player    Player    `json:"player"`
-	Map       Map       `json:"map"`
-	Inventory Inventory `json:"inventory"`
-	Genre     string    `json:"genre"`
+	Version     string           `json:"version"`
+	Seed        int64            `json:"seed"`
+	Timestamp   time.Time        `json:"timestamp"`
+	Player      Player           `json:"player"`
+	Map         Map              `json:"map"`
+	Inventory   Inventory        `json:"inventory"`
+	Genre       string           `json:"genre"`
+	Progression ProgressionState `json:"progression"`
+	Keycards    map[string]bool  `json:"keycards"`
+	AmmoPool    map[string]int   `json:"ammo_pool"`
 }
 
 // Player holds player state.
@@ -60,6 +63,12 @@ type Item struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 	Qty  int    `json:"qty"`
+}
+
+// ProgressionState holds player progression data.
+type ProgressionState struct {
+	Level int `json:"level"`
+	XP    int `json:"xp"`
 }
 
 // Slot represents a save-game slot with metadata.

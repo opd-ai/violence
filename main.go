@@ -16,6 +16,7 @@ import (
 	"github.com/opd-ai/violence/pkg/class"
 	"github.com/opd-ai/violence/pkg/combat"
 	"github.com/opd-ai/violence/pkg/config"
+	"github.com/opd-ai/violence/pkg/destruct"
 	"github.com/opd-ai/violence/pkg/door"
 	"github.com/opd-ai/violence/pkg/engine"
 	"github.com/opd-ai/violence/pkg/input"
@@ -27,6 +28,7 @@ import (
 	"github.com/opd-ai/violence/pkg/render"
 	"github.com/opd-ai/violence/pkg/rng"
 	"github.com/opd-ai/violence/pkg/save"
+	"github.com/opd-ai/violence/pkg/squad"
 	"github.com/opd-ai/violence/pkg/status"
 	"github.com/opd-ai/violence/pkg/texture"
 	"github.com/opd-ai/violence/pkg/tutorial"
@@ -84,6 +86,10 @@ type Game struct {
 	postProcessor   *render.PostProcessor
 	currentBSPTree  *bsp.Node
 	animationTicker int
+
+	// v4.0 systems
+	destructibleSystem *destruct.System
+	squadCompanions    *squad.Squad
 }
 
 // NewGame creates and initializes a new game instance.
@@ -134,6 +140,9 @@ func NewGame() *Game {
 		particleSystem:  particle.NewParticleSystem(1024, int64(seed)),
 		postProcessor:   render.NewPostProcessor(config.C.InternalWidth, config.C.InternalHeight, int64(seed)),
 		animationTicker: 0,
+		// v4.0 systems
+		destructibleSystem: destruct.NewSystem(),
+		squadCompanions:    squad.NewSquad(3), // Max 3 squad members
 	}
 
 	// Initialize BSP generator
@@ -268,6 +277,43 @@ func (g *Game) startNewGame() {
 		g.aiAgents = append(g.aiAgents, agent)
 	}
 
+	// Spawn destructible objects (barrels, crates)
+	g.destructibleSystem = destruct.NewSystem()
+	destruct.SetGenre(g.genreID)
+	// Spawn some barrels and crates in the level
+	for i := 0; i < 5; i++ {
+		// Explosive barrels
+		barrel := destruct.NewDestructibleObject(
+			"barrel_"+string(rune(i+'0')),
+			"barrel",
+			50.0, // health
+			float64(15+i*4),
+			float64(8+i*2),
+			true, // explosive
+		)
+		barrel.AddDropItem("ammo_shells")
+		g.destructibleSystem.Add(&barrel.Destructible)
+
+		// Non-explosive crates
+		crate := destruct.NewDestructibleObject(
+			"crate_"+string(rune(i+'0')),
+			"crate",
+			30.0, // health
+			float64(12+i*3),
+			float64(12+i*3),
+			false, // not explosive
+		)
+		crate.AddDropItem("health_small")
+		g.destructibleSystem.Add(&crate.Destructible)
+	}
+
+	// Initialize squad companions
+	g.squadCompanions = squad.NewSquad(3)
+	squad.SetGenre(g.genreID)
+	// Spawn 2 squad companions near player
+	g.squadCompanions.AddMember("companion_1", "grunt", "assault_rifle", g.camera.X-2, g.camera.Y+1, g.seed)
+	g.squadCompanions.AddMember("companion_2", "medic", "pistol", g.camera.X-2, g.camera.Y-1, g.seed)
+
 	// Play music
 	g.audioEngine.PlayMusic("theme", 0.5)
 
@@ -343,6 +389,27 @@ func (g *Game) loadGame(slot int) {
 	g.hud.Health = state.Player.Health
 	g.hud.Armor = state.Player.Armor
 	g.hud.Ammo = state.Player.Ammo
+
+	// Restore progression
+	if g.progression != nil {
+		g.progression.Level = state.Progression.Level
+		g.progression.XP = state.Progression.XP
+	}
+
+	// Restore keycards
+	if state.Keycards != nil {
+		g.keycards = state.Keycards
+	} else {
+		g.keycards = make(map[string]bool)
+	}
+
+	// Restore ammo pool
+	if state.AmmoPool != nil && g.ammoPool != nil {
+		// Clear current ammo and restore from save
+		for ammoType, amount := range state.AmmoPool {
+			g.ammoPool.Set(ammoType, amount)
+		}
+	}
 
 	// Set genre for all systems
 	g.world.SetGenre(g.genreID)
@@ -431,6 +498,39 @@ func (g *Game) updatePlaying() error {
 					}
 				}
 
+				// Check for destructible hits (simple raycast)
+				if hitResults == nil || len(hitResults) == 0 {
+					// No enemy hit, check destructibles
+					allDestructibles := g.destructibleSystem.GetAll()
+					for _, obj := range allDestructibles {
+						if obj.IsDestroyed() {
+							continue
+						}
+						// Check if ray hits this object (simplified sphere collision)
+						objDist := (obj.X-g.camera.X)*(obj.X-g.camera.X) + (obj.Y-g.camera.Y)*(obj.Y-g.camera.Y)
+						if objDist < 100 { // Max range
+							// Check if object is in ray direction
+							toObjX := obj.X - g.camera.X
+							toObjY := obj.Y - g.camera.Y
+							dot := toObjX*g.camera.DirX + toObjY*g.camera.DirY
+							if dot > 0 { // Object is in front
+								// Apply damage
+								destroyed := obj.Damage(currentWeapon.Damage)
+								if destroyed {
+									// Spawn particles for destruction
+									if g.particleSystem != nil {
+										debrisColor := color.RGBA{R: 100, G: 80, B: 60, A: 255}
+										g.particleSystem.SpawnBurst(obj.X, obj.Y, 0, 15, 8.0, 1.0, 1.5, 1.0, debrisColor)
+									}
+									// Play destruction sound
+									g.audioEngine.PlaySFX("barrel_explode", obj.X, obj.Y)
+								}
+								break // Only hit one object
+							}
+						}
+					}
+				}
+
 				// Play weapon sound
 				g.audioEngine.PlaySFX("weapon_fire", g.camera.X, g.camera.Y)
 			}
@@ -488,6 +588,12 @@ func (g *Game) updatePlaying() error {
 
 	// Update status effects
 	g.statusReg.Tick()
+
+	// Update squad companions
+	if g.squadCompanions != nil {
+		// Update squad AI with player as leader
+		g.squadCompanions.Update(g.camera.X, g.camera.Y, g.currentMap, g.camera.X, g.camera.Y, g.seed)
+	}
 
 	// Progression updates happen automatically
 	// TODO: Add Level and XP to HUD display
@@ -701,6 +807,15 @@ func (g *Game) handlePauseAction(action string) {
 
 // saveGame saves the current game state.
 func (g *Game) saveGame(slot int) {
+	// Collect ammo pool state
+	ammoPoolState := make(map[string]int)
+	if g.ammoPool != nil {
+		ammoPoolState["bullets"] = g.ammoPool.Get("bullets")
+		ammoPoolState["shells"] = g.ammoPool.Get("shells")
+		ammoPoolState["cells"] = g.ammoPool.Get("cells")
+		ammoPoolState["rockets"] = g.ammoPool.Get("rockets")
+	}
+
 	state := &save.GameState{
 		Version:   "1.0.0",
 		Seed:      int64(g.seed),
@@ -721,7 +836,13 @@ func (g *Game) saveGame(slot int) {
 			Height: len(g.currentMap),
 			Tiles:  g.currentMap,
 		},
-		Inventory: save.Inventory{Items: []save.Item{}},
+		Inventory: save.Inventory{Items: []save.Item{}}, // TODO: populate from inventory system when implemented
+		Progression: save.ProgressionState{
+			Level: g.progression.Level,
+			XP:    g.progression.XP,
+		},
+		Keycards: g.keycards,
+		AmmoPool: ammoPoolState,
 	}
 	save.Save(slot, state)
 }

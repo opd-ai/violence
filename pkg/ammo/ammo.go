@@ -38,6 +38,11 @@ func (p *Pool) Get(ammoType string) int {
 	return p.counts[ammoType]
 }
 
+// Set sets the amount of the given ammo type directly (used for save/load).
+func (p *Pool) Set(ammoType string, amount int) {
+	p.counts[ammoType] = amount
+}
+
 var currentGenre = "fantasy"
 
 // SetGenre configures ammo types for a genre.

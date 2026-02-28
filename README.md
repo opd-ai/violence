@@ -76,6 +76,8 @@ Settings include window size, internal resolution, FOV, mouse sensitivity, audio
 
 **100% of gameplay assets are procedurally generated at runtime using deterministic algorithms.** This includes all audio (music, SFX, ambient), all visuals (textures, sprites, particles, UI elements), and all narrative content (dialogue, lore, quests, world-building text, plot progression, character backstories). No pre-rendered, embedded, or bundled asset files (e.g., `.mp3`, `.wav`, `.ogg`, `.png`, `.jpg`, `.svg`, `.gif`) or static narrative content (e.g., hardcoded dialogue, pre-written cutscene scripts, fixed story arcs, embedded text assets) are permitted in the project. All procedural generation is deterministic: identical inputs (seeds) produce identical outputs across all platforms.
 
+**Note on encoding formats:** While bundled audio/image asset files are prohibited, runtime use of standard encoding formats (e.g., WAV for in-memory PCM audio buffers, PNG for screenshot exports) is permitted when necessary for interfacing with system libraries or export features. The policy prohibits pre-authored assets, not the technical use of common container formats for runtime-generated data.
+
 ## Dependencies
 
 - [Ebitengine v2](https://ebitengine.org/) — 2D game engine
