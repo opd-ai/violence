@@ -14,7 +14,7 @@ type LootTable struct {
 
 // NewLootTable creates an empty loot table.
 func NewLootTable() *LootTable {
-	return &LootTable{}
+	return &LootTable{Drops: []Drop{}}
 }
 
 // Roll selects drops from the loot table.

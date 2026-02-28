@@ -323,3 +323,33 @@
 - **Pathfinding algorithm**: AI chase/patrol requires pathfinding; A* or similar needed against BSP tile grid; not yet specified
 - **Cover detection**: AI take-cover behavior requires identifying cover tiles; algorithm to classify tiles as cover not defined
 - **Projectile collision broadphase**: High projectile counts may need spatial partitioning for efficient collision; current approach is O(n) entity iteration
+
+## Completed Tasks
+
+### 2026-02-28: Test Suite Additions (Steps 12, 23, 40, 45, 49, 54)
+- **Step 12** [x]: Added comprehensive unit tests for ammo system (100% coverage)
+  - Tests for ammo consumption, pickup collection, multi-type pools, negative amounts, edge cases
+  - File: `pkg/ammo/ammo_test.go`
+- **Step 23** [x]: Added comprehensive unit tests for automap (100% coverage)
+  - Tests for tile revelation, bounds checking, corner cases, edge cases, multi-tile operations
+  - File: `pkg/automap/automap_test.go`
+- **Step 40** [x]: Added comprehensive unit tests for status effects (100% coverage)
+  - Tests for effect application, tick damage, duration handling, multiple effects, genre support
+  - File: `pkg/status/status_test.go`
+- **Step 45** [x]: Added comprehensive unit tests for loot system (100% coverage)
+  - Tests for loot table creation, drop chances, roll mechanics, multiple tables, edge cases
+  - Fixed `NewLootTable()` to initialize Drops slice
+  - Files: `pkg/loot/loot_test.go`, `pkg/loot/loot.go`
+- **Step 49** [x]: Added comprehensive unit tests for progression (100% coverage)
+  - Tests for XP accumulation, level-up mechanics, combined operations, edge cases
+  - File: `pkg/progression/progression_test.go`
+- **Step 54** [x]: Added comprehensive unit tests for character classes (100% coverage)
+  - Tests for class constants, GetClass, stats, genre name mapping, multi-instance handling
+  - File: `pkg/class/class_test.go`
+
+**Validation**:
+- All tests pass: `go test ./...` ✓
+- Code formatted: `go fmt ./...` ✓
+- Code vetted: `go vet ./...` ✓
+- Coverage: 100% on all 6 newly tested packages ✓
+- No regressions in existing tests ✓
