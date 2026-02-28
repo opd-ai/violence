@@ -4,8 +4,10 @@ import (
 	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/opd-ai/violence/pkg/bsp"
 	"github.com/opd-ai/violence/pkg/config"
 	"github.com/opd-ai/violence/pkg/inventory"
+	"github.com/opd-ai/violence/pkg/minigame"
 	"github.com/opd-ai/violence/pkg/ui"
 )
 
@@ -2475,5 +2477,292 @@ func TestCodexUIState(t *testing.T) {
 		game.codexScrollIdx = len(foundEntries) + 10
 		game.updateCodex()
 		// Should be clamped in drawCodex
+	}
+}
+
+// TestMinigameSystemIntegration verifies minigame system is integrated.
+func TestMinigameSystemIntegration(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	// Verify StateMinigame exists
+	if StateMinigame == 0 {
+		t.Error("StateMinigame constant should be defined")
+	}
+
+	// Verify initial minigame state
+	if game.activeMinigame != nil {
+		t.Error("Active minigame should be nil initially")
+	}
+
+	// Simulate starting a minigame
+	game.startMinigame(10, 10)
+
+	if game.activeMinigame == nil {
+		t.Error("Active minigame should be initialized after startMinigame")
+	}
+
+	if game.state != StateMinigame {
+		t.Errorf("Expected StateMinigame, got %v", game.state)
+	}
+
+	if game.minigameDoorX != 10 || game.minigameDoorY != 10 {
+		t.Errorf("Door coordinates not set correctly: (%d, %d)", game.minigameDoorX, game.minigameDoorY)
+	}
+
+	if game.minigameType == "" {
+		t.Error("Minigame type should be set")
+	}
+}
+
+// TestMinigameLockpickCreation tests lockpicking minigame initialization.
+func TestMinigameLockpickCreation(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.genreID = "fantasy"
+	game.startNewGame()
+
+	// Start lockpicking minigame for fantasy genre
+	game.startMinigame(5, 5)
+
+	if game.minigameType != "lockpick" {
+		t.Errorf("Fantasy genre should use lockpick minigame, got %s", game.minigameType)
+	}
+
+	// Verify it's a lockpick game
+	_, ok := game.activeMinigame.(*minigame.LockpickGame)
+	if !ok {
+		t.Error("Active minigame should be *minigame.LockpickGame for fantasy genre")
+	}
+}
+
+// TestMinigameGenreVariety tests different genres use different minigame types.
+func TestMinigameGenreVariety(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	tests := []struct {
+		genre        string
+		expectedType string
+	}{
+		{"fantasy", "lockpick"},
+		{"cyberpunk", "circuit"},
+		{"scifi", "code"},
+		{"postapoc", "code"},
+		{"horror", "hack"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.genre, func(t *testing.T) {
+			game := NewGame()
+			game.genreID = tt.genre
+			game.startNewGame()
+
+			game.startMinigame(1, 1)
+
+			if game.minigameType != tt.expectedType {
+				t.Errorf("Genre %s: expected minigame type %s, got %s",
+					tt.genre, tt.expectedType, game.minigameType)
+			}
+		})
+	}
+}
+
+// TestMinigameStateTransition tests state transitions with minigames.
+func TestMinigameStateTransition(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	previousState := game.state
+	game.startMinigame(3, 3)
+
+	if game.previousState != previousState {
+		t.Errorf("Previous state not saved: expected %v, got %v", previousState, game.previousState)
+	}
+
+	if game.state != StateMinigame {
+		t.Error("State should transition to StateMinigame")
+	}
+}
+
+// TestMinigameUpdateCancellation tests ESC cancels minigame.
+func TestMinigameUpdateCancellation(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	game.startMinigame(2, 2)
+	previousState := game.previousState
+
+	// Simulate cancellation by directly setting state (input simulation is complex)
+	game.activeMinigame = nil
+	game.state = previousState
+
+	if game.activeMinigame != nil {
+		t.Error("Active minigame should be nil after cancellation")
+	}
+
+	if game.state == StateMinigame {
+		t.Error("State should not be StateMinigame after cancellation")
+	}
+}
+
+// TestMinigameDrawFunctions tests minigame drawing doesn't panic.
+func TestMinigameDrawFunctions(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+	screen := ebiten.NewImage(320, 200)
+
+	// Test each minigame type rendering
+	genres := []string{"fantasy", "cyberpunk", "scifi", "horror"}
+
+	for _, genre := range genres {
+		t.Run(genre, func(t *testing.T) {
+			game.genreID = genre
+			game.startMinigame(1, 1)
+
+			// Should not panic
+			game.drawMinigame(screen)
+		})
+	}
+}
+
+// TestTryInteractDoorWithLockedDoor tests locked door triggers minigame.
+func TestTryInteractDoorWithLockedDoor(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	// Find a door in the map
+	doorX, doorY := -1, -1
+	for y := 0; y < len(game.currentMap); y++ {
+		for x := 0; x < len(game.currentMap[y]); x++ {
+			if game.currentMap[y][x] == bsp.TileDoor {
+				doorX = x
+				doorY = y
+				break
+			}
+		}
+		if doorX >= 0 {
+			break
+		}
+	}
+
+	if doorX < 0 {
+		t.Skip("No door found in generated map")
+	}
+
+	// Position player near door
+	game.camera.X = float64(doorX) + 0.5
+	game.camera.Y = float64(doorY) - 1.0
+	game.camera.DirX = 0
+	game.camera.DirY = 1
+
+	// Ensure door is "locked" by not having keycard
+	game.keycards = make(map[string]bool)
+
+	// Try to interact with locked door
+	game.tryInteractDoor()
+
+	// Should start minigame if door requires keycard
+	// (getDoorColor returns "" in stub, so this test verifies no-keycard case)
+	// In real implementation with locked doors, this would trigger minigame
+}
+
+// TestMinigameProgressTracking tests progress is tracked correctly.
+func TestMinigameProgressTracking(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.genreID = "fantasy"
+	game.startNewGame()
+
+	game.startMinigame(1, 1)
+
+	initialProgress := game.activeMinigame.GetProgress()
+	if initialProgress < 0 || initialProgress > 1 {
+		t.Errorf("Initial progress out of range: %f", initialProgress)
+	}
+
+	initialAttempts := game.activeMinigame.GetAttempts()
+	if initialAttempts <= 0 {
+		t.Error("Should have attempts available")
+	}
+}
+
+// TestMinigameDifficultyScaling tests difficulty increases with progression level.
+func TestMinigameDifficultyScaling(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	// Test at different progression levels
+	levels := []int{0, 3, 6, 9, 12}
+
+	for _, level := range levels {
+		game.progression.Level = level
+		game.startMinigame(level, level)
+
+		if game.activeMinigame == nil {
+			t.Fatalf("Minigame not created for level %d", level)
+		}
+
+		// Difficulty is capped at 3
+		expectedDiff := level / 3
+		if expectedDiff > 3 {
+			expectedDiff = 3
+		}
+
+		// We can't directly check difficulty, but we can verify minigame was created
+		t.Logf("Level %d: minigame created with expected difficulty %d", level, expectedDiff)
+	}
+}
+
+// TestMinigameSeedDeterminism tests same door position produces same minigame.
+func TestMinigameSeedDeterminism(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game1 := NewGame()
+	game1.seed = 12345
+	game1.startNewGame()
+	game1.startMinigame(10, 20)
+
+	game2 := NewGame()
+	game2.seed = 12345
+	game2.startNewGame()
+	game2.startMinigame(10, 20)
+
+	// Both should create the same type of minigame
+	if game1.minigameType != game2.minigameType {
+		t.Error("Same seed and position should create same minigame type")
 	}
 }

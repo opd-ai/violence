@@ -3,10 +3,12 @@ package main
 import (
 	"image/color"
 	"log"
+	"math"
 	"os"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/opd-ai/violence/pkg/ai"
 	"github.com/opd-ai/violence/pkg/ammo"
@@ -27,6 +29,7 @@ import (
 	"github.com/opd-ai/violence/pkg/lighting"
 	"github.com/opd-ai/violence/pkg/loot"
 	"github.com/opd-ai/violence/pkg/lore"
+	"github.com/opd-ai/violence/pkg/minigame"
 	"github.com/opd-ai/violence/pkg/mod"
 	"github.com/opd-ai/violence/pkg/network"
 	"github.com/opd-ai/violence/pkg/particle"
@@ -61,6 +64,7 @@ const (
 	StateMods
 	StateMultiplayer
 	StateCodex
+	StateMinigame
 )
 
 // Game implements ebiten.Game for the VIOLENCE raycasting FPS.
@@ -134,6 +138,14 @@ type Game struct {
 	loreGenerator   *lore.Generator
 	loreItems       []*lore.LoreItem
 	codexScrollIdx  int // Scroll position for codex UI
+
+	// Minigame system
+	activeMinigame     minigame.MiniGame
+	minigameDoorX      int // Door coordinates for minigame context
+	minigameDoorY      int
+	minigameType       string // "lockpick", "hack", "circuit", "code"
+	previousState      GameState
+	minigameInputTimer int // Frame timer for input delay
 }
 
 // NewGame creates and initializes a new game instance.
@@ -232,6 +244,8 @@ func (g *Game) Update() error {
 		return g.updateMultiplayer()
 	case StateCodex:
 		return g.updateCodex()
+	case StateMinigame:
+		return g.updateMinigame()
 	}
 
 	return nil
@@ -1044,12 +1058,47 @@ func (g *Game) tryInteractDoor() {
 	if tile == bsp.TileDoor {
 		requiredColor := g.getDoorColor(mapX, mapY)
 		if requiredColor == "" || g.keycards[requiredColor] {
+			// Open door immediately if no keycard required or player has keycard
 			g.currentMap[mapY][mapX] = bsp.TileFloor
 			g.raycaster.SetMap(g.currentMap)
 			g.audioEngine.PlaySFX("door_open", float64(mapX), float64(mapY))
 		} else {
-			g.hud.ShowMessage("Need " + requiredColor + " keycard")
+			// Door is locked - offer lockpicking minigame
+			g.startMinigame(mapX, mapY)
 		}
+	}
+}
+
+// startMinigame initiates a minigame for the current genre.
+func (g *Game) startMinigame(doorX, doorY int) {
+	// Determine difficulty based on progression level
+	difficulty := g.progression.Level / 3
+	if difficulty > 3 {
+		difficulty = 3
+	}
+
+	// Use seed based on door position for deterministic generation
+	seed := int64(g.seed) + int64(doorX*1000+doorY)
+
+	// Create genre-appropriate minigame
+	g.activeMinigame = minigame.GetGenreMiniGame(g.genreID, difficulty, seed)
+	g.activeMinigame.Start()
+	g.minigameDoorX = doorX
+	g.minigameDoorY = doorY
+	g.previousState = g.state
+	g.state = StateMinigame
+	g.minigameInputTimer = 0
+
+	// Determine minigame type for rendering
+	switch g.genreID {
+	case "fantasy":
+		g.minigameType = "lockpick"
+	case "cyberpunk":
+		g.minigameType = "circuit"
+	case "scifi", "postapoc":
+		g.minigameType = "code"
+	default:
+		g.minigameType = "hack"
 	}
 }
 
@@ -1679,6 +1728,172 @@ func (g *Game) updateCodex() error {
 	return nil
 }
 
+// updateMinigame handles minigame input and progression.
+func (g *Game) updateMinigame() error {
+	if g.activeMinigame == nil {
+		g.state = g.previousState
+		return nil
+	}
+
+	// Input delay to prevent double-inputs
+	g.minigameInputTimer++
+
+	// Escape cancels minigame
+	if g.input.IsJustPressed(input.ActionPause) {
+		g.activeMinigame = nil
+		g.state = g.previousState
+		g.hud.ShowMessage("Minigame cancelled")
+		return nil
+	}
+
+	// Update minigame state
+	finished := g.activeMinigame.Update()
+
+	// Handle minigame-specific inputs
+	switch g.minigameType {
+	case "lockpick":
+		g.updateLockpickGame()
+	case "hack":
+		g.updateHackGame()
+	case "circuit":
+		g.updateCircuitGame()
+	case "code":
+		g.updateCodeGame()
+	}
+
+	// Check if minigame completed
+	if finished {
+		progress := g.activeMinigame.GetProgress()
+		if progress >= 1.0 {
+			// Success - open door
+			g.currentMap[g.minigameDoorY][g.minigameDoorX] = bsp.TileFloor
+			g.raycaster.SetMap(g.currentMap)
+			g.audioEngine.PlaySFX("door_open", float64(g.minigameDoorX), float64(g.minigameDoorY))
+			g.hud.ShowMessage("Lock bypassed!")
+		} else {
+			// Failed
+			g.hud.ShowMessage("Bypass failed - need keycard")
+		}
+		g.activeMinigame = nil
+		g.state = g.previousState
+	}
+
+	return nil
+}
+
+// updateLockpickGame handles lockpicking minigame input.
+func (g *Game) updateLockpickGame() {
+	if g.minigameInputTimer < 3 {
+		return
+	}
+
+	lpGame, ok := g.activeMinigame.(*minigame.LockpickGame)
+	if !ok {
+		return
+	}
+
+	// Advance lockpick position automatically
+	lpGame.Advance()
+
+	// Space/Fire to attempt unlock
+	if g.input.IsJustPressed(input.ActionFire) || g.input.IsJustPressed(input.ActionInteract) {
+		success := lpGame.Attempt()
+		if success {
+			g.audioEngine.PlaySFX("lockpick_success", g.camera.X, g.camera.Y)
+		} else {
+			g.audioEngine.PlaySFX("lockpick_fail", g.camera.X, g.camera.Y)
+		}
+		g.minigameInputTimer = 0
+	}
+}
+
+// updateHackGame handles hacking minigame input.
+func (g *Game) updateHackGame() {
+	if g.minigameInputTimer < 5 {
+		return
+	}
+
+	hackGame, ok := g.activeMinigame.(*minigame.HackGame)
+	if !ok {
+		return
+	}
+
+	// Number keys 1-6 for node selection
+	for i := 0; i < 6; i++ {
+		key := ebiten.Key(int(ebiten.Key1) + i)
+		if inpututil.IsKeyJustPressed(key) {
+			success := hackGame.Input(i)
+			if success {
+				g.audioEngine.PlaySFX("hack_correct", g.camera.X, g.camera.Y)
+			} else {
+				g.audioEngine.PlaySFX("hack_wrong", g.camera.X, g.camera.Y)
+			}
+			g.minigameInputTimer = 0
+		}
+	}
+}
+
+// updateCircuitGame handles circuit trace minigame input.
+func (g *Game) updateCircuitGame() {
+	if g.minigameInputTimer < 5 {
+		return
+	}
+
+	circuitGame, ok := g.activeMinigame.(*minigame.CircuitTraceGame)
+	if !ok {
+		return
+	}
+
+	// Arrow keys or WASD for movement
+	moved := false
+	if g.input.IsJustPressed(input.ActionMoveForward) || inpututil.IsKeyJustPressed(ebiten.KeyUp) {
+		moved = circuitGame.Move(0) // up
+	} else if g.input.IsJustPressed(input.ActionStrafeRight) || inpututil.IsKeyJustPressed(ebiten.KeyRight) {
+		moved = circuitGame.Move(1) // right
+	} else if g.input.IsJustPressed(input.ActionMoveBackward) || inpututil.IsKeyJustPressed(ebiten.KeyDown) {
+		moved = circuitGame.Move(2) // down
+	} else if g.input.IsJustPressed(input.ActionStrafeLeft) || inpututil.IsKeyJustPressed(ebiten.KeyLeft) {
+		moved = circuitGame.Move(3) // left
+	}
+
+	if moved {
+		g.audioEngine.PlaySFX("circuit_move", g.camera.X, g.camera.Y)
+		g.minigameInputTimer = 0
+	}
+}
+
+// updateCodeGame handles bypass code minigame input.
+func (g *Game) updateCodeGame() {
+	if g.minigameInputTimer < 5 {
+		return
+	}
+
+	codeGame, ok := g.activeMinigame.(*minigame.BypassCodeGame)
+	if !ok {
+		return
+	}
+
+	// Number keys 0-9 for code entry
+	for i := 0; i < 10; i++ {
+		key := ebiten.Key(int(ebiten.Key0) + i)
+		if inpututil.IsKeyJustPressed(key) {
+			success := codeGame.InputDigit(i)
+			if success {
+				g.audioEngine.PlaySFX("code_beep", g.camera.X, g.camera.Y)
+			} else {
+				g.audioEngine.PlaySFX("code_wrong", g.camera.X, g.camera.Y)
+			}
+			g.minigameInputTimer = 0
+		}
+	}
+
+	// Backspace to clear
+	if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
+		codeGame.Clear()
+		g.minigameInputTimer = 0
+	}
+}
+
 // handleMultiplayerSelect initializes the selected multiplayer mode.
 func (g *Game) handleMultiplayerSelect() {
 	modes := g.getMultiplayerModes()
@@ -1929,6 +2144,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		g.drawMultiplayer(screen)
 	case StateCodex:
 		g.drawCodex(screen)
+	case StateMinigame:
+		g.drawMinigame(screen)
 	}
 }
 
@@ -2304,6 +2521,200 @@ func (g *Game) drawCodex(screen *ebiten.Image) {
 	displayText := entry.Title + " | " + entry.Category + " | Entry " +
 		string(rune(g.codexScrollIdx+1+'0')) + "/" + string(rune(len(foundEntries)+'0'))
 	g.hud.ShowMessage(displayText)
+}
+
+// drawMinigame renders the active minigame interface.
+func (g *Game) drawMinigame(screen *ebiten.Image) {
+	if g.activeMinigame == nil {
+		return
+	}
+
+	// Draw dimmed background
+	bgColor := color.RGBA{0, 0, 0, 180}
+	vector.DrawFilledRect(screen, 0, 0, float32(config.C.InternalWidth), float32(config.C.InternalHeight), bgColor, false)
+
+	centerX := float32(config.C.InternalWidth / 2)
+	centerY := float32(config.C.InternalHeight / 2)
+
+	// Draw minigame-specific UI
+	switch g.minigameType {
+	case "lockpick":
+		g.drawLockpickGame(screen, centerX, centerY)
+	case "hack":
+		g.drawHackGame(screen, centerX, centerY)
+	case "circuit":
+		g.drawCircuitGame(screen, centerX, centerY)
+	case "code":
+		g.drawCodeGame(screen, centerX, centerY)
+	}
+
+	// Draw progress bar
+	progress := g.activeMinigame.GetProgress()
+	barWidth := float32(200)
+	barHeight := float32(20)
+	barX := centerX - barWidth/2
+	barY := centerY + 120
+
+	// Background
+	vector.DrawFilledRect(screen, barX, barY, barWidth, barHeight, color.RGBA{50, 50, 50, 255}, false)
+	// Progress fill
+	vector.DrawFilledRect(screen, barX, barY, barWidth*float32(progress), barHeight, color.RGBA{0, 255, 0, 255}, false)
+	// Border
+	vector.StrokeRect(screen, barX, barY, barWidth, barHeight, 2, color.RGBA{255, 255, 255, 255}, false)
+
+	// Draw attempts remaining
+	attempts := g.activeMinigame.GetAttempts()
+	// Simple attempt indicators as circles
+	for i := 0; i < attempts; i++ {
+		circleX := centerX - 30 + float32(i*20)
+		circleY := centerY + 150
+		vector.DrawFilledCircle(screen, circleX, circleY, 5, color.RGBA{255, 255, 0, 255}, false)
+	}
+}
+
+// drawLockpickGame renders lockpicking interface.
+func (g *Game) drawLockpickGame(screen *ebiten.Image, centerX, centerY float32) {
+	lpGame, ok := g.activeMinigame.(*minigame.LockpickGame)
+	if !ok {
+		return
+	}
+
+	// Draw lock cylinder
+	cylinderWidth := float32(200)
+	cylinderHeight := float32(30)
+	cylinderX := centerX - cylinderWidth/2
+	cylinderY := centerY - cylinderHeight/2
+
+	vector.DrawFilledRect(screen, cylinderX, cylinderY, cylinderWidth, cylinderHeight, color.RGBA{100, 100, 100, 255}, false)
+	vector.StrokeRect(screen, cylinderX, cylinderY, cylinderWidth, cylinderHeight, 2, color.RGBA{200, 200, 200, 255}, false)
+
+	// Draw target zone
+	targetX := cylinderX + cylinderWidth*float32(lpGame.Target)
+	targetWidth := cylinderWidth * float32(lpGame.Tolerance*2)
+	vector.DrawFilledRect(screen, targetX-targetWidth/2, cylinderY, targetWidth, cylinderHeight, color.RGBA{0, 200, 0, 100}, false)
+
+	// Draw lockpick position
+	pickX := cylinderX + cylinderWidth*float32(lpGame.Position)
+	vector.DrawFilledRect(screen, pickX-2, cylinderY-10, 4, cylinderHeight+20, color.RGBA{255, 255, 0, 255}, false)
+
+	// Draw unlocked pins
+	for i := 0; i < lpGame.UnlockedPins; i++ {
+		pinX := centerX - 50 + float32(i*25)
+		pinY := centerY - 60
+		vector.DrawFilledCircle(screen, pinX, pinY, 8, color.RGBA{0, 255, 0, 255}, false)
+	}
+}
+
+// drawHackGame renders hacking interface.
+func (g *Game) drawHackGame(screen *ebiten.Image, centerX, centerY float32) {
+	hackGame, ok := g.activeMinigame.(*minigame.HackGame)
+	if !ok {
+		return
+	}
+
+	// Draw node grid (6 nodes in a circle)
+	nodeRadius := float32(80)
+	for i := 0; i < 6; i++ {
+		angle := float32(i) * 3.14159 * 2.0 / 6.0
+		nodeX := centerX + nodeRadius*float32(cosf(angle))
+		nodeY := centerY + nodeRadius*float32(sinf(angle))
+
+		nodeColor := color.RGBA{100, 100, 200, 255}
+		// Highlight nodes in sequence
+		for j, node := range hackGame.Sequence {
+			if j < len(hackGame.PlayerInput) && node == i {
+				nodeColor = color.RGBA{0, 255, 0, 255}
+			}
+		}
+
+		vector.DrawFilledCircle(screen, nodeX, nodeY, 15, nodeColor, false)
+		vector.StrokeCircle(screen, nodeX, nodeY, 15, 2, color.RGBA{255, 255, 255, 255}, false)
+	}
+
+	// Draw sequence indicators at top
+	for i := range hackGame.Sequence {
+		boxX := centerX - 60 + float32(i*20)
+		boxY := centerY - 100
+		boxColor := color.RGBA{50, 50, 50, 255}
+		if i < len(hackGame.PlayerInput) {
+			boxColor = color.RGBA{0, 200, 0, 255}
+		}
+		vector.DrawFilledRect(screen, boxX, boxY, 15, 15, boxColor, false)
+		vector.StrokeRect(screen, boxX, boxY, 15, 15, 1, color.RGBA{200, 200, 200, 255}, false)
+	}
+}
+
+// drawCircuitGame renders circuit trace interface.
+func (g *Game) drawCircuitGame(screen *ebiten.Image, centerX, centerY float32) {
+	circuitGame, ok := g.activeMinigame.(*minigame.CircuitTraceGame)
+	if !ok {
+		return
+	}
+
+	gridSize := len(circuitGame.Grid)
+	cellSize := float32(30)
+	startX := centerX - float32(gridSize)*cellSize/2
+	startY := centerY - float32(gridSize)*cellSize/2
+
+	// Draw grid
+	for y := 0; y < gridSize; y++ {
+		for x := 0; x < gridSize; x++ {
+			cellX := startX + float32(x)*cellSize
+			cellY := startY + float32(y)*cellSize
+
+			cellColor := color.RGBA{50, 50, 50, 255}
+			if circuitGame.Grid[y][x] == 2 {
+				cellColor = color.RGBA{200, 0, 0, 255} // blocked
+			}
+			if x == circuitGame.CurrentX && y == circuitGame.CurrentY {
+				cellColor = color.RGBA{0, 255, 0, 255} // current
+			}
+			if x == circuitGame.TargetX && y == circuitGame.TargetY {
+				cellColor = color.RGBA{0, 200, 255, 255} // target
+			}
+
+			vector.DrawFilledRect(screen, cellX, cellY, cellSize-2, cellSize-2, cellColor, false)
+			vector.StrokeRect(screen, cellX, cellY, cellSize-2, cellSize-2, 1, color.RGBA{100, 100, 100, 255}, false)
+		}
+	}
+}
+
+// drawCodeGame renders bypass code interface.
+func (g *Game) drawCodeGame(screen *ebiten.Image, centerX, centerY float32) {
+	codeGame, ok := g.activeMinigame.(*minigame.BypassCodeGame)
+	if !ok {
+		return
+	}
+
+	codeLength := len(codeGame.Code)
+	digitWidth := float32(30)
+	digitHeight := float32(40)
+	totalWidth := float32(codeLength) * (digitWidth + 5)
+	startX := centerX - totalWidth/2
+
+	// Draw code entry boxes
+	for i := 0; i < codeLength; i++ {
+		boxX := startX + float32(i)*(digitWidth+5)
+		boxY := centerY - digitHeight/2
+
+		boxColor := color.RGBA{30, 30, 30, 255}
+		if i < len(codeGame.PlayerInput) {
+			boxColor = color.RGBA{0, 150, 0, 255}
+		}
+
+		vector.DrawFilledRect(screen, boxX, boxY, digitWidth, digitHeight, boxColor, false)
+		vector.StrokeRect(screen, boxX, boxY, digitWidth, digitHeight, 2, color.RGBA{200, 200, 200, 255}, false)
+	}
+}
+
+// cosf is a helper for float32 cosine.
+func cosf(angle float32) float32 {
+	return float32(math.Cos(float64(angle)))
+}
+
+// sinf is a helper for float32 sine.
+func sinf(angle float32) float32 {
+	return float32(math.Sin(float64(angle)))
 }
 
 // Layout returns the game's internal resolution.
