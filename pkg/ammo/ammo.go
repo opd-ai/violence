@@ -33,5 +33,10 @@ func (p *Pool) Consume(ammoType string, amount int) bool {
 	return true
 }
 
+// Get returns the current amount of the given ammo type.
+func (p *Pool) Get(ammoType string) int {
+	return p.counts[ammoType]
+}
+
 // SetGenre configures ammo types for a genre.
 func SetGenre(genreID string) {}

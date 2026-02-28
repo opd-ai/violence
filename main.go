@@ -7,20 +7,28 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
+	"github.com/opd-ai/violence/pkg/ai"
+	"github.com/opd-ai/violence/pkg/ammo"
 	"github.com/opd-ai/violence/pkg/audio"
 	"github.com/opd-ai/violence/pkg/automap"
 	"github.com/opd-ai/violence/pkg/bsp"
 	"github.com/opd-ai/violence/pkg/camera"
+	"github.com/opd-ai/violence/pkg/class"
+	"github.com/opd-ai/violence/pkg/combat"
 	"github.com/opd-ai/violence/pkg/config"
 	"github.com/opd-ai/violence/pkg/door"
 	"github.com/opd-ai/violence/pkg/engine"
 	"github.com/opd-ai/violence/pkg/input"
+	"github.com/opd-ai/violence/pkg/loot"
+	"github.com/opd-ai/violence/pkg/progression"
 	"github.com/opd-ai/violence/pkg/raycaster"
 	"github.com/opd-ai/violence/pkg/render"
 	"github.com/opd-ai/violence/pkg/rng"
 	"github.com/opd-ai/violence/pkg/save"
+	"github.com/opd-ai/violence/pkg/status"
 	"github.com/opd-ai/violence/pkg/tutorial"
 	"github.com/opd-ai/violence/pkg/ui"
+	"github.com/opd-ai/violence/pkg/weapon"
 )
 
 // GameState represents the current game state.
@@ -54,6 +62,16 @@ type Game struct {
 	automap        *automap.Map
 	keycards       map[string]bool
 	automapVisible bool
+
+	// v2.0 systems
+	arsenal      *weapon.Arsenal
+	ammoPool     *ammo.Pool
+	combatSystem *combat.System
+	statusReg    *status.Registry
+	lootTable    *loot.LootTable
+	progression  *progression.Progression
+	aiAgents     []*ai.Agent
+	playerClass  string
 }
 
 // NewGame creates and initializes a new game instance.
@@ -90,6 +108,14 @@ func NewGame() *Game {
 		seed:           seed,
 		keycards:       make(map[string]bool),
 		automapVisible: false,
+		arsenal:        weapon.NewArsenal(),
+		ammoPool:       ammo.NewPool(),
+		combatSystem:   combat.NewSystem(),
+		statusReg:      status.NewRegistry(),
+		lootTable:      loot.NewLootTable(),
+		progression:    progression.NewProgression(),
+		aiAgents:       make([]*ai.Agent, 0),
+		playerClass:    class.Grunt,
 	}
 
 	// Initialize BSP generator
@@ -186,7 +212,14 @@ func (g *Game) startNewGame() {
 	tutorial.SetGenre(g.genreID)
 	automap.SetGenre(g.genreID)
 	door.SetGenre(g.genreID)
-
+	g.arsenal.SetGenre(g.genreID)
+	ammo.SetGenre(g.genreID)
+	g.combatSystem.SetGenre(g.genreID)
+	status.SetGenre(g.genreID)
+	loot.SetGenre(g.genreID)
+	progression.SetGenre(g.genreID)
+	class.SetGenre(g.genreID)
+	ai.SetGenre(g.genreID)
 	// Reset player position to a safe starting location
 	g.camera.X = 5.0
 	g.camera.Y = 5.0
@@ -194,14 +227,37 @@ func (g *Game) startNewGame() {
 	g.camera.DirY = 0.0
 	g.camera.Pitch = 0.0
 
-	// Reset HUD
+	// Initialize player stats
 	g.hud.Health = 100
 	g.hud.Armor = 0
-	g.hud.Ammo = 50
+
+	// Initialize starting ammo
+	g.ammoPool.Add("bullets", 50)
+	g.ammoPool.Add("shells", 8)
+	g.ammoPool.Add("cells", 20)
+	g.ammoPool.Add("rockets", 0)
+
+	// Set initial ammo display
+	currentWeapon := g.arsenal.GetCurrentWeapon()
+	g.hud.Ammo = g.ammoPool.Get(currentWeapon.AmmoType)
 
 	// Reset keycards
 	g.keycards = make(map[string]bool)
 	g.automapVisible = false
+
+	// Reset v2.0 systems
+	g.progression = progression.NewProgression()
+	progression.SetGenre(g.genreID)
+	g.statusReg = status.NewRegistry()
+	status.SetGenre(g.genreID)
+
+	// Spawn AI enemies (simple placement for now)
+	g.aiAgents = make([]*ai.Agent, 0)
+	ai.SetGenre(g.genreID)
+	for i := 0; i < 3; i++ {
+		agent := ai.NewAgent("enemy_"+string(rune(i+'0')), float64(10+i*5), float64(10+i*3))
+		g.aiAgents = append(g.aiAgents, agent)
+	}
 
 	// Play music
 	g.audioEngine.PlayMusic("theme", 0.5)
@@ -268,6 +324,126 @@ func (g *Game) updatePlaying() error {
 	if g.input.IsJustPressed(input.ActionInteract) {
 		g.tryInteractDoor()
 	}
+
+	// Weapon firing
+	if g.input.IsJustPressed(input.ActionFire) {
+		currentWeapon := g.arsenal.GetCurrentWeapon()
+		if currentWeapon.Name != "" { // Check if weapon is valid
+			ammoType := currentWeapon.AmmoType
+			availableAmmo := g.ammoPool.Get(ammoType)
+
+			if currentWeapon.Type == weapon.TypeMelee || availableAmmo > 0 {
+				// Create raycast function wrapper
+				raycastFn := func(x, y, dx, dy, maxDist float64) (bool, float64, float64, float64, uint64) {
+					// Simple raycast against enemies
+					for i, agent := range g.aiAgents {
+						if agent.Health <= 0 {
+							continue
+						}
+						// Check if ray hits this agent (simplified sphere collision)
+						agentDist := (agent.X-x)*(agent.X-x) + (agent.Y-y)*(agent.Y-y)
+						if agentDist < maxDist*maxDist {
+							// Check if agent is in ray direction
+							toAgentX := agent.X - x
+							toAgentY := agent.Y - y
+							dot := toAgentX*dx + toAgentY*dy
+							if dot > 0 { // Agent is in front
+								return true, agentDist, agent.X, agent.Y, uint64(i + 1)
+							}
+						}
+					}
+					return false, 0, 0, 0, 0
+				}
+
+				// Fire weapon and get hit results
+				hitResults := g.arsenal.Fire(g.camera.X, g.camera.Y, g.camera.DirX, g.camera.DirY, raycastFn)
+
+				// Consume ammo for non-melee weapons
+				if currentWeapon.Type != weapon.TypeMelee {
+					g.ammoPool.Consume(ammoType, 1)
+					g.hud.Ammo = g.ammoPool.Get(ammoType)
+				}
+
+				// Apply damage to hit enemies
+				for _, hitResult := range hitResults {
+					if hitResult.Hit && hitResult.EntityID > 0 {
+						agentIdx := int(hitResult.EntityID - 1)
+						if agentIdx >= 0 && agentIdx < len(g.aiAgents) {
+							agent := g.aiAgents[agentIdx]
+							if agent.Health > 0 {
+								// Apply damage
+								agent.Health -= currentWeapon.Damage
+
+								if agent.Health <= 0 {
+									// Enemy died - award XP
+									g.progression.AddXP(50)
+									// TODO: spawn loot drops
+								}
+							}
+						}
+					}
+				}
+
+				// Play weapon sound
+				g.audioEngine.PlaySFX("weapon_fire", g.camera.X, g.camera.Y)
+			}
+		}
+	}
+
+	// Update weapon animations
+	g.arsenal.Update()
+
+	// Update AI agents (simplified for initial integration)
+	for _, agent := range g.aiAgents {
+		if agent.Health > 0 {
+			// Simple AI: attack player if in range
+			dx := g.camera.X - agent.X
+			dy := g.camera.Y - agent.Y
+			distSq := dx*dx + dy*dy
+
+			if distSq < 100 && agent.Cooldown <= 0 { // Within attack range and cooled down
+				// Enemy attacks player
+				damage := agent.Damage
+				healthDamage := damage
+
+				// Apply damage to player (simplified)
+				if g.hud.Armor > 0 {
+					armorDamage := damage * 0.5
+					g.hud.Armor -= int(armorDamage)
+					if g.hud.Armor < 0 {
+						healthDamage = -float64(g.hud.Armor)
+						g.hud.Armor = 0
+					} else {
+						healthDamage = damage * 0.5
+					}
+				}
+
+				g.hud.Health -= int(healthDamage)
+				agent.Cooldown = 60 // 1 second at 60 TPS
+				g.audioEngine.PlaySFX("enemy_attack", agent.X, agent.Y)
+
+				// Show damage indicator
+				g.hud.ShowMessage("Taking damage!")
+
+				// Check for player death
+				if g.hud.Health <= 0 {
+					g.hud.Health = 0
+					// TODO: handle player death
+				}
+			}
+
+			// Decrement cooldowns
+			if agent.Cooldown > 0 {
+				agent.Cooldown--
+			}
+		}
+	}
+
+	// Update status effects
+	g.statusReg.Tick()
+
+	// Progression updates happen automatically
+	// TODO: Add Level and XP to HUD display
 
 	// Movement speed (units per frame at 60 TPS)
 	moveSpeed := 0.05

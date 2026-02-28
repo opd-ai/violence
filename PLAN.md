@@ -353,3 +353,36 @@
 - Code vetted: `go vet ./...` ✓
 - Coverage: 100% on all 6 newly tested packages ✓
 - No regressions in existing tests ✓
+
+### 2026-02-28: v2.0 Systems Integration (Step 61)
+- **Step 61** [x]: Wired all v2.0 systems into `main.go` game loop
+  - Added imports for weapon, ammo, ai, combat, status, loot, progression, class packages
+  - Added v2.0 system fields to Game struct: arsenal, ammoPool, combatSystem, statusReg, lootTable, progression, aiAgents, playerClass
+  - Initialized all systems in NewGame() constructor
+  - Set genre for all v2.0 systems in startNewGame()
+  - Implemented weapon firing with raycast hit detection in updatePlaying()
+  - Implemented ammo consumption and display on HUD
+  - Implemented basic AI enemy spawning (3 enemies per level)
+  - Implemented AI attack logic with damage application
+  - Implemented player taking damage from enemies
+  - Implemented enemy death and XP rewards via progression system
+  - Updated status effects tick in game loop
+  - Added `Pool.Get()` method to ammo package for retrieving current ammo counts
+  - Added test for `Pool.Get()` method (100% coverage maintained)
+  - Files: `main.go`, `pkg/ammo/ammo.go`, `pkg/ammo/ammo_test.go`
+  
+**Implementation Details**:
+- Weapon firing uses raycast function wrapper to detect enemy hits
+- Simple AI uses distance-based attack with cooldown timer
+- Combat damage uses simplified armor absorption (50% to armor, 50% to health)
+- Progression awards 50 XP per enemy kill
+- Status effect registry ticks each frame for DoT effects
+- Three AI agents spawn at fixed positions (10+i*5, 10+i*3) for testing
+
+**Validation**:
+- All tests pass: `go test ./...` ✓
+- Code builds successfully: `go build` ✓
+- Code formatted: `go fmt ./...` ✓
+- Code vetted: `go vet ./...` ✓
+- No regressions in existing tests ✓
+- v2.0 package coverage: 95.9% (exceeds 82% target) ✓

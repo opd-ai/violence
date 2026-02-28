@@ -176,3 +176,30 @@ func TestSetGenre(t *testing.T) {
 		})
 	}
 }
+
+func TestGetAmmo(t *testing.T) {
+	tests := []struct {
+		name     string
+		setup    map[string]int
+		ammoType string
+		want     int
+	}{
+		{"empty_pool", map[string]int{}, Bullets, 0},
+		{"has_bullets", map[string]int{Bullets: 50}, Bullets, 50},
+		{"has_multiple", map[string]int{Bullets: 50, Shells: 20}, Shells, 20},
+		{"zero_amount", map[string]int{Rockets: 0}, Rockets, 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pool := NewPool()
+			for ammoType, amount := range tt.setup {
+				pool.Add(ammoType, amount)
+			}
+			got := pool.Get(tt.ammoType)
+			if got != tt.want {
+				t.Errorf("Get(%s) = %d, want %d", tt.ammoType, got, tt.want)
+			}
+		})
+	}
+}
