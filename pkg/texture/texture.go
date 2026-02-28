@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/color"
 	"math"
+	"sync"
 
 	"github.com/opd-ai/violence/pkg/rng"
 )
@@ -15,6 +16,7 @@ type Atlas struct {
 	animated map[string]*AnimatedTexture
 	genre    string
 	seed     uint64
+	mu       sync.RWMutex
 }
 
 // NewAtlas creates an empty texture atlas with the given seed.
@@ -45,13 +47,17 @@ func (a *Atlas) Generate(name string, size int, textureType string) error {
 		a.generateWallTexture(img, r)
 	}
 
+	a.mu.Lock()
 	a.textures[name] = img
+	a.mu.Unlock()
 	return nil
 }
 
 // Get retrieves a texture by name.
 func (a *Atlas) Get(name string) (image.Image, bool) {
+	a.mu.RLock()
 	img, ok := a.textures[name]
+	a.mu.RUnlock()
 	return img, ok
 }
 

@@ -75,14 +75,18 @@ func (a *Atlas) GenerateAnimated(name string, size, frameCount, fps int, pattern
 		anim.SetFrame(i, img)
 	}
 
+	a.mu.Lock()
 	a.animated[name] = anim
+	a.mu.Unlock()
 	return nil
 }
 
 // GetAnimatedFrame retrieves a specific frame from an animated texture.
 // Returns nil if the texture doesn't exist or isn't animated.
 func (a *Atlas) GetAnimatedFrame(name string, tick int) (image.Image, bool) {
+	a.mu.RLock()
 	anim, ok := a.animated[name]
+	a.mu.RUnlock()
 	if !ok {
 		return nil, false
 	}

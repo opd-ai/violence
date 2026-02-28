@@ -1,6 +1,7 @@
 package texture
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"testing"
@@ -956,5 +957,144 @@ func TestGenerateRadiationGlowFrame(t *testing.T) {
 	r, g, b, _ := frame.At(32, 32).RGBA()
 	if g>>8 < 100 || b>>8 > 100 {
 		t.Errorf("radiation glow should be green-yellow, got R=%d G=%d B=%d", r>>8, g>>8, b>>8)
+	}
+}
+
+func TestConcurrentGenerate(t *testing.T) {
+	atlas := NewAtlas(12345)
+	const numGoroutines = 10
+	const texturesPerGoroutine = 5
+
+	// Channel to signal completion
+	done := make(chan bool, numGoroutines)
+
+	// Launch multiple goroutines generating textures concurrently
+	for i := 0; i < numGoroutines; i++ {
+		go func(id int) {
+			for j := 0; j < texturesPerGoroutine; j++ {
+				name := fmt.Sprintf("texture_%d_%d", id, j)
+				if err := atlas.Generate(name, 32, "wall"); err != nil {
+					t.Errorf("Generate failed: %v", err)
+				}
+			}
+			done <- true
+		}(i)
+	}
+
+	// Wait for all goroutines to complete
+	for i := 0; i < numGoroutines; i++ {
+		<-done
+	}
+
+	// Verify all textures were created
+	expectedCount := numGoroutines * texturesPerGoroutine
+	actualCount := 0
+	for i := 0; i < numGoroutines; i++ {
+		for j := 0; j < texturesPerGoroutine; j++ {
+			name := fmt.Sprintf("texture_%d_%d", i, j)
+			if _, ok := atlas.Get(name); ok {
+				actualCount++
+			}
+		}
+	}
+
+	if actualCount != expectedCount {
+		t.Errorf("expected %d textures, got %d", expectedCount, actualCount)
+	}
+}
+
+func TestConcurrentGenerateAnimated(t *testing.T) {
+	atlas := NewAtlas(54321)
+	const numGoroutines = 8
+	const animsPerGoroutine = 3
+
+	done := make(chan bool, numGoroutines)
+
+	// Launch multiple goroutines generating animated textures concurrently
+	for i := 0; i < numGoroutines; i++ {
+		go func(id int) {
+			for j := 0; j < animsPerGoroutine; j++ {
+				name := fmt.Sprintf("anim_%d_%d", id, j)
+				pattern := "flicker_torch"
+				if j%2 == 0 {
+					pattern = "blink_panel"
+				}
+				if err := atlas.GenerateAnimated(name, 32, 4, 30, pattern); err != nil {
+					t.Errorf("GenerateAnimated failed: %v", err)
+				}
+			}
+			done <- true
+		}(i)
+	}
+
+	// Wait for all goroutines to complete
+	for i := 0; i < numGoroutines; i++ {
+		<-done
+	}
+
+	// Verify all animated textures were created and can be accessed
+	expectedCount := numGoroutines * animsPerGoroutine
+	actualCount := 0
+	for i := 0; i < numGoroutines; i++ {
+		for j := 0; j < animsPerGoroutine; j++ {
+			name := fmt.Sprintf("anim_%d_%d", i, j)
+			if _, ok := atlas.GetAnimatedFrame(name, 0); ok {
+				actualCount++
+			}
+		}
+	}
+
+	if actualCount != expectedCount {
+		t.Errorf("expected %d animated textures, got %d", expectedCount, actualCount)
+	}
+}
+
+func TestConcurrentMixedAccess(t *testing.T) {
+	atlas := NewAtlas(99999)
+
+	// Pre-generate some textures
+	for i := 0; i < 5; i++ {
+		name := fmt.Sprintf("preload_%d", i)
+		atlas.Generate(name, 64, "wall")
+		atlas.GenerateAnimated(name+"_anim", 64, 4, 30, "flicker_torch")
+	}
+
+	const numGoroutines = 20
+	done := make(chan bool, numGoroutines)
+
+	// Launch goroutines that mix reads and writes
+	for i := 0; i < numGoroutines; i++ {
+		go func(id int) {
+			// Read existing textures
+			for j := 0; j < 5; j++ {
+				name := fmt.Sprintf("preload_%d", j)
+				atlas.Get(name)
+				atlas.GetAnimatedFrame(name+"_anim", id*10)
+			}
+
+			// Generate new textures
+			for j := 0; j < 3; j++ {
+				name := fmt.Sprintf("new_%d_%d", id, j)
+				atlas.Generate(name, 32, "floor")
+			}
+
+			done <- true
+		}(i)
+	}
+
+	// Wait for all goroutines to complete
+	for i := 0; i < numGoroutines; i++ {
+		<-done
+	}
+
+	// Verify original textures still exist
+	for i := 0; i < 5; i++ {
+		name := fmt.Sprintf("preload_%d", i)
+		if _, ok := atlas.Get(name); !ok {
+			t.Errorf("preloaded texture %s was lost", name)
+		}
+		if _, ok := atlas.GetAnimatedFrame(name+"_anim", 0); !ok {
+			t.Errorf("preloaded animated texture %s was lost", name+"_anim")
+		}
 	}
 }
