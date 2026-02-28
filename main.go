@@ -30,6 +30,7 @@ import (
 	"github.com/opd-ai/violence/pkg/network"
 	"github.com/opd-ai/violence/pkg/particle"
 	"github.com/opd-ai/violence/pkg/progression"
+	"github.com/opd-ai/violence/pkg/props"
 	"github.com/opd-ai/violence/pkg/quest"
 	"github.com/opd-ai/violence/pkg/raycaster"
 	"github.com/opd-ai/violence/pkg/render"
@@ -126,6 +127,7 @@ type Game struct {
 	mpStatusMsg     string      // Multiplayer status message
 	mpSelectedMode  int         // Selected multiplayer mode
 	playerInventory *inventory.Inventory
+	propsManager    *props.Manager
 }
 
 // NewGame creates and initializes a new game instance.
@@ -181,6 +183,7 @@ func NewGame() *Game {
 		squadCompanions:    squad.NewSquad(3), // Max 3 squad members
 		questTracker:       quest.NewTracker(),
 		playerInventory:    inventory.NewInventory(),
+		propsManager:       props.NewManager(),
 	}
 
 	// Initialize BSP generator
@@ -285,6 +288,15 @@ func (g *Game) startNewGame() {
 
 	// Set genre for all systems (Step 29: SetGenre cascade)
 	g.setGenre(g.genreID)
+
+	// Place decorative props in rooms (v3.0 enhancement)
+	g.propsManager.Clear()
+	g.propsManager.SetGenre(g.genreID)
+	rooms := bsp.GetRooms(bspTree)
+	for _, room := range rooms {
+		propRoom := &props.Room{X: room.X, Y: room.Y, W: room.W, H: room.H}
+		g.propsManager.PlaceProps(propRoom, 0.2, g.seed+uint64(room.X*1000+room.Y))
+	}
 
 	// Reset player position to a safe starting location
 	g.camera.X = 5.0
@@ -480,6 +492,9 @@ func (g *Game) setGenre(genreID string) {
 	crafting.SetGenre(genreID)
 	skills.SetGenre(genreID)
 	network.SetGenre(genreID)
+	if g.propsManager != nil {
+		g.propsManager.SetGenre(genreID)
+	}
 
 	// Generate genre-specific textures
 	g.textureAtlas.GenerateWallSet(genreID)
@@ -1825,6 +1840,11 @@ func (g *Game) drawPlaying(screen *ebiten.Image) {
 	// Render 3D world
 	g.renderer.Render(screen, g.camera.X, g.camera.Y, g.camera.DirX, g.camera.DirY, g.camera.Pitch)
 
+	// Render props as sprites in world space
+	if g.propsManager != nil {
+		g.renderProps(screen)
+	}
+
 	// Render particles on top of 3D world (simple sprite overlay for now)
 	// TODO: Add particle rendering to renderer or as separate overlay
 	if g.particleSystem != nil {
@@ -1871,6 +1891,95 @@ func (g *Game) renderParticles(screen *ebiten.Image) {
 				vector.DrawFilledRect(screen, float32(screenX), float32(screenY), 2, 2, particleColor, false)
 			}
 		}
+	}
+}
+
+// renderProps draws decorative props as simple sprites in world space.
+func (g *Game) renderProps(screen *ebiten.Image) {
+	allProps := g.propsManager.GetProps()
+
+	// Calculate camera plane from direction and FOV
+	fov := g.camera.FOV
+	planeX := -g.camera.DirY * fov / 66.0 // Standard plane calculation
+	planeY := g.camera.DirX * fov / 66.0
+
+	for _, prop := range allProps {
+		// Calculate vector from camera to prop
+		dx := prop.X - g.camera.X
+		dy := prop.Y - g.camera.Y
+
+		// Only render props within visible range
+		dist := dx*dx + dy*dy
+		if dist > 400 { // Skip distant props
+			continue
+		}
+
+		// Transform prop position to camera space
+		invDet := 1.0 / (planeX*g.camera.DirY - g.camera.DirX*planeY)
+		transformX := invDet * (g.camera.DirY*dx - g.camera.DirX*dy)
+		transformY := invDet * (-planeY*dx + planeX*dy)
+
+		// Skip props behind camera
+		if transformY <= 0.1 {
+			continue
+		}
+
+		// Calculate screen X position
+		spriteScreenX := int((float64(config.C.InternalWidth) / 2.0) * (1.0 + transformX/transformY))
+
+		// Calculate sprite height based on distance
+		spriteHeight := int(float64(config.C.InternalHeight) / transformY)
+		spriteWidth := spriteHeight // Square sprites for simplicity
+
+		// Draw bounds
+		drawStartX := spriteScreenX - spriteWidth/2
+		drawEndX := spriteScreenX + spriteWidth/2
+		drawStartY := config.C.InternalHeight/2 - spriteHeight/2
+		drawEndY := config.C.InternalHeight/2 + spriteHeight/2
+
+		// Clip to screen bounds
+		if drawEndX < 0 || drawStartX >= config.C.InternalWidth {
+			continue
+		}
+		if drawStartX < 0 {
+			drawStartX = 0
+		}
+		if drawEndX >= config.C.InternalWidth {
+			drawEndX = config.C.InternalWidth - 1
+		}
+
+		// Choose color based on prop type (placeholder - will be replaced with actual sprites)
+		var propColor color.RGBA
+		switch prop.SpriteType {
+		case props.PropBarrel:
+			propColor = color.RGBA{139, 69, 19, 255} // Brown
+		case props.PropCrate:
+			propColor = color.RGBA{160, 82, 45, 255} // Saddle brown
+		case props.PropTable:
+			propColor = color.RGBA{101, 67, 33, 255} // Dark brown
+		case props.PropTerminal:
+			propColor = color.RGBA{50, 50, 200, 255} // Blue
+		case props.PropBones:
+			propColor = color.RGBA{220, 220, 200, 255} // Bone white
+		case props.PropPlant:
+			propColor = color.RGBA{34, 139, 34, 255} // Forest green
+		case props.PropPillar:
+			propColor = color.RGBA{128, 128, 128, 255} // Gray
+		case props.PropTorch:
+			propColor = color.RGBA{255, 165, 0, 255} // Orange
+		case props.PropDebris:
+			propColor = color.RGBA{105, 105, 105, 255} // Dim gray
+		case props.PropContainer:
+			propColor = color.RGBA{192, 192, 192, 255} // Silver
+		default:
+			propColor = color.RGBA{128, 128, 128, 255} // Gray default
+		}
+
+		// Draw simplified sprite as a colored rectangle
+		vector.DrawFilledRect(screen,
+			float32(drawStartX), float32(drawStartY),
+			float32(drawEndX-drawStartX), float32(drawEndY-drawStartY),
+			propColor, false)
 	}
 }
 

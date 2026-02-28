@@ -2149,3 +2149,126 @@ func TestInventoryEmptyQuickSlot(t *testing.T) {
 
 	// No panic means success
 }
+
+// TestPropsManagerInitialization tests that props manager is initialized in NewGame.
+func TestPropsManagerInitialization(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	if game.propsManager == nil {
+		t.Fatal("Props manager not initialized in NewGame")
+	}
+}
+
+// TestPropsPlacementInRooms tests that props are placed in generated rooms.
+func TestPropsPlacementInRooms(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	if game.propsManager == nil {
+		t.Fatal("Props manager should be initialized after startNewGame")
+	}
+
+	props := game.propsManager.GetProps()
+	if len(props) == 0 {
+		t.Error("No props placed in level - expected decorative props in rooms")
+	}
+
+	// Verify props are within map bounds
+	for _, prop := range props {
+		if prop.X < 0 || prop.Y < 0 {
+			t.Errorf("Prop at invalid negative position: (%f, %f)", prop.X, prop.Y)
+		}
+		if int(prop.X) >= len(game.currentMap[0]) || int(prop.Y) >= len(game.currentMap) {
+			t.Errorf("Prop outside map bounds: (%f, %f)", prop.X, prop.Y)
+		}
+	}
+}
+
+// TestPropsGenreConfiguration tests that props change with genre.
+func TestPropsGenreConfiguration(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+
+	genres := []string{"fantasy", "scifi", "horror", "cyberpunk", "postapoc"}
+	for _, genreID := range genres {
+		game.genreID = genreID
+		game.startNewGame()
+
+		if game.propsManager.GetGenre() != genreID {
+			t.Errorf("Props manager genre %s doesn't match game genre %s",
+				game.propsManager.GetGenre(), genreID)
+		}
+
+		props := game.propsManager.GetProps()
+		if len(props) > 0 {
+			// Just verify we got props, genre-specific types are tested in pkg/props
+			t.Logf("Genre %s: placed %d props", genreID, len(props))
+		}
+	}
+}
+
+// TestPropsClearedOnNewGame tests that props are cleared when starting a new game.
+func TestPropsClearedOnNewGame(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	firstGameProps := len(game.propsManager.GetProps())
+	if firstGameProps == 0 {
+		t.Fatal("Expected props in first game")
+	}
+
+	// Start a new game with different seed
+	game.seed++
+	game.startNewGame()
+
+	secondGameProps := len(game.propsManager.GetProps())
+	if secondGameProps == 0 {
+		t.Error("Expected props in second game")
+	}
+
+	// Props should be regenerated (different seed = different props)
+	// We just verify the system is working, not that counts differ
+	t.Logf("First game: %d props, Second game: %d props", firstGameProps, secondGameProps)
+}
+
+// TestPropsSetGenreCascade tests that setGenre() propagates to props manager.
+func TestPropsSetGenreCascade(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	initialGenre := game.genreID
+	if game.propsManager.GetGenre() != initialGenre {
+		t.Errorf("Initial genre mismatch: game=%s, props=%s", initialGenre, game.propsManager.GetGenre())
+	}
+
+	// Change genre via setGenre cascade
+	newGenre := "scifi"
+	if initialGenre == "scifi" {
+		newGenre = "horror"
+	}
+
+	game.setGenre(newGenre)
+
+	if game.propsManager.GetGenre() != newGenre {
+		t.Errorf("Genre not cascaded to props manager: expected %s, got %s",
+			newGenre, game.propsManager.GetGenre())
+	}
+}

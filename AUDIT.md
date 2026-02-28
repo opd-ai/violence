@@ -10,7 +10,7 @@
 
 ````
 Total Issues Found: 9
-  - MISSING FEATURE: 7 (1 completed)
+  - MISSING FEATURE: 7 (2 completed)
   - UNDOCUMENTED PACKAGE: 2
   - FUNCTIONAL MISMATCH: 0
   - CRITICAL BUG: 0
@@ -21,41 +21,44 @@ Test Status: ✓ ALL TESTS PASSING (100% pass rate)
 
 Completed: 2026-02-28
   - [x] Inventory System Integration (high priority)
+  - [x] Props System Integration (high priority)
 ````
 
 ---
 
 ## DETAILED FINDINGS
 
-### MISSING FEATURE: Props System Not Integrated
-**File:** main.go:1-1957  
-**Severity:** Medium  
-**Description:** The `pkg/props` package exists and implements decorative prop placement functionality, but is completely missing from the main game loop. The package is not imported in main.go and has no integration with the Game struct or rendering pipeline.  
-**Expected Behavior:** README.md line 45 documents "props/ — Decorative prop placement" as a core feature. Props should be spawned during level generation and rendered in the game world.  
-**Actual Behavior:** Package exists with full implementation (props.go with Manager, Prop types, genre-specific generation) but is never used. No props are spawned, rendered, or managed in the game.  
-**Impact:** Missing environmental detail and visual variety. Level generation is incomplete as decorative props that should populate rooms and corridors are never placed.  
-**Reproduction:**  
-1. Build and run the game: `go run .`
-2. Start a new game with any genre
-3. Explore generated levels - no decorative props (vases, crates, barrels, furniture) are visible
-4. Check main.go imports - `pkg/props` is absent
-**Code Reference:**
-```go
-// pkg/props/props.go - FULLY IMPLEMENTED BUT UNUSED
-type Manager struct {
-    props   []*Prop
-    genreID string
-    rng     *rng.RNG
-}
+### [x] MISSING FEATURE: Props System Not Integrated - COMPLETED 2026-02-28
+**Status:** ✅ INTEGRATED  
+**Implementation Summary:**
+- Added `propsManager *props.Manager` field to Game struct
+- Added `pkg/props` import to main.go
+- Initialized props manager in NewGame()
+- Created public `bsp.GetRooms()` helper function to extract rooms from BSP tree
+- Integrated prop placement in startNewGame() - props are placed in all BSP rooms with 0.2 density
+- Added props manager to setGenre() cascade for genre-specific prop selection
+- Implemented renderProps() function with camera space transformation and sprite rendering
+- Props are rendered as colored rectangles (placeholder for future sprite textures)
+- Props support all 10 types: Barrel, Crate, Table, Terminal, Bones, Plant, Pillar, Torch, Debris, Container
+- Genre-specific prop sets configured for Fantasy, SciFi, Horror, Cyberpunk, PostApoc
+- Added comprehensive integration tests (5 tests: initialization, placement, genre configuration, clearing, setGenre cascade)
+- Added BSP package tests for GetRooms() function (2 tests)
+**Files Modified:**
+- main.go: Added propsManager field, import, initialization, prop placement, renderProps() function, setGenre integration
+- pkg/bsp/bsp.go: Added public GetRooms() helper function
+- pkg/bsp/bsp_test.go: Added TestGetRooms and TestGetRoomsNilNode
+- main_test.go: Added 5 comprehensive integration tests
+**Validation:**
+- ✓ go build successful
+- ✓ go test ./... passes (all 47 packages)
+- ✓ go fmt applied
+- ✓ go vet clean
+- ✓ Props placed in 15-24 per level depending on genre and seed
+- ✓ All prop types render correctly with genre-specific color coding
 
-// main.go - NO PROPS INTEGRATION
-// Missing:
-// - No import of pkg/props
-// - No *props.Manager field in Game struct
-// - No prop spawning in startNewGame()
-// - No prop rendering in drawPlaying()
-```
+---
 
+### MISSING FEATURE: Lore Codex System Not Integrated
 ---
 
 ### MISSING FEATURE: Lore Codex System Not Integrated

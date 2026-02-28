@@ -121,6 +121,21 @@ func (g *Generator) Generate() (*Node, [][]int) {
 	return root, tiles
 }
 
+// GetRooms returns all rooms from a BSP tree.
+func GetRooms(n *Node) []*Room {
+	if n == nil {
+		return nil
+	}
+	if n.Room != nil {
+		return []*Room{n.Room}
+	}
+
+	var rooms []*Room
+	rooms = append(rooms, GetRooms(n.Left)...)
+	rooms = append(rooms, GetRooms(n.Right)...)
+	return rooms
+}
+
 // split recursively partitions space into smaller nodes.
 func (g *Generator) split(n *Node, depth int) bool {
 	if depth > 10 { // Prevent infinite recursion

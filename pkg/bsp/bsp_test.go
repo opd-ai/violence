@@ -490,3 +490,42 @@ func TestPlaceSecretsWithValidTiles(t *testing.T) {
 	// placeSecrets should work without panic
 	g.placeSecrets(nil, tiles)
 }
+
+// TestGetRooms tests that GetRooms correctly extracts all rooms from a BSP tree.
+func TestGetRooms(t *testing.T) {
+	r := rng.NewRNG(12345)
+	g := NewGenerator(64, 64, r)
+
+	root, _ := g.Generate()
+
+	rooms := GetRooms(root)
+
+	if len(rooms) == 0 {
+		t.Error("GetRooms returned no rooms from a valid BSP tree")
+	}
+
+	// Verify all rooms are valid
+	for i, room := range rooms {
+		if room == nil {
+			t.Errorf("Room %d is nil", i)
+			continue
+		}
+		if room.W <= 0 || room.H <= 0 {
+			t.Errorf("Room %d has invalid dimensions: W=%d, H=%d", i, room.W, room.H)
+		}
+		if room.X < 0 || room.Y < 0 {
+			t.Errorf("Room %d has invalid position: X=%d, Y=%d", i, room.X, room.Y)
+		}
+		if room.X+room.W > g.Width || room.Y+room.H > g.Height {
+			t.Errorf("Room %d exceeds map bounds: X=%d, Y=%d, W=%d, H=%d", i, room.X, room.Y, room.W, room.H)
+		}
+	}
+}
+
+// TestGetRoomsNilNode tests that GetRooms handles nil input gracefully.
+func TestGetRoomsNilNode(t *testing.T) {
+	rooms := GetRooms(nil)
+	if rooms != nil {
+		t.Errorf("GetRooms(nil) should return nil, got %v", rooms)
+	}
+}
