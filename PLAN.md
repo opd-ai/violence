@@ -218,21 +218,25 @@
     - **Completed**: Created `docs/MODDING.md` covering mod directory structure and `mod.json` manifest, Plugin interface (Load/Unload/Name/Version), hook system with 7 hook types and registration examples, Generator interface for custom procedural content, Loader API (load/unload/enable/disable/conflict detection), PluginManager lifecycle, determinism requirements, and known limitations (Go plugins only, no sandboxing)
 
 ### Mod Framework (`pkg/mod`)
-41. Define plugin interface for custom content
+41. [x] Define plugin interface for custom content (2026-02-28)
     - **Deliverable**: `Plugin` interface with `Load()`, `Unload()`, `GetGenerators()` methods
     - **Dependencies**: Existing `pkg/mod`
+    - **Completed**: Extended `Plugin` interface with `GetGenerators() []Generator` method for plugins to provide custom procedural content generators. `PluginManager.LoadPlugin()` now auto-registers generators from plugins via `GetGenerators()`, with ownership tracking in `GeneratorRegistry` (`RegisterFrom()`, `ForceRegister()`, `Owner()` methods). Generator type conflicts produce warnings rather than blocking plugin loading. All existing tests updated and passing with 99.7% package coverage
 
-42. Implement mod loader with conflict detection
+42. [x] Implement mod loader with conflict detection (2026-02-28)
     - **Deliverable**: Load mods from `mods/` directory; detect conflicting generator overrides; report warnings
     - **Dependencies**: Step 41
+    - **Completed**: Implemented `LoadAllMods()` on `Loader` to scan mods directory, load subdirectories containing `mod.json` in alphabetical order for deterministic behavior. Skips directories without manifests, files, and invalid mods (recording warnings). Generator conflict detection via `RegisterFrom()` tracks which plugin owns each generator type and prevents duplicate registration. Warning system aggregates loader and plugin manager warnings via `GetWarnings()`/`ClearWarnings()`. Comprehensive tests for empty/nonexistent dirs, multiple mods, invalid mods, conflict scenarios. 99.7% package coverage
 
-43. Implement generation parameter override system
+43. [x] Implement generation parameter override system (2026-02-28)
     - **Deliverable**: Mods register custom enemy types, weapon definitions, texture parameters as generation rules
     - **Dependencies**: Step 42
+    - **Completed**: Implemented `ParamOverride` struct (GeneratorType, Key, Value, Priority, ModName) and `ParamRegistry` with: `Register()` inserting overrides sorted by priority descending, `Get()` returning highest-priority value, `GetAll()` returning all overrides for a generator type, `GetOverrides()` returning full override chain, `ApplyOverrides()` merging overrides into generation params, `RemoveByMod()` for cleanup, `ListTypes()`/`Clear()` for management. Integrated into `PluginManager` (via `Overrides()`) and `Loader` (via `RegisterOverride()`/`GetOverrides()` convenience methods). Thread-safe with mutex protection. 99.7% package coverage
 
-44. Add unit tests for mod framework
+44. [x] Add unit tests for mod framework (2026-02-28)
     - **Deliverable**: Tests for plugin loading, conflict detection, parameter override precedence
     - **Dependencies**: Steps 41–43
+    - **Completed**: Added comprehensive test suite in `override_test.go` with 30+ test scenarios: `TestParamRegistry` (register/get, priority resolution, GetAll, RemoveByMod, ListTypes, Clear, ApplyOverrides, nil params, concurrent access), `TestPluginGetGenerators` (auto-register on load, conflict warning, no generators, clear warnings), `TestGeneratorRegistryOwnership` (RegisterFrom, conflicts, ForceRegister, Owner, Clear resets), `TestLoaderLoadAllMods` (empty dir, nonexistent dir, multiple mods, invalid mods, dirs without manifests, file skipping, conflict warnings), `TestLoaderWarnings`, `TestLoaderOverrides` (register/get, applied to generation, precedence), `TestPluginManagerOverrides`. All tests pass with 99.7% package coverage
 
 ### Test Coverage
 45. Audit and expand test coverage to 82%+
