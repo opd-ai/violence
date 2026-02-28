@@ -20,7 +20,7 @@ pkg/
   audio/                 Audio engine (procedurally generated music, SFX, positional audio)
   ui/                    HUD, menus, and settings screens
   tutorial/              Context-sensitive tutorial prompts
-  weapon/                Weapon definitions and firing
+  weapon/                Weapon definitions, firing, and mastery progression
   upgrade/               Weapon upgrade token system
   ammo/                  Ammo types and pools
   door/                  Keycard and door system

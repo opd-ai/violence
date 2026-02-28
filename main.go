@@ -156,6 +156,9 @@ type Game struct {
 	// Weapon upgrade system
 	upgradeManager *upgrade.Manager
 
+	// Weapon mastery system
+	masteryManager *weapon.MasteryManager
+
 	// Federation system
 	federationHub *federation.FederationHub
 	serverBrowser []*federation.ServerAnnouncement // Cached server list
@@ -223,6 +226,7 @@ func NewGame() *Game {
 		codexScrollIdx:     0,
 		secretManager:      secret.NewManager(64), // Map width for secret key calculation
 		upgradeManager:     upgrade.NewManager(),
+		masteryManager:     weapon.NewMasteryManager(),
 		federationHub:      federation.NewFederationHub(),
 		serverBrowser:      make([]*federation.ServerAnnouncement, 0),
 		browserIdx:         0,
@@ -751,7 +755,12 @@ func (g *Game) updatePlaying() error {
 						if agentIdx >= 0 && agentIdx < len(g.aiAgents) {
 							agent := g.aiAgents[agentIdx]
 							if agent.Health > 0 {
-								// Apply damage with upgrades
+								// Award mastery XP for successful hit
+								if g.masteryManager != nil {
+									g.masteryManager.AddMasteryXP(g.arsenal.CurrentSlot, 10)
+								}
+
+								// Apply damage with upgrades and mastery bonuses
 								upgradedDamage := g.getUpgradedWeaponDamage(currentWeapon)
 								agent.Health -= upgradedDamage
 
@@ -1509,16 +1518,21 @@ func (g *Game) applyCraftedItem(outputID string, qty int) {
 
 // getUpgradedWeaponDamage returns the weapon damage with all upgrades applied.
 func (g *Game) getUpgradedWeaponDamage(baseWeapon weapon.Weapon) float64 {
-	if g.upgradeManager == nil {
-		return baseWeapon.Damage
-	}
-
-	upgrades := g.upgradeManager.GetUpgrades(baseWeapon.Name)
 	damage := baseWeapon.Damage
 
-	for _, upgradeType := range upgrades {
-		wu := upgrade.NewWeaponUpgrade(upgradeType)
-		damage, _, _, _, _ = wu.ApplyWeaponStats(damage, 0, 0, 0, 0)
+	// Apply upgrade bonuses
+	if g.upgradeManager != nil {
+		upgrades := g.upgradeManager.GetUpgrades(baseWeapon.Name)
+		for _, upgradeType := range upgrades {
+			wu := upgrade.NewWeaponUpgrade(upgradeType)
+			damage, _, _, _, _ = wu.ApplyWeaponStats(damage, 0, 0, 0, 0)
+		}
+	}
+
+	// Apply mastery bonuses
+	if g.masteryManager != nil {
+		bonuses := g.masteryManager.GetBonus(g.arsenal.CurrentSlot)
+		damage *= bonuses.HeadshotDamage // Applies headshot damage bonus to all damage
 	}
 
 	return damage
