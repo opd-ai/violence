@@ -150,9 +150,10 @@
     - **Dependencies**: Step 26
     - **Completed**: Implemented `PlayerLookupRequest`/`PlayerLookupResponse` structs, `handleLookup()` HTTP endpoint, `lookupPlayer()` for querying player presence, player index (`playerID -> serverName` mapping) in `FederationHub`, automatic index updates when servers announce player lists, player cleanup when servers go stale, `UpdatePlayerList()` method for `ServerAnnouncer`, and comprehensive tests (10 new test cases covering unit tests, HTTP endpoint, index updates, stale cleanup, and E2E integration) achieving 92.7% package coverage
 
-28. Implement matchmaking queue
+28. [x] Implement matchmaking queue (2026-02-28)
     - **Deliverable**: Players queue for mode (co-op/FFA/TDM/territory); matchmaker groups players and assigns server
     - **Dependencies**: Step 26
+    - **Completed**: Implemented `Matchmaker` with player queue management (enqueue/dequeue), game mode support (co-op/FFA/TDM/territory), configurable min/max players per mode, player grouping by genre/region, automatic match creation when sufficient players available, server capacity checking, 60-second queue timeout with automatic cleanup, 2-second match processing interval, and comprehensive tests (17 test scenarios covering enqueue/dequeue, grouping, matching, timeouts, server capacity, and integration) achieving 93.9% package coverage
 
 29. Add integration tests for federation
     - **Deliverable**: Simulated multi-server federation with player lookup and matchmaking

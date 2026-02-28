@@ -169,6 +169,112 @@ Server announcement endpoint. Accepts WebSocket connections and expects JSON-enc
 All components are thread-safe and use mutexes to protect shared state:
 - Hub server list is protected by `sync.RWMutex`
 - Announcer state is protected by `sync.Mutex`
+- Matchmaker queues are protected by `sync.Mutex`
+
+## Matchmaking System
+
+The matchmaking system automatically groups players into matches and assigns them to available servers based on game mode, genre, and region preferences.
+
+### Game Modes
+
+- **Co-op** (`ModeCoop`): 2-4 players cooperative gameplay
+- **Free-for-All** (`ModeFFA`): 2-8 players deathmatch
+- **Team Deathmatch** (`ModeTeamDM`): 2-16 players, team-based
+- **Territory Control** (`ModeTerritory`): 2-16 players, capture points
+
+### Using the Matchmaker
+
+```go
+// Create matchmaker with federation hub
+hub := federation.NewFederationHub()
+hub.Start("0.0.0.0:9000")
+
+mm := federation.NewMatchmaker(hub)
+mm.Start()
+defer mm.Stop()
+
+// Enqueue player for matchmaking
+err := mm.Enqueue("player123", federation.ModeFFA, "scifi", federation.RegionUSEast)
+if err != nil {
+    log.Printf("failed to enqueue: %v", err)
+}
+
+// Check if player is in queue
+if mm.IsQueued("player123") {
+    log.Println("player is waiting for match")
+}
+
+// Remove player from queue (if they cancel)
+mm.Dequeue("player123")
+
+// Get current queue size
+size := mm.GetQueueSize(federation.ModeFFA)
+log.Printf("FFA queue: %d players", size)
+```
+
+### Matchmaking Process
+
+1. **Player Enqueues**: Client calls `Enqueue()` with player ID, game mode, genre, and region
+2. **Grouping**: Matchmaker groups players by mode, genre, and region
+3. **Matching**: Every 2 seconds, matchmaker attempts to create matches:
+   - Check if enough players are queued (minimum per mode)
+   - Find available server with sufficient capacity
+   - Create match and remove players from queue
+4. **Timeout**: Players in queue for 60+ seconds are automatically removed
+
+### Match Configuration
+
+Each game mode has configured player limits:
+
+| Mode | Min Players | Max Players |
+|------|-------------|-------------|
+| Co-op | 2 | 4 |
+| FFA | 2 | 8 |
+| Team DM | 2 | 16 |
+| Territory | 2 | 16 |
+
+### Server Assignment
+
+The matchmaker assigns players to servers based on:
+1. **Genre match**: Server must support the requested genre
+2. **Region match**: Server must be in the requested region
+3. **Capacity**: Server must have enough available slots for all matched players
+
+### Queue Management
+
+The matchmaker provides several management functions:
+
+- `Enqueue(playerID, mode, genre, region)`: Add player to queue
+- `Dequeue(playerID)`: Remove player from all queues
+- `IsQueued(playerID)`: Check if player is in any queue
+- `GetQueueSize(mode)`: Get number of players waiting for a mode
+- `GetQueuedPlayers(mode)`: Get list of all player IDs in queue for mode
+
+### Player Lookup
+
+The federation hub maintains a player index for cross-server lookups:
+
+```go
+// Looking up a player
+req := federation.PlayerLookupRequest{PlayerID: "player123"}
+response := hub.lookupPlayer(req.PlayerID)
+
+if response.Online {
+    log.Printf("Player is on server: %s (%s)", response.ServerName, response.ServerAddress)
+} else {
+    log.Println("Player is offline")
+}
+```
+
+Servers update their player lists via `ServerAnnouncer`:
+
+```go
+// Update player list on server
+playerIDs := []string{"player1", "player2", "player3"}
+announcer.UpdatePlayerList(playerIDs)
+```
+
+The hub automatically maintains the player index and cleans up stale entries when servers disconnect.
 
 ### Resource Cleanup
 
@@ -184,12 +290,15 @@ Both `FederationHub` and `ServerAnnouncer` support graceful shutdown:
 
 ## Testing
 
-The federation system has comprehensive test coverage (92.8%):
+The federation system has comprehensive test coverage (93.9%):
 - Unit tests for query filtering logic
+- Unit tests for matchmaking queue management
 - Integration tests for hub/announcer communication
+- Integration tests for matchmaking process
 - HTTP endpoint tests
 - Concurrent access tests
 - Stale server cleanup tests
+- Queue timeout tests
 
 Run tests with:
 ```bash
@@ -198,7 +307,9 @@ go test ./pkg/federation/... -v
 
 ## Future Enhancements
 
-See PLAN.md tasks 27-29 for planned features:
-- Cross-server player lookup
-- Matchmaking queue system
-- Multi-server federation integration tests
+Completed features (see PLAN.md for details):
+- ✅ Cross-server player lookup (Task 27)
+- ✅ Matchmaking queue system (Task 28)
+
+Planned:
+- Multi-server federation integration tests (Task 29)
