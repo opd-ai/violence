@@ -61,9 +61,10 @@
     - **Dependencies**: Steps 1–2
     - **Completed**: Implemented `FFAMatch` with player management (2-8 players), configurable frag/time limits, `OnPlayerKill()`/`OnPlayerSuicide()` for score tracking, `ProcessRespawns()` for 3-second respawn delay, deterministic spawn point generation using match seed, leaderboard sorting, win condition detection (frag limit or time limit), and comprehensive tests achieving 95.9% package coverage
 
-11. Implement team deathmatch
+11. [x] Implement team deathmatch (2026-02-28)
     - **Deliverable**: `TeamMatch` struct with team assignment, team-colored player indicators, team score tracking
     - **Dependencies**: Step 10
+    - **Completed**: Implemented `TeamMatch` with player management (2-16 players), two-team system (red/blue), team assignment on join, team-specific spawn points (left/right side split), `OnPlayerKill()`/`OnPlayerSuicide()` with team score tracking, `GetTeamScore()` for team statistics, leaderboard sorted by team then frags, win condition based on team frag limit or time limit, and comprehensive tests (22 test cases) achieving 96.2% package coverage
 
 12. Generate deathmatch-specific BSP maps
     - **Deliverable**: Arena layout generator with symmetrical spawn pads, weapon spawn locations, sightline balancing
