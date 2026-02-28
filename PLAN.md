@@ -187,29 +187,35 @@
     - **Completed**: Created `.github/workflows/release.yml` triggered by `v*` tags, calls `build.yml` as reusable workflow with `secrets: inherit`, downloads all build artifacts, collects platform binaries + signatures + checksums into release directory, generates combined `CHECKSUMS-SHA256.txt`, auto-generates release notes from git log between tags with platform download table and verification instructions, creates draft release via `softprops/action-gh-release@v2` with all assets. 2 new tests validate workflow structure, tag trigger, draft creation, artifact collection, and secrets inheritance
 
 ### Documentation Suite
-35. Create CHANGELOG.md with semver format
+35. [x] Create CHANGELOG.md with semver format (2026-02-28)
     - **Deliverable**: Changelog following Keep a Changelog format; auto-updated by release workflow
     - **Dependencies**: None
+    - **Completed**: Created `CHANGELOG.md` following Keep a Changelog 1.1.0 format with semver. Covers v1.0.0 through v5.0.0 with categorized entries for all features. Includes comparison links for GitHub release diffing
 
-36. Create CONTROLS.md keybinding reference
+36. [x] Create CONTROLS.md keybinding reference (2026-02-28)
     - **Deliverable**: Full keyboard/mouse/gamepad mapping documentation
     - **Dependencies**: `pkg/input`
+    - **Completed**: Created `CONTROLS.md` with complete keyboard (WASD + 20 action bindings), mouse (movement, sensitivity config), gamepad (Xbox/PlayStation button mappings, dual analog stick), chat controls, and custom binding instructions via `config.toml` KeyBindings section
 
-37. Create FAQ.md
+37. [x] Create FAQ.md (2026-02-28)
     - **Deliverable**: Common issues and answers; performance tuning; multiplayer troubleshooting
     - **Dependencies**: None
+    - **Completed**: Created `FAQ.md` covering general questions (build, config, requirements), performance tuning (resolution, VSync, MaxTPS, audio), multiplayer (hosting, modes, latency thresholds, respawn, squads, encryption, federation), gameplay (genres, profanity filter, saves), modding basics, and troubleshooting (CGo, gamepad, headless tests)
 
-38. Create architecture documentation
+38. [x] Create architecture documentation (2026-02-28)
     - **Deliverable**: `docs/ARCHITECTURE.md` covering ECS, raycaster, BSP, audio synthesis, networking
     - **Dependencies**: None
+    - **Completed**: Created `docs/ARCHITECTURE.md` with high-level package dependency diagram, ECS framework details (Entity/Component/System/World operations), DDA raycasting algorithm description, BSP level generation pipeline, audio synthesis architecture (adaptive music layers, spatial audio, SFX generation), rendering pipeline (8-step frame flow, post-processing effects table), lighting system, networking architecture (authoritative server, delta sync, lag compensation, latency tolerance), game loop state machine, and determinism policy
 
-39. Create genre system guide
+39. [x] Create genre system guide (2026-02-28)
     - **Deliverable**: `docs/GENRE_SYSTEM.md` explaining `SetGenre()` interface and adding new genres
     - **Dependencies**: `pkg/procgen/genre`
+    - **Completed**: Created `docs/GENRE_SYSTEM.md` covering genre registry (`pkg/procgen/genre`), 5 built-in genres with descriptions, SetGenre cascade flow through all 12+ subsystems, implementation pattern with switch-case template, genre effects tables per subsystem (BSP tiles, post-processing, audio, territory control visuals), and step-by-step guide for adding new genres
 
-40. Create modding guide
+40. [x] Create modding guide (2026-02-28)
     - **Deliverable**: `docs/MODDING.md` explaining plugin API, mod structure, generation parameter overrides
     - **Dependencies**: `pkg/mod`
+    - **Completed**: Created `docs/MODDING.md` covering mod directory structure and `mod.json` manifest, Plugin interface (Load/Unload/Name/Version), hook system with 7 hook types and registration examples, Generator interface for custom procedural content, Loader API (load/unload/enable/disable/conflict detection), PluginManager lifecycle, determinism requirements, and known limitations (Go plugins only, no sandboxing)
 
 ### Mod Framework (`pkg/mod`)
 41. Define plugin interface for custom content
