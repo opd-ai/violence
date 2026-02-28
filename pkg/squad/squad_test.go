@@ -463,3 +463,226 @@ func TestHealthSync(t *testing.T) {
 		t.Errorf("Health = %f, want 50.0 (synced from agent)", s.Members[0].Health)
 	}
 }
+
+func TestAddHumanPlayer(t *testing.T) {
+	s := NewSquad(3)
+
+	s.AddHumanPlayer(101, "Player1", 10.0, 15.0)
+	s.AddHumanPlayer(102, "Player2", 12.0, 18.0)
+
+	if len(s.HumanPlayers) != 2 {
+		t.Errorf("HumanPlayers = %d, want 2", len(s.HumanPlayers))
+	}
+
+	p1 := s.HumanPlayers[0]
+	if p1.PlayerID != 101 || p1.Name != "Player1" {
+		t.Errorf("Player1 incorrect: ID=%d Name=%s", p1.PlayerID, p1.Name)
+	}
+	if p1.X != 10.0 || p1.Y != 15.0 {
+		t.Errorf("Player1 position incorrect: (%f, %f)", p1.X, p1.Y)
+	}
+	if !p1.Active {
+		t.Error("Player1 should be active")
+	}
+}
+
+func TestAddHumanPlayer_Reactivate(t *testing.T) {
+	s := NewSquad(3)
+
+	s.AddHumanPlayer(101, "Player1", 10.0, 15.0)
+	s.RemoveHumanPlayer(101)
+
+	if s.HumanPlayers[0].Active {
+		t.Error("Player should be inactive after removal")
+	}
+
+	// Re-add should reactivate
+	s.AddHumanPlayer(101, "Player1", 20.0, 25.0)
+
+	if !s.HumanPlayers[0].Active {
+		t.Error("Player should be active after re-adding")
+	}
+	if s.HumanPlayers[0].X != 20.0 || s.HumanPlayers[0].Y != 25.0 {
+		t.Errorf("Player position not updated: (%f, %f)", s.HumanPlayers[0].X, s.HumanPlayers[0].Y)
+	}
+}
+
+func TestRemoveHumanPlayer(t *testing.T) {
+	s := NewSquad(3)
+
+	s.AddHumanPlayer(101, "Player1", 10.0, 15.0)
+	s.AddHumanPlayer(102, "Player2", 12.0, 18.0)
+
+	s.RemoveHumanPlayer(101)
+
+	if s.HumanPlayers[0].Active {
+		t.Error("Player1 should be inactive")
+	}
+	if !s.HumanPlayers[1].Active {
+		t.Error("Player2 should still be active")
+	}
+
+	// Remove non-existent player should not panic
+	s.RemoveHumanPlayer(999)
+}
+
+func TestUpdateHumanPlayer(t *testing.T) {
+	s := NewSquad(3)
+
+	s.AddHumanPlayer(101, "Player1", 10.0, 15.0)
+
+	s.UpdateHumanPlayer(101, 25.0, 30.0, 75.0)
+
+	p := s.HumanPlayers[0]
+	if p.X != 25.0 || p.Y != 30.0 {
+		t.Errorf("Position not updated: (%f, %f)", p.X, p.Y)
+	}
+	if p.Health != 75.0 {
+		t.Errorf("Health not updated: %f", p.Health)
+	}
+
+	// Update non-existent player should not panic
+	s.UpdateHumanPlayer(999, 0, 0, 0)
+}
+
+func TestGetHumanPlayers(t *testing.T) {
+	s := NewSquad(3)
+
+	s.AddHumanPlayer(101, "Player1", 10.0, 15.0)
+	s.AddHumanPlayer(102, "Player2", 12.0, 18.0)
+	s.AddHumanPlayer(103, "Player3", 14.0, 20.0)
+
+	s.RemoveHumanPlayer(102)
+
+	active := s.GetHumanPlayers()
+
+	if len(active) != 2 {
+		t.Errorf("GetHumanPlayers returned %d, want 2 active players", len(active))
+	}
+
+	// Check that inactive player is not in the list
+	for _, p := range active {
+		if p.PlayerID == 102 {
+			t.Error("Inactive player 102 should not be in active list")
+		}
+	}
+}
+
+func TestCommandTargetPlayer_Follow(t *testing.T) {
+	s := NewSquad(3)
+	s.AddMember("m1", "grunt", "rifle", 5.0, 5.0, 1)
+	s.AddMember("m2", "medic", "pistol", 6.0, 6.0, 2)
+
+	s.AddHumanPlayer(101, "Player1", 20.0, 25.0)
+
+	s.CommandTargetPlayer("follow_player", 101)
+
+	if s.Behavior != BehaviorFollow {
+		t.Errorf("Behavior = %v, want %v", s.Behavior, BehaviorFollow)
+	}
+
+	for i, m := range s.Members {
+		if m.TargetPlayerID != 101 {
+			t.Errorf("Member %d TargetPlayerID = %d, want 101", i, m.TargetPlayerID)
+		}
+	}
+}
+
+func TestCommandTargetPlayer_Attack(t *testing.T) {
+	s := NewSquad(3)
+	s.AddMember("m1", "grunt", "rifle", 5.0, 5.0, 1)
+
+	s.AddHumanPlayer(101, "Player1", 20.0, 25.0)
+
+	s.CommandTargetPlayer("attack_player_target", 101)
+
+	if s.Behavior != BehaviorAttack {
+		t.Errorf("Behavior = %v, want %v", s.Behavior, BehaviorAttack)
+	}
+
+	if s.Members[0].TargetPlayerID != 101 {
+		t.Errorf("TargetPlayerID = %d, want 101", s.Members[0].TargetPlayerID)
+	}
+}
+
+func TestUpdateFollow_WithTargetPlayer(t *testing.T) {
+	s := NewSquad(3)
+	s.AddMember("m1", "grunt", "rifle", 5.0, 5.0, 1)
+
+	s.AddHumanPlayer(101, "Player1", 20.0, 25.0)
+
+	tileMap := [][]int{
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+	}
+
+	s.CommandTargetPlayer("follow_player", 101)
+
+	initialX := s.Members[0].X
+
+	// Update should move member toward player instead of leader
+	s.Update(8.0, 5.0, tileMap, 0, 0, 12345)
+
+	// Member should have moved toward player (20, 25) not leader (8, 5)
+	member := s.Members[0]
+
+	// Check member moved in the direction of the target player
+	dx := 20.0 - initialX
+	if dx > 0 && member.X <= initialX {
+		t.Errorf("Member should have moved toward target player at (20, 25), but stayed at (%f, %f)", member.X, member.Y)
+	}
+}
+
+func TestUpdateFollow_WithInactiveTargetPlayer(t *testing.T) {
+	s := NewSquad(3)
+	s.AddMember("m1", "grunt", "rifle", 5.0, 5.0, 1)
+
+	s.AddHumanPlayer(101, "Player1", 20.0, 25.0)
+	s.RemoveHumanPlayer(101) // Mark as inactive
+
+	tileMap := [][]int{
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+	}
+
+	s.CommandTargetPlayer("follow_player", 101)
+
+	// Should fall back to following leader when target player is inactive
+	s.Update(8.0, 5.0, tileMap, 0, 0, 12345)
+
+	// Member should follow leader, not the inactive player
+	// Just verify it doesn't crash
+	if s.Members[0].Agent == nil {
+		t.Error("Agent should not be nil")
+	}
+}

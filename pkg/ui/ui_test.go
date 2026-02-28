@@ -1318,3 +1318,245 @@ func BenchmarkLoadingScreen_Show(b *testing.B) {
 		ls.Show(uint64(i), "Loading...")
 	}
 }
+
+func TestNewCommandWheel(t *testing.T) {
+	cw := NewCommandWheel()
+
+	if cw.visible {
+		t.Error("CommandWheel should start hidden")
+	}
+	if cw.selectedIndex != 0 {
+		t.Errorf("selectedIndex = %d, want 0", cw.selectedIndex)
+	}
+	if len(cw.players) != 0 {
+		t.Errorf("players = %d, want 0", len(cw.players))
+	}
+}
+
+func TestCommandWheel_Show(t *testing.T) {
+	cw := NewCommandWheel()
+
+	cw.Show("follow")
+
+	if !cw.visible {
+		t.Error("CommandWheel should be visible after Show")
+	}
+	if cw.selectedCommand != "follow" {
+		t.Errorf("selectedCommand = %s, want 'follow'", cw.selectedCommand)
+	}
+}
+
+func TestCommandWheel_Hide(t *testing.T) {
+	cw := NewCommandWheel()
+
+	cw.Show("attack")
+	cw.Hide()
+
+	if cw.visible {
+		t.Error("CommandWheel should be hidden after Hide")
+	}
+}
+
+func TestCommandWheel_SetPlayers(t *testing.T) {
+	cw := NewCommandWheel()
+
+	players := []*CommandWheelPlayer{
+		{PlayerID: 101, Name: "Player1", Health: 100, Active: true},
+		{PlayerID: 102, Name: "Player2", Health: 75, Active: true},
+		{PlayerID: 103, Name: "Player3", Health: 50, Active: false},
+	}
+
+	cw.SetPlayers(players)
+
+	if len(cw.players) != 3 {
+		t.Errorf("players = %d, want 3", len(cw.players))
+	}
+	if cw.players[0].PlayerID != 101 {
+		t.Errorf("Player 0 ID = %d, want 101", cw.players[0].PlayerID)
+	}
+}
+
+func TestCommandWheel_MoveUp(t *testing.T) {
+	cw := NewCommandWheel()
+
+	players := []*CommandWheelPlayer{
+		{PlayerID: 101, Name: "Player1", Health: 100, Active: true},
+		{PlayerID: 102, Name: "Player2", Health: 75, Active: true},
+		{PlayerID: 103, Name: "Player3", Health: 50, Active: true},
+	}
+	cw.SetPlayers(players)
+
+	// Start at 0
+	cw.MoveUp()
+	if cw.selectedIndex != 2 {
+		t.Errorf("selectedIndex = %d, want 2 (wrapped to end)", cw.selectedIndex)
+	}
+
+	cw.MoveUp()
+	if cw.selectedIndex != 1 {
+		t.Errorf("selectedIndex = %d, want 1", cw.selectedIndex)
+	}
+}
+
+func TestCommandWheel_MoveDown(t *testing.T) {
+	cw := NewCommandWheel()
+
+	players := []*CommandWheelPlayer{
+		{PlayerID: 101, Name: "Player1", Health: 100, Active: true},
+		{PlayerID: 102, Name: "Player2", Health: 75, Active: true},
+		{PlayerID: 103, Name: "Player3", Health: 50, Active: true},
+	}
+	cw.SetPlayers(players)
+
+	cw.MoveDown()
+	if cw.selectedIndex != 1 {
+		t.Errorf("selectedIndex = %d, want 1", cw.selectedIndex)
+	}
+
+	cw.MoveDown()
+	if cw.selectedIndex != 2 {
+		t.Errorf("selectedIndex = %d, want 2", cw.selectedIndex)
+	}
+
+	// Wrap to start
+	cw.MoveDown()
+	if cw.selectedIndex != 0 {
+		t.Errorf("selectedIndex = %d, want 0 (wrapped to start)", cw.selectedIndex)
+	}
+}
+
+func TestCommandWheel_MoveEmptyList(t *testing.T) {
+	cw := NewCommandWheel()
+
+	// Should not panic with empty player list
+	cw.MoveUp()
+	cw.MoveDown()
+}
+
+func TestCommandWheel_GetSelectedPlayerID(t *testing.T) {
+	cw := NewCommandWheel()
+
+	players := []*CommandWheelPlayer{
+		{PlayerID: 101, Name: "Player1", Health: 100, Active: true},
+		{PlayerID: 102, Name: "Player2", Health: 75, Active: true},
+	}
+	cw.SetPlayers(players)
+
+	if cw.GetSelectedPlayerID() != 101 {
+		t.Errorf("GetSelectedPlayerID = %d, want 101", cw.GetSelectedPlayerID())
+	}
+
+	cw.MoveDown()
+	if cw.GetSelectedPlayerID() != 102 {
+		t.Errorf("GetSelectedPlayerID = %d, want 102", cw.GetSelectedPlayerID())
+	}
+}
+
+func TestCommandWheel_GetSelectedPlayerID_Empty(t *testing.T) {
+	cw := NewCommandWheel()
+
+	if cw.GetSelectedPlayerID() != 0 {
+		t.Errorf("GetSelectedPlayerID = %d, want 0 (no players)", cw.GetSelectedPlayerID())
+	}
+}
+
+func TestCommandWheel_GetCommand(t *testing.T) {
+	cw := NewCommandWheel()
+
+	tests := []struct {
+		name    string
+		command string
+	}{
+		{"Follow", "follow"},
+		{"Hold", "hold"},
+		{"Attack", "attack"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cw.Show(tt.command)
+			if cw.GetCommand() != tt.command {
+				t.Errorf("GetCommand = %s, want %s", cw.GetCommand(), tt.command)
+			}
+		})
+	}
+}
+
+func TestDrawCommandWheel_NilWheel(t *testing.T) {
+	screen := ebiten.NewImage(640, 480)
+	DrawCommandWheel(screen, nil) // Should not panic
+}
+
+func TestDrawCommandWheel_Hidden(t *testing.T) {
+	screen := ebiten.NewImage(640, 480)
+	cw := NewCommandWheel()
+	DrawCommandWheel(screen, cw) // Should not draw when hidden
+}
+
+func TestDrawCommandWheel_EmptyPlayers(t *testing.T) {
+	screen := ebiten.NewImage(640, 480)
+	cw := NewCommandWheel()
+	cw.Show("follow")
+	DrawCommandWheel(screen, cw) // Should render "No players available"
+}
+
+func TestDrawCommandWheel_WithPlayers(t *testing.T) {
+	screen := ebiten.NewImage(640, 480)
+	cw := NewCommandWheel()
+
+	players := []*CommandWheelPlayer{
+		{PlayerID: 101, Name: "Player1", Health: 100, Active: true},
+		{PlayerID: 102, Name: "Player2", Health: 50, Active: true},
+		{PlayerID: 103, Name: "Player3", Health: 0, Active: false},
+	}
+	cw.SetPlayers(players)
+	cw.Show("attack")
+
+	DrawCommandWheel(screen, cw) // Should render player list with health bars
+}
+
+func TestGetCommandTitle(t *testing.T) {
+	tests := []struct {
+		command string
+		want    string
+	}{
+		{"follow", "FOLLOW PLAYER"},
+		{"hold", "HOLD POSITION"},
+		{"attack", "ATTACK TARGET"},
+		{"unknown", "SQUAD COMMAND"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.command, func(t *testing.T) {
+			got := getCommandTitle(tt.command)
+			if got != tt.want {
+				t.Errorf("getCommandTitle(%s) = %s, want %s", tt.command, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCommandWheel_SetPlayers_ResetIndex(t *testing.T) {
+	cw := NewCommandWheel()
+
+	players := []*CommandWheelPlayer{
+		{PlayerID: 101, Name: "Player1", Health: 100, Active: true},
+		{PlayerID: 102, Name: "Player2", Health: 75, Active: true},
+		{PlayerID: 103, Name: "Player3", Health: 50, Active: true},
+	}
+	cw.SetPlayers(players)
+
+	// Move to last player
+	cw.selectedIndex = 2
+
+	// Set fewer players
+	fewerPlayers := []*CommandWheelPlayer{
+		{PlayerID: 101, Name: "Player1", Health: 100, Active: true},
+	}
+	cw.SetPlayers(fewerPlayers)
+
+	// Index should be reset to 0
+	if cw.selectedIndex != 0 {
+		t.Errorf("selectedIndex = %d, want 0 (reset after setting fewer players)", cw.selectedIndex)
+	}
+}

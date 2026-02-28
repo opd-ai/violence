@@ -1027,3 +1027,209 @@ func DrawTutorial(screen *ebiten.Image, message string) {
 	hintY := overlayY + 55
 	drawCenteredLabel(screen, centerX, hintY, "Press any key to dismiss", color.RGBA{150, 150, 150, 255})
 }
+
+// CommandWheelPlayer represents a player option in the command wheel.
+type CommandWheelPlayer struct {
+	PlayerID uint64
+	Name     string
+	Health   float64
+	Active   bool
+}
+
+// CommandWheel manages the squad command wheel UI.
+type CommandWheel struct {
+	visible         bool
+	selectedIndex   int
+	players         []*CommandWheelPlayer
+	selectedCommand string // "follow", "hold", "attack"
+}
+
+// NewCommandWheel creates a new command wheel.
+func NewCommandWheel() *CommandWheel {
+	return &CommandWheel{
+		visible:         false,
+		selectedIndex:   0,
+		players:         []*CommandWheelPlayer{},
+		selectedCommand: "",
+	}
+}
+
+// Show displays the command wheel with the specified command.
+func (cw *CommandWheel) Show(command string) {
+	cw.visible = true
+	cw.selectedCommand = command
+	cw.selectedIndex = 0
+}
+
+// Hide hides the command wheel.
+func (cw *CommandWheel) Hide() {
+	cw.visible = false
+}
+
+// IsVisible returns true if the command wheel is visible.
+func (cw *CommandWheel) IsVisible() bool {
+	return cw.visible
+}
+
+// SetPlayers updates the list of available players.
+func (cw *CommandWheel) SetPlayers(players []*CommandWheelPlayer) {
+	cw.players = players
+	if cw.selectedIndex >= len(players) {
+		cw.selectedIndex = 0
+	}
+}
+
+// MoveUp moves the selection up in the wheel.
+func (cw *CommandWheel) MoveUp() {
+	if len(cw.players) == 0 {
+		return
+	}
+	if cw.selectedIndex > 0 {
+		cw.selectedIndex--
+	} else {
+		cw.selectedIndex = len(cw.players) - 1
+	}
+}
+
+// MoveDown moves the selection down in the wheel.
+func (cw *CommandWheel) MoveDown() {
+	if len(cw.players) == 0 {
+		return
+	}
+	if cw.selectedIndex < len(cw.players)-1 {
+		cw.selectedIndex++
+	} else {
+		cw.selectedIndex = 0
+	}
+}
+
+// GetSelectedPlayerID returns the currently selected player ID.
+func (cw *CommandWheel) GetSelectedPlayerID() uint64 {
+	if cw.selectedIndex >= 0 && cw.selectedIndex < len(cw.players) {
+		return cw.players[cw.selectedIndex].PlayerID
+	}
+	return 0
+}
+
+// GetCommand returns the current command.
+func (cw *CommandWheel) GetCommand() string {
+	return cw.selectedCommand
+}
+
+// DrawCommandWheel renders the command wheel overlay.
+func DrawCommandWheel(screen *ebiten.Image, cw *CommandWheel) {
+	if cw == nil || !cw.visible {
+		return
+	}
+
+	bounds := screen.Bounds()
+	screenWidth := float32(bounds.Dx())
+	screenHeight := float32(bounds.Dy())
+
+	// Draw semi-transparent overlay
+	overlay := color.RGBA{0, 0, 0, 160}
+	vector.DrawFilledRect(screen, 0, 0, screenWidth, screenHeight, overlay, false)
+
+	// Calculate center position
+	centerX := screenWidth / 2
+	centerY := screenHeight / 2
+
+	// Draw command title
+	titleY := centerY - 120
+	commandTitle := getCommandTitle(cw.selectedCommand)
+	drawCenteredLabel(screen, centerX, titleY, commandTitle, color.RGBA{255, 255, 100, 255})
+
+	// Draw instruction
+	instructionY := titleY + 30
+	drawCenteredLabel(screen, centerX, instructionY, "Select Target Player", color.RGBA{200, 200, 200, 255})
+
+	// Draw player list
+	if len(cw.players) == 0 {
+		noPlayersY := centerY
+		drawCenteredLabel(screen, centerX, noPlayersY, "No players available", color.RGBA{180, 180, 180, 255})
+		return
+	}
+
+	itemHeight := float32(40)
+	listStartY := centerY - float32(len(cw.players))*itemHeight/2
+
+	for i, player := range cw.players {
+		itemY := listStartY + float32(i)*itemHeight
+
+		// Highlight selected item
+		if i == cw.selectedIndex {
+			highlightColor := color.RGBA{80, 120, 80, 220}
+			highlightX := centerX - 200
+			vector.DrawFilledRect(screen, highlightX, itemY-5, 400, itemHeight-5, highlightColor, false)
+			vector.StrokeRect(screen, highlightX, itemY-5, 400, itemHeight-5, 2, color.RGBA{120, 200, 120, 255}, false)
+		}
+
+		// Draw player name
+		nameColor := currentTheme.TextColor
+		if !player.Active {
+			nameColor = color.RGBA{100, 100, 100, 255}
+		} else if i == cw.selectedIndex {
+			nameColor = color.RGBA{255, 255, 255, 255}
+		}
+
+		nameX := centerX - 180
+		nameY := itemY + 15
+		playerLabel := fmt.Sprintf("%s (ID: %d)", player.Name, player.PlayerID)
+		drawLabel(screen, nameX, nameY, playerLabel, nameColor)
+
+		// Draw health bar
+		if player.Active {
+			barX := centerX - 180
+			barY := itemY + 22
+			barWidth := float32(360)
+			barHeight := float32(8)
+
+			healthPercent := player.Health / 100.0
+			if healthPercent > 1.0 {
+				healthPercent = 1.0
+			}
+			if healthPercent < 0 {
+				healthPercent = 0
+			}
+
+			// Draw health bar background
+			vector.DrawFilledRect(screen, barX, barY, barWidth, barHeight, color.RGBA{40, 40, 40, 255}, false)
+
+			// Draw health bar fill
+			fillWidth := barWidth * float32(healthPercent)
+			healthColor := currentTheme.HealthColor
+			if healthPercent < 0.3 {
+				healthColor = color.RGBA{200, 50, 50, 255}
+			} else if healthPercent < 0.6 {
+				healthColor = color.RGBA{200, 150, 50, 255}
+			}
+			vector.DrawFilledRect(screen, barX, barY, fillWidth, barHeight, healthColor, false)
+
+			// Draw border
+			vector.StrokeRect(screen, barX, barY, barWidth, barHeight, 1, color.RGBA{100, 100, 100, 255}, false)
+		} else {
+			// Draw "Disconnected" status
+			statusX := centerX + 100
+			statusY := itemY + 15
+			drawLabel(screen, statusX, statusY, "[DISCONNECTED]", color.RGBA{150, 50, 50, 255})
+		}
+	}
+
+	// Draw controls hint at bottom
+	hintY := screenHeight - 60
+	drawCenteredLabel(screen, centerX, hintY, "↑/↓ to select, Enter to confirm, ESC to cancel", color.RGBA{150, 150, 150, 255})
+}
+
+// getCommandTitle returns the display title for a command.
+func getCommandTitle(command string) string {
+	switch command {
+	case "follow":
+		return "FOLLOW PLAYER"
+	case "hold":
+		return "HOLD POSITION"
+	case "attack":
+		return "ATTACK TARGET"
+	default:
+		return "SQUAD COMMAND"
+	}
+}

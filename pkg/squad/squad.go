@@ -46,6 +46,17 @@ type SquadMember struct {
 	BehaviorTree                       *ai.BehaviorTree
 	HoldX, HoldY                       float64
 	FormationOffsetX, FormationOffsetY float64
+	TargetPlayerID                     uint64 // Human player target for follow/attack
+}
+
+// HumanPlayer represents a human player in co-op mode.
+type HumanPlayer struct {
+	PlayerID uint64
+	Name     string
+	X        float64
+	Y        float64
+	Health   float64
+	Active   bool
 }
 
 // Squad manages a group of AI squad members.
@@ -59,6 +70,7 @@ type Squad struct {
 	TargetY      float64
 	MaxMembers   int
 	CurrentGenre string
+	HumanPlayers []*HumanPlayer // Connected co-op players
 }
 
 // NewSquad creates a squad with default settings.
@@ -72,6 +84,7 @@ func NewSquad(maxMembers int) *Squad {
 		Formation:    FormationWedge,
 		MaxMembers:   maxMembers,
 		CurrentGenre: "fantasy",
+		HumanPlayers: []*HumanPlayer{},
 	}
 }
 
@@ -202,8 +215,22 @@ func (s *Squad) Update(leaderX, leaderY float64, tileMap [][]int, playerX, playe
 
 // updateFollow makes the squad member follow the leader with formation offset.
 func (s *Squad) updateFollow(member *SquadMember, tileMap [][]int) {
-	targetX := s.LeaderX + member.FormationOffsetX
-	targetY := s.LeaderY + member.FormationOffsetY
+	// Check if following a specific human player
+	followX := s.LeaderX
+	followY := s.LeaderY
+
+	if member.TargetPlayerID != 0 {
+		for _, p := range s.HumanPlayers {
+			if p.PlayerID == member.TargetPlayerID && p.Active {
+				followX = p.X
+				followY = p.Y
+				break
+			}
+		}
+	}
+
+	targetX := followX + member.FormationOffsetX
+	targetY := followY + member.FormationOffsetY
 
 	dx := targetX - member.X
 	dy := targetY - member.Y
@@ -328,6 +355,76 @@ func (s *Squad) GetBehavior() BehaviorState {
 // GetFormation returns the current formation type.
 func (s *Squad) GetFormation() Formation {
 	return s.Formation
+}
+
+// AddHumanPlayer registers a human player for squad command targeting.
+func (s *Squad) AddHumanPlayer(playerID uint64, name string, x, y float64) {
+	for _, p := range s.HumanPlayers {
+		if p.PlayerID == playerID {
+			p.Active = true
+			p.X = x
+			p.Y = y
+			return
+		}
+	}
+	s.HumanPlayers = append(s.HumanPlayers, &HumanPlayer{
+		PlayerID: playerID,
+		Name:     name,
+		X:        x,
+		Y:        y,
+		Health:   100.0,
+		Active:   true,
+	})
+}
+
+// RemoveHumanPlayer marks a human player as inactive (disconnected).
+func (s *Squad) RemoveHumanPlayer(playerID uint64) {
+	for _, p := range s.HumanPlayers {
+		if p.PlayerID == playerID {
+			p.Active = false
+			return
+		}
+	}
+}
+
+// UpdateHumanPlayer updates a human player's position and health.
+func (s *Squad) UpdateHumanPlayer(playerID uint64, x, y, health float64) {
+	for _, p := range s.HumanPlayers {
+		if p.PlayerID == playerID {
+			p.X = x
+			p.Y = y
+			p.Health = health
+			return
+		}
+	}
+}
+
+// GetHumanPlayers returns all active human players.
+func (s *Squad) GetHumanPlayers() []*HumanPlayer {
+	active := []*HumanPlayer{}
+	for _, p := range s.HumanPlayers {
+		if p.Active {
+			active = append(active, p)
+		}
+	}
+	return active
+}
+
+// CommandTargetPlayer issues a command targeting a specific human player.
+func (s *Squad) CommandTargetPlayer(cmd string, targetPlayerID uint64) {
+	switch cmd {
+	case "follow_player":
+		s.Behavior = BehaviorFollow
+		for _, m := range s.Members {
+			m.TargetPlayerID = targetPlayerID
+		}
+	case "attack_player_target":
+		// Attack what the target player is attacking
+		s.Behavior = BehaviorAttack
+		for _, m := range s.Members {
+			m.TargetPlayerID = targetPlayerID
+		}
+	}
 }
 
 // SetGenre configures squad behavior for a genre.

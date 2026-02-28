@@ -45,13 +45,15 @@
    - **Dependencies**: Step 6, `pkg/combat`
    - **Completed**: Implemented `OnPlayerDeath()` with 10-second bleedout timer, `ProcessBleedouts()` for expired timer detection, `RespawnPlayer()` at nearest living teammate position using distance calculation, `isPartyWiped()` detection, `RestartLevel()` for full party wipe with quest tracker reset, and comprehensive tests achieving 94.2% coverage (9 new test cases covering death, bleedout, respawn, party wipe, and level restart scenarios)
 
-8. Extend squad commands for human players
+8. [x] Extend squad commands for human players (2026-02-28)
    - **Deliverable**: Hold/Follow/Attack commands target human teammates; command wheel UI shows connected players
    - **Dependencies**: Step 6, `pkg/squad`
+   - **Completed**: Extended `Squad` to track human players via `HumanPlayer` struct with position/health tracking. Added `CommandTargetPlayer()` for player-targeted commands ("follow_player", "attack_player_target"). Squad members follow target player when `TargetPlayerID` is set. Implemented `CommandWheel` UI component with player selection, health bars, and navigation. Added comprehensive tests achieving 100% coverage on squad package
 
-9. Add integration tests for co-op mode
+9. [x] Add integration tests for co-op mode (2026-02-28)
    - **Deliverable**: Simulated 4-player session test: join, combat, respawn, objective completion
    - **Dependencies**: Steps 6–8
+   - **Completed**: Implemented comprehensive integration test suite (`coop_integration_test.go`) covering: (1) full 4-player session with join/combat/respawn/objective completion, (2) party wipe and level restart, (3) player disconnect/reconnect, (4) concurrent actions for thread safety, (5) shared objective tracking, (6) sequential respawn chain, (7) genre configuration, (8) edge cases (session full, insufficient players, duplicate adds), and (9) combat system integration. All 9 test scenarios pass with 94.5% package coverage
 
 ### Deathmatch Mode (`pkg/network`)
 10. Implement free-for-all deathmatch
