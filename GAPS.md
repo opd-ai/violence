@@ -70,3 +70,52 @@
 - **Gap**: High projectile counts may need spatial partitioning for efficient collision detection; current approach is O(n) entity iteration.
 - **Impact**: Performance degradation with many simultaneous projectiles (rocket explosions, plasma spam).
 - **Resolution needed**: Implement spatial hash or grid-based broadphase; evaluate necessity based on expected projectile density.
+
+---
+
+## v3.0 — Visual Polish: Textures, Lighting, Particles, Indoor Weather
+
+### Sector Light Map Implementation
+- **Gap**: `pkg/lighting` contains only stub types; the `SectorLightMap` struct and point light accumulation algorithm are not implemented.
+- **Impact**: Renderer's `getLightMultiplier()` always returns 1.0; no dynamic lighting visible in game.
+- **Resolution needed**: Implement `SectorLightMap` with per-tile light level storage, `AddPointLight()` with inverse-square falloff, and `Calculate()` to precompute all values.
+
+### Flashlight Cone Implementation
+- **Gap**: Flashlight (genre-skinned: torch/headlamp/glow-rod) is documented in ROADMAP but no cone light implementation exists.
+- **Impact**: Player has no portable light source; horror and dark areas have no player agency for illumination.
+- **Resolution needed**: Implement `AddFlashlight(x, y, dirX, dirY, coneAngle, range, intensity)` using dot-product angle test against player direction.
+
+### Wall Texture Coordinate Calculation
+- **Gap**: `RayHit` struct lacks texture coordinate (`TextureX`) for wall sampling; renderer cannot determine where on the wall texture to sample.
+- **Impact**: Wall textures cannot be applied; only palette colors render.
+- **Resolution needed**: Extend `RayHit` with `TextureX float64` computed as fractional part of exact wall hit position.
+
+### Weather Emitter Genre Configurations
+- **Gap**: `ParticleSystem` exists with spawn/update/cull lifecycle, but no `WeatherEmitter` or genre-specific particle configurations exist.
+- **Impact**: Indoor weather atmosphere (drips, smoke, sparks, etc.) does not appear in any genre.
+- **Resolution needed**: Create `WeatherEmitter` type with per-genre spawn configurations (rate, velocity, color, lifetime, spawn positions).
+
+### Cyberpunk Neon Pulse Animated Texture
+- **Gap**: Animated textures exist for fantasy, scifi, and horror but no "neon_pulse" pattern for cyberpunk is implemented.
+- **Impact**: Cyberpunk walls lack the animated neon glow effect that distinguishes the genre.
+- **Resolution needed**: Implement `generateNeonPulseFrame()` in `pkg/texture/animated.go` with magenta/cyan color cycling.
+
+### Post-Apocalyptic Radiation Glow Animated Texture
+- **Gap**: No "radiation_glow" animated texture pattern for postapoc genre.
+- **Impact**: Postapoc lacks visual indicator for radiation hazard areas.
+- **Resolution needed**: Implement `generateRadiationGlowFrame()` with green pulsing glow effect.
+
+### Horror Static Burst Effect
+- **Gap**: Post-processor has all standard effects but no static burst (brief full-screen noise) for horror genre.
+- **Impact**: Horror atmosphere lacks the unsettling random static that contributes to psychological tension.
+- **Resolution needed**: Add `ApplyStaticBurst()` to post-processor with configurable probability and duration; add to horror preset.
+
+### Postapoc Film Scratch Effect
+- **Gap**: No film scratch overlay effect exists for postapoc genre's "worn film" aesthetic.
+- **Impact**: Postapoc lacks the scratched/damaged film look documented in roadmap.
+- **Resolution needed**: Add `ApplyFilmScratches()` to post-processor with configurable scratch density and opacity.
+
+### BSP-to-Reverb Integration
+- **Gap**: `ReverbCalculator` accepts width/height but no integration exists to extract room dimensions from BSP level data.
+- **Impact**: Reverb parameters are static; rooms of different sizes all have identical reverb.
+- **Resolution needed**: Implement `SetRoomFromBSP(room *bsp.Room)` that extracts bounds and calls `SetRoomSize()`.
