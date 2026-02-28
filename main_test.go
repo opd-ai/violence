@@ -153,6 +153,28 @@ func TestIsWalkable(t *testing.T) {
 	}
 }
 
+// TestIsWalkableEmptyMap verifies handling of empty map slice.
+func TestIsWalkableEmptyMap(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+
+	// Test with empty map slice (edge case)
+	game.currentMap = [][]int{}
+
+	// Should not panic and should return true for empty map
+	if !game.isWalkable(5.0, 5.0) {
+		t.Error("Expected position to be walkable when map is empty slice")
+	}
+
+	// Verify no panic on various positions
+	game.isWalkable(0.0, 0.0)
+	game.isWalkable(-1.0, -1.0)
+	game.isWalkable(100.0, 100.0)
+}
+
 // TestSaveLoad verifies save/load round-trip.
 func TestSaveLoad(t *testing.T) {
 	if err := config.Load(); err != nil {

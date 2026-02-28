@@ -40,6 +40,7 @@ type Manager struct {
 	mouseDeltaX    float64
 	mouseDeltaY    float64
 	gamepadID      ebiten.GamepadID
+	firstUpdate    bool
 }
 
 // NewManager creates a new input manager with default bindings.
@@ -48,6 +49,7 @@ func NewManager() *Manager {
 		bindings:       make(map[Action]ebiten.Key),
 		gamepadButtons: make(map[Action]ebiten.GamepadButton),
 		gamepadID:      -1,
+		firstUpdate:    true,
 	}
 	m.setDefaultBindings()
 	m.loadBindingsFromConfig()
@@ -97,7 +99,11 @@ func (m *Manager) loadBindingsFromConfig() {
 func (m *Manager) Update() {
 	// Update mouse delta
 	mx, my := ebiten.CursorPosition()
-	if m.prevMouseX != 0 || m.prevMouseY != 0 {
+	if m.firstUpdate {
+		m.firstUpdate = false
+		m.mouseDeltaX = 0
+		m.mouseDeltaY = 0
+	} else {
 		m.mouseDeltaX = float64(mx - m.prevMouseX)
 		m.mouseDeltaY = float64(my - m.prevMouseY)
 	}

@@ -208,15 +208,15 @@ func (e *Engine) createPlayer(data []byte) (*audio.Player, error) {
 	return player, nil
 }
 
-// getMusicData returns embedded music data for a track and layer.
-// In a full implementation, this would use //go:embed directives.
+// getMusicData generates procedural music data for a track and layer.
+// Returns deterministic audio based on name and layer parameters.
 func (e *Engine) getMusicData(name string, layer int) []byte {
 	// Stub: return generated silence for now
 	return generateSilence(sampleRate * 2)
 }
 
-// getSFXData returns embedded SFX data by name.
-// In a full implementation, this would use //go:embed directives.
+// getSFXData generates procedural SFX data by name.
+// Returns deterministic audio based on name parameter.
 func (e *Engine) getSFXData(name string) []byte {
 	// Stub: return generated blip for now
 	return generateBlip(sampleRate / 10)

@@ -116,6 +116,27 @@ func TestUpdate(t *testing.T) {
 	_, _ = m.MouseDelta()
 }
 
+func TestMouseDeltaFirstFrame(t *testing.T) {
+	m := NewManager()
+
+	// Simulate cursor starting at non-zero position
+	m.prevMouseX = 100
+	m.prevMouseY = 100
+
+	// First update should set delta to zero regardless of cursor position
+	m.Update()
+	dx, dy := m.MouseDelta()
+
+	if dx != 0 || dy != 0 {
+		t.Errorf("first frame MouseDelta() = (%v, %v), want (0, 0)", dx, dy)
+	}
+
+	// Verify firstUpdate flag was cleared
+	if m.firstUpdate {
+		t.Error("firstUpdate flag should be false after first Update()")
+	}
+}
+
 func TestMouseDelta(t *testing.T) {
 	m := NewManager()
 

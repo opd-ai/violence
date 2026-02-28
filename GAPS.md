@@ -41,3 +41,32 @@
 - **Gap**: Zero test files exist in the entire codebase; no test helpers, fixtures, or mocking patterns are established.
 - **Impact**: Reaching 82% coverage requires test infrastructure from scratch; testing Ebitengine-dependent packages (render, ui, input) may require mock abstractions.
 - **Resolution needed**: Establish testing patterns — decide whether to use standard `testing` package only or add a test framework; create mock interfaces for Ebitengine screen/input dependencies.
+
+---
+
+## v2.0 — Core Systems: Weapons, FPS AI, Keycards, All 5 Genres
+
+### Procedural Weapon Sprite Generation
+- **Gap**: No algorithm defined for generating weapon sprites at runtime; ROADMAP requires all visuals procedurally generated but no synthesis approach exists.
+- **Impact**: Weapon visuals cannot be rendered without either breaking procedural generation policy or implementing sprite synthesis.
+- **Resolution needed**: Define sprite synthesis approach using geometric primitives, noise functions, or parametric curves to generate weapon raise/lower/fire/reload frames deterministically from seed.
+
+### Enemy Sprite Generation
+- **Gap**: No algorithm defined for generating enemy visuals procedurally; requires definition of body part composition and animation frames.
+- **Impact**: Enemies cannot be rendered; AI behavior exists but has no visual representation.
+- **Resolution needed**: Define body part decomposition (head, torso, limbs) with parametric shapes; animation frames generated via joint angle interpolation; color palette per genre.
+
+### Pathfinding Algorithm
+- **Gap**: AI chase/patrol behaviors require pathfinding against BSP tile grid; no pathfinding algorithm specified.
+- **Impact**: Enemies cannot navigate around obstacles to reach player; chase state will fail on non-trivial maps.
+- **Resolution needed**: Implement A* pathfinding on tile grid; define tile traversability (walls blocked, doors conditionally blocked); cache paths for performance.
+
+### Cover Detection Algorithm
+- **Gap**: AI take-cover behavior requires identifying cover tiles; no algorithm to classify tiles as providing cover.
+- **Impact**: Take-cover AI state cannot function; enemies will not seek defensive positions.
+- **Resolution needed**: Define cover tile criteria (adjacent to wall, not visible from threat direction); implement cover scoring function for AI decision-making.
+
+### Projectile Collision Broadphase
+- **Gap**: High projectile counts may need spatial partitioning for efficient collision detection; current approach is O(n) entity iteration.
+- **Impact**: Performance degradation with many simultaneous projectiles (rocket explosions, plasma spam).
+- **Resolution needed**: Implement spatial hash or grid-based broadphase; evaluate necessity based on expected projectile density.

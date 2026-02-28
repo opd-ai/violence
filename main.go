@@ -309,7 +309,7 @@ func (g *Game) updatePlaying() error {
 
 // isWalkable checks if a position is walkable (no collision).
 func (g *Game) isWalkable(x, y float64) bool {
-	if g.currentMap == nil {
+	if g.currentMap == nil || len(g.currentMap) == 0 {
 		return true
 	}
 	mapX := int(x)

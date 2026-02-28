@@ -410,3 +410,4 @@ The following packages are architecture-neutral and can be copied or imported di
 ## Plan History
 
 - 2026-02-27 PLAN.md created for v1.0 — Core Engine + Playable Single-Player (archived to docs/)
+- 2026-02-28 PLAN.md created for v2.0 — Core Systems: Weapons, FPS AI, Keycards, All 5 Genres
