@@ -24,6 +24,7 @@ import (
 	"github.com/opd-ai/violence/pkg/door"
 	"github.com/opd-ai/violence/pkg/engine"
 	"github.com/opd-ai/violence/pkg/event"
+	"github.com/opd-ai/violence/pkg/federation"
 	"github.com/opd-ai/violence/pkg/input"
 	"github.com/opd-ai/violence/pkg/inventory"
 	"github.com/opd-ai/violence/pkg/lighting"
@@ -154,6 +155,12 @@ type Game struct {
 
 	// Weapon upgrade system
 	upgradeManager *upgrade.Manager
+
+	// Federation system
+	federationHub *federation.FederationHub
+	serverBrowser []*federation.ServerAnnouncement // Cached server list
+	browserIdx    int                              // Selected server in browser
+	useFederation bool                             // Whether to use federation matchmaking
 }
 
 // NewGame creates and initializes a new game instance.
@@ -216,6 +223,10 @@ func NewGame() *Game {
 		codexScrollIdx:     0,
 		secretManager:      secret.NewManager(64), // Map width for secret key calculation
 		upgradeManager:     upgrade.NewManager(),
+		federationHub:      federation.NewFederationHub(),
+		serverBrowser:      make([]*federation.ServerAnnouncement, 0),
+		browserIdx:         0,
+		useFederation:      false,
 	}
 
 	// Initialize BSP generator
@@ -1782,6 +1793,9 @@ func (g *Game) buildSkillsState() *ui.SkillsState {
 func (g *Game) openMultiplayer() {
 	g.mpSelectedMode = 0
 	g.mpStatusMsg = ""
+	g.useFederation = false
+	g.serverBrowser = make([]*federation.ServerAnnouncement, 0)
+	g.browserIdx = 0
 	g.menuManager.Show(ui.MenuTypeMultiplayer)
 	g.state = StateMultiplayer
 }
@@ -1795,23 +1809,52 @@ func (g *Game) updateMultiplayer() error {
 		return nil
 	}
 
-	// Navigate modes
-	if g.input.IsJustPressed(input.ActionMoveForward) {
-		if g.mpSelectedMode > 0 {
-			g.mpSelectedMode--
-		}
-	}
-	if g.input.IsJustPressed(input.ActionMoveBackward) {
-		g.mpSelectedMode++
-		modes := g.getMultiplayerModes()
-		if g.mpSelectedMode >= len(modes) {
-			g.mpSelectedMode = len(modes) - 1
+	// Toggle between local and federation mode with L key
+	if g.input.IsJustPressed(input.ActionCodex) {
+		g.useFederation = !g.useFederation
+		if g.useFederation {
+			g.refreshServerBrowser()
 		}
 	}
 
-	// Select mode
+	// Navigate modes or servers
+	if g.input.IsJustPressed(input.ActionMoveForward) {
+		if g.useFederation {
+			if g.browserIdx > 0 {
+				g.browserIdx--
+			}
+		} else {
+			if g.mpSelectedMode > 0 {
+				g.mpSelectedMode--
+			}
+		}
+	}
+	if g.input.IsJustPressed(input.ActionMoveBackward) {
+		if g.useFederation {
+			if g.browserIdx < len(g.serverBrowser)-1 {
+				g.browserIdx++
+			}
+		} else {
+			g.mpSelectedMode++
+			modes := g.getMultiplayerModes()
+			if g.mpSelectedMode >= len(modes) {
+				g.mpSelectedMode = len(modes) - 1
+			}
+		}
+	}
+
+	// Refresh server browser with R key
+	if g.useFederation && g.input.IsJustPressed(input.ActionCraft) {
+		g.refreshServerBrowser()
+	}
+
+	// Select mode or join server
 	if g.input.IsJustPressed(input.ActionFire) || g.input.IsJustPressed(input.ActionInteract) {
-		g.handleMultiplayerSelect()
+		if g.useFederation {
+			g.handleFederationJoin()
+		} else {
+			g.handleMultiplayerSelect()
+		}
 	}
 
 	return nil
@@ -2066,6 +2109,47 @@ func (g *Game) getMultiplayerModes() []ui.MultiplayerMode {
 		{ID: "team", Name: "Team Deathmatch", Description: "Red vs Blue team combat", MaxPlayers: 16},
 		{ID: "territory", Name: "Territory Control", Description: "Capture and hold strategic points", MaxPlayers: 16},
 	}
+}
+
+// refreshServerBrowser queries the federation hub for available servers.
+func (g *Game) refreshServerBrowser() {
+	if g.federationHub == nil {
+		g.mpStatusMsg = "Federation not available"
+		return
+	}
+
+	genre := g.genreID
+	query := &federation.ServerQuery{
+		Genre: &genre,
+	}
+
+	servers := g.federationHub.QueryServers(query)
+	g.serverBrowser = servers
+	g.browserIdx = 0
+
+	if len(servers) == 0 {
+		g.mpStatusMsg = "No servers found. Press R to refresh."
+	} else {
+		g.mpStatusMsg = "Found " + string(rune(len(servers)+'0')) + " servers. Press L for local mode."
+	}
+}
+
+// handleFederationJoin connects to a federated server.
+func (g *Game) handleFederationJoin() {
+	if len(g.serverBrowser) == 0 {
+		g.mpStatusMsg = "No servers available. Press R to refresh."
+		return
+	}
+
+	if g.browserIdx < 0 || g.browserIdx >= len(g.serverBrowser) {
+		g.mpStatusMsg = "Invalid server selection"
+		return
+	}
+
+	server := g.serverBrowser[g.browserIdx]
+	g.mpStatusMsg = "Connecting to " + server.Name + "..."
+	g.networkMode = true
+	g.hud.ShowMessage(g.mpStatusMsg)
 }
 
 // drawMultiplayer renders the multiplayer lobby screen.

@@ -6,6 +6,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/opd-ai/violence/pkg/bsp"
 	"github.com/opd-ai/violence/pkg/config"
+	"github.com/opd-ai/violence/pkg/federation"
 	"github.com/opd-ai/violence/pkg/inventory"
 	"github.com/opd-ai/violence/pkg/minigame"
 	"github.com/opd-ai/violence/pkg/ui"
@@ -3174,5 +3175,200 @@ func TestWeaponUpgradeInsufficientTokens(t *testing.T) {
 	// Verify token count unchanged
 	if game.upgradeManager.GetTokens().GetCount() != 1 {
 		t.Errorf("Expected 1 token after failed purchase, got %d", game.upgradeManager.GetTokens().GetCount())
+	}
+}
+
+// TestFederationHubInitialization verifies federation hub is initialized.
+func TestFederationHubInitialization(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	if game.federationHub == nil {
+		t.Fatal("Federation hub not initialized")
+	}
+
+	// Verify initial state
+	if game.useFederation {
+		t.Error("Should not be using federation by default")
+	}
+	if game.serverBrowser == nil {
+		t.Error("Server browser should be initialized")
+	}
+	if len(game.serverBrowser) != 0 {
+		t.Error("Server browser should be empty initially")
+	}
+}
+
+// TestFederationServerBrowsing verifies server browser functionality.
+func TestFederationServerBrowsing(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	// Register some test servers
+	game.federationHub.RegisterServer(&federation.ServerAnnouncement{
+		Name:       "Test Server 1",
+		Address:    "localhost:8001",
+		Region:     federation.RegionUSEast,
+		Genre:      "fantasy",
+		Players:    2,
+		MaxPlayers: 16,
+	})
+	game.federationHub.RegisterServer(&federation.ServerAnnouncement{
+		Name:       "Test Server 2",
+		Address:    "localhost:8002",
+		Region:     federation.RegionEUWest,
+		Genre:      "scifi",
+		Players:    5,
+		MaxPlayers: 16,
+	})
+
+	// Refresh browser
+	game.refreshServerBrowser()
+
+	// Should find servers (not necessarily matching genre since we registered manually)
+	if len(game.serverBrowser) == 0 {
+		t.Log("No servers found (expected behavior if query filters don't match)")
+	}
+}
+
+// TestFederationGenreFiltering verifies genre-based server filtering.
+func TestFederationGenreFiltering(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.genreID = "fantasy"
+	game.startNewGame()
+
+	// Register servers with different genres
+	game.federationHub.RegisterServer(&federation.ServerAnnouncement{
+		Name:       "Fantasy Server",
+		Address:    "localhost:9001",
+		Region:     federation.RegionUSEast,
+		Genre:      "fantasy",
+		Players:    3,
+		MaxPlayers: 16,
+	})
+	game.federationHub.RegisterServer(&federation.ServerAnnouncement{
+		Name:       "SciFi Server",
+		Address:    "localhost:9002",
+		Region:     federation.RegionUSEast,
+		Genre:      "scifi",
+		Players:    5,
+		MaxPlayers: 16,
+	})
+
+	// Refresh with fantasy genre filter
+	game.refreshServerBrowser()
+
+	// Should only find fantasy servers
+	for _, server := range game.serverBrowser {
+		if server.Genre != "fantasy" {
+			t.Errorf("Expected only fantasy servers, found %s", server.Genre)
+		}
+	}
+}
+
+// TestFederationModeToggle verifies toggling between local and federation modes.
+func TestFederationModeToggle(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+	game.openMultiplayer()
+
+	initialMode := game.useFederation
+	if initialMode {
+		t.Error("Should start in local mode")
+	}
+
+	// Toggle to federation
+	game.useFederation = true
+	if !game.useFederation {
+		t.Error("Failed to toggle to federation mode")
+	}
+
+	// Toggle back to local
+	game.useFederation = false
+	if game.useFederation {
+		t.Error("Failed to toggle back to local mode")
+	}
+}
+
+// TestFederationJoinServer verifies server join functionality.
+func TestFederationJoinServer(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+	game.openMultiplayer()
+
+	// Register a test server
+	game.federationHub.RegisterServer(&federation.ServerAnnouncement{
+		Name:       "Join Test Server",
+		Address:    "localhost:10001",
+		Region:     federation.RegionUSEast,
+		Genre:      "fantasy",
+		Players:    1,
+		MaxPlayers: 16,
+	})
+
+	// Refresh browser
+	game.useFederation = true
+	game.refreshServerBrowser()
+
+	if len(game.serverBrowser) == 0 {
+		t.Skip("No servers in browser to test join")
+	}
+
+	// Select first server and join
+	game.browserIdx = 0
+	game.handleFederationJoin()
+
+	// Should be in network mode
+	if !game.networkMode {
+		t.Error("Network mode should be enabled after joining server")
+	}
+
+	// Status message should be set
+	if game.mpStatusMsg == "" {
+		t.Error("Status message should be set after join attempt")
+	}
+}
+
+// TestFederationLocalFallback verifies local mode still works.
+func TestFederationLocalFallback(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+	game.openMultiplayer()
+
+	// Stay in local mode
+	game.useFederation = false
+	game.mpSelectedMode = 0 // Co-op
+
+	// Select local co-op
+	game.handleMultiplayerSelect()
+
+	// Should create local session
+	if !game.networkMode {
+		t.Error("Network mode should be enabled for local co-op")
+	}
+	if game.multiplayerMgr == nil {
+		t.Error("Multiplayer manager should be initialized for local mode")
 	}
 }

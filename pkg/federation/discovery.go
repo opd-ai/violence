@@ -244,6 +244,11 @@ func (h *FederationHub) registerServer(announcement *ServerAnnouncement) {
 	h.servers[announcement.Name] = announcement
 }
 
+// RegisterServer adds or updates a server announcement (public API).
+func (h *FederationHub) RegisterServer(announcement *ServerAnnouncement) {
+	h.registerServer(announcement)
+}
+
 // queryServers filters servers based on query criteria.
 func (h *FederationHub) queryServers(query *ServerQuery) []*ServerAnnouncement {
 	h.mu.RLock()
@@ -307,6 +312,11 @@ func (h *FederationHub) GetServerCount() int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return len(h.servers)
+}
+
+// QueryServers filters servers based on query criteria (public API).
+func (h *FederationHub) QueryServers(query *ServerQuery) []*ServerAnnouncement {
+	return h.queryServers(query)
 }
 
 // SetCleanupInterval updates the cleanup interval (primarily for testing).
