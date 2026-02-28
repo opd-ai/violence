@@ -29,6 +29,8 @@ const (
 	ActionWeapon5      Action = "weapon_5"
 	ActionNextWeapon   Action = "next_weapon"
 	ActionPrevWeapon   Action = "prev_weapon"
+	ActionCraft        Action = "craft"
+	ActionShop         Action = "shop"
 )
 
 // Manager tracks input state and key bindings.
@@ -75,6 +77,8 @@ func (m *Manager) setDefaultBindings() {
 	m.bindings[ActionWeapon5] = ebiten.Key5
 	m.bindings[ActionNextWeapon] = ebiten.KeyQ
 	m.bindings[ActionPrevWeapon] = ebiten.KeyZ
+	m.bindings[ActionCraft] = ebiten.KeyC
+	m.bindings[ActionShop] = ebiten.KeyB
 
 	// Gamepad button bindings
 	m.gamepadButtons[ActionFire] = ebiten.GamepadButton0       // A/Cross

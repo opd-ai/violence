@@ -38,6 +38,8 @@ const (
 	MenuTypeGenre
 	MenuTypePause
 	MenuTypeSettings
+	MenuTypeShop
+	MenuTypeCrafting
 )
 
 // DifficultyLevel represents game difficulty.
@@ -247,6 +249,7 @@ func NewMenuManager() *MenuManager {
 	}
 	mm.menuItems[MenuTypePause] = []string{
 		"Resume",
+		"Shop",
 		"Settings",
 		"Save Game",
 		"Main Menu",
@@ -482,6 +485,10 @@ func (mm *MenuManager) getMenuTitle() string {
 		return "PAUSED"
 	case MenuTypeSettings:
 		return "SETTINGS"
+	case MenuTypeShop:
+		return "ARMORY"
+	case MenuTypeCrafting:
+		return "CRAFTING"
 	default:
 		return "MENU"
 	}
@@ -948,6 +955,198 @@ func getLoadingDots() string {
 	}
 }
 
+// ShopItem represents an item displayed in the shop UI.
+type ShopItem struct {
+	ID    string
+	Name  string
+	Price int
+	Stock int // -1 = unlimited
+}
+
+// ShopState holds the shop display state for rendering.
+type ShopState struct {
+	ShopName string
+	Items    []ShopItem
+	Credits  int
+	Selected int
+}
+
+// DrawShop renders the shop overlay screen.
+func DrawShop(screen *ebiten.Image, state *ShopState) {
+	if state == nil {
+		return
+	}
+
+	bounds := screen.Bounds()
+	screenWidth := float32(bounds.Dx())
+	screenHeight := float32(bounds.Dy())
+
+	// Draw semi-transparent overlay
+	overlay := color.RGBA{0, 0, 0, 200}
+	vector.DrawFilledRect(screen, 0, 0, screenWidth, screenHeight, overlay, false)
+
+	centerX := screenWidth / 2
+
+	// Draw shop title
+	titleY := float32(30)
+	drawCenteredLabel(screen, centerX, titleY, state.ShopName, color.RGBA{255, 220, 100, 255})
+
+	// Draw credits
+	creditsY := titleY + 25
+	creditsText := fmt.Sprintf("Credits: %d", state.Credits)
+	drawCenteredLabel(screen, centerX, creditsY, creditsText, color.RGBA{200, 200, 100, 255})
+
+	// Draw items list
+	itemHeight := float32(25)
+	startY := creditsY + 30
+
+	if len(state.Items) == 0 {
+		drawCenteredLabel(screen, centerX, startY+20, "No items available", color.RGBA{150, 150, 150, 255})
+	}
+
+	for i, item := range state.Items {
+		itemY := startY + float32(i)*itemHeight
+
+		// Highlight selected item
+		if i == state.Selected {
+			highlightX := centerX - 180
+			vector.DrawFilledRect(screen, highlightX, itemY-5, 360, itemHeight-2, color.RGBA{80, 80, 120, 200}, false)
+		}
+
+		// Item name
+		nameColor := currentTheme.TextColor
+		if i == state.Selected {
+			nameColor = color.RGBA{255, 255, 255, 255}
+		}
+		nameX := centerX - 170
+		drawLabel(screen, nameX, itemY+10, item.Name, nameColor)
+
+		// Price
+		priceText := fmt.Sprintf("%d cr", item.Price)
+		priceX := centerX + 80
+		priceColor := color.RGBA{200, 200, 100, 255}
+		if item.Price > state.Credits {
+			priceColor = color.RGBA{200, 80, 80, 255} // Red if can't afford
+		}
+		drawLabel(screen, priceX, itemY+10, priceText, priceColor)
+
+		// Stock
+		stockX := centerX + 140
+		stockText := "∞"
+		if item.Stock >= 0 {
+			stockText = fmt.Sprintf("x%d", item.Stock)
+		}
+		stockColor := color.RGBA{150, 150, 150, 255}
+		if item.Stock == 0 {
+			stockColor = color.RGBA{200, 80, 80, 255}
+		}
+		drawLabel(screen, stockX, itemY+10, stockText, stockColor)
+	}
+
+	// Draw controls hint
+	hintY := screenHeight - 40
+	drawCenteredLabel(screen, centerX, hintY, "Up/Down: Select | Enter: Buy | ESC: Back", color.RGBA{150, 150, 150, 255})
+}
+
+// CraftingRecipe represents a recipe displayed in the crafting UI.
+type CraftingRecipe struct {
+	ID        string
+	Name      string
+	Inputs    map[string]int
+	OutputQty int
+	CanCraft  bool
+}
+
+// CraftingState holds the crafting display state for rendering.
+type CraftingState struct {
+	Recipes    []CraftingRecipe
+	ScrapName  string
+	ScrapAmts  map[string]int
+	Selected   int
+	LastResult string // Status message for last craft attempt
+}
+
+// DrawCrafting renders the crafting overlay screen.
+func DrawCrafting(screen *ebiten.Image, state *CraftingState) {
+	if state == nil {
+		return
+	}
+
+	bounds := screen.Bounds()
+	screenWidth := float32(bounds.Dx())
+	screenHeight := float32(bounds.Dy())
+
+	// Draw semi-transparent overlay
+	overlay := color.RGBA{0, 0, 0, 200}
+	vector.DrawFilledRect(screen, 0, 0, screenWidth, screenHeight, overlay, false)
+
+	centerX := screenWidth / 2
+
+	// Draw crafting title
+	titleY := float32(30)
+	drawCenteredLabel(screen, centerX, titleY, "CRAFTING", color.RGBA{100, 220, 255, 255})
+
+	// Draw scrap inventory
+	scrapY := titleY + 25
+	for scrapType, amount := range state.ScrapAmts {
+		scrapText := fmt.Sprintf("%s: %d", scrapType, amount)
+		drawCenteredLabel(screen, centerX, scrapY, scrapText, color.RGBA{180, 180, 100, 255})
+		scrapY += 18
+	}
+
+	// Draw recipes list
+	itemHeight := float32(25)
+	startY := scrapY + 15
+
+	if len(state.Recipes) == 0 {
+		drawCenteredLabel(screen, centerX, startY+20, "No recipes available", color.RGBA{150, 150, 150, 255})
+	}
+
+	for i, recipe := range state.Recipes {
+		itemY := startY + float32(i)*itemHeight
+
+		// Highlight selected recipe
+		if i == state.Selected {
+			highlightX := centerX - 180
+			vector.DrawFilledRect(screen, highlightX, itemY-5, 360, itemHeight-2, color.RGBA{60, 90, 120, 200}, false)
+		}
+
+		// Recipe name and output quantity
+		nameColor := currentTheme.TextColor
+		if !recipe.CanCraft {
+			nameColor = color.RGBA{120, 120, 120, 255} // Dim if can't craft
+		} else if i == state.Selected {
+			nameColor = color.RGBA{255, 255, 255, 255}
+		}
+
+		recipeText := fmt.Sprintf("%s (x%d)", recipe.Name, recipe.OutputQty)
+		nameX := centerX - 170
+		drawLabel(screen, nameX, itemY+10, recipeText, nameColor)
+
+		// Input cost
+		costX := centerX + 60
+		for mat, qty := range recipe.Inputs {
+			costText := fmt.Sprintf("%s: %d", mat, qty)
+			costColor := color.RGBA{180, 180, 100, 255}
+			if !recipe.CanCraft {
+				costColor = color.RGBA{200, 80, 80, 255}
+			}
+			drawLabel(screen, costX, itemY+10, costText, costColor)
+			break // Only show first material (recipes typically have one input)
+		}
+	}
+
+	// Draw last result message
+	if state.LastResult != "" {
+		resultY := screenHeight - 65
+		drawCenteredLabel(screen, centerX, resultY, state.LastResult, color.RGBA{100, 255, 100, 255})
+	}
+
+	// Draw controls hint
+	hintY := screenHeight - 40
+	drawCenteredLabel(screen, centerX, hintY, "Up/Down: Select | Enter: Craft | ESC: Back", color.RGBA{150, 150, 150, 255})
+}
+
 // Select handles menu item selection and returns an action string.
 func (mm *MenuManager) Select() string {
 	item := mm.GetSelectedItem()
@@ -973,6 +1172,8 @@ func (mm *MenuManager) Select() string {
 		switch item {
 		case "Resume":
 			return "resume"
+		case "Shop":
+			return "shop"
 		case "Settings":
 			return "settings"
 		case "Save Game":
@@ -983,6 +1184,12 @@ func (mm *MenuManager) Select() string {
 	case MenuTypeSettings:
 		// Handle settings navigation
 		return "settings_action"
+	case MenuTypeShop:
+		// Shop item selection handled by index
+		return "shop_buy"
+	case MenuTypeCrafting:
+		// Crafting recipe selection handled by index
+		return "craft_item"
 	}
 	return ""
 }
@@ -995,6 +1202,9 @@ func (mm *MenuManager) Back() {
 	case MenuTypePause:
 		// Pause menu back should resume game
 		mm.Hide()
+	case MenuTypeShop, MenuTypeCrafting:
+		// Return to pause menu from shop/crafting
+		mm.Show(MenuTypePause)
 	}
 }
 

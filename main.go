@@ -25,7 +25,6 @@ import (
 	"github.com/opd-ai/violence/pkg/lighting"
 	"github.com/opd-ai/violence/pkg/loot"
 	"github.com/opd-ai/violence/pkg/mod"
-	"github.com/opd-ai/violence/pkg/network"
 	"github.com/opd-ai/violence/pkg/particle"
 	"github.com/opd-ai/violence/pkg/progression"
 	"github.com/opd-ai/violence/pkg/quest"
@@ -51,6 +50,8 @@ const (
 	StatePlaying
 	StatePaused
 	StateLoading
+	StateShop
+	StateCrafting
 )
 
 // Game implements ebiten.Game for the VIOLENCE raycasting FPS.
@@ -108,6 +109,8 @@ type Game struct {
 	scrapStorage   *crafting.ScrapStorage
 	shopCredits    *shop.Credit
 	shopInventory  *shop.ShopInventory
+	shopArmory     *shop.Shop
+	craftingResult string
 	skillTree      *skills.Tree
 	modLoader      *mod.Loader
 	networkMode    bool
@@ -192,6 +195,10 @@ func (g *Game) Update() error {
 		return g.updatePaused()
 	case StateLoading:
 		return g.updateLoading()
+	case StateShop:
+		return g.updateShop()
+	case StateCrafting:
+		return g.updateCrafting()
 	}
 
 	return nil
@@ -364,6 +371,16 @@ func (g *Game) startNewGame() {
 	// Set event genre
 	event.SetGenre(g.genreID)
 
+	// Initialize shop and crafting systems (v5.0)
+	g.shopCredits = shop.NewCredit(100) // Start with 100 credits
+	g.shopArmory = shop.NewArmory(g.genreID)
+	g.shopInventory = &g.shopArmory.Inventory
+	g.scrapStorage = crafting.NewScrapStorage()
+	scrapName := crafting.GetScrapNameForGenre(g.genreID)
+	g.scrapStorage.Add(scrapName, 10) // Start with some scrap
+	g.craftingMenu = crafting.NewCraftingMenu(g.scrapStorage, g.genreID)
+	g.craftingResult = ""
+
 	// Track level start time for speedrun objectives
 	g.levelStartTime = time.Now()
 
@@ -418,6 +435,14 @@ func (g *Game) setGenre(genreID string) {
 		g.questTracker.SetGenre(genreID)
 	}
 	event.SetGenre(genreID)
+
+	// v5.0 systems
+	shop.SetGenre(genreID)
+	if g.shopArmory != nil {
+		g.shopArmory.SetGenre(genreID)
+		g.shopInventory = &g.shopArmory.Inventory
+	}
+	crafting.SetGenre(genreID)
 
 	// Generate genre-specific textures
 	g.textureAtlas.GenerateWallSet(genreID)
@@ -495,6 +520,18 @@ func (g *Game) updatePlaying() error {
 		g.automapVisible = !g.automapVisible
 	}
 
+	// Open shop overlay
+	if g.input.IsJustPressed(input.ActionShop) {
+		g.openShop()
+		return nil
+	}
+
+	// Open crafting overlay
+	if g.input.IsJustPressed(input.ActionCraft) {
+		g.openCrafting()
+		return nil
+	}
+
 	// Check for door interaction
 	if g.input.IsJustPressed(input.ActionInteract) {
 		g.tryInteractDoor()
@@ -550,13 +587,20 @@ func (g *Game) updatePlaying() error {
 								agent.Health -= currentWeapon.Damage
 
 								if agent.Health <= 0 {
-									// Enemy died - award XP
+									// Enemy died - award XP and credits
 									g.progression.AddXP(50)
+									if g.shopCredits != nil {
+										g.shopCredits.Add(25) // 25 credits per kill
+									}
+									// Drop scrap for crafting
+									if g.scrapStorage != nil {
+										scrapName := crafting.GetScrapNameForGenre(g.genreID)
+										g.scrapStorage.Add(scrapName, 3)
+									}
 									// Update kill count objective
 									if g.questTracker != nil {
 										g.questTracker.UpdateProgress("bonus_kills", 1)
 									}
-									// TODO: spawn loot drops
 								}
 							}
 						}
@@ -586,6 +630,15 @@ func (g *Game) updatePlaying() error {
 									if g.particleSystem != nil {
 										debrisColor := color.RGBA{R: 100, G: 80, B: 60, A: 255}
 										g.particleSystem.SpawnBurst(obj.X, obj.Y, 0, 15, 8.0, 1.0, 1.5, 1.0, debrisColor)
+									}
+									// Drop scrap from destroyed objects
+									if g.scrapStorage != nil {
+										scrapName := crafting.GetScrapNameForGenre(g.genreID)
+										g.scrapStorage.Add(scrapName, 2)
+									}
+									// Award credits for destruction
+									if g.shopCredits != nil {
+										g.shopCredits.Add(10)
 									}
 									// Play destruction sound
 									g.audioEngine.PlaySFX("barrel_explode", obj.X, obj.Y)
@@ -910,6 +963,8 @@ func (g *Game) handlePauseAction(action string) {
 	case "resume":
 		g.state = StatePlaying
 		g.menuManager.Hide()
+	case "shop":
+		g.openShop()
 	case "save":
 		// Save to slot 1
 		g.saveGame(1)
@@ -920,6 +975,257 @@ func (g *Game) handlePauseAction(action string) {
 	case "quit_to_menu":
 		g.state = StateMenu
 		g.menuManager.Show(ui.MenuTypeMain)
+	}
+}
+
+// openShop transitions to the shop state.
+func (g *Game) openShop() {
+	if g.shopArmory == nil {
+		g.shopArmory = shop.NewArmory(g.genreID)
+		g.shopInventory = &g.shopArmory.Inventory
+	}
+	if g.shopCredits == nil {
+		g.shopCredits = shop.NewCredit(0)
+	}
+	g.menuManager.Show(ui.MenuTypeShop)
+	g.state = StateShop
+}
+
+// openCrafting transitions to the crafting state.
+func (g *Game) openCrafting() {
+	if g.scrapStorage == nil {
+		g.scrapStorage = crafting.NewScrapStorage()
+	}
+	if g.craftingMenu == nil {
+		g.craftingMenu = crafting.NewCraftingMenu(g.scrapStorage, g.genreID)
+	}
+	g.craftingResult = ""
+	g.menuManager.Show(ui.MenuTypeCrafting)
+	g.state = StateCrafting
+}
+
+// updateShop handles shop screen input.
+func (g *Game) updateShop() error {
+	// Back to pause/playing
+	if g.input.IsJustPressed(input.ActionPause) || g.input.IsJustPressed(input.ActionShop) {
+		g.state = StatePlaying
+		g.menuManager.Hide()
+		return nil
+	}
+
+	// Navigate shop items
+	if g.input.IsJustPressed(input.ActionMoveForward) {
+		g.menuManager.MoveUp()
+	}
+	if g.input.IsJustPressed(input.ActionMoveBackward) {
+		g.menuManager.MoveDown()
+	}
+
+	// Purchase selected item
+	if g.input.IsJustPressed(input.ActionFire) || g.input.IsJustPressed(input.ActionInteract) {
+		g.handleShopPurchase()
+	}
+
+	return nil
+}
+
+// handleShopPurchase attempts to buy the selected shop item.
+func (g *Game) handleShopPurchase() {
+	if g.shopArmory == nil || g.shopCredits == nil {
+		return
+	}
+
+	allItems := g.shopArmory.Inventory.GetAllItems()
+	idx := g.menuManager.GetSelectedIndex()
+	if idx < 0 || idx >= len(allItems) {
+		return
+	}
+
+	item := allItems[idx]
+	if g.shopArmory.Purchase(item.ID, g.shopCredits) {
+		// Apply purchased item effects
+		g.applyShopItem(item.ID)
+		g.hud.ShowMessage("Purchased: " + item.Name)
+		g.audioEngine.PlaySFX("shop_buy", g.camera.X, g.camera.Y)
+	} else {
+		g.hud.ShowMessage("Cannot afford: " + item.Name)
+	}
+}
+
+// applyShopItem applies the effects of a purchased shop item.
+func (g *Game) applyShopItem(itemID string) {
+	switch itemID {
+	case "ammo_bullets":
+		g.ammoPool.Add("bullets", 20)
+	case "ammo_shells":
+		g.ammoPool.Add("shells", 10)
+	case "ammo_cells":
+		g.ammoPool.Add("cells", 15)
+	case "ammo_rockets":
+		g.ammoPool.Add("rockets", 5)
+	case "ammo_arrows":
+		g.ammoPool.Add("arrows", 20)
+	case "ammo_bolts":
+		g.ammoPool.Add("bolts", 10)
+	case "medkit":
+		g.hud.Health += 25
+		if g.hud.Health > g.hud.MaxHealth {
+			g.hud.Health = g.hud.MaxHealth
+		}
+	case "armor_vest":
+		g.hud.Armor += 50
+		if g.hud.Armor > g.hud.MaxArmor {
+			g.hud.Armor = g.hud.MaxArmor
+		}
+	}
+	// Update HUD ammo display
+	currentWeapon := g.arsenal.GetCurrentWeapon()
+	g.hud.Ammo = g.ammoPool.Get(currentWeapon.AmmoType)
+}
+
+// updateCrafting handles crafting screen input.
+func (g *Game) updateCrafting() error {
+	// Back to playing
+	if g.input.IsJustPressed(input.ActionPause) || g.input.IsJustPressed(input.ActionCraft) {
+		g.state = StatePlaying
+		g.menuManager.Hide()
+		return nil
+	}
+
+	// Navigate recipes
+	if g.input.IsJustPressed(input.ActionMoveForward) {
+		g.menuManager.MoveUp()
+	}
+	if g.input.IsJustPressed(input.ActionMoveBackward) {
+		g.menuManager.MoveDown()
+	}
+
+	// Craft selected recipe
+	if g.input.IsJustPressed(input.ActionFire) || g.input.IsJustPressed(input.ActionInteract) {
+		g.handleCraftItem()
+	}
+
+	return nil
+}
+
+// handleCraftItem attempts to craft the selected recipe.
+func (g *Game) handleCraftItem() {
+	if g.craftingMenu == nil {
+		return
+	}
+
+	allRecipes := g.craftingMenu.GetAllRecipes()
+	idx := g.menuManager.GetSelectedIndex()
+	if idx < 0 || idx >= len(allRecipes) {
+		return
+	}
+
+	recipe := allRecipes[idx]
+	outputID, outputQty, err := g.craftingMenu.Craft(recipe.ID)
+	if err != nil {
+		g.craftingResult = "Not enough materials!"
+		return
+	}
+
+	// Apply crafted item to player resources
+	g.applyCraftedItem(outputID, outputQty)
+	g.craftingResult = recipe.Name + " crafted!"
+	g.audioEngine.PlaySFX("craft_complete", g.camera.X, g.camera.Y)
+}
+
+// applyCraftedItem adds crafted items to the player's inventory.
+func (g *Game) applyCraftedItem(outputID string, qty int) {
+	switch outputID {
+	case "bullets", "shells", "cells", "rockets", "arrows", "bolts", "mana", "explosives":
+		g.ammoPool.Add(outputID, qty)
+	case "medkit", "potion":
+		g.hud.Health += 25 * qty
+		if g.hud.Health > g.hud.MaxHealth {
+			g.hud.Health = g.hud.MaxHealth
+		}
+	}
+	// Update HUD ammo display
+	currentWeapon := g.arsenal.GetCurrentWeapon()
+	g.hud.Ammo = g.ammoPool.Get(currentWeapon.AmmoType)
+}
+
+// drawShop renders the shop overlay screen.
+func (g *Game) drawShop(screen *ebiten.Image) {
+	// Draw frozen game world
+	g.renderer.Render(screen, g.camera.X, g.camera.Y, g.camera.DirX, g.camera.DirY, g.camera.Pitch)
+
+	// Build shop state for UI
+	shopState := g.buildShopState()
+	ui.DrawShop(screen, shopState)
+}
+
+// buildShopState creates the shop display state from game data.
+func (g *Game) buildShopState() *ui.ShopState {
+	if g.shopArmory == nil || g.shopCredits == nil {
+		return nil
+	}
+
+	allItems := g.shopArmory.Inventory.GetAllItems()
+	uiItems := make([]ui.ShopItem, len(allItems))
+	for i, item := range allItems {
+		uiItems[i] = ui.ShopItem{
+			ID:    item.ID,
+			Name:  item.Name,
+			Price: item.Price,
+			Stock: item.Stock,
+		}
+	}
+
+	return &ui.ShopState{
+		ShopName: g.shopArmory.GetShopName(),
+		Items:    uiItems,
+		Credits:  g.shopCredits.Get(),
+		Selected: g.menuManager.GetSelectedIndex(),
+	}
+}
+
+// drawCrafting renders the crafting overlay screen.
+func (g *Game) drawCrafting(screen *ebiten.Image) {
+	// Draw frozen game world
+	g.renderer.Render(screen, g.camera.X, g.camera.Y, g.camera.DirX, g.camera.DirY, g.camera.Pitch)
+
+	// Build crafting state for UI
+	craftState := g.buildCraftingState()
+	ui.DrawCrafting(screen, craftState)
+}
+
+// buildCraftingState creates the crafting display state from game data.
+func (g *Game) buildCraftingState() *ui.CraftingState {
+	if g.craftingMenu == nil || g.scrapStorage == nil {
+		return nil
+	}
+
+	allRecipes := g.craftingMenu.GetAllRecipes()
+	availableRecipes := g.craftingMenu.GetAvailableRecipes()
+
+	// Build set of available recipe IDs for quick lookup
+	availableIDs := make(map[string]bool)
+	for _, r := range availableRecipes {
+		availableIDs[r.ID] = true
+	}
+
+	uiRecipes := make([]ui.CraftingRecipe, len(allRecipes))
+	for i, r := range allRecipes {
+		uiRecipes[i] = ui.CraftingRecipe{
+			ID:        r.ID,
+			Name:      r.Name,
+			Inputs:    r.Inputs,
+			OutputQty: r.OutputQty,
+			CanCraft:  availableIDs[r.ID],
+		}
+	}
+
+	return &ui.CraftingState{
+		Recipes:    uiRecipes,
+		ScrapName:  crafting.GetScrapNameForGenre(g.genreID),
+		ScrapAmts:  g.scrapStorage.GetAll(),
+		Selected:   g.menuManager.GetSelectedIndex(),
+		LastResult: g.craftingResult,
 	}
 }
 
@@ -982,6 +1288,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		g.drawPaused(screen)
 	case StateLoading:
 		g.drawLoading(screen)
+	case StateShop:
+		g.drawShop(screen)
+	case StateCrafting:
+		g.drawCrafting(screen)
 	}
 }
 
