@@ -509,7 +509,7 @@ func (g *Game) updatePlaying() error {
 		// Create genre-specific flashlight
 		preset := lighting.GetFlashlightPreset(g.genreID)
 		flashlight := lighting.NewConeLight(g.camera.X, g.camera.Y, g.camera.DirX, g.camera.DirY, preset)
-		
+
 		// Clear previous lights and add current flashlight
 		g.lightMap.Clear()
 		g.lightMap.AddLight(flashlight.GetContributionAsPointLight())
