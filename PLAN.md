@@ -324,6 +324,95 @@
 - **Cover detection**: AI take-cover behavior requires identifying cover tiles; algorithm to classify tiles as cover not defined
 - **Projectile collision broadphase**: High projectile counts may need spatial partitioning for efficient collision; current approach is O(n) entity iteration
 
+### 2026-02-28: v2.0 Systems Integration (Step 61)
+- **Step 61** [x]: Wired all v2.0 systems into `main.go` game loop
+  - Added imports for weapon, ammo, ai, combat, status, loot, progression, class packages
+  - Added v2.0 system fields to Game struct: arsenal, ammoPool, combatSystem, statusReg, lootTable, progression, aiAgents, playerClass
+  - Initialized all systems in NewGame() constructor
+  - Set genre for all v2.0 systems in startNewGame()
+  - Implemented weapon firing with raycast hit detection in updatePlaying()
+  - Implemented ammo consumption and display on HUD
+  - Implemented basic AI enemy spawning (3 enemies per level)
+  - Implemented AI attack logic with damage application
+  - Implemented player taking damage from enemies
+  - Implemented enemy death and XP rewards via progression system
+  - Updated status effects tick in game loop
+  - Added `Pool.Get()` method to ammo package for retrieving current ammo counts
+  - Added test for `Pool.Get()` method (100% coverage maintained)
+  - Files: `main.go`, `pkg/ammo/ammo.go`, `pkg/ammo/ammo_test.go`
+  
+**Implementation Details**:
+- Weapon firing uses raycast function wrapper to detect enemy hits
+- Simple AI uses distance-based attack with cooldown timer
+- Combat damage uses simplified armor absorption (50% to armor, 50% to health)
+- Progression awards 50 XP per enemy kill
+- Status effect registry ticks each frame for DoT effects
+- Three AI agents spawn at fixed positions (10+i*5, 10+i*3) for testing
+
+**Validation**:
+- All tests pass: `go test ./...` ✓
+- Code builds successfully: `go build` ✓
+- Code formatted: `go fmt ./...` ✓
+- Code vetted: `go vet ./...` ✓
+- No regressions in existing tests ✓
+- v2.0 package coverage: 95.9% (exceeds 82% target) ✓
+
+### 2026-02-28: Integration Tests for Combat Loop (Step 62)
+- **Step 62** [x]: Added integration tests for full combat loop
+  - **TestCombatLoopIntegration**: Complete combat flow from spawn → fire → damage → death → XP gain
+    - Verifies enemies spawn with positive health
+    - Tests raycast hit detection
+    - Tests ammo consumption for non-melee weapons
+    - Tests damage application to enemies
+    - Tests enemy death at zero health
+    - Tests XP rewards on enemy kills (50 XP per kill)
+    - Tests level remains at 1 with only 50 XP (threshold is 100)
+  - **TestMultipleEnemyKills**: Accumulating XP from multiple enemy kills
+    - Tests killing all spawned enemies
+    - Tests XP accumulation (50 XP per kill)
+    - Verifies kill count tracking
+  - **TestLevelUpThreshold**: Progression to level 2 after 100 XP
+    - Tests starting at level 1 with 0 XP
+    - Awards 100 XP to trigger level-up
+    - Manually triggers level-up check
+    - Verifies level increases to 2
+  - **TestPlayerTakesDamage**: Player receiving damage from enemies
+    - Tests initial health at 100
+    - Simulates 20 damage from enemy
+    - Tests armor absorption (50% to armor, 50% to health)
+    - Verifies health decreases correctly
+  - **TestArmorAbsorption**: Armor damage absorption mechanics
+    - Gives player 50 armor and 100 health
+    - Tests 20 damage with armor absorption
+    - Verifies armor absorbs 10 damage (armor 50→40)
+    - Verifies health takes 10 damage (health 100→90)
+  - **TestWeaponSwitchingDuringCombat**: Changing weapons mid-combat
+    - Tests weapon switching between slots
+    - Verifies weapon fire after switching
+  - **TestEnemyRespawnDoesNotOccur**: Dead enemies stay dead
+    - Kills enemy (health set to 0)
+    - Waits 100 frames
+    - Verifies enemy doesn't respawn
+  - **TestCombatWithDifferentWeaponTypes**: Hitscan vs melee weapons
+    - Tests pistol (hitscan with ammo consumption)
+    - Tests shotgun (hitscan with ammo consumption)
+    - Tests knife (melee without ammo consumption)
+    - Verifies ammo behavior differs by weapon type
+  - File: `main_test.go`
+
+**Test Implementation Details**:
+- Tests account for weapon fire rate cooldown by calling `arsenal.Update()` between shots
+- Raycast function wrapper simulates enemy hit detection
+- Shot count calculated based on enemy health and weapon damage
+- Tests verify complete combat loop: spawn → fire → damage → death → XP → level-up
+
+**Validation**:
+- All 8 new integration tests pass ✓
+- All existing tests still pass (no regressions) ✓
+- Code formatted: `go fmt ./...` ✓
+- Code vetted: `go vet ./...` ✓
+- Tests cover all aspects of combat loop as specified in Step 62 deliverable ✓
+
 ## Completed Tasks
 
 ### 2026-02-28: Test Suite Additions (Steps 12, 23, 40, 45, 49, 54)

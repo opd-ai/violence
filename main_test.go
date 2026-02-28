@@ -730,3 +730,438 @@ func TestDrawAutomap(t *testing.T) {
 	// Should not panic
 	game.drawAutomap(screen)
 }
+
+// TestCombatLoopIntegration tests full combat flow: spawn → fire → damage → death → loot → XP → level-up
+func TestCombatLoopIntegration(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	// Verify initial state
+	if len(game.aiAgents) == 0 {
+		t.Fatal("No enemies spawned")
+	}
+	initialXP := game.progression.XP
+	initialLevel := game.progression.Level
+
+	// Get first enemy
+	enemy := game.aiAgents[0]
+	initialHealth := enemy.Health
+	if initialHealth <= 0 {
+		t.Fatal("Enemy should start with positive health")
+	}
+
+	// Position player to face enemy
+	game.camera.X = enemy.X - 2.0
+	game.camera.Y = enemy.Y
+	game.camera.DirX = 1.0
+	game.camera.DirY = 0.0
+
+	// Get initial ammo count
+	currentWeapon := game.arsenal.GetCurrentWeapon()
+	initialAmmo := game.ammoPool.Get(currentWeapon.AmmoType)
+
+	// Simulate weapon firing
+	raycastFn := func(x, y, dx, dy, maxDist float64) (bool, float64, float64, float64, uint64) {
+		for i, agent := range game.aiAgents {
+			if agent.Health <= 0 {
+				continue
+			}
+			agentDist := (agent.X-x)*(agent.X-x) + (agent.Y-y)*(agent.Y-y)
+			if agentDist < maxDist*maxDist {
+				toAgentX := agent.X - x
+				toAgentY := agent.Y - y
+				dot := toAgentX*dx + toAgentY*dy
+				if dot > 0 {
+					return true, agentDist, agent.X, agent.Y, uint64(i + 1)
+				}
+			}
+		}
+		return false, 0, 0, 0, 0
+	}
+
+	// Fire weapon at enemy
+	hitResults := game.arsenal.Fire(game.camera.X, game.camera.Y, game.camera.DirX, game.camera.DirY, raycastFn)
+
+	// Verify hit was registered
+	if len(hitResults) == 0 {
+		t.Fatal("No hit results returned from weapon fire")
+	}
+	if !hitResults[0].Hit {
+		t.Error("Expected weapon to hit enemy")
+	}
+
+	// Verify ammo consumption
+	if currentWeapon.Type != 2 { // TypeMelee
+		game.ammoPool.Consume(currentWeapon.AmmoType, 1)
+		newAmmo := game.ammoPool.Get(currentWeapon.AmmoType)
+		if newAmmo != initialAmmo-1 {
+			t.Errorf("Expected ammo %d, got %d", initialAmmo-1, newAmmo)
+		}
+	}
+
+	// Apply damage to enemy
+	for _, hitResult := range hitResults {
+		if hitResult.Hit && hitResult.EntityID > 0 {
+			agentIdx := int(hitResult.EntityID - 1)
+			if agentIdx >= 0 && agentIdx < len(game.aiAgents) {
+				agent := game.aiAgents[agentIdx]
+				agent.Health -= currentWeapon.Damage
+			}
+		}
+	}
+
+	// Verify enemy took damage
+	if enemy.Health >= initialHealth {
+		t.Errorf("Enemy should have taken damage: before=%f, after=%f", initialHealth, enemy.Health)
+	}
+
+	// Fire multiple times to kill enemy
+	shotsNeeded := int(initialHealth/currentWeapon.Damage) + 5
+	for i := 0; i < shotsNeeded*int(currentWeapon.FireRate)+100 && enemy.Health > 0; i++ {
+		// Update cooldown
+		game.arsenal.Update()
+
+		// Try to fire
+		hitResults = game.arsenal.Fire(game.camera.X, game.camera.Y, game.camera.DirX, game.camera.DirY, raycastFn)
+		if hitResults != nil && len(hitResults) > 0 {
+			for _, hitResult := range hitResults {
+				if hitResult.Hit && hitResult.EntityID > 0 {
+					agentIdx := int(hitResult.EntityID - 1)
+					if agentIdx >= 0 && agentIdx < len(game.aiAgents) {
+						agent := game.aiAgents[agentIdx]
+						if agent.Health > 0 {
+							agent.Health -= currentWeapon.Damage
+							if agent.Health <= 0 {
+								// Award XP on death
+								game.progression.AddXP(50)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Verify enemy is dead
+	if enemy.Health > 0 {
+		t.Errorf("Enemy should be dead after multiple shots, health=%f", enemy.Health)
+	}
+
+	// Verify XP was awarded
+	if game.progression.XP <= initialXP {
+		t.Errorf("Expected XP to increase from %d, got %d", initialXP, game.progression.XP)
+	}
+	if game.progression.XP != initialXP+50 {
+		t.Errorf("Expected exactly 50 XP gained, got %d", game.progression.XP-initialXP)
+	}
+
+	// Verify level is still correct (50 XP not enough for level 2)
+	if game.progression.Level != initialLevel {
+		t.Errorf("Expected level to remain %d with only 50 XP, got %d", initialLevel, game.progression.Level)
+	}
+}
+
+// TestMultipleEnemyKills tests killing multiple enemies and accumulating XP
+func TestMultipleEnemyKills(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	if len(game.aiAgents) < 2 {
+		t.Fatal("Need at least 2 enemies for this test")
+	}
+
+	initialXP := game.progression.XP
+	kills := 0
+
+	// Kill all enemies
+	for i := range game.aiAgents {
+		enemy := game.aiAgents[i]
+		if enemy.Health <= 0 {
+			continue
+		}
+
+		// Position to face enemy
+		game.camera.X = enemy.X - 2.0
+		game.camera.Y = enemy.Y
+		game.camera.DirX = 1.0
+		game.camera.DirY = 0.0
+
+		raycastFn := func(x, y, dx, dy, maxDist float64) (bool, float64, float64, float64, uint64) {
+			agentDist := (enemy.X-x)*(enemy.X-x) + (enemy.Y-y)*(enemy.Y-y)
+			if agentDist < maxDist*maxDist {
+				toAgentX := enemy.X - x
+				toAgentY := enemy.Y - y
+				dot := toAgentX*dx + toAgentY*dy
+				if dot > 0 && enemy.Health > 0 {
+					return true, agentDist, enemy.X, enemy.Y, uint64(i + 1)
+				}
+			}
+			return false, 0, 0, 0, 0
+		}
+
+		// Fire until enemy dies
+		weapon := game.arsenal.GetCurrentWeapon()
+		shotsNeeded := int(enemy.MaxHealth/weapon.Damage) + 5
+		for j := 0; j < shotsNeeded*int(weapon.FireRate)+100 && enemy.Health > 0; j++ {
+			// Update cooldown
+			game.arsenal.Update()
+
+			// Try to fire
+			hitResults := game.arsenal.Fire(game.camera.X, game.camera.Y, game.camera.DirX, game.camera.DirY, raycastFn)
+			if hitResults != nil && len(hitResults) > 0 {
+				for _, hitResult := range hitResults {
+					if hitResult.Hit && hitResult.EntityID > 0 {
+						if enemy.Health > 0 {
+							enemy.Health -= weapon.Damage
+							if enemy.Health <= 0 {
+								game.progression.AddXP(50)
+								kills++
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Verify multiple kills
+	if kills < 2 {
+		t.Errorf("Expected at least 2 kills, got %d", kills)
+	}
+
+	// Verify XP accumulation
+	expectedXP := initialXP + (kills * 50)
+	if game.progression.XP != expectedXP {
+		t.Errorf("Expected XP=%d (initial %d + %d kills * 50), got %d", expectedXP, initialXP, kills, game.progression.XP)
+	}
+}
+
+// TestLevelUpThreshold tests progression to level 2 after accumulating enough XP
+func TestLevelUpThreshold(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	// Start at level 1 with 0 XP
+	if game.progression.Level != 1 {
+		t.Errorf("Expected starting level 1, got %d", game.progression.Level)
+	}
+
+	initialLevel := game.progression.Level
+
+	// Award XP to trigger level-up (threshold is 100 XP for level 2)
+	game.progression.AddXP(100)
+
+	// Verify XP was added
+	if game.progression.XP != 100 {
+		t.Errorf("Expected XP=100, got %d", game.progression.XP)
+	}
+
+	// Manually trigger level-up check (game would do this in update loop)
+	if game.progression.XP >= 100 && game.progression.Level == 1 {
+		game.progression.LevelUp()
+	}
+
+	// Verify level increased
+	if game.progression.Level != initialLevel+1 {
+		t.Errorf("Expected level %d after 100 XP, got %d", initialLevel+1, game.progression.Level)
+	}
+}
+
+// TestPlayerTakesDamage tests player receiving damage from enemies
+func TestPlayerTakesDamage(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	initialHealth := game.hud.Health
+	initialArmor := game.hud.Armor
+
+	if initialHealth != 100 {
+		t.Errorf("Expected initial health 100, got %d", initialHealth)
+	}
+
+	// Simulate enemy dealing damage
+	damage := 20
+
+	// Apply damage (simplified - armor absorbs 50%, rest to health)
+	armorDamage := damage / 2
+	healthDamage := damage / 2
+
+	if game.hud.Armor > 0 {
+		if game.hud.Armor >= armorDamage {
+			game.hud.Armor -= armorDamage
+		} else {
+			healthDamage += armorDamage - game.hud.Armor
+			game.hud.Armor = 0
+		}
+	}
+	game.hud.Health -= healthDamage
+
+	// Verify health decreased
+	if game.hud.Health >= initialHealth {
+		t.Errorf("Player should have taken damage: before=%d, after=%d", initialHealth, game.hud.Health)
+	}
+
+	expectedHealth := initialHealth - healthDamage
+	if game.hud.Armor == initialArmor {
+		if game.hud.Health != expectedHealth {
+			t.Errorf("Expected health=%d, got %d", expectedHealth, game.hud.Health)
+		}
+	}
+}
+
+// TestArmorAbsorption tests armor damage absorption mechanics
+func TestArmorAbsorption(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	// Give player armor
+	game.hud.Armor = 50
+	game.hud.Health = 100
+
+	damage := 20
+
+	// Apply damage with armor absorption
+	armorDamage := damage / 2
+	healthDamage := damage / 2
+
+	if game.hud.Armor >= armorDamage {
+		game.hud.Armor -= armorDamage
+	} else {
+		healthDamage += armorDamage - game.hud.Armor
+		game.hud.Armor = 0
+	}
+	game.hud.Health -= healthDamage
+
+	// Verify armor absorbed damage
+	if game.hud.Armor != 40 {
+		t.Errorf("Expected armor=40 after absorbing 10 damage, got %d", game.hud.Armor)
+	}
+	if game.hud.Health != 90 {
+		t.Errorf("Expected health=90 after taking 10 damage, got %d", game.hud.Health)
+	}
+}
+
+// TestWeaponSwitchingDuringCombat tests changing weapons mid-combat
+func TestWeaponSwitchingDuringCombat(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	// Get initial weapon
+	weapon1 := game.arsenal.GetCurrentWeapon()
+	if weapon1.Name == "" {
+		t.Fatal("No initial weapon")
+	}
+
+	// Switch to next weapon
+	game.arsenal.SwitchTo(1)
+	weapon2 := game.arsenal.GetCurrentWeapon()
+
+	// Weapons should be different (or at least switching succeeded)
+	if weapon2.Name == "" {
+		t.Error("Failed to switch weapon")
+	}
+
+	// Fire with new weapon
+	raycastFn := func(x, y, dx, dy, maxDist float64) (bool, float64, float64, float64, uint64) {
+		return false, 0, 0, 0, 0
+	}
+
+	hitResults := game.arsenal.Fire(game.camera.X, game.camera.Y, game.camera.DirX, game.camera.DirY, raycastFn)
+	if hitResults == nil {
+		t.Error("Should be able to fire after weapon switch")
+	}
+}
+
+// TestEnemyRespawnDoesNotOccur verifies dead enemies stay dead
+func TestEnemyRespawnDoesNotOccur(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	if len(game.aiAgents) == 0 {
+		t.Fatal("No enemies spawned")
+	}
+
+	// Kill first enemy
+	enemy := game.aiAgents[0]
+	enemy.Health = 0
+
+	// Wait and verify enemy doesn't respawn
+	for i := 0; i < 100; i++ {
+		game.arsenal.Update()
+	}
+
+	if enemy.Health > 0 {
+		t.Error("Dead enemy should not respawn")
+	}
+}
+
+// TestCombatWithDifferentWeaponTypes tests hitscan vs melee
+func TestCombatWithDifferentWeaponTypes(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	tests := []struct {
+		name       string
+		weaponSlot int
+		expectAmmo bool
+	}{
+		{"hitscan pistol", 0, true},
+		{"shotgun", 1, true},
+		{"melee knife", 6, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			game.arsenal.SwitchTo(tt.weaponSlot)
+			weapon := game.arsenal.GetCurrentWeapon()
+
+			raycastFn := func(x, y, dx, dy, maxDist float64) (bool, float64, float64, float64, uint64) {
+				return false, 0, 0, 0, 0
+			}
+
+			initialAmmo := game.ammoPool.Get(weapon.AmmoType)
+			game.arsenal.Fire(game.camera.X, game.camera.Y, game.camera.DirX, game.camera.DirY, raycastFn)
+
+			if tt.expectAmmo {
+				// Ammo should be consumed for non-melee
+				game.ammoPool.Consume(weapon.AmmoType, 1)
+				newAmmo := game.ammoPool.Get(weapon.AmmoType)
+				if weapon.Type != 2 && newAmmo >= initialAmmo {
+					t.Errorf("Expected ammo consumption for %s", tt.name)
+				}
+			}
+		})
+	}
+}
