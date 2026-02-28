@@ -426,6 +426,8 @@ func (g *Game) startNewGame() {
 	// Initialize player stats
 	g.hud.Health = 100
 	g.hud.Armor = 0
+	g.hud.MaxHealth = 100
+	g.hud.MaxArmor = 100
 
 	// Initialize starting ammo
 	g.ammoPool.Add("bullets", 50)
