@@ -140,9 +140,10 @@
     - **Completed**: Added `MaxTagLength` constant (4 chars) to `pkg/federation`, implemented `GetTag()`/`SetTag()`/`GetName()`/`GetID()` methods with auto-truncation, created `Nameplate` component in `pkg/ui` with `NameplatePlayer` struct for player info display, squad tag rendering above player names, color-coded nameplates (green teammates, red enemies, yellow self), semi-transparent backgrounds with borders, customizable colors via `SetTeammateColor()`/`SetEnemyColor()`/`SetSelfColor()`, and comprehensive tests achieving 100% coverage on squad tag logic and nameplate logic (drawing methods excluded due to display requirements). Documentation added to `docs/SQUAD_TAG_DISPLAY.md`
 
 ### Federation / Cross-Server Matchmaking (`pkg/federation`)
-26. Implement federation protocol for server discovery
+26. [x] Implement federation protocol for server discovery (2026-02-28)
     - **Deliverable**: Servers announce to federation hub; clients query hub for available servers by region/genre/player count
     - **Dependencies**: Existing `pkg/federation`
+    - **Completed**: Implemented `FederationHub` with WebSocket-based server announcement system, REST API for client queries, automatic stale server cleanup (30s timeout), `ServerAnnouncer` for periodic heartbeats (10s interval), region-based filtering (7 regions: US East/West, EU East/West, Asia-Pacific, South America, Unknown), genre/player count query filters, and comprehensive tests with 92.8% package coverage. Added gorilla/websocket dependency for WebSocket support
 
 27. Implement cross-server player lookup
     - **Deliverable**: Query player presence across federated servers; return server address if online
