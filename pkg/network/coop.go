@@ -1,7 +1,15 @@
+// Package network provides multiplayer networking primitives for co-op and deathmatch modes.
+//
+// Co-op Respawn System:
+// When a player dies, they enter a 10-second bleedout state tracked by OnPlayerDeath.
+// ProcessBleedouts checks for expired timers and returns players ready to respawn.
+// RespawnPlayer places them at the nearest living teammate's position with full health.
+// If all players die (party wipe), RestartLevel resets the level with regenerated objectives.
 package network
 
 import (
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -12,22 +20,26 @@ import (
 )
 
 const (
-	MinCoopPlayers = 2
-	MaxCoopPlayers = 4
+	MinCoopPlayers     = 2
+	MaxCoopPlayers     = 4
+	BleedoutDuration   = 10 * time.Second
+	RespawnInvulnTimer = 3 * time.Second
 )
 
 // CoopPlayerState tracks individual player state within a co-op session.
 type CoopPlayerState struct {
-	PlayerID  uint64
-	EntityID  engine.Entity
-	Inventory *inventory.Inventory
-	Health    float64
-	MaxHealth float64
-	Armor     float64
-	Active    bool // false if disconnected
-	PosX      float64
-	PosY      float64
-	mu        sync.RWMutex
+	PlayerID        uint64
+	EntityID        engine.Entity
+	Inventory       *inventory.Inventory
+	Health          float64
+	MaxHealth       float64
+	Armor           float64
+	Active          bool // false if disconnected
+	PosX            float64
+	PosY            float64
+	Dead            bool
+	BleedoutEndTime time.Time
+	mu              sync.RWMutex
 }
 
 // CoopSession manages a 2-4 player cooperative game session.
@@ -303,4 +315,198 @@ func (s *CoopSession) SetGenre(genreID string) {
 
 	s.World.SetGenre(genreID)
 	s.QuestTracker.SetGenre(genreID)
+}
+
+// OnPlayerDeath handles player death, starting bleedout timer.
+func (s *CoopSession) OnPlayerDeath(playerID uint64) error {
+	s.mu.RLock()
+	playerState, exists := s.Players[playerID]
+	s.mu.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("player %d not in session", playerID)
+	}
+
+	playerState.mu.Lock()
+	playerState.Dead = true
+	playerState.Health = 0
+	playerState.BleedoutEndTime = time.Now().Add(BleedoutDuration)
+	playerState.mu.Unlock()
+
+	logrus.WithFields(logrus.Fields{
+		"system_name": "coop_session",
+		"session_id":  s.SessionID,
+		"player_id":   playerID,
+	}).Info("Player entered bleedout state")
+
+	return nil
+}
+
+// ProcessBleedouts checks for expired bleedout timers and triggers respawn.
+// Returns list of player IDs that need respawn.
+func (s *CoopSession) ProcessBleedouts() []uint64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	now := time.Now()
+	var toRespawn []uint64
+
+	for _, p := range s.Players {
+		p.mu.RLock()
+		if p.Dead && p.Active && now.After(p.BleedoutEndTime) {
+			toRespawn = append(toRespawn, p.PlayerID)
+		}
+		p.mu.RUnlock()
+	}
+
+	return toRespawn
+}
+
+// RespawnPlayer respawns a dead player at the nearest living teammate's position.
+// Returns error if no valid respawn point exists (all teammates dead).
+func (s *CoopSession) RespawnPlayer(playerID uint64) error {
+	s.mu.RLock()
+	playerState, exists := s.Players[playerID]
+	s.mu.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("player %d not in session", playerID)
+	}
+
+	// Find nearest living teammate
+	spawnX, spawnY, found := s.findNearestLivingTeammate(playerID)
+	if !found {
+		// All teammates dead - check for party wipe
+		if s.isPartyWiped() {
+			s.mu.Lock()
+			s.LevelCompleted = false
+			s.mu.Unlock()
+			return fmt.Errorf("party wipe: all players dead")
+		}
+		return fmt.Errorf("no valid respawn point: all teammates dead")
+	}
+
+	playerState.mu.Lock()
+	playerState.Dead = false
+	playerState.Health = playerState.MaxHealth
+	playerState.Armor = 0
+	playerState.PosX = spawnX
+	playerState.PosY = spawnY
+	playerState.BleedoutEndTime = time.Time{}
+	playerState.mu.Unlock()
+
+	logrus.WithFields(logrus.Fields{
+		"system_name": "coop_session",
+		"session_id":  s.SessionID,
+		"player_id":   playerID,
+		"spawn_x":     spawnX,
+		"spawn_y":     spawnY,
+	}).Info("Player respawned")
+
+	return nil
+}
+
+// findNearestLivingTeammate returns position of nearest alive teammate.
+func (s *CoopSession) findNearestLivingTeammate(playerID uint64) (x, y float64, found bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var nearestDist float64 = math.MaxFloat64
+	playerState := s.Players[playerID]
+
+	playerState.mu.RLock()
+	px, py := playerState.PosX, playerState.PosY
+	playerState.mu.RUnlock()
+
+	for _, p := range s.Players {
+		if p.PlayerID == playerID {
+			continue
+		}
+
+		p.mu.RLock()
+		if !p.Dead && p.Active {
+			dx := p.PosX - px
+			dy := p.PosY - py
+			dist := math.Sqrt(dx*dx + dy*dy)
+
+			if dist < nearestDist {
+				nearestDist = dist
+				x = p.PosX
+				y = p.PosY
+				found = true
+			}
+		}
+		p.mu.RUnlock()
+	}
+
+	return x, y, found
+}
+
+// isPartyWiped returns true if all active players are dead.
+func (s *CoopSession) isPartyWiped() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, p := range s.Players {
+		p.mu.RLock()
+		alive := !p.Dead && p.Active
+		p.mu.RUnlock()
+		if alive {
+			return false
+		}
+	}
+
+	return true
+}
+
+// RestartLevel resets the level state after a party wipe.
+func (s *CoopSession) RestartLevel() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if !s.Started {
+		return fmt.Errorf("session not started")
+	}
+
+	// Reset all players to alive with full health at starting positions
+	for _, p := range s.Players {
+		p.mu.Lock()
+		if p.Active {
+			p.Dead = false
+			p.Health = p.MaxHealth
+			p.Armor = 0
+			p.PosX = 0
+			p.PosY = 0
+			p.BleedoutEndTime = time.Time{}
+		}
+		p.mu.Unlock()
+	}
+
+	// Reset quest progress
+	s.QuestTracker = quest.NewTracker()
+	s.QuestTracker.Generate(s.LevelSeed, 3)
+	s.LevelCompleted = false
+
+	logrus.WithFields(logrus.Fields{
+		"system_name": "coop_session",
+		"session_id":  s.SessionID,
+		"level_seed":  s.LevelSeed,
+	}).Info("Level restarted after party wipe")
+
+	return nil
+}
+
+// IsPlayerDead returns true if the specified player is dead.
+func (s *CoopSession) IsPlayerDead(playerID uint64) (bool, error) {
+	s.mu.RLock()
+	playerState, exists := s.Players[playerID]
+	s.mu.RUnlock()
+
+	if !exists {
+		return false, fmt.Errorf("player %d not in session", playerID)
+	}
+
+	playerState.mu.RLock()
+	defer playerState.mu.RUnlock()
+	return playerState.Dead, nil
 }

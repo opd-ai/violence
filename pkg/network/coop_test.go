@@ -622,3 +622,344 @@ func TestCoopPlayerState_ThreadSafety(t *testing.T) {
 		t.Fatal("player should still exist")
 	}
 }
+
+func TestCoopSession_OnPlayerDeath(t *testing.T) {
+	session, err := NewCoopSession("test", 4, 12345)
+	if err != nil {
+		t.Fatalf("failed to create session: %v", err)
+	}
+
+	session.AddPlayer(1)
+	session.AddPlayer(2)
+
+	tests := []struct {
+		name        string
+		playerID    uint64
+		expectError bool
+	}{
+		{"valid player death", 1, false},
+		{"invalid player", 999, true},
+		{"death again", 1, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := session.OnPlayerDeath(tt.playerID)
+
+			if tt.expectError {
+				if err == nil {
+					t.Error("expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+
+			player, _ := session.GetPlayer(tt.playerID)
+			if !player.Dead {
+				t.Error("player should be marked dead")
+			}
+			if player.Health != 0 {
+				t.Errorf("dead player health = %f, want 0", player.Health)
+			}
+			if player.BleedoutEndTime.IsZero() {
+				t.Error("bleedout timer should be set")
+			}
+		})
+	}
+}
+
+func TestCoopSession_ProcessBleedouts(t *testing.T) {
+	session, err := NewCoopSession("test", 4, 12345)
+	if err != nil {
+		t.Fatalf("failed to create session: %v", err)
+	}
+
+	session.AddPlayer(1)
+	session.AddPlayer(2)
+	session.AddPlayer(3)
+
+	// Kill player 1 (should not be in respawn list yet)
+	session.OnPlayerDeath(1)
+
+	toRespawn := session.ProcessBleedouts()
+	if len(toRespawn) != 0 {
+		t.Errorf("should not have any players to respawn yet, got %d", len(toRespawn))
+	}
+
+	// Manually expire bleedout timer
+	player1, _ := session.GetPlayer(1)
+	player1.mu.Lock()
+	player1.BleedoutEndTime = time.Now().Add(-1 * time.Second)
+	player1.mu.Unlock()
+
+	toRespawn = session.ProcessBleedouts()
+	if len(toRespawn) != 1 {
+		t.Errorf("should have 1 player to respawn, got %d", len(toRespawn))
+	}
+	if toRespawn[0] != 1 {
+		t.Errorf("wrong player to respawn: got %d, want 1", toRespawn[0])
+	}
+
+	// Kill player 2 and expire immediately
+	session.OnPlayerDeath(2)
+	player2, _ := session.GetPlayer(2)
+	player2.mu.Lock()
+	player2.BleedoutEndTime = time.Now().Add(-1 * time.Second)
+	player2.mu.Unlock()
+
+	toRespawn = session.ProcessBleedouts()
+	if len(toRespawn) != 2 {
+		t.Errorf("should have 2 players to respawn, got %d", len(toRespawn))
+	}
+}
+
+func TestCoopSession_RespawnPlayer(t *testing.T) {
+	session, err := NewCoopSession("test", 4, 12345)
+	if err != nil {
+		t.Fatalf("failed to create session: %v", err)
+	}
+
+	// Add players at different positions
+	session.AddPlayer(1)
+	session.AddPlayer(2)
+	session.AddPlayer(3)
+
+	session.UpdatePlayerPosition(1, 0, 0)
+	session.UpdatePlayerPosition(2, 100, 100)
+	session.UpdatePlayerPosition(3, 200, 200)
+
+	// Kill player 1
+	session.OnPlayerDeath(1)
+
+	// Respawn should succeed (teammates alive)
+	err = session.RespawnPlayer(1)
+	if err != nil {
+		t.Fatalf("respawn failed: %v", err)
+	}
+
+	player1, _ := session.GetPlayer(1)
+	if player1.Dead {
+		t.Error("player should be alive after respawn")
+	}
+	if player1.Health != player1.MaxHealth {
+		t.Errorf("health = %f, want %f", player1.Health, player1.MaxHealth)
+	}
+	if player1.Armor != 0 {
+		t.Errorf("armor = %f, want 0", player1.Armor)
+	}
+
+	// Position should be near a teammate (player 2 or 3)
+	if (player1.PosX != 100 || player1.PosY != 100) && (player1.PosX != 200 || player1.PosY != 200) {
+		t.Errorf("respawn position (%f, %f) not near any teammate", player1.PosX, player1.PosY)
+	}
+}
+
+func TestCoopSession_RespawnPlayer_NoTeammates(t *testing.T) {
+	session, err := NewCoopSession("test", 4, 12345)
+	if err != nil {
+		t.Fatalf("failed to create session: %v", err)
+	}
+
+	session.AddPlayer(1)
+	session.AddPlayer(2)
+
+	// Kill both players
+	session.OnPlayerDeath(1)
+	session.OnPlayerDeath(2)
+
+	// Respawn should fail (party wipe)
+	err = session.RespawnPlayer(1)
+	if err == nil {
+		t.Error("expected error for party wipe, got none")
+	}
+}
+
+func TestCoopSession_IsPartyWiped(t *testing.T) {
+	session, err := NewCoopSession("test", 4, 12345)
+	if err != nil {
+		t.Fatalf("failed to create session: %v", err)
+	}
+
+	session.AddPlayer(1)
+	session.AddPlayer(2)
+	session.AddPlayer(3)
+
+	if session.isPartyWiped() {
+		t.Error("party should not be wiped initially")
+	}
+
+	// Kill two players
+	session.OnPlayerDeath(1)
+	session.OnPlayerDeath(2)
+
+	if session.isPartyWiped() {
+		t.Error("party should not be wiped with one alive")
+	}
+
+	// Kill last player
+	session.OnPlayerDeath(3)
+
+	if !session.isPartyWiped() {
+		t.Error("party should be wiped with all dead")
+	}
+}
+
+func TestCoopSession_RestartLevel(t *testing.T) {
+	session, err := NewCoopSession("test", 4, 12345)
+	if err != nil {
+		t.Fatalf("failed to create session: %v", err)
+	}
+
+	session.AddPlayer(1)
+	session.AddPlayer(2)
+	session.Start()
+
+	// Kill both players
+	session.OnPlayerDeath(1)
+	session.OnPlayerDeath(2)
+
+	// Update positions and health
+	session.UpdatePlayerPosition(1, 50, 50)
+	session.UpdatePlayerPosition(2, 100, 100)
+
+	// Restart level
+	err = session.RestartLevel()
+	if err != nil {
+		t.Fatalf("restart failed: %v", err)
+	}
+
+	// Verify all players reset
+	for _, playerID := range []uint64{1, 2} {
+		player, _ := session.GetPlayer(playerID)
+		if player.Dead {
+			t.Errorf("player %d should be alive after restart", playerID)
+		}
+		if player.Health != player.MaxHealth {
+			t.Errorf("player %d health = %f, want %f", playerID, player.Health, player.MaxHealth)
+		}
+		if player.PosX != 0 || player.PosY != 0 {
+			t.Errorf("player %d position = (%f, %f), want (0, 0)", playerID, player.PosX, player.PosY)
+		}
+		if !player.BleedoutEndTime.IsZero() {
+			t.Errorf("player %d bleedout timer should be cleared", playerID)
+		}
+	}
+
+	if session.LevelCompleted {
+		t.Error("level should not be completed after restart")
+	}
+}
+
+func TestCoopSession_IsPlayerDead(t *testing.T) {
+	session, err := NewCoopSession("test", 4, 12345)
+	if err != nil {
+		t.Fatalf("failed to create session: %v", err)
+	}
+
+	session.AddPlayer(1)
+
+	// Player should be alive initially
+	dead, err := session.IsPlayerDead(1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if dead {
+		t.Error("player should be alive initially")
+	}
+
+	// Kill player
+	session.OnPlayerDeath(1)
+
+	dead, err = session.IsPlayerDead(1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !dead {
+		t.Error("player should be dead after OnPlayerDeath")
+	}
+
+	// Invalid player
+	_, err = session.IsPlayerDead(999)
+	if err == nil {
+		t.Error("expected error for invalid player")
+	}
+}
+
+func TestCoopSession_FindNearestLivingTeammate(t *testing.T) {
+	session, err := NewCoopSession("test", 4, 12345)
+	if err != nil {
+		t.Fatalf("failed to create session: %v", err)
+	}
+
+	session.AddPlayer(1)
+	session.AddPlayer(2)
+	session.AddPlayer(3)
+	session.AddPlayer(4)
+
+	session.UpdatePlayerPosition(1, 0, 0)
+	session.UpdatePlayerPosition(2, 10, 10)   // Nearest
+	session.UpdatePlayerPosition(3, 100, 100) // Far
+	session.UpdatePlayerPosition(4, 200, 200) // Farther
+
+	// Kill player 1
+	session.OnPlayerDeath(1)
+
+	x, y, found := session.findNearestLivingTeammate(1)
+	if !found {
+		t.Fatal("should find nearest teammate")
+	}
+
+	// Should be player 2's position (nearest)
+	if x != 10 || y != 10 {
+		t.Errorf("nearest position = (%f, %f), want (10, 10)", x, y)
+	}
+
+	// Kill player 2, should find player 3 now
+	session.OnPlayerDeath(2)
+
+	x, y, found = session.findNearestLivingTeammate(1)
+	if !found {
+		t.Fatal("should find next nearest teammate")
+	}
+	if x != 100 || y != 100 {
+		t.Errorf("nearest position = (%f, %f), want (100, 100)", x, y)
+	}
+}
+
+func TestCoopSession_RespawnPlayer_InvalidPlayer(t *testing.T) {
+	session, err := NewCoopSession("test", 4, 12345)
+	if err != nil {
+		t.Fatalf("failed to create session: %v", err)
+	}
+
+	err = session.RespawnPlayer(999)
+	if err == nil {
+		t.Error("expected error for invalid player")
+	}
+}
+
+func TestCoopSession_BleedoutDuration(t *testing.T) {
+	session, err := NewCoopSession("test", 4, 12345)
+	if err != nil {
+		t.Fatalf("failed to create session: %v", err)
+	}
+
+	session.AddPlayer(1)
+
+	beforeDeath := time.Now()
+	session.OnPlayerDeath(1)
+	afterDeath := time.Now()
+
+	player, _ := session.GetPlayer(1)
+
+	// Bleedout end time should be approximately 10 seconds from now
+	expectedEnd := beforeDeath.Add(BleedoutDuration)
+	latestEnd := afterDeath.Add(BleedoutDuration)
+
+	if player.BleedoutEndTime.Before(expectedEnd) || player.BleedoutEndTime.After(latestEnd.Add(100*time.Millisecond)) {
+		t.Errorf("bleedout end time not in expected range: got %v", player.BleedoutEndTime)
+	}
+}

@@ -40,9 +40,10 @@
    - **Dependencies**: Steps 1–2
    - **Completed**: Implemented `CoopSession` with player management (2-4 players), `CoopPlayerState` with independent inventories, shared quest tracker for objectives, thread-safe concurrent access, player join/leave with inactive state preservation, position/health tracking, genre configuration, and comprehensive tests achieving 94.1% coverage
 
-7. Implement co-op respawn system
+7. [x] Implement co-op respawn system (2026-02-28)
    - **Deliverable**: Dead players enter 10-second bleed-out timer; respawn at nearest living teammate; full party wipe restarts level
    - **Dependencies**: Step 6, `pkg/combat`
+   - **Completed**: Implemented `OnPlayerDeath()` with 10-second bleedout timer, `ProcessBleedouts()` for expired timer detection, `RespawnPlayer()` at nearest living teammate position using distance calculation, `isPartyWiped()` detection, `RestartLevel()` for full party wipe with quest tracker reset, and comprehensive tests achieving 94.2% coverage (9 new test cases covering death, bleedout, respawn, party wipe, and level restart scenarios)
 
 8. Extend squad commands for human players
    - **Deliverable**: Hold/Follow/Attack commands target human teammates; command wheel UI shows connected players
