@@ -5,6 +5,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/opd-ai/violence/pkg/config"
+	"github.com/opd-ai/violence/pkg/inventory"
 	"github.com/opd-ai/violence/pkg/ui"
 )
 
@@ -1321,10 +1322,10 @@ func TestShopPurchaseFlow(t *testing.T) {
 		t.Errorf("Expected credits %d, got %d", initialCredits-item.Price, game.shopCredits.Get())
 	}
 
-	// Apply item effects
+	// Apply item effects - medkits go to inventory
 	game.applyShopItem("medkit")
-	if game.hud.Health <= 50 {
-		t.Error("Health should increase after applying medkit")
+	if !game.playerInventory.Has("medkit") {
+		t.Error("Medkit should be added to inventory after purchase")
 	}
 
 	// Test insufficient credits
@@ -1333,11 +1334,10 @@ func TestShopPurchaseFlow(t *testing.T) {
 		t.Error("Should not be able to purchase with 0 credits")
 	}
 
-	// Verify health doesn't exceed max
-	game.hud.Health = 95
-	game.applyShopItem("medkit")
-	if game.hud.Health > game.hud.MaxHealth {
-		t.Errorf("Health %d exceeds max %d", game.hud.Health, game.hud.MaxHealth)
+	// Verify inventory count doesn't change on failed purchase
+	medkitItem := game.playerInventory.Get("medkit")
+	if medkitItem == nil || medkitItem.Qty != 1 {
+		t.Error("Failed purchase should not add to inventory")
 	}
 
 	_ = initialHealth // avoid unused warning
@@ -1667,7 +1667,7 @@ func TestApplyShopItemArmor(t *testing.T) {
 	}
 }
 
-// TestApplyCraftedItemMedkit verifies crafted medkit heals correctly.
+// TestApplyCraftedItemMedkit verifies crafted medkit goes to inventory.
 func TestApplyCraftedItemMedkit(t *testing.T) {
 	if err := config.Load(); err != nil {
 		t.Fatalf("Failed to load config: %v", err)
@@ -1676,17 +1676,21 @@ func TestApplyCraftedItemMedkit(t *testing.T) {
 	game := NewGame()
 	game.startNewGame()
 
-	game.hud.Health = 40
+	// Crafted medkits should go to inventory
 	game.applyCraftedItem("medkit", 1)
-	if game.hud.Health != 65 {
-		t.Errorf("Expected health 65, got %d", game.hud.Health)
+	if !game.playerInventory.Has("medkit") {
+		t.Error("Expected medkit in inventory")
+	}
+	item := game.playerInventory.Get("medkit")
+	if item == nil || item.Qty != 1 {
+		t.Errorf("Expected 1 medkit, got %v", item)
 	}
 
-	// Test health cap
-	game.hud.Health = 95
-	game.applyCraftedItem("potion", 1)
-	if game.hud.Health > game.hud.MaxHealth {
-		t.Errorf("Health %d exceeds max %d", game.hud.Health, game.hud.MaxHealth)
+	// Multiple medkits should stack
+	game.applyCraftedItem("medkit", 2)
+	item = game.playerInventory.Get("medkit")
+	if item == nil || item.Qty != 3 {
+		t.Errorf("Expected 3 medkits after stacking, got %v", item)
 	}
 }
 
@@ -2039,4 +2043,109 @@ func TestGetTreeNodeList(t *testing.T) {
 			t.Errorf("Nodes not sorted: %s > %s", nodes[i-1].ID, nodes[i].ID)
 		}
 	}
+}
+
+// TestInventoryIntegration verifies inventory system is fully integrated.
+func TestInventoryIntegration(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	// Verify inventory is initialized
+	if game.playerInventory == nil {
+		t.Fatal("Player inventory not initialized")
+	}
+
+	// Test shop purchase adds to inventory
+	game.shopCredits.Set(1000)
+	game.applyShopItem("medkit")
+	if !game.playerInventory.Has("medkit") {
+		t.Error("Shop medkit purchase should add to inventory")
+	}
+
+	// Test crafting adds to inventory
+	game.applyCraftedItem("medkit", 2)
+	item := game.playerInventory.Get("medkit")
+	if item == nil || item.Qty != 3 {
+		t.Errorf("Expected 3 medkits after crafting, got %v", item)
+	}
+
+	// Test grenades can be added
+	game.applyShopItem("grenade")
+	if !game.playerInventory.Has("grenade") {
+		t.Error("Shop grenade purchase should add to inventory")
+	}
+
+	// Test using item from quick slot
+	initialHealth := 50
+	game.hud.Health = initialHealth
+	game.hud.MaxHealth = 100
+
+	// Manually set quick slot with medkit
+	game.playerInventory.SetQuickSlot(&inventory.Medkit{
+		ID:         "medkit",
+		Name:       "Medkit",
+		HealAmount: 25,
+	})
+
+	// Use quick slot item
+	game.useQuickSlotItem()
+
+	// Verify health increased
+	if game.hud.Health != initialHealth+25 {
+		t.Errorf("Expected health %d after medkit use, got %d", initialHealth+25, game.hud.Health)
+	}
+
+	// Verify item consumed from inventory
+	item = game.playerInventory.Get("medkit")
+	if item == nil || item.Qty != 2 {
+		t.Errorf("Expected 2 medkits after using one, got %v", item)
+	}
+}
+
+// TestInventoryQuickSlotAutoEquip tests auto-equipping medkits.
+func TestInventoryQuickSlotAutoEquip(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	// Add medkit to inventory but don't equip
+	game.playerInventory.Add(inventory.Item{ID: "medkit", Name: "Medkit", Qty: 1})
+
+	// Use item should auto-equip medkit
+	game.hud.Health = 50
+	game.hud.MaxHealth = 100
+
+	game.useQuickSlotItem()
+
+	// Should auto-equip and use the medkit
+	if game.hud.Health != 75 {
+		t.Errorf("Expected auto-equip and heal to 75, got %d", game.hud.Health)
+	}
+
+	// Medkit should be consumed
+	if game.playerInventory.Has("medkit") {
+		t.Error("Medkit should be consumed after use")
+	}
+}
+
+// TestInventoryEmptyQuickSlot tests using empty quick slot.
+func TestInventoryEmptyQuickSlot(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	// Try to use with empty inventory - should show message but not crash
+	game.useQuickSlotItem()
+
+	// No panic means success
 }

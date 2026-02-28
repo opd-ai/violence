@@ -23,6 +23,7 @@ import (
 	"github.com/opd-ai/violence/pkg/engine"
 	"github.com/opd-ai/violence/pkg/event"
 	"github.com/opd-ai/violence/pkg/input"
+	"github.com/opd-ai/violence/pkg/inventory"
 	"github.com/opd-ai/violence/pkg/lighting"
 	"github.com/opd-ai/violence/pkg/loot"
 	"github.com/opd-ai/violence/pkg/mod"
@@ -110,20 +111,21 @@ type Game struct {
 	levelStartTime     time.Time
 
 	// v5.0+ systems
-	craftingMenu   *crafting.CraftingMenu
-	scrapStorage   *crafting.ScrapStorage
-	shopCredits    *shop.Credit
-	shopInventory  *shop.ShopInventory
-	shopArmory     *shop.Shop
-	craftingResult string
-	skillManager   *skills.Manager
-	modLoader      *mod.Loader
-	networkMode    bool
-	multiplayerMgr interface{} // Can be *network.FFAMatch, *network.TeamMatch, etc.
-	skillsTreeIdx  int         // Active tree tab in skills UI
-	skillsNodeIdx  int         // Selected node in skills UI
-	mpStatusMsg    string      // Multiplayer status message
-	mpSelectedMode int         // Selected multiplayer mode
+	craftingMenu    *crafting.CraftingMenu
+	scrapStorage    *crafting.ScrapStorage
+	shopCredits     *shop.Credit
+	shopInventory   *shop.ShopInventory
+	shopArmory      *shop.Shop
+	craftingResult  string
+	skillManager    *skills.Manager
+	modLoader       *mod.Loader
+	networkMode     bool
+	multiplayerMgr  interface{} // Can be *network.FFAMatch, *network.TeamMatch, etc.
+	skillsTreeIdx   int         // Active tree tab in skills UI
+	skillsNodeIdx   int         // Selected node in skills UI
+	mpStatusMsg     string      // Multiplayer status message
+	mpSelectedMode  int         // Selected multiplayer mode
+	playerInventory *inventory.Inventory
 }
 
 // NewGame creates and initializes a new game instance.
@@ -178,6 +180,7 @@ func NewGame() *Game {
 		destructibleSystem: destruct.NewSystem(),
 		squadCompanions:    squad.NewSquad(3), // Max 3 squad members
 		questTracker:       quest.NewTracker(),
+		playerInventory:    inventory.NewInventory(),
 	}
 
 	// Initialize BSP generator
@@ -409,6 +412,10 @@ func (g *Game) startNewGame() {
 	// Scan mods directory for available mods
 	g.scanMods()
 
+	// Reset inventory
+	g.playerInventory = inventory.NewInventory()
+	inventory.SetGenre(g.genreID)
+
 	// Track level start time for speedrun objectives
 	g.levelStartTime = time.Now()
 
@@ -572,6 +579,11 @@ func (g *Game) updatePlaying() error {
 	if g.input.IsJustPressed(input.ActionMultiplayer) {
 		g.openMultiplayer()
 		return nil
+	}
+
+	// Use quick slot item
+	if g.input.IsJustPressed(input.ActionUseItem) {
+		g.useQuickSlotItem()
 	}
 
 	// Check for door interaction
@@ -988,6 +1000,52 @@ func (g *Game) getDoorColor(x, y int) string {
 	return ""
 }
 
+// useQuickSlotItem uses the active item in the inventory quick slot.
+func (g *Game) useQuickSlotItem() {
+	if g.playerInventory == nil {
+		return
+	}
+
+	// Check if quick slot has an item
+	activeItem := g.playerInventory.GetQuickSlot()
+	if activeItem == nil {
+		// Try to auto-equip a medkit if available
+		if g.playerInventory.Has("medkit") {
+			medkit := &inventory.Medkit{
+				ID:         "medkit",
+				Name:       "Medkit",
+				HealAmount: 25,
+			}
+			g.playerInventory.SetQuickSlot(medkit)
+			activeItem = medkit
+		} else {
+			g.hud.ShowMessage("No item equipped")
+			return
+		}
+	}
+
+	// Create entity wrapper for player
+	playerEntity := &inventory.Entity{
+		Health:    float64(g.hud.Health),
+		MaxHealth: float64(g.hud.MaxHealth),
+		X:         g.camera.X,
+		Y:         g.camera.Y,
+	}
+
+	// Use the quick slot item
+	if err := g.playerInventory.UseQuickSlot(playerEntity); err != nil {
+		g.hud.ShowMessage(err.Error())
+		return
+	}
+
+	// Apply health change back to HUD
+	g.hud.Health = int(playerEntity.Health)
+
+	// Play sound effect
+	g.audioEngine.PlaySFX("item_use", g.camera.X, g.camera.Y)
+	g.hud.ShowMessage("Used " + activeItem.GetName())
+}
+
 // updatePaused handles pause menu updates.
 func (g *Game) updatePaused() error {
 	if g.input.IsJustPressed(input.ActionPause) {
@@ -1125,10 +1183,11 @@ func (g *Game) applyShopItem(itemID string) {
 	case "ammo_bolts":
 		g.ammoPool.Add("bolts", 10)
 	case "medkit":
-		g.hud.Health += 25
-		if g.hud.Health > g.hud.MaxHealth {
-			g.hud.Health = g.hud.MaxHealth
-		}
+		g.playerInventory.Add(inventory.Item{ID: "medkit", Name: "Medkit", Qty: 1})
+	case "grenade", "plasma_grenade", "emp_grenade", "bomb":
+		g.playerInventory.Add(inventory.Item{ID: "grenade", Name: "Grenade", Qty: 1})
+	case "proximity_mine":
+		g.playerInventory.Add(inventory.Item{ID: "proximity_mine", Name: "Proximity Mine", Qty: 1})
 	case "armor_vest":
 		g.hud.Armor += 50
 		if g.hud.Armor > g.hud.MaxArmor {
@@ -1196,10 +1255,7 @@ func (g *Game) applyCraftedItem(outputID string, qty int) {
 	case "bullets", "shells", "cells", "rockets", "arrows", "bolts", "mana", "explosives":
 		g.ammoPool.Add(outputID, qty)
 	case "medkit", "potion":
-		g.hud.Health += 25 * qty
-		if g.hud.Health > g.hud.MaxHealth {
-			g.hud.Health = g.hud.MaxHealth
-		}
+		g.playerInventory.Add(inventory.Item{ID: outputID, Name: "Medkit", Qty: qty})
 	}
 	// Update HUD ammo display
 	currentWeapon := g.arsenal.GetCurrentWeapon()
