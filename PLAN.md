@@ -161,9 +161,10 @@
     - **Completed**: Implemented comprehensive integration test suite (`federation_integration_test.go`) with 5 test scenarios: (1) full multi-server federation test with 3 servers covering server query by region/genre/combined filters, player lookup across servers, cross-server player migration, matchmaking with FFA mode, server capacity filtering, and stale server cleanup, (2) matchmaking across all game modes (co-op/FFA/TDM/territory) with min player requirements, (3) concurrent server announcements testing hub stability with 10 simultaneous servers, (4) region-based matchmaking ensuring players match within their regions across 4 regions (US-East/West, EU-West, Asia-Pac). Added `SetInterval()` method to `ServerAnnouncer` and `SetCleanupInterval()`/`SetStaleTimeout()` methods to `FederationHub` for test configurability. All integration tests pass with 93.5% federation package coverage
 
 ### CI/CD — Full Production
-30. Create multi-platform build matrix
+30. [x] Create multi-platform build matrix (2026-02-28)
     - **Deliverable**: GitHub Actions workflow building for Linux (amd64/arm64), macOS (universal), Windows (amd64), WASM
     - **Dependencies**: Existing `.github/workflows/ci.yml`
+    - **Completed**: Implemented `.github/workflows/build.yml` with build jobs for Linux (amd64/arm64 via cross-compilation), macOS (universal binary via lipo), Windows (amd64), and WASM (with wasm_exec.js loader). Added artifact uploads (30-day retention), build summary job, and comprehensive documentation in `docs/BUILD_MATRIX.md` covering platform targets, cross-compilation instructions, CGO requirements, and local build commands
 
 31. Add mobile build targets (iOS/Android)
     - **Deliverable**: Gomobile-based build jobs producing `.ipa` and `.apk` artifacts
