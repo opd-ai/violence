@@ -193,27 +193,30 @@ func (g *Generator) generateTitle(category string, rng *rand.Rand) string {
 
 ---
 
-### FUNCTIONAL MISMATCH: Missing Cross-Platform Save Path Verification
-**File:** pkg/save/save.go:83-94  
+### [x] FUNCTIONAL MISMATCH: Missing Cross-Platform Save Path Verification (2026-02-28)
+**File:** pkg/save/save.go:83-117  
 **Severity:** Medium  
+**Status:** FIXED
 **Description:** The README states save functionality is "cross-platform", and the code uses `os.UserHomeDir()` which should work across platforms. However, the save path `~/.violence/saves` uses a Unix-style hidden directory convention (leading dot), which is not idiomatic on Windows. Windows users expect application data in `%APPDATA%` or `%LOCALAPPDATA%`, not hidden directories in the home folder.
 
 **Expected Behavior:** Platform-specific save paths that follow OS conventions (e.g., `~/.violence/` on Unix/Linux/macOS, `%APPDATA%\violence\` on Windows).
 
-**Actual Behavior:** Uses `~/.violence/saves` on all platforms.
+**Actual Behavior:** ~~Uses `~/.violence/saves` on all platforms.~~ **FIXED:** Now uses `%APPDATA%\violence\saves` on Windows (with fallback to home directory) and `~/.violence/saves` on Unix/Linux/macOS.
 
 **Impact:** 
-- Non-idiomatic file locations on Windows
-- Save files may be harder to find for Windows users
-- Potential conflicts with Windows folder conventions
+- ~~Non-idiomatic file locations on Windows~~
+- ~~Save files may be harder to find for Windows users~~
+- ~~Potential conflicts with Windows folder conventions~~
+**FIXED:** Save paths now follow OS conventions on all platforms.
 
 **Reproduction:**
-1. Run on Windows
+~~1. Run on Windows
 2. Create a save file
-3. Check save location - will be `C:\Users\<username>\.violence\saves\` instead of `%APPDATA%\violence\saves\`
+3. Check save location - will be `C:\Users\<username>\.violence\saves\` instead of `%APPDATA%\violence\saves\`~~
+**VERIFIED:** Save paths now correctly use platform-specific locations. Comprehensive tests cover Windows (APPDATA) and Unix/Linux/macOS (hidden home directory).
 
 **Code Reference:**
-```go
+~~```go
 func getSavePath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -225,7 +228,8 @@ func getSavePath() (string, error) {
 	}
 	return savePath, nil
 }
-```
+```~~
+**FIXED:** Implemented platform-specific logic using `runtime.GOOS` to detect Windows and use `%APPDATA%` environment variable. Added comprehensive tests including `TestGetSavePath_PlatformSpecific` validating correct paths on each platform.
 
 ---
 

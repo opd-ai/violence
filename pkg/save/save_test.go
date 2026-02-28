@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
@@ -665,8 +666,8 @@ func TestGetSavePath_PlatformSpecific(t *testing.T) {
 		if !filepath.HasPrefix(savePath, os.Getenv("APPDATA")) && os.Getenv("APPDATA") != "" {
 			t.Errorf("Windows save path should use APPDATA, got: %s", savePath)
 		}
-		if !filepath.Match("*"+expectedSuffix, savePath) {
-			t.Logf("Windows save path: %s (expected suffix: %s)", savePath, expectedSuffix)
+		if !strings.HasSuffix(savePath, expectedSuffix) {
+			t.Errorf("Windows save path should end with %s, got: %s", expectedSuffix, savePath)
 		}
 	} else {
 		// On Unix/Linux/macOS, should be ~/.violence/saves
@@ -678,8 +679,8 @@ func TestGetSavePath_PlatformSpecific(t *testing.T) {
 		if !filepath.HasPrefix(savePath, home) {
 			t.Errorf("Unix save path should use home directory, got: %s", savePath)
 		}
-		if !filepath.Match("*"+expectedSuffix, savePath) {
-			t.Logf("Unix save path: %s (expected suffix: %s)", savePath, expectedSuffix)
+		if !strings.HasSuffix(savePath, expectedSuffix) {
+			t.Errorf("Unix save path should end with %s, got: %s", expectedSuffix, savePath)
 		}
 	}
 
