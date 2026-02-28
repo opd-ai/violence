@@ -413,3 +413,4 @@ The following packages are architecture-neutral and can be copied or imported di
 - 2026-02-28 PLAN.md created for v2.0 — Core Systems: Weapons, FPS AI, Keycards, All 5 Genres
 - 2026-02-28 PLAN.md created for v3.0 — Visual Polish: Textures, Lighting, Particles, Indoor Weather
 - 2026-02-28 PLAN.md created for v4.0 — Gameplay Expansion: Secrets, Upgrades, Squad AI, Storytelling
+- 2026-02-28 PLAN.md created for v5.0+ — Multiplayer, Social Features, Production Polish

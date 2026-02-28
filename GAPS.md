@@ -138,3 +138,32 @@
 - **Gap**: Initial credit values (kill=10, secret=50, objective=100) are placeholder estimates without playtesting validation.
 - **Impact**: Progression curve may feel too fast or too slow; shop items may be trivially affordable or unreachable.
 - **Resolution needed**: Playtest economy across multiple runs; adjust credit rewards and item prices to achieve ~3 shop purchases per level average.
+
+---
+
+## v5.0+ — Multiplayer, Social Features, Production Polish
+
+### Key Exchange Protocol
+- **Gap**: No ECDH key exchange implementation exists for establishing shared chat encryption keys between clients.
+- **Impact**: Chat encryption relies on pre-shared keys; no secure mechanism for strangers to establish encrypted communication.
+- **Resolution needed**: Implement ECDH key exchange during session join; derive AES key from shared secret.
+
+### Mobile Input Mapping
+- **Gap**: Touch controls for mobile builds (iOS/Android via gomobile) are undefined.
+- **Impact**: Mobile builds will have no input mechanism; players cannot move, aim, or interact.
+- **Resolution needed**: Design virtual joystick overlay for movement, touch-to-look for aiming, tap buttons for fire/interact/reload; document touch control layout.
+
+### Federation Hub Hosting
+- **Gap**: No specification for who hosts the federation hub server or how self-hosting works.
+- **Impact**: Cross-server matchmaking cannot function without a central hub; single point of failure for federation.
+- **Resolution needed**: Define hub protocol for self-hosting; consider distributed hash table approach for decentralized discovery.
+
+### Mod Sandboxing
+- **Gap**: Go plugins have full runtime access with no sandboxing mechanism to limit mod capabilities.
+- **Impact**: Malicious mods could access filesystem, network, or compromise player security.
+- **Resolution needed**: Evaluate WASM-based mod runtime as alternative to Go plugins; if Go plugins retained, document security risks and require mod signing.
+
+### Profanity Word List
+- **Gap**: No word list defined for the profanity filter; need localized lists for multiple languages.
+- **Impact**: Profanity filter cannot function without content; players expecting filtered chat will see unfiltered content.
+- **Resolution needed**: Compile word lists for supported languages (English, Spanish, German, French, Portuguese); implement list loading from config.
