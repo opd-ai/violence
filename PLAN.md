@@ -119,9 +119,10 @@
     - **Completed**: Extended test suite with profanity filter integration tests including: encryption round-trip with filtering, relay integration (verifying server sees only encrypted blobs while clients filter after decryption), multiple occurrences, edge cases (unicode, numbers, special chars, substrings), case insensitivity, and length preservation. Total of 60+ test cases across all chat functionality with comprehensive coverage of encryption, relay, and filtering features. Package coverage: 89.1%
 
 ### Squads / Clans (`pkg/federation`)
-22. Implement squad group management
+22. [x] Implement squad group management (2026-02-28)
     - **Deliverable**: `Squad` struct with up to 8 members; invite/accept/leave API; persistent squad storage
     - **Dependencies**: `pkg/save`
+    - **Completed**: Implemented `Squad` struct with member management (max 8 players), `SquadMember` with player info and leader designation, `Invite()`/`Accept()`/`Leave()` API for join flow, automatic leader promotion when leader leaves, `SquadManager` for managing multiple squads with `CreateSquad()`, `GetSquad()`, `DeleteSquad()`, `ListSquads()`, persistent storage via `Save()`/`Load()` to `~/.violence/squads/squads.json`, thread-safe concurrent access with mutex protection, and comprehensive tests achieving 96.3% coverage
 
 23. Implement squad chat channel
     - **Deliverable**: Dedicated chat channel visible only to squad members; uses shared squad encryption key
