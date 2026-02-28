@@ -16,6 +16,7 @@ import (
 	"github.com/opd-ai/violence/pkg/class"
 	"github.com/opd-ai/violence/pkg/combat"
 	"github.com/opd-ai/violence/pkg/config"
+	"github.com/opd-ai/violence/pkg/crafting"
 	"github.com/opd-ai/violence/pkg/destruct"
 	"github.com/opd-ai/violence/pkg/door"
 	"github.com/opd-ai/violence/pkg/engine"
@@ -23,6 +24,8 @@ import (
 	"github.com/opd-ai/violence/pkg/input"
 	"github.com/opd-ai/violence/pkg/lighting"
 	"github.com/opd-ai/violence/pkg/loot"
+	"github.com/opd-ai/violence/pkg/mod"
+	"github.com/opd-ai/violence/pkg/network"
 	"github.com/opd-ai/violence/pkg/particle"
 	"github.com/opd-ai/violence/pkg/progression"
 	"github.com/opd-ai/violence/pkg/quest"
@@ -30,6 +33,8 @@ import (
 	"github.com/opd-ai/violence/pkg/render"
 	"github.com/opd-ai/violence/pkg/rng"
 	"github.com/opd-ai/violence/pkg/save"
+	"github.com/opd-ai/violence/pkg/shop"
+	"github.com/opd-ai/violence/pkg/skills"
 	"github.com/opd-ai/violence/pkg/squad"
 	"github.com/opd-ai/violence/pkg/status"
 	"github.com/opd-ai/violence/pkg/texture"
@@ -97,6 +102,16 @@ type Game struct {
 	lockdownTrigger    *event.TimedLockdown
 	bossArena          *event.BossArenaEvent
 	levelStartTime     time.Time
+
+	// v5.0+ systems
+	craftingMenu   *crafting.CraftingMenu
+	scrapStorage   *crafting.ScrapStorage
+	shopCredits    *shop.Credit
+	shopInventory  *shop.ShopInventory
+	skillTree      *skills.Tree
+	modLoader      *mod.Loader
+	networkMode    bool
+	multiplayerMgr interface{} // Can be *network.FFAMatch, *network.TeamMatch, etc.
 }
 
 // NewGame creates and initializes a new game instance.

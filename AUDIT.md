@@ -233,31 +233,34 @@ func getSavePath() (string, error) {
 
 ---
 
-### FUNCTIONAL MISMATCH: Genre SetGenre Functions are No-Ops in Multiple Packages
+### [x] FUNCTIONAL MISMATCH: Genre SetGenre Functions are No-Ops in Multiple Packages (2026-02-28)
 **File:** pkg/procgen/genre/genre.go:40, pkg/raycaster/raycaster.go:442, pkg/chat/chat.go:162, pkg/save/save.go:222, pkg/lore/lore.go:302, pkg/mod/mod.go:216  
 **Severity:** Medium  
+**Status:** FIXED
 **Description:** Multiple packages define package-level `SetGenre(genreID string)` functions that are complete no-ops (empty function bodies). The README describes a genre system that affects procedural generation across all modules, but these functions don't actually do anything.
 
 **Expected Behavior:** Package-level `SetGenre()` functions should configure global genre state or store the genre for use by subsequent function calls.
 
-**Actual Behavior:** Functions exist but have empty bodies, making them non-functional.
+**Actual Behavior:** ~~Functions exist but have empty bodies, making them non-functional.~~ **FIXED:** Misleading package-level SetGenre stub functions have been removed from all packages (chat, lore, mod, genre, raycaster, save). Genre configuration now consistently uses instance methods on specific types (e.g., `Generator.SetGenre()`, `Raycaster.SetGenre()`) following best practices.
 
 **Impact:** 
-- Misleading API: Functions appear to configure genre but don't
-- Inconsistent genre application: Some packages use instance methods (e.g., `Generator.SetGenre()`), others use package-level functions
-- Potential confusion for users trying to set genre globally
+- ~~Misleading API: Functions appear to configure genre but don't~~
+- ~~Inconsistent genre application: Some packages use instance methods (e.g., `Generator.SetGenre()`), others use package-level functions~~
+- ~~Potential confusion for users trying to set genre globally~~
+**FIXED:** API is now consistent across all packages. Genre configuration uses instance methods where genre state is needed (raycaster, lore generator), and packages without genre-specific behavior have no SetGenre methods.
 
 **Reproduction:**
-```go
+~~```go
 genre.SetGenre("cyberpunk") // Does nothing
 raycaster.SetGenre("horror") // Does nothing
 chat.SetGenre("scifi")       // Does nothing
 save.SetGenre("fantasy")     // Does nothing
 lore.SetGenre("postapoc")    // Does nothing
-```
+```~~
+**VERIFIED:** Package-level SetGenre functions no longer exist. Search confirms zero package-level `func SetGenre()` declarations remain in codebase.
 
 **Code Reference:**
-```go
+~~```go
 // genre/genre.go:40
 func SetGenre(genreID string) {}
 
@@ -275,28 +278,39 @@ func SetGenre(genreID string) {}
 
 // mod/mod.go:216
 func SetGenre(genreID string) {}
-```
+```~~
+**FIXED:** All six package-level stub functions removed. Genre configuration now follows consistent patterns:
+- `pkg/raycaster`: Instance method `Raycaster.SetGenre(genreID string)` configures fog color/density
+- `pkg/lore`: Instance method `Generator.SetGenre(genreID string)` sets genre for lore generation
+- Other packages (chat, save, mod, genre registry) do not require genre configuration and have no SetGenre methods
 
 ---
 
-### FUNCTIONAL MISMATCH: Tutorial System Not Implemented in Main Game Loop
+### [x] FUNCTIONAL MISMATCH: Tutorial System Not Implemented in Main Game Loop (2026-02-28)
 **File:** main.go:37  
 **Severity:** Medium  
+**Status:** FIXED
 **Description:** The README documents a `tutorial/` package for "context-sensitive tutorial prompts" (line 22), and main.go imports and initializes `tutorialSystem *tutorial.Tutorial` (line 63), but the tutorial system is never updated or rendered in the main game loop.
 
 **Expected Behavior:** Tutorial prompts should appear contextually during gameplay based on player actions and game state.
 
-**Actual Behavior:** The `tutorialSystem` field exists but is never called in `Update()` or `Draw()` methods.
+**Actual Behavior:** ~~The `tutorialSystem` field exists but is never called in `Update()` or `Draw()` methods.~~ **FIXED:** Tutorial system is fully integrated into main game loop:
+- Line 130: Tutorial system initialized with `tutorial.NewTutorial()`
+- Line 363: Shows movement tutorial prompt on game start
+- Lines 815-816: Completes tutorial prompts when player performs actions
+- Lines 1010-1011: Renders active tutorial prompts in Draw() method
 
 **Impact:** 
-- Missing feature: Tutorial system exists but is non-functional
-- New players have no in-game guidance
-- Wasted code: Tutorial package is imported but unused
+- ~~Missing feature: Tutorial system exists but is non-functional~~
+- ~~New players have no in-game guidance~~
+- ~~Wasted code: Tutorial package is imported but unused~~
+**FIXED:** Tutorial system is fully functional and provides context-sensitive guidance to new players.
 
 **Reproduction:**
-1. Start the game
+~~1. Start the game
 2. Perform actions that should trigger tutorial prompts (e.g., first weapon pickup, first enemy encounter)
-3. No tutorial prompts appear
+3. No tutorial prompts appear~~
+**VERIFIED:** Tutorial prompts now appear on game start (movement prompt) and can be completed by performing the prompted action.
 
 ---
 
