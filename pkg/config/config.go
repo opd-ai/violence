@@ -2,6 +2,7 @@
 package config
 
 import (
+	"context"
 	"errors"
 	"sync"
 
@@ -33,6 +34,15 @@ var C Config
 
 // mu protects concurrent access to C during hot-reload.
 var mu sync.RWMutex
+
+// watcherMu protects the watcher state
+var (
+	watcherMu       sync.Mutex
+	watcherActive   bool
+	watcherCtx      context.Context
+	watcherCancel   context.CancelFunc
+	currentCallback ReloadCallback
+)
 
 // ReloadCallback is called when the configuration is hot-reloaded.
 type ReloadCallback func(old, new Config)
@@ -96,27 +106,67 @@ func Save() error {
 
 // Watch starts watching the config file for changes and calls the callback on reload.
 // Returns a stop function to cancel watching.
-// NOTE: viper does not provide a mechanism to stop file watching once started.
-// The returned stop function is a no-op for API compatibility.
+// Only one watcher can be active at a time. Calling Watch when a watcher is active
+// will replace the callback but keep the same underlying file watcher (to avoid
+// viper race conditions).
 func Watch(callback ReloadCallback) (stop func(), err error) {
-	viper.WatchConfig()
+	watcherMu.Lock()
+	defer watcherMu.Unlock()
 
-	viper.OnConfigChange(func(e fsnotify.Event) {
-		mu.Lock()
-		defer mu.Unlock()
+	// If no watcher is active, start one
+	if !watcherActive {
+		ctx, cancel := context.WithCancel(context.Background())
+		watcherCtx = ctx
+		watcherCancel = cancel
+		currentCallback = callback
+		watcherActive = true
 
-		old := C
-		var newCfg Config
-		if err := viper.Unmarshal(&newCfg); err == nil {
-			C = newCfg
-			if callback != nil {
-				callback(old, newCfg)
+		// Start viper's file watcher (only once)
+		viper.WatchConfig()
+		viper.OnConfigChange(func(e fsnotify.Event) {
+			watcherMu.Lock()
+			cb := currentCallback
+			ctx := watcherCtx
+			watcherMu.Unlock()
+
+			// Check if watcher has been stopped
+			if ctx != nil {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
 			}
-		}
-	})
 
-	// viper provides no stop mechanism; return no-op for API compatibility
-	return func() {}, nil
+			mu.Lock()
+			old := C
+			var newCfg Config
+			if err := viper.Unmarshal(&newCfg); err == nil {
+				C = newCfg
+				mu.Unlock()
+				if cb != nil {
+					cb(old, newCfg)
+				}
+			} else {
+				mu.Unlock()
+			}
+		})
+	} else {
+		// Watcher already active, just replace the callback
+		currentCallback = callback
+	}
+
+	return func() {
+		watcherMu.Lock()
+		defer watcherMu.Unlock()
+		if watcherCancel != nil {
+			watcherCancel()
+			watcherCancel = nil
+			watcherCtx = nil
+		}
+		watcherActive = false
+		currentCallback = nil
+	}, nil
 }
 
 // Get returns a copy of the current config safely.

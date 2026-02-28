@@ -3,8 +3,9 @@ package federation
 
 import (
 	"fmt"
-	"math/rand"
 	"sync"
+
+	"github.com/opd-ai/violence/pkg/rng"
 )
 
 // ServerInfo holds server metadata for matchmaking.
@@ -20,11 +21,15 @@ type ServerInfo struct {
 type Federation struct {
 	servers map[string]*ServerInfo
 	mu      sync.RWMutex
+	rng     *rng.RNG
 }
 
 // NewFederation creates a new federation instance.
 func NewFederation() *Federation {
-	return &Federation{servers: make(map[string]*ServerInfo)}
+	return &Federation{
+		servers: make(map[string]*ServerInfo),
+		rng:     rng.NewRNG(0xfed3a710),
+	}
 }
 
 // Register adds a server to the federation.
@@ -75,7 +80,7 @@ func (f *Federation) Match() (string, error) {
 	}
 
 	// Random selection among available servers
-	selected := available[rand.Intn(len(available))]
+	selected := available[f.rng.Intn(len(available))]
 	return selected.Address, nil
 }
 
@@ -95,7 +100,7 @@ func (f *Federation) MatchGenre(genreID string) (string, error) {
 		return "", fmt.Errorf("no available servers for genre %s", genreID)
 	}
 
-	selected := available[rand.Intn(len(available))]
+	selected := available[f.rng.Intn(len(available))]
 	return selected.Address, nil
 }
 

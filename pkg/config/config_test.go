@@ -544,3 +544,143 @@ func BenchmarkGetSet_Concurrent(b *testing.B) {
 		}
 	})
 }
+
+// TestWatch_StopPreventsCallback verifies that calling stop() prevents further callbacks
+func TestWatch_StopPreventsCallback(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.toml")
+
+	initialData := `WindowWidth = 960`
+	if err := os.WriteFile(configPath, []byte(initialData), 0o644); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+
+	viper.Reset()
+	viper.SetConfigName("config")
+	viper.SetConfigType("toml")
+	viper.AddConfigPath(tmpDir)
+
+	if err := Load(); err != nil {
+		t.Fatalf("Load() failed: %v", err)
+	}
+
+	var callCount int
+	var mu sync.Mutex
+
+	callback := func(old, new Config) {
+		mu.Lock()
+		callCount++
+		mu.Unlock()
+		t.Logf("Callback invoked: count=%d, width=%d", callCount, new.WindowWidth)
+	}
+
+	stop, err := Watch(callback)
+	if err != nil {
+		t.Fatalf("Watch() failed: %v", err)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	// First change - should trigger callback
+	if err := os.WriteFile(configPath, []byte(`WindowWidth = 1280`), 0o644); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+	time.Sleep(500 * time.Millisecond)
+
+	mu.Lock()
+	firstCount := callCount
+	mu.Unlock()
+
+	if firstCount == 0 {
+		t.Error("Callback should have been called after first change")
+	}
+
+	// Stop watching
+	stop()
+	time.Sleep(100 * time.Millisecond)
+
+	// Second change - should NOT trigger callback
+	if err := os.WriteFile(configPath, []byte(`WindowWidth = 1920`), 0o644); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+	time.Sleep(500 * time.Millisecond)
+
+	mu.Lock()
+	secondCount := callCount
+	mu.Unlock()
+
+	if secondCount != firstCount {
+		t.Errorf("Callback was called after stop(): count went from %d to %d", firstCount, secondCount)
+	}
+}
+
+// TestWatch_MultipleWatchers verifies that starting a new watcher stops the previous one
+func TestWatch_MultipleWatchers(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.toml")
+
+	initialData := `WindowWidth = 960`
+	if err := os.WriteFile(configPath, []byte(initialData), 0o644); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+
+	viper.Reset()
+	viper.SetConfigName("config")
+	viper.SetConfigType("toml")
+	viper.AddConfigPath(tmpDir)
+
+	if err := Load(); err != nil {
+		t.Fatalf("Load() failed: %v", err)
+	}
+
+	var firstCallCount, secondCallCount int
+	var mu sync.Mutex
+
+	firstCallback := func(old, new Config) {
+		mu.Lock()
+		firstCallCount++
+		mu.Unlock()
+	}
+
+	secondCallback := func(old, new Config) {
+		mu.Lock()
+		secondCallCount++
+		mu.Unlock()
+	}
+
+	// Start first watcher
+	stop1, err := Watch(firstCallback)
+	if err != nil {
+		t.Fatalf("First Watch() failed: %v", err)
+	}
+	defer stop1()
+
+	time.Sleep(100 * time.Millisecond)
+
+	// Start second watcher (should stop first)
+	stop2, err := Watch(secondCallback)
+	if err != nil {
+		t.Fatalf("Second Watch() failed: %v", err)
+	}
+	defer stop2()
+
+	time.Sleep(100 * time.Millisecond)
+
+	// Trigger change - only second callback should fire
+	if err := os.WriteFile(configPath, []byte(`WindowWidth = 1280`), 0o644); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+	time.Sleep(500 * time.Millisecond)
+
+	mu.Lock()
+	first := firstCallCount
+	second := secondCallCount
+	mu.Unlock()
+
+	if first != 0 {
+		t.Errorf("First callback was called %d times, expected 0 (should have been stopped)", first)
+	}
+	if second == 0 {
+		t.Error("Second callback was not called, expected at least 1")
+	}
+}
