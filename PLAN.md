@@ -19,22 +19,26 @@
    - **Dependencies**: Step 1, `pkg/engine` ECS
    - **Completed**: Implemented `DeltaEncoder` with snapshot buffering (500ms/10 snapshots), `DeltaDecoder` with delta application, entity diff computation using XOR/presence bitmask, circular buffer for lag compensation, and comprehensive tests achieving 83.8% coverage
 
-3. Implement lag compensation for hitscan weapons
+3. [x] Implement lag compensation for hitscan weapons (2026-02-28)
    - **Deliverable**: Server-side rewind system that reconstructs entity positions at client's perceived time; hit detection uses rewound state
    - **Dependencies**: Step 2
+   - **Completed**: Implemented `LagCompensator` with snapshot history buffer (500ms/10 snapshots), `RewindWorld()` for tick-based rewind with interpolation, `PerformHitscan()` for lag-compensated hit detection using rewound positions, ray-sphere intersection, and comprehensive tests achieving 85.9% coverage
 
-4. Implement latency tolerance (200ms optimal, 500ms degraded, 5000ms spectator fallback)
+4. [x] Implement latency tolerance (200ms optimal, 500ms degraded, 5000ms spectator fallback) (2026-02-28)
    - **Deliverable**: Client interpolation buffer (100ms); server accepts inputs up to 500ms stale; >5000ms triggers spectator mode with reconnect prompt
    - **Dependencies**: Steps 1–3
+   - **Completed**: Implemented `InterpolationBuffer` for client-side rendering (100ms delay/2 tick buffer), `LatencyMonitor` tracking RTT with spectator mode threshold (5000ms), server-side stale input rejection (`IsInputStale` at 500ms threshold), quality classification, and comprehensive tests achieving 100% coverage on all latency functions (86.8% package coverage)
 
-5. Add unit tests for network layer
+5. [x] Add unit tests for network layer (2026-02-28)
    - **Deliverable**: Tests for delta encoding round-trip, lag compensation accuracy, latency edge cases
    - **Dependencies**: Steps 1–4
+   - **Completed**: Added comprehensive unit tests covering delta encoding edge cases (entity diffs, deep copy, merge operations), lag compensation scenarios (empty snapshots, interpolation, raycasting), and gameserver command validation. Coverage increased from 86.6% to 92.5%.
 
 ### Co-op Mode (`pkg/network`)
-6. Implement 2–4 player co-op session management
+6. [x] Implement 2–4 player co-op session management (2026-02-28)
    - **Deliverable**: `CoopSession` struct managing player join/leave, shared level state, independent inventories, shared objective progress
    - **Dependencies**: Steps 1–2
+   - **Completed**: Implemented `CoopSession` with player management (2-4 players), `CoopPlayerState` with independent inventories, shared quest tracker for objectives, thread-safe concurrent access, player join/leave with inactive state preservation, position/health tracking, genre configuration, and comprehensive tests achieving 94.1% coverage
 
 7. Implement co-op respawn system
    - **Deliverable**: Dead players enter 10-second bleed-out timer; respawn at nearest living teammate; full party wipe restarts level

@@ -65,12 +65,13 @@ type GameServer struct {
 
 // playerClient tracks a connected player.
 type playerClient struct {
-	id         uint64
-	conn       net.Conn
-	cmdQueue   chan *PlayerCommand
-	mu         sync.Mutex
-	closeOnce  sync.Once
-	closedChan chan struct{}
+	id             uint64
+	conn           net.Conn
+	cmdQueue       chan *PlayerCommand
+	latencyMonitor *LatencyMonitor
+	mu             sync.Mutex
+	closeOnce      sync.Once
+	closedChan     chan struct{}
 }
 
 // NewGameServer creates a new authoritative game server.
@@ -193,10 +194,11 @@ func (s *GameServer) addClient(conn net.Conn) {
 	s.nextID++
 
 	client := &playerClient{
-		id:         clientID,
-		conn:       conn,
-		cmdQueue:   make(chan *PlayerCommand, 100),
-		closedChan: make(chan struct{}),
+		id:             clientID,
+		conn:           conn,
+		cmdQueue:       make(chan *PlayerCommand, 100),
+		latencyMonitor: NewLatencyMonitor(clientID),
+		closedChan:     make(chan struct{}),
 	}
 	s.clients[clientID] = client
 	s.mu.Unlock()
@@ -331,6 +333,17 @@ func (s *GameServer) processClientCommands(client *playerClient) {
 
 // validateAndApplyCommand validates a command before applying it to the world.
 func (s *GameServer) validateAndApplyCommand(cmd *PlayerCommand) {
+	// Check if input is too stale
+	if IsInputStale(cmd.Timestamp, time.Now()) {
+		logrus.WithFields(logrus.Fields{
+			"system_name": "gameserver",
+			"player_id":   cmd.PlayerID,
+			"command":     cmd.Type,
+			"age_ms":      time.Since(cmd.Timestamp).Milliseconds(),
+		}).Warn("Command rejected: too stale")
+		return
+	}
+
 	if err := s.validator.Validate(cmd, s.world); err != nil {
 		logrus.WithFields(logrus.Fields{
 			"system_name": "gameserver",
@@ -346,6 +359,17 @@ func (s *GameServer) validateAndApplyCommand(cmd *PlayerCommand) {
 		"command":     cmd.Type,
 		"sequence":    cmd.Sequence,
 	}).Debug("Command validated and applied")
+}
+
+// GetLatencyMonitor returns the latency monitor for a client.
+func (s *GameServer) GetLatencyMonitor(clientID uint64) *LatencyMonitor {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if client, exists := s.clients[clientID]; exists {
+		return client.latencyMonitor
+	}
+	return nil
 }
 
 // GetTickNumber returns the current server tick number.
