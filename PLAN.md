@@ -98,9 +98,10 @@
     - **Completed**: Added `VisualStyle` field to `ControlPoint` struct, `SetVisualStyle()`/`GetVisualStyle()` methods for individual control points, `genreToVisualStyle()` function mapping genre IDs to visual styles (fantasy→altar, scifi→terminal, horror→summoning-circle, cyberpunk→server-rack, postapoc→scrap-pile, default→generic), and `TerritoryMatch.SetGenre()` to update all control points in a match. Added comprehensive tests (18 test cases) covering default styles, style changes, genre mapping, and match-level genre updates. All tests pass with 96.7% package coverage
 
 ### E2E Encrypted Chat (`pkg/chat`)
-18. Implement in-game chat UI overlay
+18. [x] Implement in-game chat UI overlay (2026-02-28)
     - **Deliverable**: Toggle-able chat window; message history; input field with send on Enter
     - **Dependencies**: `pkg/ui`
+    - **Completed**: Implemented `ChatOverlay` struct with visibility toggle, message history (max 100 messages, 10 visible), input buffer (max 200 chars), scroll support (PgUp/PgDn), position/size configuration. Added comprehensive tests covering all core functionality (visibility, message management, input buffer, scrolling, concurrent access) achieving 48.3% coverage on chat.go (Draw function excluded as it requires display)
 
 19. Implement server-side relay with no plaintext storage
     - **Deliverable**: Server relays encrypted blobs without decryption capability; messages encrypted client-side
