@@ -7,6 +7,22 @@ on:
       - 'v*'
   pull_request:
     branches: [ main, develop ]
+  workflow_call:
+    secrets:
+      GPG_PRIVATE_KEY:
+        required: false
+      GPG_PASSPHRASE:
+        required: false
+      APPLE_ID:
+        required: false
+      APPLE_PASSWORD:
+        required: false
+      APPLE_TEAM_ID:
+        required: false
+      APPLE_CERT_BASE64:
+        required: false
+      APPLE_CERT_PASSWORD:
+        required: false
 
 jobs:
   build-linux:
