@@ -205,6 +205,14 @@ func (rs *RelayServer) GetClientCount() int {
 	return len(rs.clients)
 }
 
+// GetAddr returns the server's listening address.
+func (rs *RelayServer) GetAddr() string {
+	if rs.listener == nil {
+		return ""
+	}
+	return rs.listener.Addr().String()
+}
+
 // RelayClient connects to a chat relay server.
 type RelayClient struct {
 	conn     net.Conn

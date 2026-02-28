@@ -124,9 +124,10 @@
     - **Dependencies**: `pkg/save`
     - **Completed**: Implemented `Squad` struct with member management (max 8 players), `SquadMember` with player info and leader designation, `Invite()`/`Accept()`/`Leave()` API for join flow, automatic leader promotion when leader leaves, `SquadManager` for managing multiple squads with `CreateSquad()`, `GetSquad()`, `DeleteSquad()`, `ListSquads()`, persistent storage via `Save()`/`Load()` to `~/.violence/squads/squads.json`, thread-safe concurrent access with mutex protection, and comprehensive tests achieving 96.3% coverage
 
-23. Implement squad chat channel
+23. [x] Implement squad chat channel (2026-02-28)
     - **Deliverable**: Dedicated chat channel visible only to squad members; uses shared squad encryption key
     - **Dependencies**: Steps 18–19, Step 22
+    - **Completed**: Implemented `SquadChatChannel` with shared AES-256 encryption key generation, `NewSquadChatChannel()` for creating new channels and `NewSquadChatChannelWithKey()` for joining with existing key, `SendMessage()` encrypting and broadcasting to all squad members via relay server, `ReceiveMessages()` polling and decrypting messages using squad key (non-members cannot decrypt), `SquadChatManager` for managing multiple squad channels with create/join/remove operations, message history tracking, encryption key sharing for new members, and comprehensive tests (13 test scenarios including E2E integration) achieving 93.5% package coverage. Added `GetAddr()` method to `RelayServer` for test infrastructure
 
 24. Implement squad statistics
     - **Deliverable**: Aggregate stats across squad members: total kills, wins, play time; displayed in squad info screen
