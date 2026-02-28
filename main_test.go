@@ -9,6 +9,7 @@ import (
 	"github.com/opd-ai/violence/pkg/federation"
 	"github.com/opd-ai/violence/pkg/inventory"
 	"github.com/opd-ai/violence/pkg/minigame"
+	"github.com/opd-ai/violence/pkg/quest"
 	"github.com/opd-ai/violence/pkg/ui"
 )
 
@@ -3370,5 +3371,204 @@ func TestFederationLocalFallback(t *testing.T) {
 	}
 	if game.multiplayerMgr == nil {
 		t.Error("Multiplayer manager should be initialized for local mode")
+	}
+}
+
+// TestQuestLayoutIntegration verifies quest tracker receives actual BSP layout data.
+func TestQuestLayoutIntegration(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	// Verify quest tracker was initialized
+	if game.questTracker == nil {
+		t.Fatal("Quest tracker not initialized after startNewGame")
+	}
+
+	// Verify quest objectives were generated
+	if len(game.questTracker.Objectives) == 0 {
+		t.Fatal("No quest objectives generated")
+	}
+
+	// Find the main objective (FindExit)
+	var mainObj *quest.Objective
+	for i := range game.questTracker.Objectives {
+		if game.questTracker.Objectives[i].Type == quest.ObjFindExit {
+			mainObj = &game.questTracker.Objectives[i]
+			break
+		}
+	}
+
+	if mainObj == nil {
+		t.Fatal("No FindExit main objective found")
+	}
+
+	// Verify exit position is not the placeholder (60, 60)
+	// With actual BSP integration, it should be set to the furthest room center
+	if mainObj.PosX == 60.0 && mainObj.PosY == 60.0 {
+		// This could still happen if the furthest room happens to be at (60, 60)
+		// but it's unlikely with a 64x64 map, so we log a warning
+		t.Log("Exit position is (60, 60) - may be coincidence or placeholder")
+	}
+
+	// Verify exit position is within map bounds
+	if game.currentMap == nil || len(game.currentMap) == 0 {
+		t.Fatal("Current map not generated")
+	}
+	mapWidth := float64(len(game.currentMap[0]))
+	mapHeight := float64(len(game.currentMap))
+
+	if mainObj.PosX < 0 || mainObj.PosX >= mapWidth {
+		t.Errorf("Exit X position out of bounds: %f (map width: %f)", mainObj.PosX, mapWidth)
+	}
+	if mainObj.PosY < 0 || mainObj.PosY >= mapHeight {
+		t.Errorf("Exit Y position out of bounds: %f (map height: %f)", mainObj.PosY, mapHeight)
+	}
+
+	// Verify secret count matches actual secrets in the map
+	secretCount := game.secretManager.GetTotalCount()
+	var secretsObj *quest.Objective
+	for i := range game.questTracker.Objectives {
+		if game.questTracker.Objectives[i].ID == "bonus_secrets" {
+			secretsObj = &game.questTracker.Objectives[i]
+			break
+		}
+	}
+
+	if secretsObj != nil {
+		expectedThreshold := (secretCount + 1) / 2 // 50% of secrets
+		if secretsObj.Count != expectedThreshold {
+			t.Errorf("Secret objective count mismatch: expected %d (50%% of %d), got %d",
+				expectedThreshold, secretCount, secretsObj.Count)
+		}
+		t.Logf("Secret objective: find %d out of %d total secrets", secretsObj.Count, secretCount)
+	} else if secretCount > 0 {
+		t.Error("Secret objective should exist when map has secrets")
+	}
+
+	// Log quest layout details for verification
+	t.Logf("Quest layout: exit at (%.1f, %.1f), %d secrets, map size %dx%d",
+		mainObj.PosX, mainObj.PosY, secretCount, int(mapWidth), int(mapHeight))
+}
+
+// TestQuestLayoutExitPositionFurthestRoom verifies exit is placed in the furthest room.
+func TestQuestLayoutExitPositionFurthestRoom(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.seed = 123456 // Fixed seed for reproducibility
+	game.startNewGame()
+
+	// Get BSP rooms
+	rooms := bsp.GetRooms(game.currentBSPTree)
+	if len(rooms) == 0 {
+		t.Skip("No rooms generated")
+	}
+
+	// Find main objective
+	var mainObj *quest.Objective
+	for i := range game.questTracker.Objectives {
+		if game.questTracker.Objectives[i].Type == quest.ObjFindExit {
+			mainObj = &game.questTracker.Objectives[i]
+			break
+		}
+	}
+
+	if mainObj == nil {
+		t.Fatal("No FindExit main objective found")
+	}
+
+	// Calculate which room should be furthest from player spawn
+	playerX := game.camera.X
+	playerY := game.camera.Y
+	maxDist := 0.0
+	var expectedRoom *bsp.Room
+	for _, room := range rooms {
+		roomCenterX := float64(room.X + room.W/2)
+		roomCenterY := float64(room.Y + room.H/2)
+		dx := roomCenterX - playerX
+		dy := roomCenterY - playerY
+		dist := dx*dx + dy*dy
+
+		if dist > maxDist {
+			maxDist = dist
+			expectedRoom = room
+		}
+	}
+
+	if expectedRoom == nil {
+		t.Fatal("Could not determine furthest room")
+	}
+
+	expectedX := float64(expectedRoom.X + expectedRoom.W/2)
+	expectedY := float64(expectedRoom.Y + expectedRoom.H/2)
+
+	// Verify exit position matches furthest room center
+	if mainObj.PosX != expectedX || mainObj.PosY != expectedY {
+		t.Errorf("Exit position (%f, %f) does not match furthest room center (%f, %f)",
+			mainObj.PosX, mainObj.PosY, expectedX, expectedY)
+	}
+
+	t.Logf("Exit correctly placed in furthest room at (%.1f, %.1f), distance from spawn: %.1f",
+		mainObj.PosX, mainObj.PosY, maxDist)
+}
+
+// TestFindExitPosition verifies the findExitPosition helper function.
+func TestFindExitPosition(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+
+	tests := []struct {
+		name     string
+		rooms    []*bsp.Room
+		playerX  float64
+		playerY  float64
+		expected quest.Position
+	}{
+		{
+			name:     "empty rooms fallback",
+			rooms:    []*bsp.Room{},
+			playerX:  5.0,
+			playerY:  5.0,
+			expected: quest.Position{X: 60, Y: 60}, // fallback
+		},
+		{
+			name: "single room",
+			rooms: []*bsp.Room{
+				{X: 10, Y: 10, W: 8, H: 8},
+			},
+			playerX:  5.0,
+			playerY:  5.0,
+			expected: quest.Position{X: 14, Y: 14}, // center of room (10+8/2, 10+8/2)
+		},
+		{
+			name: "multiple rooms furthest selected",
+			rooms: []*bsp.Room{
+				{X: 5, Y: 5, W: 6, H: 6},   // close
+				{X: 50, Y: 50, W: 8, H: 8}, // far
+				{X: 20, Y: 20, W: 6, H: 6}, // medium
+			},
+			playerX:  0.0,
+			playerY:  0.0,
+			expected: quest.Position{X: 54, Y: 54}, // center of furthest room (50+8/2, 50+8/2)
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pos := game.findExitPosition(tt.rooms, tt.playerX, tt.playerY)
+			if pos.X != tt.expected.X || pos.Y != tt.expected.Y {
+				t.Errorf("Expected position (%f, %f), got (%f, %f)",
+					tt.expected.X, tt.expected.Y, pos.X, pos.Y)
+			}
+		})
 	}
 }

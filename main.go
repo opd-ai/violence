@@ -469,12 +469,22 @@ func (g *Game) startNewGame() {
 	// Initialize quest tracker with level objectives
 	g.questTracker = quest.NewTracker()
 	g.questTracker.SetGenre(g.genreID)
+
+	// Convert BSP rooms to quest rooms
+	questRooms := make([]quest.Room, len(rooms))
+	for i, r := range rooms {
+		questRooms[i] = quest.Room{X: r.X, Y: r.Y, Width: r.W, Height: r.H}
+	}
+
+	// Find exit position (furthest room from player spawn)
+	exitPos := g.findExitPosition(rooms, g.camera.X, g.camera.Y)
+
 	layout := quest.LevelLayout{
 		Width:       len(tiles[0]),
 		Height:      len(tiles),
-		ExitPos:     &quest.Position{X: 60, Y: 60}, // TODO: get actual exit position from BSP
-		SecretCount: 5,                             // TODO: get actual secret count from BSP
-		Rooms:       []quest.Room{},                // TODO: populate from BSP rooms
+		ExitPos:     exitPos,
+		SecretCount: len(g.secretManager.GetAll()),
+		Rooms:       questRooms,
 	}
 	g.questTracker.GenerateWithLayout(g.seed, layout)
 
@@ -2926,6 +2936,42 @@ func cosf(angle float32) float32 {
 // sinf is a helper for float32 sine.
 func sinf(angle float32) float32 {
 	return float32(math.Sin(float64(angle)))
+}
+
+// findExitPosition finds the room furthest from player spawn as the exit location.
+func (g *Game) findExitPosition(rooms []*bsp.Room, playerX, playerY float64) *quest.Position {
+	if len(rooms) == 0 {
+		// Fallback to center of map if no rooms available
+		return &quest.Position{X: 60, Y: 60}
+	}
+
+	// Find the room furthest from player spawn
+	maxDist := 0.0
+	var exitRoom *bsp.Room
+	for _, room := range rooms {
+		// Use room center for distance calculation
+		roomCenterX := float64(room.X + room.W/2)
+		roomCenterY := float64(room.Y + room.H/2)
+		dx := roomCenterX - playerX
+		dy := roomCenterY - playerY
+		dist := dx*dx + dy*dy // squared distance is sufficient for comparison
+
+		if dist > maxDist {
+			maxDist = dist
+			exitRoom = room
+		}
+	}
+
+	// Return center of the furthest room
+	if exitRoom != nil {
+		return &quest.Position{
+			X: float64(exitRoom.X + exitRoom.W/2),
+			Y: float64(exitRoom.Y + exitRoom.H/2),
+		}
+	}
+
+	// Fallback
+	return &quest.Position{X: 60, Y: 60}
 }
 
 // Layout returns the game's internal resolution.
