@@ -538,3 +538,409 @@ func ptrString(s string) *string {
 func ptrInt(i int) *int {
 	return &i
 }
+
+func TestFederationHub_PlayerLookup(t *testing.T) {
+	hub := NewFederationHub()
+
+	// Add servers with player lists
+	hub.registerServer(&ServerAnnouncement{
+		Name:       "server1",
+		Address:    "localhost:8000",
+		Region:     RegionUSEast,
+		Genre:      "scifi",
+		Players:    2,
+		MaxPlayers: 16,
+		PlayerList: []string{"player1", "player2"},
+		Timestamp:  time.Now(),
+	})
+	hub.registerServer(&ServerAnnouncement{
+		Name:       "server2",
+		Address:    "localhost:8001",
+		Region:     RegionEUWest,
+		Genre:      "fantasy",
+		Players:    1,
+		MaxPlayers: 16,
+		PlayerList: []string{"player3"},
+		Timestamp:  time.Now(),
+	})
+
+	tests := []struct {
+		name        string
+		playerID    string
+		wantOnline  bool
+		wantServer  string
+		wantAddress string
+	}{
+		{
+			name:        "player on server1",
+			playerID:    "player1",
+			wantOnline:  true,
+			wantServer:  "server1",
+			wantAddress: "localhost:8000",
+		},
+		{
+			name:        "player on server2",
+			playerID:    "player3",
+			wantOnline:  true,
+			wantServer:  "server2",
+			wantAddress: "localhost:8001",
+		},
+		{
+			name:       "player not found",
+			playerID:   "player999",
+			wantOnline: false,
+		},
+		{
+			name:       "empty playerID",
+			playerID:   "",
+			wantOnline: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			response := hub.lookupPlayer(tt.playerID)
+			if response.Online != tt.wantOnline {
+				t.Errorf("Online = %v, want %v", response.Online, tt.wantOnline)
+			}
+			if tt.wantOnline {
+				if response.ServerName != tt.wantServer {
+					t.Errorf("ServerName = %s, want %s", response.ServerName, tt.wantServer)
+				}
+				if response.ServerAddress != tt.wantAddress {
+					t.Errorf("ServerAddress = %s, want %s", response.ServerAddress, tt.wantAddress)
+				}
+			}
+		})
+	}
+}
+
+func TestFederationHub_PlayerLookupHTTP(t *testing.T) {
+	hub := NewFederationHub()
+	if err := hub.Start("127.0.0.1:0"); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	defer hub.Stop()
+
+	time.Sleep(100 * time.Millisecond)
+
+	// Add server with players
+	hub.registerServer(&ServerAnnouncement{
+		Name:       "test-server",
+		Address:    "localhost:9000",
+		Region:     RegionUSEast,
+		Genre:      "scifi",
+		Players:    3,
+		MaxPlayers: 16,
+		PlayerList: []string{"alice", "bob", "charlie"},
+		Timestamp:  time.Now(),
+	})
+
+	tests := []struct {
+		name        string
+		request     PlayerLookupRequest
+		wantStatus  int
+		wantOnline  bool
+		wantAddress string
+	}{
+		{
+			name:        "player found",
+			request:     PlayerLookupRequest{PlayerID: "alice"},
+			wantStatus:  http.StatusOK,
+			wantOnline:  true,
+			wantAddress: "localhost:9000",
+		},
+		{
+			name:       "player not found",
+			request:    PlayerLookupRequest{PlayerID: "eve"},
+			wantStatus: http.StatusOK,
+			wantOnline: false,
+		},
+		{
+			name:       "empty playerID",
+			request:    PlayerLookupRequest{PlayerID: ""},
+			wantStatus: http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body, _ := json.Marshal(tt.request)
+			url := fmt.Sprintf("http://%s/lookup", hub.httpServer.Addr)
+			resp, err := http.Post(url, "application/json", bytes.NewReader(body))
+			if err != nil {
+				t.Skipf("HTTP request failed: %v", err)
+				return
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != tt.wantStatus {
+				t.Errorf("status = %d, want %d", resp.StatusCode, tt.wantStatus)
+			}
+
+			if tt.wantStatus == http.StatusOK {
+				var response PlayerLookupResponse
+				if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+					t.Fatalf("failed to decode response: %v", err)
+				}
+
+				if response.Online != tt.wantOnline {
+					t.Errorf("Online = %v, want %v", response.Online, tt.wantOnline)
+				}
+				if tt.wantOnline && response.ServerAddress != tt.wantAddress {
+					t.Errorf("ServerAddress = %s, want %s", response.ServerAddress, tt.wantAddress)
+				}
+			}
+		})
+	}
+}
+
+func TestFederationHub_PlayerLookupMethodNotAllowed(t *testing.T) {
+	hub := NewFederationHub()
+	if err := hub.Start("127.0.0.1:0"); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	defer hub.Stop()
+
+	time.Sleep(100 * time.Millisecond)
+
+	url := fmt.Sprintf("http://%s/lookup", hub.httpServer.Addr)
+	resp, err := http.Get(url)
+	if err != nil {
+		t.Skipf("HTTP request failed: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Errorf("status = %d, want 405", resp.StatusCode)
+	}
+}
+
+func TestFederationHub_PlayerIndexUpdate(t *testing.T) {
+	hub := NewFederationHub()
+
+	// Register server with initial player list
+	hub.registerServer(&ServerAnnouncement{
+		Name:       "server1",
+		Address:    "localhost:8000",
+		PlayerList: []string{"player1", "player2"},
+		Timestamp:  time.Now(),
+	})
+
+	// Verify players are indexed
+	hub.mu.RLock()
+	if hub.playerIndex["player1"] != "server1" {
+		t.Errorf("player1 index = %s, want server1", hub.playerIndex["player1"])
+	}
+	if hub.playerIndex["player2"] != "server1" {
+		t.Errorf("player2 index = %s, want server1", hub.playerIndex["player2"])
+	}
+	hub.mu.RUnlock()
+
+	// Update server with new player list
+	hub.registerServer(&ServerAnnouncement{
+		Name:       "server1",
+		Address:    "localhost:8000",
+		PlayerList: []string{"player3", "player4"},
+		Timestamp:  time.Now(),
+	})
+
+	// Verify old players removed, new players added
+	hub.mu.RLock()
+	if _, exists := hub.playerIndex["player1"]; exists {
+		t.Error("player1 should be removed from index")
+	}
+	if _, exists := hub.playerIndex["player2"]; exists {
+		t.Error("player2 should be removed from index")
+	}
+	if hub.playerIndex["player3"] != "server1" {
+		t.Errorf("player3 index = %s, want server1", hub.playerIndex["player3"])
+	}
+	if hub.playerIndex["player4"] != "server1" {
+		t.Errorf("player4 index = %s, want server1", hub.playerIndex["player4"])
+	}
+	hub.mu.RUnlock()
+}
+
+func TestFederationHub_StaleServerRemovesPlayers(t *testing.T) {
+	hub := NewFederationHub()
+	hub.staleTimeout = 100 * time.Millisecond
+	hub.cleanupInterval = 50 * time.Millisecond
+
+	// Add server with players (already stale)
+	hub.registerServer(&ServerAnnouncement{
+		Name:       "stale-server",
+		Address:    "localhost:8000",
+		PlayerList: []string{"player1", "player2"},
+		Timestamp:  time.Now().Add(-200 * time.Millisecond),
+	})
+
+	// Verify players are indexed
+	hub.mu.RLock()
+	initialCount := len(hub.playerIndex)
+	hub.mu.RUnlock()
+	if initialCount != 2 {
+		t.Errorf("initial player index count = %d, want 2", initialCount)
+	}
+
+	// Start cleanup
+	go hub.cleanupStaleServers()
+	defer hub.cancel()
+
+	// Wait for cleanup
+	time.Sleep(150 * time.Millisecond)
+
+	// Verify players removed from index
+	hub.mu.RLock()
+	finalCount := len(hub.playerIndex)
+	hub.mu.RUnlock()
+	if finalCount != 0 {
+		t.Errorf("final player index count = %d, want 0", finalCount)
+	}
+}
+
+func TestServerAnnouncer_UpdatePlayerList(t *testing.T) {
+	announcer := NewServerAnnouncer("ws://localhost:9000/announce", ServerAnnouncement{
+		Players: 0,
+	})
+
+	playerList := []string{"player1", "player2", "player3"}
+	announcer.UpdatePlayerList(playerList)
+
+	announcer.mu.Lock()
+	list := announcer.announcement.PlayerList
+	count := announcer.announcement.Players
+	announcer.mu.Unlock()
+
+	if len(list) != 3 {
+		t.Errorf("player list length = %d, want 3", len(list))
+	}
+	if count != 3 {
+		t.Errorf("player count = %d, want 3", count)
+	}
+	for i, expected := range playerList {
+		if list[i] != expected {
+			t.Errorf("player[%d] = %s, want %s", i, list[i], expected)
+		}
+	}
+}
+
+func TestPlayerLookup_Integration(t *testing.T) {
+	// Start hub
+	hub := NewFederationHub()
+	if err := hub.Start("127.0.0.1:0"); err != nil {
+		t.Fatalf("hub Start failed: %v", err)
+	}
+	defer hub.Stop()
+
+	time.Sleep(100 * time.Millisecond)
+
+	// Get hub address
+	hubAddr := hub.httpServer.Addr
+	wsURL := fmt.Sprintf("ws://%s/announce", hubAddr)
+
+	// Create and start first server announcer
+	announcer1 := NewServerAnnouncer(wsURL, ServerAnnouncement{
+		Name:       "game-server-1",
+		Address:    "localhost:8000",
+		Region:     RegionUSEast,
+		Genre:      "scifi",
+		PlayerList: []string{"alice", "bob"},
+	})
+	announcer1.interval = 100 * time.Millisecond
+
+	if err := announcer1.Start(); err != nil {
+		t.Skipf("announcer1 Start failed: %v", err)
+		return
+	}
+	defer announcer1.Stop()
+
+	// Create and start second server announcer
+	announcer2 := NewServerAnnouncer(wsURL, ServerAnnouncement{
+		Name:       "game-server-2",
+		Address:    "localhost:8001",
+		Region:     RegionEUWest,
+		Genre:      "fantasy",
+		PlayerList: []string{"charlie"},
+	})
+	announcer2.interval = 100 * time.Millisecond
+
+	if err := announcer2.Start(); err != nil {
+		t.Skipf("announcer2 Start failed: %v", err)
+		return
+	}
+	defer announcer2.Stop()
+
+	// Wait for announcements
+	time.Sleep(200 * time.Millisecond)
+
+	// Test player lookup via HTTP
+	tests := []struct {
+		playerID    string
+		wantOnline  bool
+		wantServer  string
+		wantAddress string
+	}{
+		{"alice", true, "game-server-1", "localhost:8000"},
+		{"bob", true, "game-server-1", "localhost:8000"},
+		{"charlie", true, "game-server-2", "localhost:8001"},
+		{"dave", false, "", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run("lookup_"+tt.playerID, func(t *testing.T) {
+			body, _ := json.Marshal(PlayerLookupRequest{PlayerID: tt.playerID})
+			url := fmt.Sprintf("http://%s/lookup", hubAddr)
+			resp, err := http.Post(url, "application/json", bytes.NewReader(body))
+			if err != nil {
+				t.Skipf("HTTP request failed: %v", err)
+				return
+			}
+			defer resp.Body.Close()
+
+			var response PlayerLookupResponse
+			if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+				t.Fatalf("failed to decode response: %v", err)
+			}
+
+			if response.Online != tt.wantOnline {
+				t.Errorf("Online = %v, want %v", response.Online, tt.wantOnline)
+			}
+			if tt.wantOnline {
+				if response.ServerName != tt.wantServer {
+					t.Errorf("ServerName = %s, want %s", response.ServerName, tt.wantServer)
+				}
+				if response.ServerAddress != tt.wantAddress {
+					t.Errorf("ServerAddress = %s, want %s", response.ServerAddress, tt.wantAddress)
+				}
+			}
+		})
+	}
+
+	// Update player list on server 1
+	announcer1.UpdatePlayerList([]string{"alice", "bob", "eve"})
+	time.Sleep(200 * time.Millisecond)
+
+	// Verify eve is now online on server 1
+	body, _ := json.Marshal(PlayerLookupRequest{PlayerID: "eve"})
+	url := fmt.Sprintf("http://%s/lookup", hubAddr)
+	resp, err := http.Post(url, "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Skipf("HTTP request failed: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	var response PlayerLookupResponse
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if !response.Online {
+		t.Error("eve should be online after update")
+	}
+	if response.ServerName != "game-server-1" {
+		t.Errorf("eve's server = %s, want game-server-1", response.ServerName)
+	}
+}

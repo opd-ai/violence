@@ -145,9 +145,10 @@
     - **Dependencies**: Existing `pkg/federation`
     - **Completed**: Implemented `FederationHub` with WebSocket-based server announcement system, REST API for client queries, automatic stale server cleanup (30s timeout), `ServerAnnouncer` for periodic heartbeats (10s interval), region-based filtering (7 regions: US East/West, EU East/West, Asia-Pacific, South America, Unknown), genre/player count query filters, and comprehensive tests with 92.8% package coverage. Added gorilla/websocket dependency for WebSocket support
 
-27. Implement cross-server player lookup
+27. [x] Implement cross-server player lookup (2026-02-28)
     - **Deliverable**: Query player presence across federated servers; return server address if online
     - **Dependencies**: Step 26
+    - **Completed**: Implemented `PlayerLookupRequest`/`PlayerLookupResponse` structs, `handleLookup()` HTTP endpoint, `lookupPlayer()` for querying player presence, player index (`playerID -> serverName` mapping) in `FederationHub`, automatic index updates when servers announce player lists, player cleanup when servers go stale, `UpdatePlayerList()` method for `ServerAnnouncer`, and comprehensive tests (10 new test cases covering unit tests, HTTP endpoint, index updates, stale cleanup, and E2E integration) achieving 92.7% package coverage
 
 28. Implement matchmaking queue
     - **Deliverable**: Players queue for mode (co-op/FFA/TDM/territory); matchmaker groups players and assigns server

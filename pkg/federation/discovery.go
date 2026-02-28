@@ -35,6 +35,7 @@ type ServerAnnouncement struct {
 	Genre      string    `json:"genre"`
 	Players    int       `json:"players"`
 	MaxPlayers int       `json:"maxPlayers"`
+	PlayerList []string  `json:"playerList,omitempty"` // List of player IDs currently on this server
 	Timestamp  time.Time `json:"timestamp"`
 }
 
@@ -49,6 +50,7 @@ type ServerQuery struct {
 // FederationHub manages server announcements and client queries.
 type FederationHub struct {
 	servers         map[string]*ServerAnnouncement
+	playerIndex     map[string]string // playerID -> serverName
 	mu              sync.RWMutex
 	upgrader        websocket.Upgrader
 	staleTimeout    time.Duration
@@ -63,6 +65,7 @@ func NewFederationHub() *FederationHub {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &FederationHub{
 		servers:         make(map[string]*ServerAnnouncement),
+		playerIndex:     make(map[string]string),
 		upgrader:        websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }},
 		staleTimeout:    30 * time.Second,
 		cleanupInterval: 10 * time.Second,
@@ -76,6 +79,7 @@ func (h *FederationHub) Start(addr string) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/announce", h.handleAnnounce)
 	mux.HandleFunc("/query", h.handleQuery)
+	mux.HandleFunc("/lookup", h.handleLookup)
 
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -162,10 +166,81 @@ func (h *FederationHub) handleQuery(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(servers)
 }
 
+// PlayerLookupRequest represents a player lookup query.
+type PlayerLookupRequest struct {
+	PlayerID string `json:"playerID"`
+}
+
+// PlayerLookupResponse contains the server address if player is online.
+type PlayerLookupResponse struct {
+	Online        bool   `json:"online"`
+	ServerAddress string `json:"serverAddress,omitempty"`
+	ServerName    string `json:"serverName,omitempty"`
+}
+
+// handleLookup processes player presence lookup requests.
+func (h *FederationHub) handleLookup(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req PlayerLookupRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+
+	if req.PlayerID == "" {
+		http.Error(w, "playerID is required", http.StatusBadRequest)
+		return
+	}
+
+	response := h.lookupPlayer(req.PlayerID)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+// lookupPlayer finds a player across all federated servers.
+func (h *FederationHub) lookupPlayer(playerID string) PlayerLookupResponse {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	serverName, found := h.playerIndex[playerID]
+	if !found {
+		return PlayerLookupResponse{Online: false}
+	}
+
+	server, exists := h.servers[serverName]
+	if !exists {
+		return PlayerLookupResponse{Online: false}
+	}
+
+	return PlayerLookupResponse{
+		Online:        true,
+		ServerAddress: server.Address,
+		ServerName:    server.Name,
+	}
+}
+
 // registerServer adds or updates a server announcement.
 func (h *FederationHub) registerServer(announcement *ServerAnnouncement) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+
+	// Remove old player mappings for this server
+	if oldAnnouncement, exists := h.servers[announcement.Name]; exists {
+		for _, playerID := range oldAnnouncement.PlayerList {
+			delete(h.playerIndex, playerID)
+		}
+	}
+
+	// Add new player mappings
+	for _, playerID := range announcement.PlayerList {
+		h.playerIndex[playerID] = announcement.Name
+	}
+
 	h.servers[announcement.Name] = announcement
 }
 
@@ -214,6 +289,10 @@ func (h *FederationHub) cleanupStaleServers() {
 			now := time.Now()
 			for name, server := range h.servers {
 				if now.Sub(server.Timestamp) > h.staleTimeout {
+					// Remove player mappings
+					for _, playerID := range server.PlayerList {
+						delete(h.playerIndex, playerID)
+					}
 					delete(h.servers, name)
 					logrus.WithField("server_name", name).Debug("removed stale server")
 				}
@@ -281,6 +360,14 @@ func (a *ServerAnnouncer) UpdatePlayers(count int) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.announcement.Players = count
+}
+
+// UpdatePlayerList updates the list of players on this server.
+func (a *ServerAnnouncer) UpdatePlayerList(playerIDs []string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.announcement.PlayerList = playerIDs
+	a.announcement.Players = len(playerIDs)
 }
 
 // announceLoop sends periodic announcements.
