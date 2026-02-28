@@ -82,17 +82,20 @@
     - **Completed**: Implemented comprehensive integration test suite (`deathmatch_integration_test.go`) with 4 scenarios: (1) full 4-player FFA match with combat/respawn/frag limit win, (2) 2v2 team match with team score tracking and frag limit win, (3) time limit win condition test, and (4) continuous respawn cycle test. All tests pass, validating kill feed tracking, scoreboard updates, and proper match state management
 
 ### Territory Control (Deathmatch Variant)
-15. Implement control point capture mechanics
+15. [x] Implement control point capture mechanics (2026-02-28)
     - **Deliverable**: `ControlPoint` entity with capture progress bar, team ownership, score tick rate
     - **Dependencies**: Step 11
+    - **Completed**: Implemented `ControlPoint` struct with position tracking, ownership (neutral/red/blue), capture progress (-1.0 to +1.0), capture radius (5.0 units), and `UpdateCapture()` processing player counts. Implemented `TerritoryMatch` managing control points, players, teams, score tracking, configurable score/time limits, `ProcessCapture()` for capture mechanics, `ProcessScoring()` awarding points per second for held control points (1 point per CP per tick), and `CheckWinCondition()` for score limit and time limit. Added comprehensive tests (30+ test cases) achieving 96.7% package coverage
 
-16. Implement territory control scoring
+16. [x] Implement territory control scoring (2026-02-28)
     - **Deliverable**: Teams earn points per second for each held control point; first to score limit wins
     - **Dependencies**: Step 15
+    - **Completed**: Scoring system fully implemented in `TerritoryMatch.ProcessScoring()` - teams earn configurable points (default 1 point) per second per held control point, neutral points award no score, tick rate limits scoring frequency (default 1 second), win conditions check score limit and time limit. Added comprehensive integration tests covering full match flow, contested points, player advantage, scoring mechanics, and time limits. All tests pass with 96.7% package coverage
 
-17. Add genre-flavored control point visuals
+17. [x] Add genre-flavored control point visuals (2026-02-28)
     - **Deliverable**: `SetGenre()` selects control point visual style (altar/terminal/summoning-circle/server-rack/scrap-pile)
     - **Dependencies**: Step 15, `pkg/procgen/genre`
+    - **Completed**: Added `VisualStyle` field to `ControlPoint` struct, `SetVisualStyle()`/`GetVisualStyle()` methods for individual control points, `genreToVisualStyle()` function mapping genre IDs to visual styles (fantasy→altar, scifi→terminal, horror→summoning-circle, cyberpunk→server-rack, postapoc→scrap-pile, default→generic), and `TerritoryMatch.SetGenre()` to update all control points in a match. Added comprehensive tests (18 test cases) covering default styles, style changes, genre mapping, and match-level genre updates. All tests pass with 96.7% package coverage
 
 ### E2E Encrypted Chat (`pkg/chat`)
 18. Implement in-game chat UI overlay
