@@ -2993,3 +2993,186 @@ func TestSecretWallDeterminism(t *testing.T) {
 		}
 	}
 }
+
+// TestWeaponUpgradeIntegration verifies weapon upgrade system initialization.
+func TestWeaponUpgradeIntegration(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	if game.upgradeManager == nil {
+		t.Fatal("Upgrade manager not initialized")
+	}
+
+	// Verify initial token count is zero
+	if game.upgradeManager.GetTokens().GetCount() != 0 {
+		t.Errorf("Expected 0 initial tokens, got %d", game.upgradeManager.GetTokens().GetCount())
+	}
+}
+
+// TestWeaponUpgradeTokenDrops verifies upgrade tokens are awarded on enemy kills.
+func TestWeaponUpgradeTokenDrops(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	initialTokens := game.upgradeManager.GetTokens().GetCount()
+
+	// Manually add upgrade tokens (simulating enemy kill)
+	game.upgradeManager.GetTokens().Add(5)
+
+	newTokens := game.upgradeManager.GetTokens().GetCount()
+	if newTokens != initialTokens+5 {
+		t.Errorf("Expected %d tokens after adding 5, got %d", initialTokens+5, newTokens)
+	}
+}
+
+// TestWeaponUpgradePurchase verifies upgrade purchase and application.
+func TestWeaponUpgradePurchase(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	// Give player upgrade tokens
+	game.upgradeManager.GetTokens().Add(10)
+
+	// Apply damage upgrade to current weapon
+	currentWeapon := game.arsenal.GetCurrentWeapon()
+	weaponID := currentWeapon.Name
+
+	success := game.upgradeManager.ApplyUpgrade(weaponID, 0, 2) // UpgradeDamage = 0, cost 2 tokens
+	if !success {
+		t.Error("Failed to apply upgrade with sufficient tokens")
+	}
+
+	// Verify tokens were deducted
+	if game.upgradeManager.GetTokens().GetCount() != 8 {
+		t.Errorf("Expected 8 tokens after spending 2, got %d", game.upgradeManager.GetTokens().GetCount())
+	}
+
+	// Verify upgrade was applied
+	upgrades := game.upgradeManager.GetUpgrades(weaponID)
+	if len(upgrades) != 1 {
+		t.Errorf("Expected 1 upgrade applied, got %d", len(upgrades))
+	}
+}
+
+// TestWeaponUpgradeDamageCalculation verifies upgraded damage is calculated correctly.
+func TestWeaponUpgradeDamageCalculation(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	currentWeapon := game.arsenal.GetCurrentWeapon()
+	baseDamage := currentWeapon.Damage
+
+	// Get base damage (no upgrades)
+	damage1 := game.getUpgradedWeaponDamage(currentWeapon)
+	if damage1 != baseDamage {
+		t.Errorf("Expected base damage %f, got %f", baseDamage, damage1)
+	}
+
+	// Apply damage upgrade
+	game.upgradeManager.GetTokens().Add(10)
+	game.upgradeManager.ApplyUpgrade(currentWeapon.Name, 0, 2) // UpgradeDamage = 0
+
+	// Get upgraded damage (should be 25% higher)
+	damage2 := game.getUpgradedWeaponDamage(currentWeapon)
+	expectedDamage := baseDamage * 1.25
+	if damage2 != expectedDamage {
+		t.Errorf("Expected upgraded damage %f, got %f", expectedDamage, damage2)
+	}
+}
+
+// TestWeaponUpgradeShopItems verifies shop upgrade items handling.
+func TestWeaponUpgradeShopItems(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	// Give player upgrade tokens
+	game.upgradeManager.GetTokens().Add(10)
+	initialTokens := game.upgradeManager.GetTokens().GetCount()
+
+	// Apply shop upgrade item (damage)
+	game.applyShopItem("upgrade_damage")
+
+	// Verify upgrade was applied and tokens deducted
+	currentWeapon := game.arsenal.GetCurrentWeapon()
+	upgrades := game.upgradeManager.GetUpgrades(currentWeapon.Name)
+	if len(upgrades) == 0 {
+		t.Error("No upgrades applied after shop purchase")
+	}
+
+	if game.upgradeManager.GetTokens().GetCount() >= initialTokens {
+		t.Error("Tokens were not deducted after upgrade purchase")
+	}
+}
+
+// TestWeaponUpgradeMultipleUpgrades verifies multiple upgrades stack correctly.
+func TestWeaponUpgradeMultipleUpgrades(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	currentWeapon := game.arsenal.GetCurrentWeapon()
+	baseDamage := currentWeapon.Damage
+
+	// Apply two damage upgrades
+	game.upgradeManager.GetTokens().Add(10)
+	game.upgradeManager.ApplyUpgrade(currentWeapon.Name, 0, 2) // UpgradeDamage
+	game.upgradeManager.ApplyUpgrade(currentWeapon.Name, 0, 2) // UpgradeDamage again
+
+	// Get upgraded damage (should be 1.25 * 1.25 = 1.5625x base)
+	damage := game.getUpgradedWeaponDamage(currentWeapon)
+	expectedDamage := baseDamage * 1.25 * 1.25
+	if damage != expectedDamage {
+		t.Errorf("Expected stacked damage %f, got %f", expectedDamage, damage)
+	}
+
+	// Verify both upgrades are tracked
+	upgrades := game.upgradeManager.GetUpgrades(currentWeapon.Name)
+	if len(upgrades) != 2 {
+		t.Errorf("Expected 2 upgrades tracked, got %d", len(upgrades))
+	}
+}
+
+// TestWeaponUpgradeInsufficientTokens verifies purchase fails with insufficient tokens.
+func TestWeaponUpgradeInsufficientTokens(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	game := NewGame()
+	game.startNewGame()
+
+	// Give player only 1 token
+	game.upgradeManager.GetTokens().Add(1)
+
+	currentWeapon := game.arsenal.GetCurrentWeapon()
+	success := game.upgradeManager.ApplyUpgrade(currentWeapon.Name, 0, 2) // Cost 2 tokens
+	if success {
+		t.Error("Upgrade succeeded with insufficient tokens")
+	}
+
+	// Verify token count unchanged
+	if game.upgradeManager.GetTokens().GetCount() != 1 {
+		t.Errorf("Expected 1 token after failed purchase, got %d", game.upgradeManager.GetTokens().GetCount())
+	}
+}

@@ -48,6 +48,7 @@ import (
 	"github.com/opd-ai/violence/pkg/texture"
 	"github.com/opd-ai/violence/pkg/tutorial"
 	"github.com/opd-ai/violence/pkg/ui"
+	"github.com/opd-ai/violence/pkg/upgrade"
 	"github.com/opd-ai/violence/pkg/weapon"
 )
 
@@ -150,6 +151,9 @@ type Game struct {
 
 	// Secret wall system
 	secretManager *secret.Manager
+
+	// Weapon upgrade system
+	upgradeManager *upgrade.Manager
 }
 
 // NewGame creates and initializes a new game instance.
@@ -211,6 +215,7 @@ func NewGame() *Game {
 		loreItems:          make([]*lore.LoreItem, 0),
 		codexScrollIdx:     0,
 		secretManager:      secret.NewManager(64), // Map width for secret key calculation
+		upgradeManager:     upgrade.NewManager(),
 	}
 
 	// Initialize BSP generator
@@ -735,8 +740,9 @@ func (g *Game) updatePlaying() error {
 						if agentIdx >= 0 && agentIdx < len(g.aiAgents) {
 							agent := g.aiAgents[agentIdx]
 							if agent.Health > 0 {
-								// Apply damage
-								agent.Health -= currentWeapon.Damage
+								// Apply damage with upgrades
+								upgradedDamage := g.getUpgradedWeaponDamage(currentWeapon)
+								agent.Health -= upgradedDamage
 
 								if agent.Health <= 0 {
 									// Enemy died - award XP and credits
@@ -754,6 +760,10 @@ func (g *Game) updatePlaying() error {
 									}
 									if g.shopCredits != nil {
 										g.shopCredits.Add(25) // 25 credits per kill
+									}
+									// Drop upgrade tokens for weapon upgrades
+									if g.upgradeManager != nil {
+										g.upgradeManager.GetTokens().Add(1) // 1 token per kill
 									}
 									// Drop scrap for crafting
 									if g.scrapStorage != nil {
@@ -786,8 +796,9 @@ func (g *Game) updatePlaying() error {
 							toObjY := obj.Y - g.camera.Y
 							dot := toObjX*g.camera.DirX + toObjY*g.camera.DirY
 							if dot > 0 { // Object is in front
-								// Apply damage
-								destroyed := obj.Damage(currentWeapon.Damage)
+								// Apply damage with upgrades
+								upgradedDamage := g.getUpgradedWeaponDamage(currentWeapon)
+								destroyed := obj.Damage(upgradedDamage)
 								if destroyed {
 									// Spawn particles for destruction
 									if g.particleSystem != nil {
@@ -1385,6 +1396,37 @@ func (g *Game) applyShopItem(itemID string) {
 		if g.hud.Armor > g.hud.MaxArmor {
 			g.hud.Armor = g.hud.MaxArmor
 		}
+	// Weapon upgrades
+	case "upgrade_damage":
+		currentWeapon := g.arsenal.GetCurrentWeapon()
+		weaponID := currentWeapon.Name
+		if g.upgradeManager.ApplyUpgrade(weaponID, upgrade.UpgradeDamage, 2) {
+			g.hud.ShowMessage("Damage upgrade applied!")
+		}
+	case "upgrade_firerate":
+		currentWeapon := g.arsenal.GetCurrentWeapon()
+		weaponID := currentWeapon.Name
+		if g.upgradeManager.ApplyUpgrade(weaponID, upgrade.UpgradeFireRate, 2) {
+			g.hud.ShowMessage("Fire rate upgrade applied!")
+		}
+	case "upgrade_clipsize":
+		currentWeapon := g.arsenal.GetCurrentWeapon()
+		weaponID := currentWeapon.Name
+		if g.upgradeManager.ApplyUpgrade(weaponID, upgrade.UpgradeClipSize, 2) {
+			g.hud.ShowMessage("Clip size upgrade applied!")
+		}
+	case "upgrade_accuracy":
+		currentWeapon := g.arsenal.GetCurrentWeapon()
+		weaponID := currentWeapon.Name
+		if g.upgradeManager.ApplyUpgrade(weaponID, upgrade.UpgradeAccuracy, 2) {
+			g.hud.ShowMessage("Accuracy upgrade applied!")
+		}
+	case "upgrade_range":
+		currentWeapon := g.arsenal.GetCurrentWeapon()
+		weaponID := currentWeapon.Name
+		if g.upgradeManager.ApplyUpgrade(weaponID, upgrade.UpgradeRange, 2) {
+			g.hud.ShowMessage("Range upgrade applied!")
+		}
 	}
 	// Update HUD ammo display
 	currentWeapon := g.arsenal.GetCurrentWeapon()
@@ -1454,6 +1496,23 @@ func (g *Game) applyCraftedItem(outputID string, qty int) {
 	g.hud.Ammo = g.ammoPool.Get(currentWeapon.AmmoType)
 }
 
+// getUpgradedWeaponDamage returns the weapon damage with all upgrades applied.
+func (g *Game) getUpgradedWeaponDamage(baseWeapon weapon.Weapon) float64 {
+	if g.upgradeManager == nil {
+		return baseWeapon.Damage
+	}
+
+	upgrades := g.upgradeManager.GetUpgrades(baseWeapon.Name)
+	damage := baseWeapon.Damage
+
+	for _, upgradeType := range upgrades {
+		wu := upgrade.NewWeaponUpgrade(upgradeType)
+		damage, _, _, _, _ = wu.ApplyWeaponStats(damage, 0, 0, 0, 0)
+	}
+
+	return damage
+}
+
 // drawShop renders the shop overlay screen.
 func (g *Game) drawShop(screen *ebiten.Image) {
 	// Draw frozen game world
@@ -1487,6 +1546,14 @@ func (g *Game) buildShopState() *ui.ShopState {
 		Credits:  g.shopCredits.Get(),
 		Selected: g.menuManager.GetSelectedIndex(),
 	}
+}
+
+// getUpgradeTokenCount returns the current upgrade token count for display.
+func (g *Game) getUpgradeTokenCount() int {
+	if g.upgradeManager == nil {
+		return 0
+	}
+	return g.upgradeManager.GetTokens().GetCount()
 }
 
 // drawCrafting renders the crafting overlay screen.
