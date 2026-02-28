@@ -861,3 +861,101 @@ func TestSquad_ZeroStats(t *testing.T) {
 		t.Errorf("expected 0.0 avg kills, got %f", stats.AvgKills)
 	}
 }
+
+func TestSquad_GetTag(t *testing.T) {
+	squad := NewSquad("squad1", "Test Squad", "ABCD", "player1", "Alice")
+
+	tag := squad.GetTag()
+	if tag != "ABCD" {
+		t.Errorf("expected tag ABCD, got %s", tag)
+	}
+}
+
+func TestSquad_SetTag(t *testing.T) {
+	squad := NewSquad("squad1", "Test Squad", "OLD", "player1", "Alice")
+
+	squad.SetTag("NEW")
+
+	tag := squad.GetTag()
+	if tag != "NEW" {
+		t.Errorf("expected tag NEW, got %s", tag)
+	}
+}
+
+func TestSquad_SetTag_TruncatesLongTag(t *testing.T) {
+	squad := NewSquad("squad1", "Test Squad", "ORIG", "player1", "Alice")
+
+	// Set a tag longer than MaxTagLength (4)
+	squad.SetTag("TOOLONG")
+
+	tag := squad.GetTag()
+	if tag != "TOOL" {
+		t.Errorf("expected truncated tag TOOL, got %s", tag)
+	}
+}
+
+func TestSquad_SetTag_ExactlyFourCharacters(t *testing.T) {
+	squad := NewSquad("squad1", "Test Squad", "OLD", "player1", "Alice")
+
+	squad.SetTag("ABCD")
+
+	tag := squad.GetTag()
+	if tag != "ABCD" {
+		t.Errorf("expected tag ABCD, got %s", tag)
+	}
+}
+
+func TestSquad_SetTag_ThreeCharacters(t *testing.T) {
+	squad := NewSquad("squad1", "Test Squad", "OLD", "player1", "Alice")
+
+	squad.SetTag("ABC")
+
+	tag := squad.GetTag()
+	if tag != "ABC" {
+		t.Errorf("expected tag ABC, got %s", tag)
+	}
+}
+
+func TestSquad_SetTag_EmptyString(t *testing.T) {
+	squad := NewSquad("squad1", "Test Squad", "OLD", "player1", "Alice")
+
+	squad.SetTag("")
+
+	tag := squad.GetTag()
+	if tag != "" {
+		t.Errorf("expected empty tag, got %s", tag)
+	}
+}
+
+func TestNewSquad_TruncatesLongTag(t *testing.T) {
+	// Create squad with tag longer than MaxTagLength
+	squad := NewSquad("squad1", "Test Squad", "VERYLONGTAG", "player1", "Alice")
+
+	if squad.Tag != "VERY" {
+		t.Errorf("expected truncated tag VERY, got %s", squad.Tag)
+	}
+}
+
+func TestSquad_GetName(t *testing.T) {
+	squad := NewSquad("squad1", "Elite Squad", "ELIT", "player1", "Alice")
+
+	name := squad.GetName()
+	if name != "Elite Squad" {
+		t.Errorf("expected name 'Elite Squad', got %s", name)
+	}
+}
+
+func TestSquad_GetID(t *testing.T) {
+	squad := NewSquad("squad1", "Elite Squad", "ELIT", "player1", "Alice")
+
+	id := squad.GetID()
+	if id != "squad1" {
+		t.Errorf("expected ID 'squad1', got %s", id)
+	}
+}
+
+func TestMaxTagLength_Constant(t *testing.T) {
+	if MaxTagLength != 4 {
+		t.Errorf("MaxTagLength should be 4, got %d", MaxTagLength)
+	}
+}

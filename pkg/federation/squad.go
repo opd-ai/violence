@@ -11,7 +11,10 @@ import (
 	"time"
 )
 
-const MaxSquadMembers = 8
+const (
+	MaxSquadMembers = 8
+	MaxTagLength    = 4
+)
 
 var (
 	ErrSquadFull      = errors.New("squad is full")
@@ -20,6 +23,7 @@ var (
 	ErrInvalidSquadID = errors.New("invalid squad ID")
 	ErrNoInvite       = errors.New("no pending invite")
 	ErrSelfInvite     = errors.New("cannot invite self")
+	ErrInvalidTag     = errors.New("squad tag exceeds maximum length")
 )
 
 // SquadMember represents a member in a squad.
@@ -57,7 +61,11 @@ type Squad struct {
 }
 
 // NewSquad creates a new squad with a founding member as leader.
+// Tag is truncated to MaxTagLength (4 characters) if longer.
 func NewSquad(id, name, tag, founderID, founderName string) *Squad {
+	if len(tag) > MaxTagLength {
+		tag = tag[:MaxTagLength]
+	}
 	s := &Squad{
 		ID:      id,
 		Name:    name,
@@ -433,4 +441,36 @@ func (s *Squad) GetMemberStats(playerID string) (MemberStats, error) {
 	}
 
 	return member.Stats, nil
+}
+
+// GetTag returns the squad's tag.
+func (s *Squad) GetTag() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.Tag
+}
+
+// SetTag updates the squad's tag.
+// Tag is truncated to MaxTagLength (4 characters) if longer.
+func (s *Squad) SetTag(tag string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(tag) > MaxTagLength {
+		tag = tag[:MaxTagLength]
+	}
+	s.Tag = tag
+}
+
+// GetName returns the squad's name.
+func (s *Squad) GetName() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.Name
+}
+
+// GetID returns the squad's ID.
+func (s *Squad) GetID() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.ID
 }

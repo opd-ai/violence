@@ -134,9 +134,10 @@
     - **Dependencies**: Step 22
     - **Completed**: Added `MemberStats` struct tracking individual member statistics (kills, deaths, wins, play time), `SquadStats` struct with aggregated totals and averages across all squad members, `GetStats()` method computing total and average statistics, `UpdateMemberStats()` for incremental stat updates, `SetMemberStats()` for replacing stats, `GetMemberStats()` for retrieving individual member stats, stats persistence via JSON serialization, thread-safe concurrent stat updates with mutex protection, and comprehensive tests (13 test scenarios covering empty squads, single/multiple members, incremental updates, persistence, concurrent access, member departures, and zero stats) achieving 94.4% package coverage
 
-25. Implement squad tag display
+25. [x] Implement squad tag display (2026-02-28)
     - **Deliverable**: Configurable 4-character tag shown in HUD nameplates above squad members
     - **Dependencies**: Step 22, `pkg/ui`
+    - **Completed**: Added `MaxTagLength` constant (4 chars) to `pkg/federation`, implemented `GetTag()`/`SetTag()`/`GetName()`/`GetID()` methods with auto-truncation, created `Nameplate` component in `pkg/ui` with `NameplatePlayer` struct for player info display, squad tag rendering above player names, color-coded nameplates (green teammates, red enemies, yellow self), semi-transparent backgrounds with borders, customizable colors via `SetTeammateColor()`/`SetEnemyColor()`/`SetSelfColor()`, and comprehensive tests achieving 100% coverage on squad tag logic and nameplate logic (drawing methods excluded due to display requirements). Documentation added to `docs/SQUAD_TAG_DISPLAY.md`
 
 ### Federation / Cross-Server Matchmaking (`pkg/federation`)
 26. Implement federation protocol for server discovery
