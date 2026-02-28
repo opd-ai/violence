@@ -54,8 +54,8 @@ func Load() error {
 	viper.AddConfigPath(".")
 	viper.AddConfigPath("$HOME/.violence")
 
-	viper.SetDefault("WindowWidth", 960)
-	viper.SetDefault("WindowHeight", 600)
+	viper.SetDefault("WindowWidth", 1280)
+	viper.SetDefault("WindowHeight", 768)
 	viper.SetDefault("InternalWidth", 320)
 	viper.SetDefault("InternalHeight", 200)
 	viper.SetDefault("FOV", 66.0)

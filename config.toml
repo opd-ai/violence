@@ -1,5 +1,5 @@
-WindowWidth = 960
-WindowHeight = 600
+WindowWidth = 1280
+WindowHeight = 768
 InternalWidth = 320
 InternalHeight = 200
 FOV = 66.0

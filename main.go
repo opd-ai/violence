@@ -1481,6 +1481,7 @@ func main() {
 		log.Fatal(err)
 	}
 	ebiten.SetWindowSize(config.C.WindowWidth, config.C.WindowHeight)
+	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 	ebiten.SetVsyncEnabled(config.C.VSync)
 	ebiten.SetFullscreen(config.C.FullScreen)
 	ebiten.SetWindowTitle("VIOLENCE")

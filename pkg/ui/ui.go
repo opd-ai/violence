@@ -40,6 +40,9 @@ const (
 	MenuTypeSettings
 	MenuTypeShop
 	MenuTypeCrafting
+	MenuTypeSkills
+	MenuTypeMods
+	MenuTypeMultiplayer
 )
 
 // DifficultyLevel represents game difficulty.
@@ -1442,4 +1445,268 @@ func getCommandTitle(command string) string {
 	default:
 		return "SQUAD COMMAND"
 	}
+}
+
+// SkillNode represents a skill node displayed in the skills UI.
+type SkillNode struct {
+	ID          string
+	Name        string
+	Description string
+	Cost        int
+	Allocated   bool
+	Available   bool // Prerequisites met and enough points
+}
+
+// SkillTreeState holds the skill tree display state for rendering.
+type SkillTreeState struct {
+	TreeName string
+	TreeID   string
+	Nodes    []SkillNode
+	Points   int
+	Selected int
+}
+
+// SkillsState holds the entire skills screen state.
+type SkillsState struct {
+	Trees        []SkillTreeState
+	ActiveTree   int // Index of the active tree tab
+	Selected     int // Selected node within active tree
+	TotalPoints  int
+}
+
+// DrawSkills renders the skills overlay screen.
+func DrawSkills(screen *ebiten.Image, state *SkillsState) {
+	if state == nil {
+		return
+	}
+
+	bounds := screen.Bounds()
+	screenWidth := float32(bounds.Dx())
+	screenHeight := float32(bounds.Dy())
+
+	// Draw semi-transparent overlay
+	overlay := color.RGBA{0, 0, 0, 200}
+	vector.DrawFilledRect(screen, 0, 0, screenWidth, screenHeight, overlay, false)
+
+	centerX := screenWidth / 2
+
+	// Draw title
+	titleY := float32(25)
+	drawCenteredLabel(screen, centerX, titleY, "SKILL TREES", color.RGBA{255, 220, 100, 255})
+
+	// Draw available points
+	pointsY := titleY + 22
+	pointsText := fmt.Sprintf("Available Points: %d", state.TotalPoints)
+	drawCenteredLabel(screen, centerX, pointsY, pointsText, color.RGBA{180, 255, 180, 255})
+
+	// Draw tree tabs
+	tabNames := []string{"COMBAT", "SURVIVAL", "TECH"}
+	tabY := pointsY + 25
+	tabWidth := screenWidth / float32(len(tabNames))
+	for i, name := range tabNames {
+		tabX := float32(i) * tabWidth + tabWidth/2
+		tabColor := color.RGBA{120, 120, 120, 255}
+		if i == state.ActiveTree {
+			tabColor = color.RGBA{255, 200, 50, 255}
+		}
+		drawCenteredLabel(screen, tabX, tabY, name, tabColor)
+	}
+
+	// Draw nodes for active tree
+	if state.ActiveTree >= 0 && state.ActiveTree < len(state.Trees) {
+		tree := state.Trees[state.ActiveTree]
+		startY := tabY + 30
+		nodeHeight := float32(28)
+
+		for i, node := range tree.Nodes {
+			y := startY + float32(i)*nodeHeight
+
+			// Determine colors
+			nameColor := color.RGBA{180, 180, 180, 255}
+			statusText := ""
+			if node.Allocated {
+				nameColor = color.RGBA{100, 255, 100, 255}
+				statusText = " [UNLOCKED]"
+			} else if node.Available {
+				nameColor = color.RGBA{255, 255, 200, 255}
+				statusText = fmt.Sprintf(" [Cost: %d]", node.Cost)
+			} else {
+				nameColor = color.RGBA{100, 100, 100, 255}
+				statusText = " [LOCKED]"
+			}
+
+			// Highlight selected
+			if i == state.Selected {
+				vector.DrawFilledRect(screen, 20, y-2, screenWidth-40, nodeHeight-4, color.RGBA{80, 80, 120, 150}, false)
+			}
+
+			// Draw node name and status
+			nodeText := node.Name + statusText
+			drawLabel(screen, 30, y+12, nodeText, nameColor)
+
+			// Draw description for selected node
+			if i == state.Selected {
+				descY := y + 14
+				drawLabel(screen, 30, descY+12, node.Description, color.RGBA{150, 150, 200, 255})
+			}
+		}
+	}
+
+	// Draw controls hint
+	hintY := screenHeight - 40
+	drawCenteredLabel(screen, centerX, hintY, "←/→ tree, ↑/↓ node, Enter allocate, ESC back", color.RGBA{150, 150, 150, 255})
+}
+
+// ModInfo represents a mod displayed in the mods UI.
+type ModInfo struct {
+	Name        string
+	Version     string
+	Description string
+	Author      string
+	Enabled     bool
+}
+
+// ModsState holds the mods screen display state.
+type ModsState struct {
+	Mods     []ModInfo
+	ModsDir  string
+	Selected int
+}
+
+// DrawMods renders the mods screen overlay.
+func DrawMods(screen *ebiten.Image, state *ModsState) {
+	if state == nil {
+		return
+	}
+
+	bounds := screen.Bounds()
+	screenWidth := float32(bounds.Dx())
+	screenHeight := float32(bounds.Dy())
+
+	// Draw semi-transparent overlay
+	overlay := color.RGBA{0, 0, 0, 200}
+	vector.DrawFilledRect(screen, 0, 0, screenWidth, screenHeight, overlay, false)
+
+	centerX := screenWidth / 2
+
+	// Draw title
+	titleY := float32(25)
+	drawCenteredLabel(screen, centerX, titleY, "MODS", color.RGBA{180, 100, 255, 255})
+
+	// Draw mods directory
+	dirY := titleY + 22
+	dirText := fmt.Sprintf("Directory: %s", state.ModsDir)
+	drawCenteredLabel(screen, centerX, dirY, dirText, color.RGBA{150, 150, 150, 255})
+
+	if len(state.Mods) == 0 {
+		emptyY := dirY + 40
+		drawCenteredLabel(screen, centerX, emptyY, "No mods found", color.RGBA{150, 150, 150, 255})
+	} else {
+		startY := dirY + 30
+		itemHeight := float32(30)
+		for i, mod := range state.Mods {
+			y := startY + float32(i)*itemHeight
+
+			// Highlight selected
+			if i == state.Selected {
+				vector.DrawFilledRect(screen, 20, y-2, screenWidth-40, itemHeight-4, color.RGBA{80, 60, 120, 150}, false)
+			}
+
+			// Status indicator
+			statusColor := color.RGBA{100, 255, 100, 255}
+			statusText := "[ON]"
+			if !mod.Enabled {
+				statusColor = color.RGBA{255, 100, 100, 255}
+				statusText = "[OFF]"
+			}
+
+			modText := fmt.Sprintf("%s v%s - %s %s", mod.Name, mod.Version, mod.Author, statusText)
+			drawLabel(screen, 30, y+12, modText, statusColor)
+		}
+	}
+
+	// Draw controls hint
+	hintY := screenHeight - 40
+	drawCenteredLabel(screen, centerX, hintY, "↑/↓ select, Enter toggle, ESC back", color.RGBA{150, 150, 150, 255})
+}
+
+// MultiplayerMode represents a multiplayer game mode.
+type MultiplayerMode struct {
+	ID          string
+	Name        string
+	Description string
+	MaxPlayers  int
+}
+
+// MultiplayerState holds the multiplayer lobby display state.
+type MultiplayerState struct {
+	Modes       []MultiplayerMode
+	Selected    int
+	Connected   bool
+	ServerAddr  string
+	StatusMsg   string
+}
+
+// DrawMultiplayer renders the multiplayer lobby screen.
+func DrawMultiplayer(screen *ebiten.Image, state *MultiplayerState) {
+	if state == nil {
+		return
+	}
+
+	bounds := screen.Bounds()
+	screenWidth := float32(bounds.Dx())
+	screenHeight := float32(bounds.Dy())
+
+	// Draw semi-transparent overlay
+	overlay := color.RGBA{0, 0, 0, 200}
+	vector.DrawFilledRect(screen, 0, 0, screenWidth, screenHeight, overlay, false)
+
+	centerX := screenWidth / 2
+
+	// Draw title
+	titleY := float32(25)
+	drawCenteredLabel(screen, centerX, titleY, "MULTIPLAYER", color.RGBA{100, 200, 255, 255})
+
+	// Draw connection status
+	statusY := titleY + 22
+	statusColor := color.RGBA{255, 100, 100, 255}
+	statusText := "Disconnected"
+	if state.Connected {
+		statusColor = color.RGBA{100, 255, 100, 255}
+		statusText = fmt.Sprintf("Connected: %s", state.ServerAddr)
+	}
+	drawCenteredLabel(screen, centerX, statusY, statusText, statusColor)
+
+	// Draw game modes
+	modesY := statusY + 30
+	drawCenteredLabel(screen, centerX, modesY, "GAME MODES", color.RGBA{200, 200, 200, 255})
+
+	startY := modesY + 22
+	itemHeight := float32(30)
+	for i, mode := range state.Modes {
+		y := startY + float32(i)*itemHeight
+
+		// Highlight selected
+		if i == state.Selected {
+			vector.DrawFilledRect(screen, 20, y-2, screenWidth-40, itemHeight-4, color.RGBA{60, 80, 120, 150}, false)
+		}
+
+		modeText := fmt.Sprintf("%s (%d players max)", mode.Name, mode.MaxPlayers)
+		nameColor := color.RGBA{200, 200, 255, 255}
+		if i == state.Selected {
+			nameColor = color.RGBA{255, 255, 255, 255}
+		}
+		drawLabel(screen, 30, y+12, modeText, nameColor)
+		drawLabel(screen, 30, y+24, mode.Description, color.RGBA{150, 150, 180, 255})
+	}
+
+	// Draw status message
+	if state.StatusMsg != "" {
+		msgY := startY + float32(len(state.Modes))*itemHeight + 20
+		drawCenteredLabel(screen, centerX, msgY, state.StatusMsg, color.RGBA{255, 255, 100, 255})
+	}
+
+	// Draw controls hint
+	hintY := screenHeight - 40
+	drawCenteredLabel(screen, centerX, hintY, "↑/↓ select, Enter join, ESC back", color.RGBA{150, 150, 150, 255})
 }

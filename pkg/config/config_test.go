@@ -19,8 +19,8 @@ func TestLoad_DefaultValues(t *testing.T) {
 		field    string
 		expected interface{}
 	}{
-		{"WindowWidth", "WindowWidth", 960},
-		{"WindowHeight", "WindowHeight", 600},
+		{"WindowWidth", "WindowWidth", 1280},
+		{"WindowHeight", "WindowHeight", 768},
 		{"InternalWidth", "InternalWidth", 320},
 		{"InternalHeight", "InternalHeight", 200},
 		{"FOV", "FOV", 66.0},
