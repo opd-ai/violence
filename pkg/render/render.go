@@ -25,27 +25,29 @@ type LightMap interface {
 
 // Renderer manages the rendering pipeline.
 type Renderer struct {
-	Width       int
-	Height      int
-	framebuffer []byte
-	raycaster   *raycaster.Raycaster
-	palette     map[int]color.RGBA
-	genreID     string
-	atlas       TextureAtlas
-	lightMap    LightMap
+	Width         int
+	Height        int
+	framebuffer   []byte
+	raycaster     *raycaster.Raycaster
+	palette       map[int]color.RGBA
+	genreID       string
+	atlas         TextureAtlas
+	lightMap      LightMap
+	postProcessor *PostProcessor
 }
 
 // NewRenderer creates a renderer with the given internal resolution.
 func NewRenderer(width, height int, rc *raycaster.Raycaster) *Renderer {
 	return &Renderer{
-		Width:       width,
-		Height:      height,
-		framebuffer: make([]byte, width*height*4),
-		raycaster:   rc,
-		palette:     getDefaultPalette(),
-		genreID:     "fantasy",
-		atlas:       nil, // Optional texture atlas
-		lightMap:    nil, // Optional lighting map
+		Width:         width,
+		Height:        height,
+		framebuffer:   make([]byte, width*height*4),
+		raycaster:     rc,
+		palette:       getDefaultPalette(),
+		genreID:       "fantasy",
+		atlas:         nil, // Optional texture atlas
+		lightMap:      nil, // Optional lighting map
+		postProcessor: nil, // Optional post-processor
 	}
 }
 
@@ -57,6 +59,11 @@ func (r *Renderer) SetTextureAtlas(atlas TextureAtlas) {
 // SetLightMap assigns a light map for dynamic lighting.
 func (r *Renderer) SetLightMap(lightMap LightMap) {
 	r.lightMap = lightMap
+}
+
+// SetPostProcessor assigns a post-processor for visual effects.
+func (r *Renderer) SetPostProcessor(pp *PostProcessor) {
+	r.postProcessor = pp
 }
 
 // Render draws a frame to the given screen image.
@@ -89,6 +96,11 @@ func (r *Renderer) Render(screen *ebiten.Image, posX, posY, dirX, dirY, pitch fl
 			r.framebuffer[idx+2] = c.B
 			r.framebuffer[idx+3] = c.A
 		}
+	}
+
+	// Apply post-processing if enabled
+	if r.postProcessor != nil {
+		r.postProcessor.Apply(r.framebuffer)
 	}
 
 	img := ebiten.NewImageFromImageWithOptions(
@@ -287,6 +299,9 @@ func (r *Renderer) SetGenre(genreID string) {
 	r.genreID = genreID
 	r.palette = getPaletteForGenre(genreID)
 	r.raycaster.SetGenre(genreID)
+	if r.postProcessor != nil {
+		r.postProcessor.SetGenre(genreID)
+	}
 }
 
 // getDefaultPalette returns the default color palette.

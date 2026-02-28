@@ -855,3 +855,220 @@ func BenchmarkRenderWithLighting(b *testing.B) {
 		r.Render(screen, 5.5, 5.5, 1.0, 0.0, 0.0)
 	}
 }
+
+func TestSetPostProcessor(t *testing.T) {
+	rc := raycaster.NewRaycaster(66.0, 320, 200)
+	r := NewRenderer(320, 200, rc)
+
+	if r.postProcessor != nil {
+		t.Error("PostProcessor should be nil initially")
+	}
+
+	pp := NewPostProcessor(320, 200, 42)
+	r.SetPostProcessor(pp)
+
+	if r.postProcessor == nil {
+		t.Error("PostProcessor should be set")
+	}
+	if r.postProcessor != pp {
+		t.Error("PostProcessor not set correctly")
+	}
+}
+
+func TestRenderWithPostProcessing(t *testing.T) {
+	world := [][]int{
+		{1, 1, 1, 1, 1, 1, 1, 1},
+		{1, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 1},
+		{1, 1, 1, 1, 1, 1, 1, 1},
+	}
+
+	rc := raycaster.NewRaycaster(66.0, 100, 100)
+	rc.SetMap(world)
+
+	r := NewRenderer(100, 100, rc)
+	pp := NewPostProcessor(100, 100, 42)
+	pp.SetGenre("cyberpunk") // Genre with multiple effects
+	r.SetPostProcessor(pp)
+
+	screen := ebiten.NewImage(100, 100)
+
+	// Render with post-processing
+	r.Render(screen, 3.5, 3.5, 1.0, 0.0, 0.0)
+
+	// Verify framebuffer contains valid data
+	allZero := true
+	for i := 0; i < len(r.framebuffer); i += 4 {
+		if r.framebuffer[i] != 0 || r.framebuffer[i+1] != 0 || r.framebuffer[i+2] != 0 {
+			allZero = false
+			break
+		}
+	}
+
+	if allZero {
+		t.Error("Framebuffer is all zero after rendering with post-processing")
+	}
+}
+
+func TestRenderWithoutPostProcessing(t *testing.T) {
+	world := [][]int{
+		{1, 1, 1, 1},
+		{1, 0, 0, 1},
+		{1, 0, 0, 1},
+		{1, 1, 1, 1},
+	}
+
+	rc := raycaster.NewRaycaster(66.0, 100, 100)
+	rc.SetMap(world)
+
+	r := NewRenderer(100, 100, rc)
+	// No post-processor set
+
+	screen := ebiten.NewImage(100, 100)
+
+	// Should render without errors
+	r.Render(screen, 1.5, 1.5, 1.0, 0.0, 0.0)
+
+	// Verify framebuffer contains valid data
+	allZero := true
+	for i := 0; i < len(r.framebuffer); i += 4 {
+		if r.framebuffer[i] != 0 || r.framebuffer[i+1] != 0 || r.framebuffer[i+2] != 0 {
+			allZero = false
+			break
+		}
+	}
+
+	if allZero {
+		t.Error("Framebuffer is all zero after rendering without post-processing")
+	}
+}
+
+func TestPostProcessingAppliedPerFrame(t *testing.T) {
+	world := [][]int{
+		{1, 1, 1, 1, 1, 1, 1, 1},
+		{1, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 1},
+		{1, 1, 1, 1, 1, 1, 1, 1},
+	}
+
+	rc1 := raycaster.NewRaycaster(66.0, 100, 100)
+	rc1.SetMap(world)
+
+	rc2 := raycaster.NewRaycaster(66.0, 100, 100)
+	rc2.SetMap(world)
+
+	r1 := NewRenderer(100, 100, rc1)
+	r2 := NewRenderer(100, 100, rc2)
+
+	// r1 with post-processing using vignette which MUST create edge darkening
+	pp := NewPostProcessor(100, 100, 42)
+	pp.SetGenre("horror") // Has heavy vignette (0.7 intensity)
+	r1.SetPostProcessor(pp)
+
+	// r2 without post-processing
+
+	screen1 := ebiten.NewImage(100, 100)
+	screen2 := ebiten.NewImage(100, 100)
+
+	r1.Render(screen1, 3.5, 3.5, 1.0, 0.0, 0.0)
+	r2.Render(screen2, 3.5, 3.5, 1.0, 0.0, 0.0)
+
+	// Compare edge pixel (should be darker with vignette) vs center pixel
+	// Edge: corner at (0,0)
+	edgeIdx1 := 0
+	edgeIdx2 := 0
+
+	// Center: (50,50)
+	centerIdx1 := (50*100 + 50) * 4
+	centerIdx2 := (50*100 + 50) * 4
+
+	edgeR1 := r1.framebuffer[edgeIdx1]
+	centerR1 := r1.framebuffer[centerIdx1]
+
+	edgeR2 := r2.framebuffer[edgeIdx2]
+	centerR2 := r2.framebuffer[centerIdx2]
+
+	t.Logf("r1 (with post): edge R=%d, center R=%d, diff=%d", edgeR1, centerR1, int(centerR1)-int(edgeR1))
+	t.Logf("r2 (without post): edge R=%d, center R=%d, diff=%d", edgeR2, centerR2, int(centerR2)-int(edgeR2))
+
+	// With vignette, edge should be darker than center in r1
+	vignetteWorking := edgeR1 < centerR1
+
+	// Without vignette, they should be similar (or at least less difference)
+	r1Diff := int(centerR1) - int(edgeR1)
+	r2Diff := int(centerR2) - int(edgeR2)
+
+	if !vignetteWorking {
+		t.Error("Vignette not working: edge should be darker than center with post-processing")
+	}
+
+	if r1Diff <= r2Diff {
+		t.Errorf("Post-processing vignette not creating expected darkening: r1 diff=%d, r2 diff=%d", r1Diff, r2Diff)
+	}
+}
+
+func TestSetGenreUpdatesPostProcessor(t *testing.T) {
+	rc := raycaster.NewRaycaster(66.0, 100, 100)
+	r := NewRenderer(100, 100, rc)
+
+	pp := NewPostProcessor(100, 100, 42)
+	r.SetPostProcessor(pp)
+
+	// Change genre on renderer
+	r.SetGenre("scifi")
+
+	// Post-processor genre should be updated
+	if pp.genreID != "scifi" {
+		t.Errorf("PostProcessor genre = %s, want scifi", pp.genreID)
+	}
+}
+
+func TestSetGenreWithoutPostProcessor(t *testing.T) {
+	rc := raycaster.NewRaycaster(66.0, 100, 100)
+	r := NewRenderer(100, 100, rc)
+
+	// Should not panic when post-processor is nil
+	r.SetGenre("horror")
+
+	if r.genreID != "horror" {
+		t.Errorf("genreID = %s, want horror", r.genreID)
+	}
+}
+
+func BenchmarkRenderWithPostProcessing(b *testing.B) {
+	world := [][]int{
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+	}
+
+	rc := raycaster.NewRaycaster(66.0, 320, 200)
+	rc.SetMap(world)
+
+	r := NewRenderer(320, 200, rc)
+	pp := NewPostProcessor(320, 200, 42)
+	pp.SetGenre("cyberpunk")
+	r.SetPostProcessor(pp)
+
+	screen := ebiten.NewImage(320, 200)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r.Render(screen, 5.5, 5.5, 1.0, 0.0, 0.0)
+	}
+}
