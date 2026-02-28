@@ -16,6 +16,13 @@ type TextureAtlas interface {
 	SetGenre(genreID string)
 }
 
+// LightMap is an interface for per-tile lighting data.
+// Allows testing with mocks while supporting the full lighting.SectorLightMap.
+type LightMap interface {
+	GetLight(x, y int) float64
+	Calculate()
+}
+
 // Renderer manages the rendering pipeline.
 type Renderer struct {
 	Width       int
@@ -25,6 +32,7 @@ type Renderer struct {
 	palette     map[int]color.RGBA
 	genreID     string
 	atlas       TextureAtlas
+	lightMap    LightMap
 }
 
 // NewRenderer creates a renderer with the given internal resolution.
@@ -37,12 +45,18 @@ func NewRenderer(width, height int, rc *raycaster.Raycaster) *Renderer {
 		palette:     getDefaultPalette(),
 		genreID:     "fantasy",
 		atlas:       nil, // Optional texture atlas
+		lightMap:    nil, // Optional lighting map
 	}
 }
 
 // SetTextureAtlas assigns a texture atlas for textured rendering.
 func (r *Renderer) SetTextureAtlas(atlas TextureAtlas) {
 	r.atlas = atlas
+}
+
+// SetLightMap assigns a light map for dynamic lighting.
+func (r *Renderer) SetLightMap(lightMap LightMap) {
+	r.lightMap = lightMap
 }
 
 // Render draws a frame to the given screen image.
@@ -105,11 +119,14 @@ func (r *Renderer) renderWall(x, y int, hit raycaster.RayHit) color.RGBA {
 		baseColor.B = baseColor.B / 2
 	}
 
+	// Apply lighting if available
+	lightMult := r.getLightMultiplier(hit.HitX, hit.HitY)
+
 	foggedColor := r.raycaster.ApplyFog(
 		[3]float64{
-			float64(baseColor.R) / 255.0,
-			float64(baseColor.G) / 255.0,
-			float64(baseColor.B) / 255.0,
+			float64(baseColor.R) / 255.0 * lightMult,
+			float64(baseColor.G) / 255.0 * lightMult,
+			float64(baseColor.B) / 255.0 * lightMult,
 		},
 		hit.Distance,
 	)
@@ -144,11 +161,14 @@ func (r *Renderer) renderFloor(x, y int, posX, posY, dirX, dirY, pitch float64) 
 		baseColor = r.palette[2]
 	}
 
+	// Apply lighting if available
+	lightMult := r.getLightMultiplier(pixels[x].WorldX, pixels[x].WorldY)
+
 	foggedColor := r.raycaster.ApplyFog(
 		[3]float64{
-			float64(baseColor.R) / 255.0,
-			float64(baseColor.G) / 255.0,
-			float64(baseColor.B) / 255.0,
+			float64(baseColor.R) / 255.0 * lightMult,
+			float64(baseColor.G) / 255.0 * lightMult,
+			float64(baseColor.B) / 255.0 * lightMult,
 		},
 		pixels[x].Distance,
 	)
@@ -183,11 +203,14 @@ func (r *Renderer) renderCeiling(x, y int, posX, posY, dirX, dirY, pitch float64
 		baseColor = r.palette[3]
 	}
 
+	// Apply lighting if available
+	lightMult := r.getLightMultiplier(pixels[x].WorldX, pixels[x].WorldY)
+
 	foggedColor := r.raycaster.ApplyFog(
 		[3]float64{
-			float64(baseColor.R) / 255.0,
-			float64(baseColor.G) / 255.0,
-			float64(baseColor.B) / 255.0,
+			float64(baseColor.R) / 255.0 * lightMult,
+			float64(baseColor.G) / 255.0 * lightMult,
+			float64(baseColor.B) / 255.0 * lightMult,
 		},
 		pixels[x].Distance,
 	)
@@ -243,6 +266,20 @@ func (r *Renderer) sampleTexture(tex image.Image, worldX, worldY float64) color.
 		B: uint8(cb >> 8),
 		A: uint8(ca >> 8),
 	}
+}
+
+// getLightMultiplier returns the lighting multiplier at world coordinates.
+// Returns 1.0 (full brightness) if no light map is set.
+func (r *Renderer) getLightMultiplier(worldX, worldY float64) float64 {
+	if r.lightMap == nil {
+		return 1.0
+	}
+
+	// Convert world coordinates to tile coordinates
+	tileX := int(worldX)
+	tileY := int(worldY)
+
+	return r.lightMap.GetLight(tileX, tileY)
 }
 
 // SetGenre configures the renderer for a genre.

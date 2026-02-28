@@ -6,7 +6,6 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/opd-ai/violence/pkg/config"
 	"github.com/opd-ai/violence/pkg/ui"
-	"github.com/opd-ai/violence/pkg/weapon"
 )
 
 // TestNewGame verifies game initialization.

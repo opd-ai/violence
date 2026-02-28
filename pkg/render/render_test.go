@@ -539,3 +539,319 @@ func (m *mockTexture) Bounds() image.Rectangle {
 func (m *mockTexture) At(x, y int) color.Color {
 	return m.color
 }
+
+// mockLightMap is a simple test light map
+type mockLightMap struct {
+	width   int
+	height  int
+	uniform float64
+	custom  map[int]float64 // Key is y*width+x
+}
+
+func (m *mockLightMap) GetLight(x, y int) float64 {
+	if x < 0 || x >= m.width || y < 0 || y >= m.height {
+		return 0.0
+	}
+	if m.custom != nil {
+		if val, ok := m.custom[y*m.width+x]; ok {
+			return val
+		}
+	}
+	return m.uniform
+}
+
+func (m *mockLightMap) Calculate() {}
+
+func TestSetLightMap(t *testing.T) {
+	rc := raycaster.NewRaycaster(66.0, 320, 200)
+	r := NewRenderer(320, 200, rc)
+
+	if r.lightMap != nil {
+		t.Error("LightMap should be nil initially")
+	}
+
+	lightMap := &mockLightMap{width: 10, height: 10, uniform: 0.5}
+	r.SetLightMap(lightMap)
+
+	if r.lightMap == nil {
+		t.Error("LightMap should be set after SetLightMap")
+	}
+}
+
+func TestGetLightMultiplier(t *testing.T) {
+	rc := raycaster.NewRaycaster(66.0, 320, 200)
+	r := NewRenderer(320, 200, rc)
+
+	tests := []struct {
+		name     string
+		lightMap *mockLightMap
+		worldX   float64
+		worldY   float64
+		expected float64
+	}{
+		{
+			name:     "No light map - full brightness",
+			lightMap: nil,
+			worldX:   5.5,
+			worldY:   5.5,
+			expected: 1.0,
+		},
+		{
+			name:     "Uniform light map - 50% brightness",
+			lightMap: &mockLightMap{width: 20, height: 20, uniform: 0.5},
+			worldX:   5.5,
+			worldY:   5.5,
+			expected: 0.5,
+		},
+		{
+			name:     "Uniform light map - full brightness",
+			lightMap: &mockLightMap{width: 20, height: 20, uniform: 1.0},
+			worldX:   10.2,
+			worldY:   15.7,
+			expected: 1.0,
+		},
+		{
+			name:     "Uniform light map - dark",
+			lightMap: &mockLightMap{width: 20, height: 20, uniform: 0.1},
+			worldX:   3.9,
+			worldY:   7.1,
+			expected: 0.1,
+		},
+		{
+			name: "Custom light map - bright spot",
+			lightMap: &mockLightMap{
+				width:   20,
+				height:  20,
+				uniform: 0.3,
+				custom: map[int]float64{
+					5*20 + 5: 0.9, // tile (5,5) is bright
+				},
+			},
+			worldX:   5.5,
+			worldY:   5.5,
+			expected: 0.9,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.lightMap != nil {
+				r.SetLightMap(tt.lightMap)
+			} else {
+				r.SetLightMap(nil)
+			}
+
+			result := r.getLightMultiplier(tt.worldX, tt.worldY)
+			if result != tt.expected {
+				t.Errorf("getLightMultiplier(%v, %v) = %v, want %v",
+					tt.worldX, tt.worldY, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestRenderWallWithLighting(t *testing.T) {
+	rc := raycaster.NewRaycaster(66.0, 320, 200)
+	rc.SetMap([][]int{
+		{1, 1, 1, 1, 1},
+		{1, 0, 0, 0, 1},
+		{1, 0, 0, 0, 1},
+		{1, 0, 0, 0, 1},
+		{1, 1, 1, 1, 1},
+	})
+
+	r := NewRenderer(320, 200, rc)
+
+	tests := []struct {
+		name      string
+		lightMap  *mockLightMap
+		hitX      float64
+		hitY      float64
+		expectDim bool
+	}{
+		{
+			name:      "No lighting - full brightness",
+			lightMap:  nil,
+			hitX:      2.5,
+			hitY:      2.5,
+			expectDim: false,
+		},
+		{
+			name:      "Dim lighting",
+			lightMap:  &mockLightMap{width: 5, height: 5, uniform: 0.3},
+			hitX:      2.5,
+			hitY:      2.5,
+			expectDim: true,
+		},
+		{
+			name:      "Bright lighting",
+			lightMap:  &mockLightMap{width: 5, height: 5, uniform: 1.0},
+			hitX:      2.5,
+			hitY:      2.5,
+			expectDim: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.lightMap != nil {
+				r.SetLightMap(tt.lightMap)
+			} else {
+				r.SetLightMap(nil)
+			}
+
+			hit := raycaster.RayHit{
+				Distance: 2.0,
+				WallType: 1,
+				Side:     0,
+				HitX:     tt.hitX,
+				HitY:     tt.hitY,
+			}
+
+			colorWithLight := r.renderWall(160, 100, hit)
+
+			// Without light map for comparison
+			r.SetLightMap(nil)
+			colorNoLight := r.renderWall(160, 100, hit)
+
+			if tt.expectDim {
+				// With dim lighting, color should be darker
+				if colorWithLight.R >= colorNoLight.R {
+					t.Errorf("Expected dimmer color with lighting, got R=%d vs %d",
+						colorWithLight.R, colorNoLight.R)
+				}
+			} else {
+				// With full/no lighting, colors should be similar
+				diff := int(colorNoLight.R) - int(colorWithLight.R)
+				if diff < -5 || diff > 5 {
+					t.Errorf("Expected similar brightness, got R=%d vs %d (diff %d)",
+						colorWithLight.R, colorNoLight.R, diff)
+				}
+			}
+		})
+	}
+}
+
+func TestRenderFloorWithLighting(t *testing.T) {
+	rc := raycaster.NewRaycaster(66.0, 320, 200)
+	rc.SetMap([][]int{
+		{1, 1, 1, 1, 1},
+		{1, 0, 0, 0, 1},
+		{1, 0, 0, 0, 1},
+		{1, 0, 0, 0, 1},
+		{1, 1, 1, 1, 1},
+	})
+
+	r := NewRenderer(320, 200, rc)
+
+	// Test with dim lighting
+	lightMap := &mockLightMap{width: 5, height: 5, uniform: 0.4}
+	r.SetLightMap(lightMap)
+
+	colorWithLight := r.renderFloor(160, 150, 2.5, 2.5, 1.0, 0.0, 0.0)
+
+	// Without light map for comparison
+	r.SetLightMap(nil)
+	colorNoLight := r.renderFloor(160, 150, 2.5, 2.5, 1.0, 0.0, 0.0)
+
+	// With dim lighting, floor should be darker
+	if colorWithLight.R >= colorNoLight.R {
+		t.Errorf("Expected dimmer floor with lighting, got R=%d vs %d",
+			colorWithLight.R, colorNoLight.R)
+	}
+}
+
+func TestRenderCeilingWithLighting(t *testing.T) {
+	rc := raycaster.NewRaycaster(66.0, 320, 200)
+	rc.SetMap([][]int{
+		{1, 1, 1, 1, 1},
+		{1, 0, 0, 0, 1},
+		{1, 0, 0, 0, 1},
+		{1, 0, 0, 0, 1},
+		{1, 1, 1, 1, 1},
+	})
+
+	r := NewRenderer(320, 200, rc)
+
+	// Test with bright lighting
+	lightMap := &mockLightMap{width: 5, height: 5, uniform: 0.9}
+	r.SetLightMap(lightMap)
+
+	colorWithLight := r.renderCeiling(160, 50, 2.5, 2.5, 1.0, 0.0, 0.0)
+
+	// Without light map for comparison
+	r.SetLightMap(nil)
+	colorNoLight := r.renderCeiling(160, 50, 2.5, 2.5, 1.0, 0.0, 0.0)
+
+	// With bright lighting (0.9), ceiling should be only slightly darker
+	diff := int(colorNoLight.R) - int(colorWithLight.R)
+	if diff > 15 {
+		t.Errorf("Expected similar brightness with 0.9 lighting, got R=%d vs %d (diff %d)",
+			colorWithLight.R, colorNoLight.R, diff)
+	}
+}
+
+func TestRenderWithTextureAndLighting(t *testing.T) {
+	rc := raycaster.NewRaycaster(66.0, 320, 200)
+	rc.SetMap([][]int{
+		{1, 1, 1, 1, 1},
+		{1, 0, 0, 0, 1},
+		{1, 0, 0, 0, 1},
+		{1, 0, 0, 0, 1},
+		{1, 1, 1, 1, 1},
+	})
+
+	r := NewRenderer(320, 200, rc)
+
+	// Set up both texture atlas and light map
+	atlas := &mockAtlas{hasFloor: true, hasCeiling: true}
+	r.SetTextureAtlas(atlas)
+
+	lightMap := &mockLightMap{width: 5, height: 5, uniform: 0.6}
+	r.SetLightMap(lightMap)
+
+	// Render floor with both texture and lighting
+	colorWithBoth := r.renderFloor(160, 150, 2.5, 2.5, 1.0, 0.0, 0.0)
+
+	// Render with only texture
+	r.SetLightMap(nil)
+	colorTextureOnly := r.renderFloor(160, 150, 2.5, 2.5, 1.0, 0.0, 0.0)
+
+	// With lighting applied, textured floor should be darker
+	if colorWithBoth.R >= colorTextureOnly.R {
+		t.Errorf("Expected darker textured floor with lighting, got R=%d vs %d",
+			colorWithBoth.R, colorTextureOnly.R)
+	}
+
+	// Verify the color is non-zero (texture was sampled)
+	if colorWithBoth.R == 0 && colorWithBoth.G == 0 && colorWithBoth.B == 0 {
+		t.Error("Expected non-zero color from textured floor")
+	}
+}
+
+func BenchmarkRenderWithLighting(b *testing.B) {
+	rc := raycaster.NewRaycaster(66.0, 320, 200)
+	rc.SetMap([][]int{
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+	})
+
+	r := NewRenderer(320, 200, rc)
+	lightMap := &mockLightMap{width: 10, height: 10, uniform: 0.5}
+	r.SetLightMap(lightMap)
+
+	screen := ebiten.NewImage(320, 200)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r.Render(screen, 5.5, 5.5, 1.0, 0.0, 0.0)
+	}
+}
