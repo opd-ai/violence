@@ -20,7 +20,7 @@ func TestLoad_DefaultValues(t *testing.T) {
 		expected interface{}
 	}{
 		{"WindowWidth", "WindowWidth", 1280},
-		{"WindowHeight", "WindowHeight", 768},
+		{"WindowHeight", "WindowHeight", 800},
 		{"InternalWidth", "InternalWidth", 320},
 		{"InternalHeight", "InternalHeight", 200},
 		{"FOV", "FOV", 66.0},

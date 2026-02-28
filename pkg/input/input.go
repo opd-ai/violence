@@ -133,6 +133,13 @@ func (m *Manager) Update() {
 
 // IsPressed returns true if the named action is currently pressed.
 func (m *Manager) IsPressed(action Action) bool {
+	// Check mouse button for fire action (standard FPS left-click)
+	if action == ActionFire {
+		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+			return true
+		}
+	}
+
 	// Check keyboard
 	if key, ok := m.bindings[action]; ok {
 		if ebiten.IsKeyPressed(key) {
@@ -154,6 +161,13 @@ func (m *Manager) IsPressed(action Action) bool {
 
 // IsJustPressed returns true if the action was pressed this frame.
 func (m *Manager) IsJustPressed(action Action) bool {
+	// Check mouse button for fire action (standard FPS left-click)
+	if action == ActionFire {
+		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+			return true
+		}
+	}
+
 	// Check keyboard
 	if key, ok := m.bindings[action]; ok {
 		if inpututil.IsKeyJustPressed(key) {

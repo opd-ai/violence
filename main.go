@@ -248,6 +248,14 @@ func (g *Game) Update() error {
 	// Update input manager
 	g.input.Update()
 
+	// Manage cursor capture: locked during gameplay, visible in menus
+	switch g.state {
+	case StatePlaying:
+		ebiten.SetCursorMode(ebiten.CursorModeCaptured)
+	default:
+		ebiten.SetCursorMode(ebiten.CursorModeVisible)
+	}
+
 	switch g.state {
 	case StateMenu:
 		return g.updateMenu()
@@ -391,8 +399,26 @@ func (g *Game) startNewGame() {
 	}
 
 	// Reset player position to a safe starting location
-	g.camera.X = 5.0
-	g.camera.Y = 5.0
+	// Find the center of the first BSP room as spawn point
+	spawnX, spawnY := 5.0, 5.0
+	if len(rooms) > 0 {
+		spawnX = float64(rooms[0].X + rooms[0].W/2)
+		spawnY = float64(rooms[0].Y + rooms[0].H/2)
+	} else {
+		// Fallback: scan for any walkable tile near (5,5)
+		for dy := 0; dy < len(tiles); dy++ {
+			for dx := 0; dx < len(tiles[0]); dx++ {
+				if isWalkableTile(tiles[dy][dx]) {
+					spawnX = float64(dx) + 0.5
+					spawnY = float64(dy) + 0.5
+					goto foundSpawn
+				}
+			}
+		}
+	foundSpawn:
+	}
+	g.camera.X = spawnX
+	g.camera.Y = spawnY
 	g.camera.DirX = 1.0
 	g.camera.DirY = 0.0
 	g.camera.Pitch = 0.0
@@ -1061,7 +1087,7 @@ func (g *Game) updatePlaying() error {
 	if mouseDX != 0 || mouseDY != 0 {
 		sensitivity := config.C.MouseSensitivity * 0.002
 		g.camera.Rotate(mouseDX * sensitivity)
-		deltaPitch = -mouseDY * sensitivity * 10.0
+		deltaPitch = -mouseDY * sensitivity * 3.0 // Balanced pitch sensitivity
 	}
 
 	// Gamepad: Right stick camera
@@ -1071,14 +1097,23 @@ func (g *Game) updatePlaying() error {
 		deltaPitch = -rightY * rotSpeed * 15.0
 	}
 
-	// Collision detection (simple)
+	// Collision detection with wall-sliding
 	newX := g.camera.X + deltaX
 	newY := g.camera.Y + deltaY
 	if g.isWalkable(newX, newY) {
 		g.camera.Update(deltaX, deltaY, deltaDirX, deltaDirY, deltaPitch)
-		if g.automap != nil {
-			g.automap.Reveal(int(newX), int(newY))
-		}
+	} else if g.isWalkable(newX, g.camera.Y) {
+		// Slide along X axis only
+		g.camera.Update(deltaX, 0, deltaDirX, deltaDirY, deltaPitch)
+	} else if g.isWalkable(g.camera.X, newY) {
+		// Slide along Y axis only
+		g.camera.Update(0, deltaY, deltaDirX, deltaDirY, deltaPitch)
+	} else {
+		// Completely blocked \u2014 still allow look changes
+		g.camera.Update(0, 0, deltaDirX, deltaDirY, deltaPitch)
+	}
+	if g.automap != nil {
+		g.automap.Reveal(int(g.camera.X), int(g.camera.Y))
 	}
 
 	// Update ECS world
@@ -1087,9 +1122,13 @@ func (g *Game) updatePlaying() error {
 	// Update audio listener position
 	g.audioEngine.SetListenerPosition(g.camera.X, g.camera.Y)
 
-	// Tutorial completion checks
-	if deltaX != 0 || deltaY != 0 {
-		if g.tutorialSystem.Active && g.tutorialSystem.Type == tutorial.PromptMovement {
+	// Tutorial completion checks — dismiss on movement or any key press
+	if g.tutorialSystem.Active {
+		if g.tutorialSystem.Type == tutorial.PromptMovement && (deltaX != 0 || deltaY != 0) {
+			g.tutorialSystem.Complete()
+		}
+		// Allow dismissing any tutorial with fire/interact
+		if g.input.IsJustPressed(input.ActionFire) || g.input.IsJustPressed(input.ActionInteract) {
 			g.tutorialSystem.Complete()
 		}
 	}
@@ -1097,18 +1136,47 @@ func (g *Game) updatePlaying() error {
 	return nil
 }
 
-// isWalkable checks if a position is walkable (no collision).
+// isWalkableTile returns true if the tile type permits player movement.
+func isWalkableTile(tile int) bool {
+	switch {
+	case tile == bsp.TileFloor || tile == bsp.TileEmpty:
+		return true
+	case tile >= 20 && tile <= 29: // Genre-specific floor tiles (TileFloorStone..TileFloorDirt)
+		return true
+	default:
+		return false
+	}
+}
+
+// playerRadius is the collision bounding radius around the player position.
+const playerRadius = 0.25
+
+// isWalkable checks if a position is walkable using radius-based collision.
+// Tests four corners of the player's bounding box to prevent wall-corner clipping.
 func (g *Game) isWalkable(x, y float64) bool {
 	if g.currentMap == nil || len(g.currentMap) == 0 {
 		return true
 	}
-	mapX := int(x)
-	mapY := int(y)
-	if mapY < 0 || mapY >= len(g.currentMap) || mapX < 0 || mapX >= len(g.currentMap[0]) {
-		return false
+	// Check the four corners of the player's bounding box
+	offsets := [4][2]float64{
+		{-playerRadius, -playerRadius},
+		{playerRadius, -playerRadius},
+		{-playerRadius, playerRadius},
+		{playerRadius, playerRadius},
 	}
-	tile := g.currentMap[mapY][mapX]
-	return tile == bsp.TileFloor || tile == bsp.TileEmpty
+	for _, off := range offsets {
+		cx := x + off[0]
+		cy := y + off[1]
+		mapX := int(cx)
+		mapY := int(cy)
+		if mapY < 0 || mapY >= len(g.currentMap) || mapX < 0 || mapX >= len(g.currentMap[0]) {
+			return false
+		}
+		if !isWalkableTile(g.currentMap[mapY][mapX]) {
+			return false
+		}
+	}
+	return true
 }
 
 // tryInteractDoor checks if player is facing a door and attempts to open it.
@@ -2988,6 +3056,7 @@ func main() {
 	ebiten.SetVsyncEnabled(config.C.VSync)
 	ebiten.SetFullscreen(config.C.FullScreen)
 	ebiten.SetWindowTitle("VIOLENCE")
+	ebiten.SetCursorMode(ebiten.CursorModeVisible) // Start visible for menu
 
 	// Set TPS cap (0 = unlimited, 60 = default)
 	if config.C.MaxTPS > 0 {

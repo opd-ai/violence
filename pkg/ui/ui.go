@@ -148,32 +148,38 @@ func DrawHUD(screen *ebiten.Image, h *HUD) {
 	screenWidth := float32(bounds.Dx())
 	screenHeight := float32(bounds.Dy())
 
-	// Bottom-left: Health and Armor bars
-	drawStatusBar(screen, 10, screenHeight-60, 150, 20, h.Health, h.MaxHealth, h.theme.HealthColor, h.theme.BarBG, h.theme.BarBorder)
-	drawLabel(screen, 10, screenHeight-65, "HEALTH", h.theme.TextColor)
+	// Scale bars proportionally to screen width (designed for 320px internal width)
+	barWidth := screenWidth * 0.28 // ~90px at 320
+	barHeight := float32(12)
+	padding := float32(4)
 
-	drawStatusBar(screen, 10, screenHeight-30, 150, 20, h.Armor, h.MaxArmor, h.theme.ArmorColor, h.theme.BarBG, h.theme.BarBorder)
-	drawLabel(screen, 10, screenHeight-35, "ARMOR", h.theme.TextColor)
+	// Bottom-left: Health and Armor bars (stacked)
+	drawStatusBar(screen, padding, screenHeight-38, barWidth, barHeight, h.Health, h.MaxHealth, h.theme.HealthColor, h.theme.BarBG, h.theme.BarBorder)
+	drawLabel(screen, padding, screenHeight-42, "HP", h.theme.TextColor)
+
+	drawStatusBar(screen, padding, screenHeight-20, barWidth, barHeight, h.Armor, h.MaxArmor, h.theme.ArmorColor, h.theme.BarBG, h.theme.BarBorder)
+	drawLabel(screen, padding, screenHeight-24, "AR", h.theme.TextColor)
 
 	// Bottom-center: Ammo and Weapon
 	centerX := screenWidth / 2
-	drawStatusBar(screen, centerX-75, screenHeight-30, 150, 20, h.Ammo, h.MaxAmmo, h.theme.AmmoColor, h.theme.BarBG, h.theme.BarBorder)
-	drawLabel(screen, centerX-75, screenHeight-35, "AMMO", h.theme.TextColor)
-	drawLabel(screen, centerX-75, screenHeight-10, h.WeaponName, h.theme.TextColor)
+	ammoBarW := screenWidth * 0.25 // ~80px at 320
+	drawStatusBar(screen, centerX-ammoBarW/2, screenHeight-20, ammoBarW, barHeight, h.Ammo, h.MaxAmmo, h.theme.AmmoColor, h.theme.BarBG, h.theme.BarBorder)
+	drawLabel(screen, centerX-ammoBarW/2, screenHeight-24, "AMMO", h.theme.TextColor)
+	drawLabel(screen, centerX-ammoBarW/2, screenHeight-4, h.WeaponName, h.theme.TextColor)
 
 	// Bottom-right: Keycards
-	keycardX := screenWidth - 100
+	keycardX := screenWidth - 70
 	for i := 0; i < 3; i++ {
 		if h.Keycards[i] {
-			drawKeycard(screen, keycardX+float32(i*25), screenHeight-40, h.theme.KeycardColors[i])
+			drawKeycard(screen, keycardX+float32(i*20), screenHeight-30, h.theme.KeycardColors[i])
 		}
 	}
-	drawLabel(screen, keycardX, screenHeight-45, "KEYS", h.theme.TextColor)
+	drawLabel(screen, keycardX, screenHeight-34, "KEYS", h.theme.TextColor)
 
-	// Center message
+	// Center message (above HUD)
 	if h.MessageTime > 0 && h.Message != "" {
 		msgX := centerX - float32(len(h.Message)*7/2)
-		drawLabel(screen, msgX, screenHeight-80, h.Message, h.theme.TextColor)
+		drawLabel(screen, msgX, screenHeight-55, h.Message, h.theme.TextColor)
 	}
 }
 
@@ -441,15 +447,21 @@ func DrawMenu(screen *ebiten.Image, mm *MenuManager) {
 	title := mm.getMenuTitle()
 	items := mm.menuItems[mm.currentMenu]
 
-	// Calculate menu dimensions
-	itemHeight := float32(30)
-	titleHeight := float32(50)
+	// Calculate menu dimensions — scale to fit internal resolution
+	itemHeight := float32(20)
+	titleHeight := float32(30)
 	menuHeight := titleHeight + float32(len(items))*itemHeight
 	menuY := (screenHeight - menuHeight) / 2
 
 	// Draw title
 	titleX := screenWidth / 2
 	drawCenteredLabel(screen, titleX, menuY, title, currentTheme.TextColor)
+
+	// Highlight width adapts to screen (max 80% of screen)
+	highlightW := screenWidth * 0.8
+	if highlightW > 300 {
+		highlightW = 300
+	}
 
 	// Draw menu items
 	for i, item := range items {
@@ -458,8 +470,8 @@ func DrawMenu(screen *ebiten.Image, mm *MenuManager) {
 		// Highlight selected item
 		if i == mm.selectedIndex {
 			highlightColor := color.RGBA{80, 80, 120, 200}
-			highlightX := screenWidth/2 - 150
-			vector.DrawFilledRect(screen, highlightX, itemY-5, 300, itemHeight-5, highlightColor, false)
+			highlightX := screenWidth/2 - highlightW/2
+			vector.DrawFilledRect(screen, highlightX, itemY-5, highlightW, itemHeight-5, highlightColor, false)
 		}
 
 		// Draw item text
@@ -603,7 +615,7 @@ func getThemeForGenre(genreID string) *Theme {
 // drawSettingsScreen renders the settings menu with category navigation.
 func drawSettingsScreen(screen *ebiten.Image, mm *MenuManager, screenWidth, screenHeight float32) {
 	titleX := screenWidth / 2
-	titleY := float32(50)
+	titleY := float32(20)
 
 	// Draw main title
 	drawCenteredLabel(screen, titleX, titleY, "SETTINGS", currentTheme.TextColor)
@@ -638,14 +650,18 @@ func drawSettingsScreen(screen *ebiten.Image, mm *MenuManager, screenWidth, scre
 	if mm.editingBinding {
 		promptY := screenHeight / 2
 		drawCenteredLabel(screen, titleX, promptY, "Press a key to bind...", color.RGBA{255, 255, 100, 255})
-		promptY += 30
+		promptY += 20
 		drawCenteredLabel(screen, titleX, promptY, "ESC to cancel", color.RGBA{180, 180, 180, 255})
 		return
 	}
 
-	// Calculate menu dimensions
-	itemHeight := float32(30)
-	startY := titleY + 100
+	// Calculate menu dimensions — adapt to internal resolution
+	itemHeight := float32(18)
+	startY := titleY + 60
+	highlightW := screenWidth * 0.9
+	if highlightW > 400 {
+		highlightW = 400
+	}
 
 	// Draw menu items with values
 	for i, item := range items {
@@ -654,8 +670,8 @@ func drawSettingsScreen(screen *ebiten.Image, mm *MenuManager, screenWidth, scre
 		// Highlight selected item
 		if i == mm.selectedIndex {
 			highlightColor := color.RGBA{80, 80, 120, 200}
-			highlightX := screenWidth/2 - 200
-			vector.DrawFilledRect(screen, highlightX, itemY-5, 400, itemHeight-5, highlightColor, false)
+			highlightX := screenWidth/2 - highlightW/2
+			vector.DrawFilledRect(screen, highlightX, itemY-5, highlightW, itemHeight-5, highlightColor, false)
 		}
 
 		// Draw item label
@@ -664,21 +680,21 @@ func drawSettingsScreen(screen *ebiten.Image, mm *MenuManager, screenWidth, scre
 			itemColor = color.RGBA{255, 255, 255, 255}
 		}
 
-		// Draw label on the left
-		labelX := screenWidth/2 - 150
-		drawLabel(screen, labelX, itemY+20, item, itemColor)
+		// Draw label on the left (adapt to screen width)
+		labelX := screenWidth * 0.1
+		drawLabel(screen, labelX, itemY+12, item, itemColor)
 
 		// Draw value on the right if not "Back"
 		if item != "Back" && inCategory {
-			valueX := screenWidth/2 + 50
+			valueX := screenWidth * 0.65
 			value := getSettingValue(mm, item)
-			drawLabel(screen, valueX, itemY+20, value, itemColor)
+			drawLabel(screen, valueX, itemY+12, value, itemColor)
 		}
 	}
 
 	// Draw navigation hint at bottom
-	hintY := screenHeight - 40
-	drawCenteredLabel(screen, titleX, hintY, "Arrow keys to navigate, Enter to select, ESC to go back", color.RGBA{150, 150, 150, 255})
+	hintY := screenHeight - 15
+	drawCenteredLabel(screen, titleX, hintY, "Arrows:nav Enter:sel ESC:back", color.RGBA{150, 150, 150, 255})
 }
 
 // getSettingValue returns the current value for a setting option.
@@ -1225,26 +1241,25 @@ func DrawTutorial(screen *ebiten.Image, message string) {
 
 	bounds := screen.Bounds()
 	screenWidth := float32(bounds.Dx())
-	screenHeight := float32(bounds.Dy())
 
-	// Draw semi-transparent overlay at bottom
-	overlayHeight := float32(80)
-	overlayY := screenHeight - overlayHeight
+	// Draw semi-transparent overlay above the HUD area (top portion of screen)
+	overlayHeight := float32(40)
+	overlayY := float32(0) // Draw at top instead of bottom to avoid HUD overlap
 	overlay := color.RGBA{0, 0, 0, 180}
 	vector.DrawFilledRect(screen, 0, overlayY, screenWidth, overlayHeight, overlay, false)
 
 	// Draw border
 	borderColor := color.RGBA{100, 100, 200, 255}
-	vector.StrokeLine(screen, 0, overlayY, screenWidth, overlayY, 2, borderColor, false)
+	vector.StrokeLine(screen, 0, overlayY+overlayHeight, screenWidth, overlayY+overlayHeight, 2, borderColor, false)
 
 	// Draw tutorial message centered
 	centerX := screenWidth / 2
-	textY := overlayY + 30
+	textY := overlayY + 15
 	drawCenteredLabel(screen, centerX, textY, message, color.RGBA{255, 255, 200, 255})
 
-	// Draw "Press any key to continue" hint
-	hintY := overlayY + 55
-	drawCenteredLabel(screen, centerX, hintY, "Press any key to dismiss", color.RGBA{150, 150, 150, 255})
+	// Draw "Press fire to continue" hint
+	hintY := overlayY + 30
+	drawCenteredLabel(screen, centerX, hintY, "Fire or E to dismiss", color.RGBA{150, 150, 150, 255})
 }
 
 // CommandWheelPlayer represents a player option in the command wheel.
