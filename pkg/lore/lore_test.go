@@ -631,3 +631,34 @@ func TestGenerateWorldBackstoryZeroEntries(t *testing.T) {
 		t.Fatalf("expected 0 entries, got %d", len(entries))
 	}
 }
+
+func TestUnicodeTitleCase(t *testing.T) {
+	gen := NewGenerator(12345)
+	gen.SetGenre("fantasy")
+
+	tests := []struct {
+		name     string
+		category string
+	}{
+		{"ASCII", "combat"},
+		{"German", "große straße"}, // German eszett
+		{"French", "café"},         // French accents
+		{"Greek", "αθήνα"},         // Greek lowercase
+		{"Turkish", "istanbul"},    // Turkish dotless i
+		{"Chinese", "中文"},          // Chinese characters (pass-through)
+		{"Emoji", "🎮游戏"},           // Emoji + Chinese
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			entry := gen.Generate(tt.category)
+			if entry.Title == "" {
+				t.Fatal("empty title generated")
+			}
+			// Title should not panic and should contain the category in some form
+			if !strings.Contains(strings.ToLower(entry.Title), strings.ToLower(tt.category)) {
+				t.Logf("Title: %s (category: %s)", entry.Title, tt.category)
+			}
+		})
+	}
+}

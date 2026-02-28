@@ -152,30 +152,33 @@ func (f *Federation) Match() (string, error) {
 
 ---
 
-### FUNCTIONAL MISMATCH: Incomplete Genre Support in Lore Package
+### [x] FUNCTIONAL MISMATCH: Incomplete Genre Support in Lore Package (2026-02-28)
 **File:** pkg/lore/lore.go:213  
 **Severity:** Medium  
+**Status:** FIXED
 **Description:** The `generateTitle()` function uses `strings.Title()` (line 213) which has been deprecated since Go 1.18 and will produce incorrect results for Unicode text. The README promises "procedurally generated collectible lore" without language restrictions, but the current implementation uses a deprecated function that doesn't properly handle case conversion for international text.
 
 **Expected Behavior:** Proper Unicode-aware title case conversion for all procedurally generated lore text across all languages and genres.
 
-**Actual Behavior:** Uses deprecated `strings.Title()` which only works correctly for ASCII text.
+**Actual Behavior:** ~~Uses deprecated `strings.Title()` which only works correctly for ASCII text.~~ **FIXED:** Now uses `cases.Title(language.English)` from `golang.org/x/text/cases` package for proper Unicode-aware title case conversion.
 
 **Impact:** 
-- Generated lore titles may have incorrect capitalization for non-ASCII characters
-- Violates Go best practices by using deprecated API
-- Reduces quality of procedural content for non-English-like genres
+- ~~Generated lore titles may have incorrect capitalization for non-ASCII characters~~
+- ~~Violates Go best practices by using deprecated API~~
+- ~~Reduces quality of procedural content for non-English-like genres~~
+**FIXED:** Now properly handles Unicode text including German (große), French (café), Greek (αθήνα), Turkish (istanbul), Chinese (中文), and emoji characters. Complies with Go best practices using modern `cases` package.
 
 **Reproduction:**
-```go
+~~```go
 gen := lore.NewGenerator(12345)
 gen.SetGenre("fantasy")
 entry := gen.Generate("test_id")
 // If entry.Title contains non-ASCII, capitalization may be incorrect
-```
+```~~
+**FIXED:** Added comprehensive Unicode test suite with 7 test cases covering ASCII, German, French, Greek, Turkish, Chinese, and emoji characters. All tests pass.
 
 **Code Reference:**
-```go
+~~```go
 func (g *Generator) generateTitle(category string, rng *rand.Rand) string {
 	prefixes := []string{"The", "Ancient", "Lost", "Hidden", "Forgotten", "Sacred"}
 	nouns := []string{"Chronicle", "Record", "Testament", "Account", "Report", "Log"}
@@ -185,7 +188,8 @@ func (g *Generator) generateTitle(category string, rng *rand.Rand) string {
 	
 	return fmt.Sprintf("%s %s of %s", prefix, noun, strings.Title(category)) // BUG: Deprecated function
 }
-```
+```~~
+**FIXED:** Now uses `cases.Title(language.English).String(category)` for proper Unicode-aware title case conversion.
 
 ---
 

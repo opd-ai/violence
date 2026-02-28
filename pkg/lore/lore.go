@@ -6,6 +6,9 @@ import (
 	"math/rand"
 	"strings"
 	"sync"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // Entry represents a single lore codex entry.
@@ -210,7 +213,8 @@ func (g *Generator) generateTitle(category string, rng *rand.Rand) string {
 	prefix := prefixes[rng.Intn(len(prefixes))]
 	noun := nouns[rng.Intn(len(nouns))]
 
-	return fmt.Sprintf("%s %s of %s", prefix, noun, strings.Title(category))
+	caser := cases.Title(language.English)
+	return fmt.Sprintf("%s %s of %s", prefix, noun, caser.String(category))
 }
 
 func (g *Generator) generateText(category string, rng *rand.Rand) string {
