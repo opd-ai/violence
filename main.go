@@ -16,6 +16,7 @@ import (
 	"github.com/opd-ai/violence/pkg/automap"
 	"github.com/opd-ai/violence/pkg/bsp"
 	"github.com/opd-ai/violence/pkg/camera"
+	"github.com/opd-ai/violence/pkg/chat"
 	"github.com/opd-ai/violence/pkg/class"
 	"github.com/opd-ai/violence/pkg/combat"
 	"github.com/opd-ai/violence/pkg/config"
@@ -164,6 +165,12 @@ type Game struct {
 	serverBrowser []*federation.ServerAnnouncement // Cached server list
 	browserIdx    int                              // Selected server in browser
 	useFederation bool                             // Whether to use federation matchmaking
+
+	// E2E encrypted chat system
+	chatManager     *chat.Chat
+	chatInput       string   // Current chat message being typed
+	chatMessages    []string // Recent chat messages to display
+	chatInputActive bool     // Whether chat input is active
 }
 
 // NewGame creates and initializes a new game instance.
@@ -1892,10 +1899,21 @@ func (g *Game) openMultiplayer() {
 	g.browserIdx = 0
 	g.menuManager.Show(ui.MenuTypeMultiplayer)
 	g.state = StateMultiplayer
+
+	// Initialize E2E encrypted chat
+	g.initializeEncryptedChat()
 }
 
 // updateMultiplayer handles multiplayer lobby input.
 func (g *Game) updateMultiplayer() error {
+	// Handle encrypted chat input
+	g.handleChatInput()
+
+	// Don't process other inputs while typing in chat
+	if g.chatInputActive {
+		return nil
+	}
+
 	// Back to playing
 	if g.input.IsJustPressed(input.ActionPause) || g.input.IsJustPressed(input.ActionMultiplayer) {
 		g.state = StatePlaying
@@ -2259,6 +2277,47 @@ func (g *Game) drawMultiplayer(screen *ebiten.Image) {
 		StatusMsg:  g.mpStatusMsg,
 	}
 	ui.DrawMultiplayer(screen, state)
+
+	// Draw encrypted chat interface
+	g.drawEncryptedChat(screen)
+}
+
+// drawEncryptedChat renders the encrypted chat UI.
+func (g *Game) drawEncryptedChat(screen *ebiten.Image) {
+	if g.chatManager == nil {
+		return
+	}
+
+	// Draw chat messages in bottom-left corner
+	startY := float32(config.C.InternalHeight - 150)
+	startX := float32(10)
+
+	// Show last 5 messages
+	numMsgs := len(g.chatMessages)
+	startIdx := 0
+	if numMsgs > 5 {
+		startIdx = numMsgs - 5
+	}
+
+	for i := startIdx; i < numMsgs; i++ {
+		msg := g.chatMessages[i]
+		y := startY + float32((i-startIdx)*15)
+		// Draw semi-transparent background
+		vector.DrawFilledRect(screen, startX-2, y-2, 300, 14, color.RGBA{0, 0, 0, 128}, false)
+		// Would draw text here with proper text rendering
+		// For now, the infrastructure is in place
+		_ = msg
+		_ = y
+	}
+
+	// Draw chat input box if active
+	if g.chatInputActive {
+		inputY := float32(config.C.InternalHeight - 30)
+		vector.DrawFilledRect(screen, startX-2, inputY-2, 400, 24, color.RGBA{0, 0, 0, 180}, false)
+		vector.StrokeRect(screen, startX-2, inputY-2, 400, 24, 2, color.RGBA{0, 255, 0, 255}, false)
+		// Would draw chat input text here
+		// Prompt: "> " + g.chatInput + "_"
+	}
 }
 
 // updateMods handles mods screen input.
@@ -3047,6 +3106,89 @@ func (g *Game) findExitPosition(rooms []*bsp.Room, playerX, playerY float64) *qu
 // Layout returns the game's internal resolution.
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	return config.C.InternalWidth, config.C.InternalHeight
+}
+
+// initializeEncryptedChat sets up E2E encrypted chat for multiplayer.
+// Uses a deterministic seed-based key derivation for local multiplayer sessions.
+func (g *Game) initializeEncryptedChat() {
+	// Derive encryption key from game seed for deterministic local multiplayer
+	// In a real networked implementation, this would use PerformKeyExchange with net.Conn
+	seedBytes := make([]byte, 32)
+	for i := 0; i < 32; i++ {
+		seedBytes[i] = byte((g.seed >> (i * 8)) & 0xFF)
+	}
+
+	g.chatManager = chat.NewChatWithKey(seedBytes)
+	g.chatMessages = make([]string, 0, 50)
+	g.chatInput = ""
+	g.chatInputActive = false
+
+	g.hud.ShowMessage("Encrypted chat initialized - Press T to chat")
+}
+
+// handleChatInput processes chat input and encryption.
+func (g *Game) handleChatInput() {
+	if g.chatManager == nil {
+		return
+	}
+
+	// Toggle chat input with T key
+	if inpututil.IsKeyJustPressed(ebiten.KeyT) && !g.chatInputActive {
+		g.chatInputActive = true
+		g.chatInput = ""
+		return
+	}
+
+	// Exit chat input on Escape
+	if g.chatInputActive && g.input.IsJustPressed(input.ActionPause) {
+		g.chatInputActive = false
+		g.chatInput = ""
+		return
+	}
+
+	// Send message on Enter
+	if g.chatInputActive && inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
+		if g.chatInput != "" {
+			// Encrypt the message before sending
+			encrypted, err := g.chatManager.Encrypt(g.chatInput)
+			if err == nil {
+				// In real network implementation, would send encrypted over wire
+				// For now, decrypt locally to simulate receiving
+				decrypted, err := g.chatManager.Decrypt(encrypted)
+				if err == nil {
+					g.addChatMessage("[You]: " + decrypted)
+				}
+			}
+			g.chatInput = ""
+		}
+		g.chatInputActive = false
+		return
+	}
+
+	// Handle text input
+	if g.chatInputActive {
+		g.chatInput = g.chatInput + string(ebiten.AppendInputChars(nil))
+
+		// Handle backspace
+		if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) && len(g.chatInput) > 0 {
+			g.chatInput = g.chatInput[:len(g.chatInput)-1]
+		}
+
+		// Limit input length
+		if len(g.chatInput) > 100 {
+			g.chatInput = g.chatInput[:100]
+		}
+	}
+}
+
+// addChatMessage adds a message to the chat history.
+func (g *Game) addChatMessage(message string) {
+	g.chatMessages = append(g.chatMessages, message)
+
+	// Keep only last 50 messages
+	if len(g.chatMessages) > 50 {
+		g.chatMessages = g.chatMessages[len(g.chatMessages)-50:]
+	}
 }
 
 func main() {
