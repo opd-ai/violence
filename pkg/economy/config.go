@@ -35,31 +35,33 @@ type LevelScaleEntry struct {
 }
 
 // NewConfig creates a default economy configuration.
+// Calibrated to achieve ~350 credits per level on Normal difficulty,
+// allowing ~3 shop purchases per level per ECONOMY.md spec.
 func NewConfig() *Config {
 	return &Config{
-		BaseKillReward:      100,
-		BaseMissionReward:   500,
-		BaseObjectiveReward: 250,
+		BaseKillReward:      20,  // Reduced from 100 to match ECONOMY.md enemy values (10-60 credits)
+		BaseMissionReward:   100, // Primary objective reward
+		BaseObjectiveReward: 50,  // Secondary objective reward
 		BaseItemPrice:       50,
-		BaseWeaponPrice:     300,
-		BaseArmorPrice:      200,
+		BaseWeaponPrice:     100,
+		BaseArmorPrice:      80,
 		GenreMultipliers: map[string]float64{
-			"horror":    1.2,
-			"scifi":     0.9,
+			"horror":    1.05, // Reduced from 1.2 to tighten variance
+			"scifi":     0.95, // Adjusted from 0.9
 			"fantasy":   1.0,
-			"cyberpunk": 1.1,
-			"postapoc":  1.15,
+			"cyberpunk": 1.0,  // Reduced from 1.1
+			"postapoc":  1.05, // Reduced from 1.15
 		},
 		DifficultyMultipliers: map[string]float64{
 			"easy":      0.8,
 			"normal":    1.0,
-			"hard":      1.3,
+			"hard":      1.25, // Reduced from 1.3
 			"nightmare": 1.5,
 		},
 		LevelScaling: []LevelScaleEntry{
 			{MinLevel: 1, MaxLevel: 3, Multiplier: 1.0},
 			{MinLevel: 4, MaxLevel: 6, Multiplier: 1.2},
-			{MinLevel: 7, MaxLevel: 9, Multiplier: 1.4},
+			{MinLevel: 7, MaxLevel: 9, Multiplier: 1.45}, // Increased from 1.4
 			{MinLevel: 10, MaxLevel: 999, Multiplier: 1.7},
 		},
 	}

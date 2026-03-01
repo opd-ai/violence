@@ -12,15 +12,15 @@ func TestNewConfig(t *testing.T) {
 		t.Fatal("NewConfig returned nil")
 	}
 
-	// Check base values
-	if cfg.BaseKillReward != 100 {
-		t.Errorf("BaseKillReward = %d, want 100", cfg.BaseKillReward)
+	// Check base values (updated for balanced economy)
+	if cfg.BaseKillReward != 20 {
+		t.Errorf("BaseKillReward = %d, want 20", cfg.BaseKillReward)
 	}
-	if cfg.BaseMissionReward != 500 {
-		t.Errorf("BaseMissionReward = %d, want 500", cfg.BaseMissionReward)
+	if cfg.BaseMissionReward != 100 {
+		t.Errorf("BaseMissionReward = %d, want 100", cfg.BaseMissionReward)
 	}
-	if cfg.BaseObjectiveReward != 250 {
-		t.Errorf("BaseObjectiveReward = %d, want 250", cfg.BaseObjectiveReward)
+	if cfg.BaseObjectiveReward != 50 {
+		t.Errorf("BaseObjectiveReward = %d, want 50", cfg.BaseObjectiveReward)
 	}
 
 	// Check genre multipliers exist
@@ -53,32 +53,32 @@ func TestCalculateKillReward(t *testing.T) {
 			genre:       "fantasy",
 			difficulty:  "normal",
 			playerLevel: 1,
-			wantMin:     95,
-			wantMax:     105,
+			wantMin:     19,
+			wantMax:     21,
 		},
 		{
 			name:        "horror_hard_level5",
 			genre:       "horror",
 			difficulty:  "hard",
 			playerLevel: 5,
-			wantMin:     180,
-			wantMax:     190,
+			wantMin:     31,
+			wantMax:     33,
 		},
 		{
 			name:        "scifi_easy_level10",
 			genre:       "scifi",
 			difficulty:  "easy",
 			playerLevel: 10,
-			wantMin:     120,
-			wantMax:     125,
+			wantMin:     25,
+			wantMax:     27,
 		},
 		{
 			name:        "cyberpunk_nightmare_level8",
 			genre:       "cyberpunk",
 			difficulty:  "nightmare",
 			playerLevel: 8,
-			wantMin:     230,
-			wantMax:     235,
+			wantMin:     43,
+			wantMax:     45,
 		},
 	}
 
@@ -109,16 +109,16 @@ func TestCalculateMissionReward(t *testing.T) {
 			genre:       "fantasy",
 			difficulty:  "normal",
 			playerLevel: 1,
-			wantMin:     495,
-			wantMax:     505,
+			wantMin:     98,
+			wantMax:     102,
 		},
 		{
 			name:        "postapoc_hard_level10",
 			genre:       "postapoc",
 			difficulty:  "hard",
 			playerLevel: 10,
-			wantMin:     1270,
-			wantMax:     1280,
+			wantMin:     221,
+			wantMax:     225,
 		},
 	}
 
@@ -151,16 +151,16 @@ func TestCalculateObjectiveReward(t *testing.T) {
 			genre:       "scifi",
 			difficulty:  "normal",
 			playerLevel: 1,
-			wantMin:     220,
-			wantMax:     230,
+			wantMin:     46,
+			wantMax:     49,
 		},
 		{
 			name:        "horror_nightmare_level7",
 			genre:       "horror",
 			difficulty:  "nightmare",
 			playerLevel: 7,
-			wantMin:     630,
-			wantMax:     640,
+			wantMin:     113,
+			wantMax:     116,
 		},
 	}
 
@@ -197,15 +197,15 @@ func TestCalculateItemPrice(t *testing.T) {
 			name:        "horror_level10",
 			genre:       "horror",
 			playerLevel: 10,
-			wantMin:     100,
-			wantMax:     105,
+			wantMin:     88,
+			wantMax:     90,
 		},
 		{
 			name:        "scifi_level5",
 			genre:       "scifi",
 			playerLevel: 5,
-			wantMin:     52,
-			wantMax:     56,
+			wantMin:     56,
+			wantMax:     58,
 		},
 	}
 
@@ -235,15 +235,15 @@ func TestCalculateWeaponPrice(t *testing.T) {
 			name:        "fantasy_level1",
 			genre:       "fantasy",
 			playerLevel: 1,
-			wantMin:     295,
-			wantMax:     305,
+			wantMin:     98,
+			wantMax:     102,
 		},
 		{
 			name:        "cyberpunk_level10",
 			genre:       "cyberpunk",
 			playerLevel: 10,
-			wantMin:     560,
-			wantMax:     565,
+			wantMin:     168,
+			wantMax:     172,
 		},
 	}
 
@@ -273,15 +273,15 @@ func TestCalculateArmorPrice(t *testing.T) {
 			name:        "fantasy_level1",
 			genre:       "fantasy",
 			playerLevel: 1,
-			wantMin:     195,
-			wantMax:     205,
+			wantMin:     78,
+			wantMax:     82,
 		},
 		{
 			name:        "postapoc_level8",
 			genre:       "postapoc",
 			playerLevel: 8,
-			wantMin:     320,
-			wantMax:     325,
+			wantMin:     120,
+			wantMax:     123,
 		},
 	}
 
@@ -386,7 +386,7 @@ func TestSetGenreMultiplier(t *testing.T) {
 
 	// Verify it affects calculations
 	reward := cfg.CalculateKillReward("fantasy", "normal", 1)
-	expected := int(100.0 * 1.5 * 1.0 * 1.0)
+	expected := int(20.0 * 1.5 * 1.0 * 1.0)
 
 	if reward != expected {
 		t.Errorf("reward after SetGenreMultiplier = %d, want %d", reward, expected)
@@ -404,7 +404,7 @@ func TestSetDifficultyMultiplier(t *testing.T) {
 
 	// Verify it affects calculations
 	reward := cfg.CalculateKillReward("fantasy", "hard", 1)
-	expected := int(100.0 * 1.0 * 2.0 * 1.0)
+	expected := int(20.0 * 1.0 * 2.0 * 1.0)
 
 	if reward != expected {
 		t.Errorf("reward after SetDifficultyMultiplier = %d, want %d", reward, expected)
@@ -416,7 +416,7 @@ func TestUnknownGenre(t *testing.T) {
 
 	// Unknown genre should use 1.0 multiplier
 	reward := cfg.CalculateKillReward("unknown", "normal", 1)
-	expected := int(100.0 * 1.0 * 1.0 * 1.0)
+	expected := int(20.0 * 1.0 * 1.0 * 1.0)
 
 	if reward != expected {
 		t.Errorf("reward for unknown genre = %d, want %d", reward, expected)
@@ -428,7 +428,7 @@ func TestUnknownDifficulty(t *testing.T) {
 
 	// Unknown difficulty should use 1.0 multiplier
 	reward := cfg.CalculateKillReward("fantasy", "unknown", 1)
-	expected := int(100.0 * 1.0 * 1.0 * 1.0)
+	expected := int(20.0 * 1.0 * 1.0 * 1.0)
 
 	if reward != expected {
 		t.Errorf("reward for unknown difficulty = %d, want %d", reward, expected)
