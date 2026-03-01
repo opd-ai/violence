@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/opd-ai/violence/pkg/pool"
 )
 
 // SpriteType identifies the category of sprite to generate.
@@ -114,7 +115,7 @@ func (g *Generator) GetSprite(spriteType SpriteType, subtype string, seed int64,
 
 // generateSprite creates a new procedural sprite.
 func (g *Generator) generateSprite(spriteType SpriteType, subtype string, seed int64, frame, size int) *ebiten.Image {
-	rgba := image.NewRGBA(image.Rect(0, 0, size, size))
+	rgba := pool.GlobalPools.Images.Get(size, size)
 	rng := rand.New(rand.NewSource(seed))
 
 	switch spriteType {
@@ -132,7 +133,9 @@ func (g *Generator) generateSprite(spriteType SpriteType, subtype string, seed i
 		g.generateDefaultSprite(rgba, rng)
 	}
 
-	return ebiten.NewImageFromImage(rgba)
+	result := ebiten.NewImageFromImage(rgba)
+	pool.GlobalPools.Images.Put(rgba)
+	return result
 }
 
 // generatePropSprite creates prop sprites with genre-specific styling.

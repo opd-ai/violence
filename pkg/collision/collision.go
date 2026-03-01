@@ -3,6 +3,8 @@ package collision
 
 import (
 	"math"
+
+	"github.com/opd-ai/violence/pkg/pool"
 )
 
 // Layer defines collision layer bitflags.
@@ -224,21 +226,23 @@ func circlePolygon(circle, polygon *Collider) bool {
 		return false
 	}
 
-	// Transform polygon vertices to world space
-	worldVerts := make([]Point, len(polygon.Polygon))
-	for i, v := range polygon.Polygon {
-		worldVerts[i] = Point{X: polygon.X + v.X, Y: polygon.Y + v.Y}
+	// Use pooled slice for world vertices
+	worldVerts := pool.GlobalPools.Polygons.Get()
+	defer pool.GlobalPools.Polygons.Put(worldVerts)
+
+	for _, v := range polygon.Polygon {
+		*worldVerts = append(*worldVerts, [2]float64{polygon.X + v.X, polygon.Y + v.Y})
 	}
 
 	// Check if circle center is inside polygon
-	if pointInPolygon(circle.X, circle.Y, worldVerts) {
+	if pointInPolygonPooled(circle.X, circle.Y, *worldVerts) {
 		return true
 	}
 
 	// Check distance to each edge
-	for i := 0; i < len(worldVerts); i++ {
-		j := (i + 1) % len(worldVerts)
-		px, py := closestPointOnSegment(circle.X, circle.Y, worldVerts[i].X, worldVerts[i].Y, worldVerts[j].X, worldVerts[j].Y)
+	for i := 0; i < len(*worldVerts); i++ {
+		j := (i + 1) % len(*worldVerts)
+		px, py := closestPointOnSegment(circle.X, circle.Y, (*worldVerts)[i][0], (*worldVerts)[i][1], (*worldVerts)[j][0], (*worldVerts)[j][1])
 		dx := circle.X - px
 		dy := circle.Y - py
 		if dx*dx+dy*dy <= circle.Radius*circle.Radius {
@@ -251,24 +255,27 @@ func circlePolygon(circle, polygon *Collider) bool {
 
 // Polygon-Polygon collision (SAT-based simplified)
 func polygonPolygon(a, b *Collider) bool {
-	// Transform to world space
-	aVerts := make([]Point, len(a.Polygon))
-	for i, v := range a.Polygon {
-		aVerts[i] = Point{X: a.X + v.X, Y: a.Y + v.Y}
+	// Use pooled slices for world space vertices
+	aVerts := pool.GlobalPools.Polygons.Get()
+	defer pool.GlobalPools.Polygons.Put(aVerts)
+	bVerts := pool.GlobalPools.Polygons.Get()
+	defer pool.GlobalPools.Polygons.Put(bVerts)
+
+	for _, v := range a.Polygon {
+		*aVerts = append(*aVerts, [2]float64{a.X + v.X, a.Y + v.Y})
 	}
-	bVerts := make([]Point, len(b.Polygon))
-	for i, v := range b.Polygon {
-		bVerts[i] = Point{X: b.X + v.X, Y: b.Y + v.Y}
+	for _, v := range b.Polygon {
+		*bVerts = append(*bVerts, [2]float64{b.X + v.X, b.Y + v.Y})
 	}
 
 	// Simplified SAT: check if any vertex of one polygon is inside the other
-	for _, v := range aVerts {
-		if pointInPolygon(v.X, v.Y, bVerts) {
+	for _, v := range *aVerts {
+		if pointInPolygonPooled(v[0], v[1], *bVerts) {
 			return true
 		}
 	}
-	for _, v := range bVerts {
-		if pointInPolygon(v.X, v.Y, aVerts) {
+	for _, v := range *bVerts {
+		if pointInPolygonPooled(v[0], v[1], *aVerts) {
 			return true
 		}
 	}
@@ -331,6 +338,28 @@ func pointInPolygon(px, py float64, vertices []Point) bool {
 	for i := 0; i < n; i++ {
 		xi, yi := vertices[i].X, vertices[i].Y
 		xj, yj := vertices[j].X, vertices[j].Y
+
+		if ((yi > py) != (yj > py)) && (px < (xj-xi)*(py-yi)/(yj-yi)+xi) {
+			inside = !inside
+		}
+		j = i
+	}
+
+	return inside
+}
+
+// pointInPolygonPooled checks if a point is inside a polygon using pooled vertex format.
+func pointInPolygonPooled(px, py float64, vertices [][2]float64) bool {
+	n := len(vertices)
+	if n < 3 {
+		return false
+	}
+
+	inside := false
+	j := n - 1
+	for i := 0; i < n; i++ {
+		xi, yi := vertices[i][0], vertices[i][1]
+		xj, yj := vertices[j][0], vertices[j][1]
 
 		if ((yi > py) != (yj > py)) && (px < (xj-xi)*(py-yi)/(yj-yi)+xi) {
 			inside = !inside

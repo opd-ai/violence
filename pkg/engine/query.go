@@ -1,6 +1,8 @@
 // Package engine provides ECS query functionality with bitmask-based archetype matching.
 package engine
 
+import "github.com/opd-ai/violence/pkg/pool"
+
 // ComponentID represents a unique bit position for a component type.
 // Each component type is assigned a unique bit (0-63) for bitmask operations.
 type ComponentID uint8
@@ -28,22 +30,23 @@ const (
 
 // EntityIterator provides iteration over query results.
 type EntityIterator struct {
-	entities []Entity
+	entities *[]uint64
 	index    int
+	pooled   bool
 }
 
 // Next advances to the next entity and returns true if available.
 func (it *EntityIterator) Next() bool {
 	it.index++
-	return it.index < len(it.entities)
+	return it.index < len(*it.entities)
 }
 
 // Entity returns the current entity.
 func (it *EntityIterator) Entity() Entity {
-	if it.index < 0 || it.index >= len(it.entities) {
+	if it.index < 0 || it.index >= len(*it.entities) {
 		return 0
 	}
-	return it.entities[it.index]
+	return Entity((*it.entities)[it.index])
 }
 
 // Reset resets the iterator to the beginning.
@@ -53,20 +56,45 @@ func (it *EntityIterator) Reset() {
 
 // HasNext returns true if there are more entities to iterate.
 func (it *EntityIterator) HasNext() bool {
-	return it.index+1 < len(it.entities)
+	return it.index+1 < len(*it.entities)
+}
+
+// Release returns pooled resources. Call when done iterating.
+func (it *EntityIterator) Release() {
+	if it.pooled && it.entities != nil {
+		pool.GlobalPools.EntitySlices.Put(it.entities)
+		it.entities = nil
+		it.pooled = false
+	}
 }
 
 // newEntityIterator creates an iterator from a slice of entities.
 func newEntityIterator(entities []Entity) *EntityIterator {
+	// Convert to uint64 slice
+	converted := make([]uint64, len(entities))
+	for i, e := range entities {
+		converted[i] = uint64(e)
+	}
+	return &EntityIterator{
+		entities: &converted,
+		index:    -1,
+		pooled:   false,
+	}
+}
+
+// newPooledEntityIterator creates an iterator from a pooled slice.
+func newPooledEntityIterator(entities *[]uint64) *EntityIterator {
 	return &EntityIterator{
 		entities: entities,
 		index:    -1,
+		pooled:   true,
 	}
 }
 
 // QueryWithBitmask returns an iterator over entities matching the component bitmask.
 // Uses bitmask archetype matching: each bit represents a component type.
 // Example: Query(ComponentIDPosition, ComponentIDVelocity) returns entities with both components.
+// Caller must call Release() on the iterator when done to return pooled resources.
 func (w *World) QueryWithBitmask(componentIDs ...ComponentID) *EntityIterator {
 	// Build query mask from component IDs
 	var queryMask uint64
@@ -76,16 +104,16 @@ func (w *World) QueryWithBitmask(componentIDs ...ComponentID) *EntityIterator {
 		}
 	}
 
-	// Find matching entities
-	var matched []Entity
+	// Use pooled slice for results
+	matched := pool.GlobalPools.EntitySlices.Get()
 	for entity, archetype := range w.archetypes {
 		// Entity matches if it has all required component bits
 		if archetype&queryMask == queryMask {
-			matched = append(matched, entity)
+			*matched = append(*matched, uint64(entity))
 		}
 	}
 
-	return newEntityIterator(matched)
+	return newPooledEntityIterator(matched)
 }
 
 // SetArchetype sets the component bitmask for an entity.
