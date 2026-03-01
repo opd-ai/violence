@@ -271,66 +271,90 @@ func (c *CircuitTraceGame) Move(direction int) bool {
 		return false
 	}
 
-	newX, newY := c.CurrentX, c.CurrentY
-	switch direction {
-	case 0: // up
-		newY--
-	case 1: // right
-		newX++
-	case 2: // down
-		newY++
-	case 3: // left
-		newX--
-	default:
+	newX, newY := calculateNewPosition(c.CurrentX, c.CurrentY, direction)
+	if newX < 0 {
 		return false
 	}
 
-	// Check bounds
-	if newY < 0 || newY >= len(c.Grid) || newX < 0 || newX >= len(c.Grid[0]) {
+	if !isValidPosition(newX, newY, c.Grid) {
 		return false
 	}
 
-	// Check if blocked
-	if c.Grid[newY][newX] == 2 {
+	if isBlockedPosition(c.Grid[newY][newX]) {
 		c.Attempts++
 		if c.Attempts >= c.MaxAttempts {
-			c.Complete = true // Failed
+			c.Complete = true
 		}
 		return false
 	}
 
-	// Valid move
 	c.CurrentX = newX
 	c.CurrentY = newY
 	c.Moves++
 
-	// Calculate progress based on Manhattan distance to target
-	dx := c.TargetX - c.CurrentX
-	dy := c.TargetY - c.CurrentY
-	if dx < 0 {
-		dx = -dx
-	}
-	if dy < 0 {
-		dy = -dy
-	}
-	maxDist := c.TargetX + c.TargetY
-	currentDist := dx + dy
-	c.Progress = 1.0 - (float64(currentDist) / float64(maxDist))
+	c.Progress = calculateProgress(c.CurrentX, c.CurrentY, c.TargetX, c.TargetY)
 
-	// Check if reached target
 	if c.CurrentX == c.TargetX && c.CurrentY == c.TargetY {
 		c.Complete = true
 		c.Progress = 1.0
 		return true
 	}
 
-	// Check if out of moves
 	if c.Moves >= c.MaxMoves {
-		c.Complete = true // Failed
+		c.Complete = true
 		return false
 	}
 
 	return true
+}
+
+// calculateNewPosition computes the new coordinates based on movement direction.
+func calculateNewPosition(currentX, currentY, direction int) (int, int) {
+	newX, newY := currentX, currentY
+	switch direction {
+	case 0:
+		newY--
+	case 1:
+		newX++
+	case 2:
+		newY++
+	case 3:
+		newX--
+	default:
+		return -1, -1
+	}
+	return newX, newY
+}
+
+// isValidPosition checks if coordinates are within grid bounds.
+func isValidPosition(x, y int, grid [][]int) bool {
+	if y < 0 || y >= len(grid) {
+		return false
+	}
+	if x < 0 || x >= len(grid[0]) {
+		return false
+	}
+	return true
+}
+
+// isBlockedPosition determines if a grid cell is blocked.
+func isBlockedPosition(cellValue int) bool {
+	return cellValue == 2
+}
+
+// calculateProgress computes game progress based on Manhattan distance to target.
+func calculateProgress(currentX, currentY, targetX, targetY int) float64 {
+	dx := targetX - currentX
+	dy := targetY - currentY
+	if dx < 0 {
+		dx = -dx
+	}
+	if dy < 0 {
+		dy = -dy
+	}
+	maxDist := targetX + targetY
+	currentDist := dx + dy
+	return 1.0 - (float64(currentDist) / float64(maxDist))
 }
 
 // Update advances the circuit trace game; returns true when finished.

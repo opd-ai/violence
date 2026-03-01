@@ -176,24 +176,30 @@ func (s *GameServer) acceptLoop() {
 	defer s.wg.Done()
 
 	for {
-		select {
-		case <-s.ctx.Done():
+		if shouldStopAccepting(s.ctx) {
 			return
-		default:
 		}
 
 		conn, err := s.listener.Accept()
 		if err != nil {
-			select {
-			case <-s.ctx.Done():
+			if shouldStopAccepting(s.ctx) {
 				return
-			default:
-				logrus.WithError(err).Error("Failed to accept connection")
-				continue
 			}
+			logrus.WithError(err).Error("Failed to accept connection")
+			continue
 		}
 
 		s.addClient(conn)
+	}
+}
+
+// shouldStopAccepting checks if the server context has been cancelled.
+func shouldStopAccepting(ctx context.Context) bool {
+	select {
+	case <-ctx.Done():
+		return true
+	default:
+		return false
 	}
 }
 

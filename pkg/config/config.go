@@ -115,49 +115,63 @@ func Watch(callback ReloadCallback) (stop func(), err error) {
 	watcherMu.Lock()
 	defer watcherMu.Unlock()
 
-	// If no watcher is active, start one
 	if !watcherActive {
-		ctx, cancel := context.WithCancel(context.Background())
-		watcherCtx = ctx
-		watcherCancel = cancel
-		currentCallback = callback
-		watcherActive = true
-
-		// Start viper's file watcher (only once)
-		viper.WatchConfig()
-		viper.OnConfigChange(func(e fsnotify.Event) {
-			watcherMu.Lock()
-			cb := currentCallback
-			ctx := watcherCtx
-			watcherMu.Unlock()
-
-			// Check if watcher has been stopped
-			if ctx != nil {
-				select {
-				case <-ctx.Done():
-					return
-				default:
-				}
-			}
-
-			mu.Lock()
-			old := C
-			var newCfg Config
-			if err := viper.Unmarshal(&newCfg); err == nil {
-				C = newCfg
-				mu.Unlock()
-				if cb != nil {
-					cb(old, newCfg)
-				}
-			} else {
-				mu.Unlock()
-			}
-		})
+		startFileWatcher(callback)
 	} else {
-		// Watcher already active, just replace the callback
 		currentCallback = callback
 	}
 
+	return createStopWatcherFunc(), nil
+}
+
+// startFileWatcher initializes and starts the configuration file watcher.
+func startFileWatcher(callback ReloadCallback) {
+	ctx, cancel := context.WithCancel(context.Background())
+	watcherCtx = ctx
+	watcherCancel = cancel
+	currentCallback = callback
+	watcherActive = true
+
+	viper.WatchConfig()
+	viper.OnConfigChange(handleConfigChange)
+}
+
+// handleConfigChange processes configuration file change events.
+func handleConfigChange(e fsnotify.Event) {
+	watcherMu.Lock()
+	cb := currentCallback
+	ctx := watcherCtx
+	watcherMu.Unlock()
+
+	if ctx != nil {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+	}
+
+	reloadConfiguration(cb)
+}
+
+// reloadConfiguration loads the new configuration and invokes the callback.
+func reloadConfiguration(cb ReloadCallback) {
+	mu.Lock()
+	old := C
+	var newCfg Config
+	if err := viper.Unmarshal(&newCfg); err == nil {
+		C = newCfg
+		mu.Unlock()
+		if cb != nil {
+			cb(old, newCfg)
+		}
+	} else {
+		mu.Unlock()
+	}
+}
+
+// createStopWatcherFunc returns a function that stops the configuration watcher.
+func createStopWatcherFunc() func() {
 	return func() {
 		watcherMu.Lock()
 		defer watcherMu.Unlock()
@@ -168,7 +182,7 @@ func Watch(callback ReloadCallback) (stop func(), err error) {
 		}
 		watcherActive = false
 		currentCallback = nil
-	}, nil
+	}
 }
 
 // Get returns a copy of the current config safely.

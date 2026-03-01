@@ -264,24 +264,40 @@ func (co *ChatOverlay) Draw(screen *ebiten.Image) {
 	width := float32(co.Width)
 	height := float32(co.Height)
 
-	// Semi-transparent background
+	drawChatBackground(screen, x, y, width, height)
+	drawChatTitle(screen, co.X, co.Y)
+
+	messageY := co.Y + 35
+	visibleMessages := calculateVisibleMessages(messages, scrollOffset)
+	drawChatMessages(screen, visibleMessages, co.X, &messageY)
+
+	inputY := co.Y + co.Height - 30
+	drawInputArea(screen, x, y, width, inputY, inputBuffer, visible)
+
+	if len(messages) > ChatMaxVisibleMessages {
+		drawScrollIndicator(screen, co.X, co.Y, co.Width, scrollOffset, len(messages))
+	}
+
+	drawChatHelp(screen, co.X, co.Y+co.Height-10)
+}
+
+// drawChatBackground renders the semi-transparent background and border.
+func drawChatBackground(screen *ebiten.Image, x, y, width, height float32) {
 	bgColor := color.RGBA{R: 0, G: 0, B: 0, A: 180}
 	vector.DrawFilledRect(screen, x, y, width, height, bgColor, false)
 
-	// Border
 	borderColor := color.RGBA{R: 100, G: 150, B: 100, A: 255}
 	vector.StrokeRect(screen, x, y, width, height, 2, borderColor, false)
+}
 
-	// Title
+// drawChatTitle renders the chat overlay title.
+func drawChatTitle(screen *ebiten.Image, x, y int) {
 	titleColor := color.RGBA{R: 200, G: 255, B: 200, A: 255}
-	text.Draw(screen, "CHAT", basicfont.Face7x13, co.X+10, co.Y+20, titleColor)
+	text.Draw(screen, "CHAT", basicfont.Face7x13, x+10, y+20, titleColor)
+}
 
-	// Message history area
-	messageY := co.Y + 35
-	messageColor := color.RGBA{R: 255, G: 255, B: 255, A: 255}
-	senderColor := color.RGBA{R: 100, G: 200, B: 255, A: 255}
-
-	// Calculate visible messages inline to avoid recursive locking
+// calculateVisibleMessages determines which messages to display based on scroll position.
+func calculateVisibleMessages(messages []ChatMessage, scrollOffset int) []ChatMessage {
 	var visibleMessages []ChatMessage
 	totalMessages := len(messages)
 	if totalMessages > 0 {
@@ -299,51 +315,54 @@ func (co *ChatOverlay) Draw(screen *ebiten.Image) {
 		}
 		visibleMessages = messages[startIdx:endIdx]
 	}
+	return visibleMessages
+}
+
+// drawChatMessages renders the visible chat message history.
+func drawChatMessages(screen *ebiten.Image, visibleMessages []ChatMessage, x int, messageY *int) {
+	messageColor := color.RGBA{R: 255, G: 255, B: 255, A: 255}
+	senderColor := color.RGBA{R: 100, G: 200, B: 255, A: 255}
 
 	for _, msg := range visibleMessages {
-		// Draw sender name
 		senderText := fmt.Sprintf("%s:", msg.Sender)
-		text.Draw(screen, senderText, basicfont.Face7x13, co.X+10, messageY, senderColor)
+		text.Draw(screen, senderText, basicfont.Face7x13, x+10, *messageY, senderColor)
 
-		// Draw message content (offset after sender)
-		contentX := co.X + 10 + len(senderText)*7 + 5
-		text.Draw(screen, msg.Content, basicfont.Face7x13, contentX, messageY, messageColor)
+		contentX := x + 10 + len(senderText)*7 + 5
+		text.Draw(screen, msg.Content, basicfont.Face7x13, contentX, *messageY, messageColor)
 
-		messageY += 15
+		*messageY += 15
 	}
+}
 
-	// Input area separator
-	inputY := co.Y + co.Height - 30
+// drawInputArea renders the input field with separator, prompt, and cursor.
+func drawInputArea(screen *ebiten.Image, x, y, width float32, inputY int, inputBuffer string, visible bool) {
 	separatorColor := color.RGBA{R: 100, G: 100, B: 100, A: 255}
 	vector.StrokeLine(screen, x, float32(inputY-5), x+width, float32(inputY-5), 1, separatorColor, false)
 
-	// Input prompt
 	promptColor := color.RGBA{R: 200, G: 200, B: 200, A: 255}
-	text.Draw(screen, ">", basicfont.Face7x13, co.X+10, inputY+10, promptColor)
+	text.Draw(screen, ">", basicfont.Face7x13, int(x)+10, inputY+10, promptColor)
 
-	// Input buffer
 	inputColor := color.RGBA{R: 255, G: 255, B: 255, A: 255}
-	text.Draw(screen, inputBuffer, basicfont.Face7x13, co.X+25, inputY+10, inputColor)
+	text.Draw(screen, inputBuffer, basicfont.Face7x13, int(x)+25, inputY+10, inputColor)
 
-	// Cursor (blinking effect using frame counter)
 	if visible && ebiten.TPS() > 0 {
-		cursorX := co.X + 25 + len(inputBuffer)*7
+		cursorX := int(x) + 25 + len(inputBuffer)*7
 		cursorColor := color.RGBA{R: 255, G: 255, B: 255, A: 255}
 		vector.StrokeLine(screen, float32(cursorX), float32(inputY), float32(cursorX), float32(inputY+12), 2, cursorColor, false)
 	}
+}
 
-	// Scroll indicator
-	if len(messages) > ChatMaxVisibleMessages {
-		scrollText := fmt.Sprintf("%d/%d", scrollOffset+1, len(messages)-ChatMaxVisibleMessages+1)
-		scrollColor := color.RGBA{R: 150, G: 150, B: 150, A: 255}
-		scrollX := co.X + co.Width - len(scrollText)*7 - 10
-		text.Draw(screen, scrollText, basicfont.Face7x13, scrollX, co.Y+20, scrollColor)
-	}
+// drawScrollIndicator shows the current scroll position when there are many messages.
+func drawScrollIndicator(screen *ebiten.Image, x, y, width, scrollOffset, totalMessages int) {
+	scrollText := fmt.Sprintf("%d/%d", scrollOffset+1, totalMessages-ChatMaxVisibleMessages+1)
+	scrollColor := color.RGBA{R: 150, G: 150, B: 150, A: 255}
+	scrollX := x + width - len(scrollText)*7 - 10
+	text.Draw(screen, scrollText, basicfont.Face7x13, scrollX, y+20, scrollColor)
+}
 
-	// Help text
+// drawChatHelp renders the help text at the bottom of the chat overlay.
+func drawChatHelp(screen *ebiten.Image, x, y int) {
 	helpColor := color.RGBA{R: 150, G: 150, B: 150, A: 255}
 	helpText := "Enter: Send | Esc: Close | PgUp/PgDn: Scroll"
-	helpX := co.X + 10
-	helpY := co.Y + co.Height - 10
-	text.Draw(screen, helpText, basicfont.Face7x13, helpX, helpY, helpColor)
+	text.Draw(screen, helpText, basicfont.Face7x13, x+10, y, helpColor)
 }

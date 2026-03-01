@@ -627,15 +627,35 @@ func drawSettingsScreen(screen *ebiten.Image, mm *MenuManager, screenWidth, scre
 	titleY := float32(20)
 
 	theme := currentTheme.Load()
-	// Draw main title
 	drawCenteredLabel(screen, titleX, titleY, "SETTINGS", theme.TextColor)
 
-	// Determine if we're in a category or main settings
+	items, inCategory, categoryTitle := determineSettingsCategory(mm)
+
+	if inCategory {
+		drawCenteredLabel(screen, titleX, titleY+40, categoryTitle, color.RGBA{180, 180, 200, 255})
+	}
+
+	if mm.editingBinding {
+		drawBindingPrompt(screen, titleX, screenHeight)
+		return
+	}
+
+	itemHeight := float32(18)
+	startY := titleY + 60
+	highlightW := calculateHighlightWidth(screenWidth)
+
+	drawSettingsMenuItems(screen, mm, items, theme, screenWidth, startY, itemHeight, highlightW, inCategory)
+
+	hintY := screenHeight - 15
+	drawCenteredLabel(screen, titleX, hintY, "Arrows:nav Enter:sel ESC:back", color.RGBA{150, 150, 150, 255})
+}
+
+// determineSettingsCategory identifies the active settings category and returns items, category state, and title.
+func determineSettingsCategory(mm *MenuManager) ([]string, bool, string) {
 	items := mm.menuItems[MenuTypeSettings]
 	inCategory := false
 	categoryTitle := ""
 
-	// Check if a category is selected (not "Back")
 	if mm.selectedIndex < len(items)-1 {
 		inCategory = true
 		switch mm.selectedIndex {
@@ -651,61 +671,52 @@ func drawSettingsScreen(screen *ebiten.Image, mm *MenuManager, screenWidth, scre
 		}
 	}
 
-	// Draw category title if in a category
-	if inCategory {
-		drawCenteredLabel(screen, titleX, titleY+40, categoryTitle, color.RGBA{180, 180, 200, 255})
-	}
+	return items, inCategory, categoryTitle
+}
 
-	// If editing a binding, show prompt
-	if mm.editingBinding {
-		promptY := screenHeight / 2
-		drawCenteredLabel(screen, titleX, promptY, "Press a key to bind...", color.RGBA{255, 255, 100, 255})
-		promptY += 20
-		drawCenteredLabel(screen, titleX, promptY, "ESC to cancel", color.RGBA{180, 180, 180, 255})
-		return
-	}
+// drawBindingPrompt renders the key binding prompt when editing controls.
+func drawBindingPrompt(screen *ebiten.Image, titleX, screenHeight float32) {
+	promptY := screenHeight / 2
+	drawCenteredLabel(screen, titleX, promptY, "Press a key to bind...", color.RGBA{255, 255, 100, 255})
+	promptY += 20
+	drawCenteredLabel(screen, titleX, promptY, "ESC to cancel", color.RGBA{180, 180, 180, 255})
+}
 
-	// Calculate menu dimensions — adapt to internal resolution
-	itemHeight := float32(18)
-	startY := titleY + 60
+// calculateHighlightWidth computes the menu item highlight width with capping.
+func calculateHighlightWidth(screenWidth float32) float32 {
 	highlightW := screenWidth * 0.9
 	if highlightW > 400 {
 		highlightW = 400
 	}
+	return highlightW
+}
 
-	// Draw menu items with values
+// drawSettingsMenuItems renders all menu items with values and selection highlights.
+func drawSettingsMenuItems(screen *ebiten.Image, mm *MenuManager, items []string, theme *Theme, screenWidth, startY, itemHeight, highlightW float32, inCategory bool) {
 	for i, item := range items {
 		itemY := startY + float32(i)*itemHeight
-		textY := itemY + 12 // text baseline
+		textY := itemY + 12
 
-		// Highlight selected item — aligned to text
 		if i == mm.selectedIndex {
 			highlightColor := color.RGBA{80, 80, 120, 200}
 			highlightX := screenWidth/2 - highlightW/2
 			vector.DrawFilledRect(screen, highlightX, textY-11, highlightW, 15, highlightColor, false)
 		}
 
-		// Draw item label
 		itemColor := theme.TextColor
 		if i == mm.selectedIndex {
 			itemColor = color.RGBA{255, 255, 255, 255}
 		}
 
-		// Draw label on the left (adapt to screen width)
 		labelX := screenWidth * 0.1
 		drawLabel(screen, labelX, textY, item, itemColor)
 
-		// Draw value on the right if not "Back"
 		if item != "Back" && inCategory {
 			valueX := screenWidth * 0.65
 			value := getSettingValue(mm, item)
 			drawLabel(screen, valueX, textY, value, itemColor)
 		}
 	}
-
-	// Draw navigation hint at bottom
-	hintY := screenHeight - 15
-	drawCenteredLabel(screen, titleX, hintY, "Arrows:nav Enter:sel ESC:back", color.RGBA{150, 150, 150, 255})
 }
 
 // getSettingValue returns the current value for a setting option.

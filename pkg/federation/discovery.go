@@ -299,20 +299,30 @@ func (h *FederationHub) cleanupStaleServers() {
 		case <-h.ctx.Done():
 			return
 		case <-ticker.C:
-			h.mu.Lock()
-			now := time.Now()
-			for name, server := range h.servers {
-				if now.Sub(server.Timestamp) > h.staleTimeout {
-					// Remove player mappings
-					for _, playerID := range server.PlayerList {
-						delete(h.playerIndex, playerID)
-					}
-					delete(h.servers, name)
-					logrus.WithField("server_name", name).Debug("removed stale server")
-				}
-			}
-			h.mu.Unlock()
+			h.removeStaleServerEntries()
 		}
+	}
+}
+
+// removeStaleServerEntries removes expired server registrations and player mappings.
+func (h *FederationHub) removeStaleServerEntries() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	now := time.Now()
+	for name, server := range h.servers {
+		if now.Sub(server.Timestamp) > h.staleTimeout {
+			removePlayerMappings(h.playerIndex, server.PlayerList)
+			delete(h.servers, name)
+			logrus.WithField("server_name", name).Debug("removed stale server")
+		}
+	}
+}
+
+// removePlayerMappings deletes player entries from the player index.
+func removePlayerMappings(playerIndex map[string]string, playerList []string) {
+	for _, playerID := range playerList {
+		delete(playerIndex, playerID)
 	}
 }
 

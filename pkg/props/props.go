@@ -149,51 +149,22 @@ func (m *Manager) PlaceProps(room *Room, density float64, seed uint64) []*Prop {
 	r := rng.NewRNG(seed)
 	placedProps := make([]*Prop, 0)
 
-	// Calculate number of props based on room area and density
-	area := room.W * room.H
-	propCount := int(float64(area) * density * 0.05) // Scale factor for reasonable density
-	if propCount < 1 && density > 0 {
-		propCount = 1
-	}
-
-	// Get prop templates for current genre
+	propCount := calculatePropCount(room.W*room.H, density)
 	templates := m.propLists[m.genre]
 	if len(templates) == 0 {
 		return placedProps
 	}
 
-	// Calculate total weight for weighted random selection
-	totalWeight := 0
-	for _, t := range templates {
-		totalWeight += t.Weight
-	}
+	totalWeight := calculateTotalWeight(templates)
 
-	// Place props in random positions within room
 	for i := 0; i < propCount; i++ {
-		// Weighted random selection of prop type
-		roll := r.Intn(totalWeight)
-		cumWeight := 0
-		var selectedTemplate *propTemplate
-		for j := range templates {
-			cumWeight += templates[j].Weight
-			if roll < cumWeight {
-				selectedTemplate = &templates[j]
-				break
-			}
-		}
+		selectedTemplate := selectWeightedTemplate(templates, totalWeight, r)
 		if selectedTemplate == nil {
 			continue
 		}
 
-		// Random position within room (avoid edges)
-		margin := 1
-		if room.W <= 2 || room.H <= 2 {
-			margin = 0
-		}
-		posX := float64(room.X+margin) + r.Float64()*float64(room.W-2*margin)
-		posY := float64(room.Y+margin) + r.Float64()*float64(room.H-2*margin)
+		posX, posY := generateRandomPosition(room, r)
 
-		// Create prop
 		m.nextPropID++
 		prop := &Prop{
 			ID:         generatePropID(m.nextPropID),
@@ -209,6 +180,48 @@ func (m *Manager) PlaceProps(room *Room, density float64, seed uint64) []*Prop {
 	}
 
 	return placedProps
+}
+
+// calculatePropCount determines the number of props to place based on area and density.
+func calculatePropCount(area int, density float64) int {
+	propCount := int(float64(area) * density * 0.05)
+	if propCount < 1 && density > 0 {
+		propCount = 1
+	}
+	return propCount
+}
+
+// calculateTotalWeight sums the weights of all prop templates for weighted selection.
+func calculateTotalWeight(templates []propTemplate) int {
+	totalWeight := 0
+	for _, t := range templates {
+		totalWeight += t.Weight
+	}
+	return totalWeight
+}
+
+// selectWeightedTemplate chooses a random prop template using weighted probability.
+func selectWeightedTemplate(templates []propTemplate, totalWeight int, r *rng.RNG) *propTemplate {
+	roll := r.Intn(totalWeight)
+	cumWeight := 0
+	for j := range templates {
+		cumWeight += templates[j].Weight
+		if roll < cumWeight {
+			return &templates[j]
+		}
+	}
+	return nil
+}
+
+// generateRandomPosition creates a random position within a room, avoiding edges.
+func generateRandomPosition(room *Room, r *rng.RNG) (float64, float64) {
+	margin := 1
+	if room.W <= 2 || room.H <= 2 {
+		margin = 0
+	}
+	posX := float64(room.X+margin) + r.Float64()*float64(room.W-2*margin)
+	posY := float64(room.Y+margin) + r.Float64()*float64(room.H-2*margin)
+	return posX, posY
 }
 
 // GetProps returns a copy of all props.

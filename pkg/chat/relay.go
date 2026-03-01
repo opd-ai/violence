@@ -63,24 +63,30 @@ func (rs *RelayServer) Start() error {
 // acceptConnections handles new client connections.
 func (rs *RelayServer) acceptConnections() {
 	for {
-		select {
-		case <-rs.done:
+		if checkRelayShutdown(rs.done) {
 			return
-		default:
 		}
 
 		conn, err := rs.listener.Accept()
 		if err != nil {
-			select {
-			case <-rs.done:
+			if checkRelayShutdown(rs.done) {
 				return
-			default:
-				rs.logger.WithError(err).Error("failed to accept connection")
-				continue
 			}
+			rs.logger.WithError(err).Error("failed to accept connection")
+			continue
 		}
 
 		go rs.handleClient(conn)
+	}
+}
+
+// checkRelayShutdown determines if the relay server should stop accepting connections.
+func checkRelayShutdown(done <-chan struct{}) bool {
+	select {
+	case <-done:
+		return true
+	default:
+		return false
 	}
 }
 

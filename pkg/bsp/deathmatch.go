@@ -121,37 +121,41 @@ func (g *ArenaGenerator) carveArena(tiles [][]int, x, y, w, h, cornerRadius int)
 				continue
 			}
 
-			// Check if in corner region
-			inCorner := false
-			cornerDist := 0
+			inCorner, cornerDist := checkCornerRegion(dx, dy, w, h, cornerRadius)
 
-			// Top-left corner
-			if dx < cornerRadius && dy < cornerRadius {
-				inCorner = true
-				cornerDist = (cornerRadius-dx)*(cornerRadius-dx) + (cornerRadius-dy)*(cornerRadius-dy)
-			}
-			// Top-right corner
-			if dx >= w-cornerRadius && dy < cornerRadius {
-				inCorner = true
-				cornerDist = (dx-(w-cornerRadius))*(dx-(w-cornerRadius)) + (cornerRadius-dy)*(cornerRadius-dy)
-			}
-			// Bottom-left corner
-			if dx < cornerRadius && dy >= h-cornerRadius {
-				inCorner = true
-				cornerDist = (cornerRadius-dx)*(cornerRadius-dx) + (dy-(h-cornerRadius))*(dy-(h-cornerRadius))
-			}
-			// Bottom-right corner
-			if dx >= w-cornerRadius && dy >= h-cornerRadius {
-				inCorner = true
-				cornerDist = (dx-(w-cornerRadius))*(dx-(w-cornerRadius)) + (dy-(h-cornerRadius))*(dy-(h-cornerRadius))
-			}
-
-			// Only carve if not in corner or within corner radius
 			if !inCorner || cornerDist <= cornerRadius*cornerRadius {
 				tiles[py][px] = g.floorTile
 			}
 		}
 	}
+}
+
+// checkCornerRegion determines if a position is in a corner region and calculates the corner distance.
+func checkCornerRegion(dx, dy, w, h, cornerRadius int) (bool, int) {
+	inCorner := false
+	cornerDist := 0
+
+	if dx < cornerRadius && dy < cornerRadius {
+		inCorner = true
+		cornerDist = (cornerRadius-dx)*(cornerRadius-dx) + (cornerRadius-dy)*(cornerRadius-dy)
+	}
+
+	if dx >= w-cornerRadius && dy < cornerRadius {
+		inCorner = true
+		cornerDist = (dx-(w-cornerRadius))*(dx-(w-cornerRadius)) + (cornerRadius-dy)*(cornerRadius-dy)
+	}
+
+	if dx < cornerRadius && dy >= h-cornerRadius {
+		inCorner = true
+		cornerDist = (cornerRadius-dx)*(cornerRadius-dx) + (dy-(h-cornerRadius))*(dy-(h-cornerRadius))
+	}
+
+	if dx >= w-cornerRadius && dy >= h-cornerRadius {
+		inCorner = true
+		cornerDist = (dx-(w-cornerRadius))*(dx-(w-cornerRadius)) + (dy-(h-cornerRadius))*(dy-(h-cornerRadius))
+	}
+
+	return inCorner, cornerDist
 }
 
 // placeSymmetricalSpawns places spawn pads with 4-way rotational symmetry.

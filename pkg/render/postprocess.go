@@ -180,39 +180,46 @@ func (p *PostProcessor) ApplyChromaticAberration(framebuffer []byte, cfg Chromat
 
 // ApplyBloom brightens and spreads bright areas.
 func (p *PostProcessor) ApplyBloom(framebuffer []byte, cfg BloomConfig) {
-	// Extract bright pixels (threshold)
+	brightPixels := extractBrightPixels(framebuffer, cfg.Threshold)
+	blurred := blurBrightPixels(brightPixels, p.width, p.height, cfg.Radius)
+	applyBloomToFramebuffer(framebuffer, blurred, cfg.Intensity)
+}
+
+// extractBrightPixels isolates pixels exceeding the luminance threshold.
+func extractBrightPixels(framebuffer []byte, threshold float64) []float64 {
 	brightPixels := make([]float64, len(framebuffer))
 	for i := 0; i < len(framebuffer); i += 4 {
 		r := float64(framebuffer[i]) / 255.0
 		g := float64(framebuffer[i+1]) / 255.0
 		b := float64(framebuffer[i+2]) / 255.0
 
-		// Luminance
 		luma := r*0.299 + g*0.587 + b*0.114
 
-		if luma > cfg.Threshold {
-			excess := luma - cfg.Threshold
+		if luma > threshold {
+			excess := luma - threshold
 			brightPixels[i] = r * excess
 			brightPixels[i+1] = g * excess
 			brightPixels[i+2] = b * excess
 		}
 	}
+	return brightPixels
+}
 
-	// Simple box blur on bright pixels
+// blurBrightPixels applies a box blur to extracted bright pixels.
+func blurBrightPixels(brightPixels []float64, width, height, radius int) []float64 {
 	blurred := make([]float64, len(brightPixels))
-	radius := cfg.Radius
-	for y := 0; y < p.height; y++ {
-		for x := 0; x < p.width; x++ {
-			idx := (y*p.width + x) * 4
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			idx := (y*width + x) * 4
 
 			var sumR, sumG, sumB float64
 			count := 0
 
 			for dy := -radius; dy <= radius; dy++ {
 				for dx := -radius; dx <= radius; dx++ {
-					nx := clampInt(x+dx, 0, p.width-1)
-					ny := clampInt(y+dy, 0, p.height-1)
-					nidx := (ny*p.width + nx) * 4
+					nx := clampInt(x+dx, 0, width-1)
+					ny := clampInt(y+dy, 0, height-1)
+					nidx := (ny*width + nx) * 4
 
 					sumR += brightPixels[nidx]
 					sumG += brightPixels[nidx+1]
@@ -228,12 +235,15 @@ func (p *PostProcessor) ApplyBloom(framebuffer []byte, cfg BloomConfig) {
 			}
 		}
 	}
+	return blurred
+}
 
-	// Add bloom back to framebuffer
+// applyBloomToFramebuffer composites blurred bright pixels back onto the original framebuffer.
+func applyBloomToFramebuffer(framebuffer []byte, blurred []float64, intensity float64) {
 	for i := 0; i < len(framebuffer); i += 4 {
-		r := float64(framebuffer[i])/255.0 + blurred[i]*cfg.Intensity
-		g := float64(framebuffer[i+1])/255.0 + blurred[i+1]*cfg.Intensity
-		b := float64(framebuffer[i+2])/255.0 + blurred[i+2]*cfg.Intensity
+		r := float64(framebuffer[i])/255.0 + blurred[i]*intensity
+		g := float64(framebuffer[i+1])/255.0 + blurred[i+1]*intensity
+		b := float64(framebuffer[i+2])/255.0 + blurred[i+2]*intensity
 
 		framebuffer[i] = uint8(clamp(r * 255.0))
 		framebuffer[i+1] = uint8(clamp(g * 255.0))
