@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"log"
 	"math"
+	"net"
 	"os"
 	"time"
 
@@ -135,6 +136,7 @@ type Game struct {
 	skillManager    *skills.Manager
 	modLoader       *mod.Loader
 	networkMode     bool
+	networkConn     net.Conn    // Active network connection for key exchange
 	multiplayerMgr  interface{} // Can be *network.FFAMatch, *network.TeamMatch, etc.
 	skillsTreeIdx   int         // Active tree tab in skills UI
 	skillsNodeIdx   int         // Selected node in skills UI
@@ -3639,21 +3641,43 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 }
 
 // initializeEncryptedChat sets up E2E encrypted chat for multiplayer.
-// Uses a deterministic seed-based key derivation for local multiplayer sessions.
+// For networked sessions, performs ECDH key exchange.
+// For local/single-player, uses deterministic seed-based key.
 func (g *Game) initializeEncryptedChat() {
-	// Derive encryption key from game seed for deterministic local multiplayer
-	// In a real networked implementation, this would use PerformKeyExchange with net.Conn
-	seedBytes := make([]byte, 32)
-	for i := 0; i < 32; i++ {
-		seedBytes[i] = byte((g.seed >> (i * 8)) & 0xFF)
+	var encryptionKey []byte
+
+	// Network mode: perform proper key exchange
+	if g.networkMode && g.networkConn != nil {
+		key, err := chat.PerformKeyExchange(g.networkConn)
+		if err != nil {
+			// Fallback to seed-based key on key exchange failure
+			logrus.WithError(err).Warn("Key exchange failed, using seed-based key")
+			encryptionKey = g.deriveSeedKey()
+		} else {
+			encryptionKey = key
+			logrus.Info("Chat encryption key exchanged successfully")
+		}
+	} else {
+		// Single-player or local mode: use deterministic seed-based key
+		encryptionKey = g.deriveSeedKey()
 	}
 
-	g.chatManager = chat.NewChatWithKey(seedBytes)
+	g.chatManager = chat.NewChatWithKey(encryptionKey)
 	g.chatMessages = make([]string, 0, 50)
 	g.chatInput = ""
 	g.chatInputActive = false
 
 	g.hud.ShowMessage("Encrypted chat initialized - Press T to chat")
+}
+
+// deriveSeedKey derives a 32-byte encryption key from the game seed.
+// Used for deterministic local multiplayer or as fallback.
+func (g *Game) deriveSeedKey() []byte {
+	seedBytes := make([]byte, 32)
+	for i := 0; i < 32; i++ {
+		seedBytes[i] = byte((g.seed >> (i * 8)) & 0xFF)
+	}
+	return seedBytes
 }
 
 // handleChatInput processes chat input and encryption.
