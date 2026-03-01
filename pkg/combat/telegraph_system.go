@@ -5,6 +5,7 @@ import (
 	"math"
 	"reflect"
 
+	"github.com/opd-ai/violence/pkg/collision"
 	"github.com/opd-ai/violence/pkg/engine"
 	"github.com/opd-ai/violence/pkg/rng"
 	"github.com/sirupsen/logrus"
@@ -179,44 +180,54 @@ func (s *TelegraphSystem) executeDamage(w *engine.World, attacker engine.Entity,
 }
 
 func (s *TelegraphSystem) isInAttackArea(attackerPos, targetPos *engine.Position, telegraph *TelegraphComponent) bool {
-	dx := targetPos.X - attackerPos.X
-	dy := targetPos.Y - attackerPos.Y
-	dist := math.Sqrt(dx*dx + dy*dy)
+	// Create precise collision shape for attack
+	var attackCollider *collision.Collider
+
+	// Target as circle (assume 0.3 unit radius for characters)
+	targetCollider := collision.NewCircleCollider(targetPos.X, targetPos.Y, 0.3, collision.LayerEnemy, collision.LayerPlayer)
 
 	switch telegraph.Pattern.Shape {
 	case ShapeCone:
-		// Check distance and angle
-		if dist > telegraph.Pattern.Range {
-			return false
-		}
-		// Angle to target
-		angleToTarget := math.Atan2(dy, dx)
-		// Angle of attack
-		attackAngle := math.Atan2(telegraph.DirectionY, telegraph.DirectionX)
-		// Angular difference
-		angleDiff := math.Abs(normalizeAngle(angleToTarget - attackAngle))
-		return angleDiff <= telegraph.Pattern.Angle/2
+		// Use polygon collider for cone attacks
+		attackCollider = collision.CreateConeCollider(
+			attackerPos.X, attackerPos.Y,
+			telegraph.DirectionX, telegraph.DirectionY,
+			telegraph.Pattern.Range, telegraph.Pattern.Angle,
+			collision.LayerPlayer, collision.LayerEnemy,
+		)
 
 	case ShapeCircle:
-		return dist <= telegraph.Pattern.Range
+		// Circular AoE
+		attackCollider = collision.CreateCircleAttackCollider(
+			attackerPos.X, attackerPos.Y,
+			telegraph.Pattern.Range,
+			collision.LayerPlayer, collision.LayerEnemy,
+		)
 
 	case ShapeLine:
-		// Distance along attack direction
-		dotProduct := dx*telegraph.DirectionX + dy*telegraph.DirectionY
-		if dotProduct < 0 || dotProduct > telegraph.Pattern.Range {
-			return false
-		}
-		// Perpendicular distance from line
-		perpDist := math.Abs(dx*telegraph.DirectionY - dy*telegraph.DirectionX)
-		return perpDist <= telegraph.Pattern.Width/2
+		// Beam/charge attack as capsule
+		attackCollider = collision.CreateLineAttackCollider(
+			attackerPos.X, attackerPos.Y,
+			telegraph.DirectionX, telegraph.DirectionY,
+			telegraph.Pattern.Range, telegraph.Pattern.Width,
+			collision.LayerPlayer, collision.LayerEnemy,
+		)
 
 	case ShapeRing:
-		// Between inner and outer radius
-		innerRadius := telegraph.Pattern.Range - telegraph.Pattern.Width
-		return dist >= innerRadius && dist <= telegraph.Pattern.Range
+		// Ring attack - check outer circle but not inner
+		outer, inner := collision.CreateRingCollider(
+			attackerPos.X, attackerPos.Y,
+			telegraph.Pattern.Range,
+			telegraph.Pattern.Range-telegraph.Pattern.Width,
+			collision.LayerPlayer, collision.LayerEnemy,
+		)
+		return collision.TestRingCollision(targetCollider, outer, inner)
+
+	default:
+		return false
 	}
 
-	return false
+	return collision.TestCollision(attackCollider, targetCollider)
 }
 
 func normalizeAngle(angle float64) float64 {

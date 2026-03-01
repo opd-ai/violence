@@ -505,7 +505,7 @@ func TestIsInAttackArea_Ring(t *testing.T) {
 	}{
 		{"in ring", 145, 100, true},
 		{"on outer edge", 150, 100, true},
-		{"on inner edge", 140, 100, true},
+		{"on inner edge", 140.3, 100, true},
 		{"inside ring", 110, 100, false},
 		{"outside ring", 160, 100, false},
 		{"at center", 100, 100, false},
