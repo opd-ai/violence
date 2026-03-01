@@ -3,7 +3,7 @@
 ## Phase Overview
 - **Objective**: Enable decentralized server discovery, mod distribution, mobile app store releases, and cloud-synced saves
 - **Source Document**: GAPS.md (Design Needed — Deferred to v6.1+)
-- **Prerequisites**: v6.0 Production Hardening complete (matchmaking, anti-cheat, replay, leaderboard, achievements, profanity filter)
+- **Prerequisites**: v6.0 Production Hardening nearly complete (matchmaking, anti-cheat, replay, leaderboard, achievements done; enhanced profanity filter in progress)
 - **Estimated Scope**: Large
 
 ## Implementation Steps

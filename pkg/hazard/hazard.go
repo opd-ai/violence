@@ -1,3 +1,5 @@
+// Package hazard provides environmental hazards such as spike traps, fire grates,
+// poison vents, and other genre-specific dangers that damage players on collision.
 package hazard
 
 import (
