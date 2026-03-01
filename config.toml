@@ -11,3 +11,7 @@ DefaultGenre = "fantasy"
 VSync = true
 FullScreen = false
 MaxTPS = 60
+
+# Federation hub URL for server discovery (leave empty for local-only mode)
+# Example: FederationHubURL = "http://hub.violence.example.com:8080"
+FederationHubURL = ""

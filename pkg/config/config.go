@@ -26,7 +26,8 @@ type Config struct {
 	FullScreen       bool           `mapstructure:"FullScreen"`
 	MaxTPS           int            `mapstructure:"MaxTPS"` // Maximum ticks per second (0 = unlimited)
 	KeyBindings      map[string]int `mapstructure:"KeyBindings"`
-	ProfanityFilter  bool           `mapstructure:"ProfanityFilter"` // Client-side profanity filter toggle
+	ProfanityFilter  bool           `mapstructure:"ProfanityFilter"`  // Client-side profanity filter toggle
+	FederationHubURL string         `mapstructure:"FederationHubURL"` // URL of the federation hub for server discovery (empty = local mode only)
 }
 
 // C is the global configuration instance.
@@ -69,6 +70,7 @@ func Load() error {
 	viper.SetDefault("MaxTPS", 60)
 	viper.SetDefault("KeyBindings", map[string]int{})
 	viper.SetDefault("ProfanityFilter", true)
+	viper.SetDefault("FederationHubURL", "")
 
 	if err := viper.ReadInConfig(); err != nil {
 		var notFound viper.ConfigFileNotFoundError

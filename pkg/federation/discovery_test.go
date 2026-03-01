@@ -322,7 +322,7 @@ func TestFederationHub_HTTPQuery(t *testing.T) {
 	defer hub.Stop()
 
 	// Get actual address
-	addr := hub.httpServer.Addr
+	addr := hub.GetAddr()
 	if addr == "127.0.0.1:0" {
 		// Server hasn't started yet, wait
 		time.Sleep(100 * time.Millisecond)
@@ -379,7 +379,7 @@ func TestFederationHub_HTTPQueryMethodNotAllowed(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	url := fmt.Sprintf("http://%s/query", hub.httpServer.Addr)
+	url := fmt.Sprintf("http://%s/query", hub.GetAddr())
 	resp, err := http.Get(url)
 	if err != nil {
 		t.Skipf("HTTP request failed: %v", err)
@@ -451,7 +451,7 @@ func TestServerAnnouncer_Integration(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Get hub address
-	hubAddr := hub.httpServer.Addr
+	hubAddr := hub.GetAddr()
 	wsURL := fmt.Sprintf("ws://%s/announce", hubAddr)
 
 	// Create announcer
@@ -666,7 +666,7 @@ func TestFederationHub_PlayerLookupHTTP(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			body, _ := json.Marshal(tt.request)
-			url := fmt.Sprintf("http://%s/lookup", hub.httpServer.Addr)
+			url := fmt.Sprintf("http://%s/lookup", hub.GetAddr())
 			resp, err := http.Post(url, "application/json", bytes.NewReader(body))
 			if err != nil {
 				t.Skipf("HTTP request failed: %v", err)
@@ -704,7 +704,7 @@ func TestFederationHub_PlayerLookupMethodNotAllowed(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	url := fmt.Sprintf("http://%s/lookup", hub.httpServer.Addr)
+	url := fmt.Sprintf("http://%s/lookup", hub.GetAddr())
 	resp, err := http.Get(url)
 	if err != nil {
 		t.Skipf("HTTP request failed: %v", err)
@@ -837,7 +837,7 @@ func TestPlayerLookup_Integration(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Get hub address
-	hubAddr := hub.httpServer.Addr
+	hubAddr := hub.GetAddr()
 	wsURL := fmt.Sprintf("ws://%s/announce", hubAddr)
 
 	// Create and start first server announcer
@@ -942,5 +942,217 @@ func TestPlayerLookup_Integration(t *testing.T) {
 	}
 	if response.ServerName != "game-server-1" {
 		t.Errorf("eve's server = %s, want game-server-1", response.ServerName)
+	}
+}
+
+// TestDiscoverServers tests the client-side DiscoverServers function.
+func TestDiscoverServers(t *testing.T) {
+	// Start hub
+	hub := NewFederationHub()
+	if err := hub.Start("127.0.0.1:0"); err != nil {
+		t.Fatalf("hub Start failed: %v", err)
+	}
+	defer hub.Stop()
+
+	time.Sleep(100 * time.Millisecond)
+
+	// Register test servers
+	hub.RegisterServer(&ServerAnnouncement{
+		Name:       "server-fantasy-1",
+		Address:    "localhost:8000",
+		Region:     RegionUSEast,
+		Genre:      "fantasy",
+		Players:    5,
+		MaxPlayers: 16,
+		Timestamp:  time.Now(),
+	})
+	hub.RegisterServer(&ServerAnnouncement{
+		Name:       "server-scifi-1",
+		Address:    "localhost:8001",
+		Region:     RegionUSWest,
+		Genre:      "scifi",
+		Players:    10,
+		MaxPlayers: 16,
+		Timestamp:  time.Now(),
+	})
+	hub.RegisterServer(&ServerAnnouncement{
+		Name:       "server-fantasy-2",
+		Address:    "localhost:8002",
+		Region:     RegionEUWest,
+		Genre:      "fantasy",
+		Players:    2,
+		MaxPlayers: 16,
+		Timestamp:  time.Now(),
+	})
+
+	hubURL := fmt.Sprintf("http://%s", hub.GetAddr())
+
+	tests := []struct {
+		name    string
+		query   *ServerQuery
+		wantLen int
+		wantErr bool
+	}{
+		{
+			name:    "all servers",
+			query:   &ServerQuery{},
+			wantLen: 3,
+			wantErr: false,
+		},
+		{
+			name: "filter by genre fantasy",
+			query: &ServerQuery{
+				Genre: ptrString("fantasy"),
+			},
+			wantLen: 2,
+			wantErr: false,
+		},
+		{
+			name: "filter by genre scifi",
+			query: &ServerQuery{
+				Genre: ptrString("scifi"),
+			},
+			wantLen: 1,
+			wantErr: false,
+		},
+		{
+			name: "filter by region",
+			query: &ServerQuery{
+				Region: ptrRegion(RegionUSEast),
+			},
+			wantLen: 1,
+			wantErr: false,
+		},
+		{
+			name: "filter by min players",
+			query: &ServerQuery{
+				MinPlayers: ptrInt(8),
+			},
+			wantLen: 1,
+			wantErr: false,
+		},
+		{
+			name: "no matches",
+			query: &ServerQuery{
+				Genre: ptrString("horror"),
+			},
+			wantLen: 0,
+			wantErr: false,
+		},
+		{
+			name: "combined filters",
+			query: &ServerQuery{
+				Genre:      ptrString("fantasy"),
+				MinPlayers: ptrInt(3),
+			},
+			wantLen: 1,
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			results, err := DiscoverServers(hubURL, tt.query, 5*time.Second)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("DiscoverServers() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && len(results) != tt.wantLen {
+				t.Errorf("got %d results, want %d", len(results), tt.wantLen)
+			}
+		})
+	}
+}
+
+// TestDiscoverServers_InvalidHub tests error handling for invalid hub URL.
+func TestDiscoverServers_InvalidHub(t *testing.T) {
+	query := &ServerQuery{}
+	_, err := DiscoverServers("http://localhost:99999", query, 1*time.Second)
+	if err == nil {
+		t.Error("DiscoverServers() should error with invalid hub URL")
+	}
+}
+
+// TestDiscoverServers_Timeout tests timeout handling.
+func TestDiscoverServers_Timeout(t *testing.T) {
+	// Use a non-routable IP to force timeout
+	query := &ServerQuery{}
+	_, err := DiscoverServers("http://192.0.2.1:9999", query, 100*time.Millisecond)
+	if err == nil {
+		t.Error("DiscoverServers() should timeout")
+	}
+}
+
+// TestLookupPlayer_Client tests the client-side LookupPlayer function.
+func TestLookupPlayer_Client(t *testing.T) {
+	// Start hub
+	hub := NewFederationHub()
+	if err := hub.Start("127.0.0.1:0"); err != nil {
+		t.Fatalf("hub Start failed: %v", err)
+	}
+	defer hub.Stop()
+
+	time.Sleep(100 * time.Millisecond)
+
+	// Register server with players
+	hub.RegisterServer(&ServerAnnouncement{
+		Name:       "test-server",
+		Address:    "localhost:9000",
+		Region:     RegionUSEast,
+		Genre:      "scifi",
+		Players:    3,
+		MaxPlayers: 16,
+		PlayerList: []string{"alice", "bob", "charlie"},
+		Timestamp:  time.Now(),
+	})
+
+	hubURL := fmt.Sprintf("http://%s", hub.GetAddr())
+
+	tests := []struct {
+		name        string
+		playerID    string
+		wantOnline  bool
+		wantAddress string
+		wantErr     bool
+	}{
+		{
+			name:        "player found",
+			playerID:    "alice",
+			wantOnline:  true,
+			wantAddress: "localhost:9000",
+			wantErr:     false,
+		},
+		{
+			name:       "player not found",
+			playerID:   "eve",
+			wantOnline: false,
+			wantErr:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := LookupPlayer(hubURL, tt.playerID, 5*time.Second)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("LookupPlayer() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr {
+				if result.Online != tt.wantOnline {
+					t.Errorf("Online = %v, want %v", result.Online, tt.wantOnline)
+				}
+				if tt.wantOnline && result.ServerAddress != tt.wantAddress {
+					t.Errorf("ServerAddress = %s, want %s", result.ServerAddress, tt.wantAddress)
+				}
+			}
+		})
+	}
+}
+
+// TestLookupPlayer_InvalidHub tests error handling for invalid hub URL.
+func TestLookupPlayer_InvalidHub(t *testing.T) {
+	_, err := LookupPlayer("http://localhost:99999", "alice", 1*time.Second)
+	if err == nil {
+		t.Error("LookupPlayer() should error with invalid hub URL")
 	}
 }

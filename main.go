@@ -54,6 +54,7 @@ import (
 	"github.com/opd-ai/violence/pkg/ui"
 	"github.com/opd-ai/violence/pkg/upgrade"
 	"github.com/opd-ai/violence/pkg/weapon"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/image/font/basicfont"
 )
 
@@ -803,14 +804,14 @@ func (g *Game) updatePlaying() error {
 						if agentIdx >= 0 && agentIdx < len(g.aiAgents) {
 							agent := g.aiAgents[agentIdx]
 							if agent.Health > 0 {
-								// Award mastery XP for successful hit
-								if g.masteryManager != nil {
-									g.masteryManager.AddMasteryXP(g.arsenal.CurrentSlot, 10)
-								}
-
 								// Apply damage with upgrades and mastery bonuses
 								upgradedDamage := g.getUpgradedWeaponDamage(currentWeapon)
 								agent.Health -= upgradedDamage
+
+								// Award mastery XP only after damage is successfully applied
+								if g.masteryManager != nil {
+									g.masteryManager.AddMasteryXP(g.arsenal.CurrentSlot, 10)
+								}
 
 								if agent.Health <= 0 {
 									// Enemy died - award XP and credits
@@ -2228,6 +2229,36 @@ func (g *Game) getMultiplayerModes() []ui.MultiplayerMode {
 
 // refreshServerBrowser queries the federation hub for available servers.
 func (g *Game) refreshServerBrowser() {
+	// If a federation hub URL is configured, query it remotely
+	if config.C.FederationHubURL != "" {
+		genre := g.genreID
+		query := &federation.ServerQuery{
+			Genre: &genre,
+		}
+
+		servers, err := federation.DiscoverServers(config.C.FederationHubURL, query, 5*time.Second)
+		if err != nil {
+			logrus.WithError(err).Warn("failed to discover servers from federation hub")
+			g.mpStatusMsg = "Failed to connect to federation hub. Press R to retry."
+			g.serverBrowser = nil
+			return
+		}
+
+		g.serverBrowser = make([]*federation.ServerAnnouncement, len(servers))
+		for i := range servers {
+			g.serverBrowser[i] = &servers[i]
+		}
+		g.browserIdx = 0
+
+		if len(servers) == 0 {
+			g.mpStatusMsg = "No servers found. Press R to refresh."
+		} else {
+			g.mpStatusMsg = "Found " + string(rune(len(servers)+'0')) + " servers. Press L for local mode."
+		}
+		return
+	}
+
+	// Otherwise use local federation hub (for testing/local servers)
 	if g.federationHub == nil {
 		g.mpStatusMsg = "Federation not available"
 		return

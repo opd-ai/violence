@@ -2,6 +2,7 @@
 package federation
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -100,6 +101,14 @@ func (h *FederationHub) Start(addr string) error {
 	}()
 
 	return nil
+}
+
+// GetAddr returns the address the hub is listening on.
+func (h *FederationHub) GetAddr() string {
+	if h.httpServer == nil {
+		return ""
+	}
+	return h.httpServer.Addr
 }
 
 // Stop gracefully shuts down the federation hub.
@@ -437,4 +446,69 @@ func (a *ServerAnnouncer) sendAnnouncement() {
 	if err := a.conn.WriteMessage(websocket.TextMessage, data); err != nil {
 		logrus.WithError(err).Error("failed to send announcement")
 	}
+}
+
+// DiscoverServers queries a remote federation hub for available servers.
+func DiscoverServers(hubURL string, query *ServerQuery, timeout time.Duration) ([]ServerAnnouncement, error) {
+	if timeout == 0 {
+		timeout = 5 * time.Second
+	}
+
+	client := &http.Client{Timeout: timeout}
+
+	data, err := json.Marshal(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal query: %w", err)
+	}
+
+	url := hubURL + "/query"
+	resp, err := client.Post(url, "application/json", bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("failed to query federation hub: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("federation hub returned status %d", resp.StatusCode)
+	}
+
+	var results []ServerAnnouncement
+	if err := json.NewDecoder(resp.Body).Decode(&results); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return results, nil
+}
+
+// LookupPlayer queries a remote federation hub for player presence.
+func LookupPlayer(hubURL string, playerID string, timeout time.Duration) (*PlayerLookupResponse, error) {
+	if timeout == 0 {
+		timeout = 5 * time.Second
+	}
+
+	client := &http.Client{Timeout: timeout}
+
+	req := PlayerLookupRequest{PlayerID: playerID}
+	data, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	url := hubURL + "/lookup"
+	resp, err := client.Post(url, "application/json", bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("failed to lookup player: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("federation hub returned status %d", resp.StatusCode)
+	}
+
+	var result PlayerLookupResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return &result, nil
 }
