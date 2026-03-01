@@ -57,13 +57,15 @@
    - **Dependencies**: Step 2 (TileMap), Step 8 (Pathfinding)
    - **Summary**: Implemented cover detection system with CoverTile struct (Position, Score), FindCoverTiles scanning for walkable tiles adjacent to walls with blocked line-of-sight to threat, scoring algorithm (70% LOS blocking + 30% distance preference), Bresenham line-of-sight algorithm, 20-tile search radius, comprehensive tests covering simple walls, multiple positions, L-shaped rooms, diagonal walls, doors, and large areas, achieving 95.4% package coverage
 
-10. **Implement Procedural Weapon Sprites**
+10. **[x] Implement Procedural Weapon Sprites** *(2026-03-01)*
     - **Deliverable**: `pkg/weapon/sprite_gen.go` with `GenerateWeaponSprite(seed int64, weaponType WeaponType, frame FrameType) *image.RGBA` using geometric primitives
     - **Dependencies**: None
+    - **Summary**: Created procedural weapon sprite generation system with three weapon types (Melee, Hitscan, Projectile), three frame types (Idle, Fire, Reload), geometric primitives (fillRect, fillCircle, drawLine), deterministic generation from seed, visual variations (blade/handle for melee, barrel/grip/trigger for hitscan, tube/coils for projectile), muzzle flash effects for Fire frames, 128x128 RGBA output, comprehensive tests achieving 98.3% coverage
 
-11. **Implement Procedural Enemy Sprites**
+11. **[x] Implement Procedural Enemy Sprites** *(2026-03-01)*
     - **Deliverable**: `pkg/ai/sprite_gen.go` with `GenerateEnemySprite(seed int64, archetype EnemyArchetype, frame AnimFrame) *image.RGBA` using body part composition
     - **Dependencies**: None
+    - **Summary**: Created procedural enemy sprite generation with 5 archetypes (FantasyGuard, SciFiSoldier, HorrorCultist, CyberpunkDrone, PostapocScavenger), 5 animation frames (Idle, Walk1, Walk2, Attack, Death), body part composition system (head, torso, arms, legs, weapons), genre-specific visual styles (armor/sword for fantasy, visor/rifle for scifi, robes/red eyes for horror, hovering sphere/neon for cyberpunk, scrap armor for postapoc), animation variations (leg positions for walk cycles, weapon positions for attack), 64x64 RGBA output, deterministic generation, comprehensive tests achieving 91.4% coverage
 
 12. **Implement Projectile Spatial Hash**
     - **Deliverable**: `pkg/combat/spatial_hash.go` with `SpatialHash` struct for O(1) broadphase collision queries
