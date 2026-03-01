@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-func TestNewSystem(t *testing.T) {
-	s := NewSystem(12345)
+func TestNewLegacySystem(t *testing.T) {
+	s := NewLegacySystem(12345)
 	if s == nil {
 		t.Fatal("NewSystem returned nil")
 	}
@@ -31,7 +31,7 @@ func TestSetGenre(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewSystem(12345)
+			s := NewLegacySystem(12345)
 			s.SetGenre(tt.genre)
 			if s.genre != tt.genre {
 				t.Errorf("Expected genre %s, got %s", tt.genre, s.genre)
@@ -53,7 +53,7 @@ func TestGenerateHazards(t *testing.T) {
 		}
 	}
 
-	s := NewSystem(12345)
+	s := NewLegacySystem(12345)
 	s.GenerateHazards(testMap, 54321)
 
 	if len(s.hazards) == 0 {
@@ -73,7 +73,7 @@ func TestGenerateHazards(t *testing.T) {
 }
 
 func TestGenerateHazardsEmptyMap(t *testing.T) {
-	s := NewSystem(12345)
+	s := NewLegacySystem(12345)
 	s.GenerateHazards([][]int{}, 54321)
 	if len(s.hazards) != 0 {
 		t.Errorf("Expected 0 hazards for empty map, got %d", len(s.hazards))
@@ -132,7 +132,7 @@ func TestGetGenreHazards(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewSystem(12345)
+			s := NewLegacySystem(12345)
 			s.SetGenre(tt.genre)
 			hazardTypes := s.getGenreHazards()
 
@@ -177,7 +177,7 @@ func TestIsValidLocation(t *testing.T) {
 		{"On wall", 5, 5, false},
 	}
 
-	s := NewSystem(12345)
+	s := NewLegacySystem(12345)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := s.isValidLocation(testMap, tt.x, tt.y)
@@ -190,7 +190,7 @@ func TestIsValidLocation(t *testing.T) {
 }
 
 func TestCreateHazard(t *testing.T) {
-	s := NewSystem(12345)
+	s := NewLegacySystem(12345)
 
 	tests := []struct {
 		name         string
@@ -247,7 +247,7 @@ func TestCreateHazard(t *testing.T) {
 }
 
 func TestUpdate(t *testing.T) {
-	s := NewSystem(12345)
+	s := NewLegacySystem(12345)
 	h := s.createHazard(TypeSpikeTrap, 5.0, 5.0, s.rng)
 	h.Timer = 0
 	s.hazards = []*Hazard{h}
@@ -280,7 +280,7 @@ func TestUpdate(t *testing.T) {
 }
 
 func TestCheckCollision(t *testing.T) {
-	s := NewSystem(12345)
+	s := NewLegacySystem(12345)
 	h := s.createHazard(TypeFireGrate, 5.0, 5.0, s.rng)
 	h.State = StateActive
 	s.hazards = []*Hazard{h}
@@ -318,7 +318,7 @@ func TestCheckCollision(t *testing.T) {
 }
 
 func TestCheckCollisionInactive(t *testing.T) {
-	s := NewSystem(12345)
+	s := NewLegacySystem(12345)
 	h := s.createHazard(TypeSpikeTrap, 5.0, 5.0, s.rng)
 	h.State = StateInactive
 	s.hazards = []*Hazard{h}
@@ -336,7 +336,7 @@ func TestCheckCollisionInactive(t *testing.T) {
 }
 
 func TestCheckCollisionOneShot(t *testing.T) {
-	s := NewSystem(12345)
+	s := NewLegacySystem(12345)
 	h := s.createHazard(TypeSpikeTrap, 5.0, 5.0, s.rng)
 	h.State = StateActive
 	h.Persistent = false
@@ -357,7 +357,7 @@ func TestCheckCollisionOneShot(t *testing.T) {
 }
 
 func TestGetHazards(t *testing.T) {
-	s := NewSystem(12345)
+	s := NewLegacySystem(12345)
 	h1 := s.createHazard(TypeSpikeTrap, 5.0, 5.0, s.rng)
 	h2 := s.createHazard(TypeFireGrate, 7.0, 7.0, s.rng)
 	s.hazards = []*Hazard{h1, h2}
@@ -369,7 +369,7 @@ func TestGetHazards(t *testing.T) {
 }
 
 func TestClear(t *testing.T) {
-	s := NewSystem(12345)
+	s := NewLegacySystem(12345)
 	s.hazards = []*Hazard{
 		s.createHazard(TypeSpikeTrap, 5.0, 5.0, s.rng),
 		s.createHazard(TypeFireGrate, 7.0, 7.0, s.rng),
@@ -382,7 +382,7 @@ func TestClear(t *testing.T) {
 }
 
 func TestHazardStateMachine(t *testing.T) {
-	s := NewSystem(12345)
+	s := NewLegacySystem(12345)
 	h := s.createHazard(TypeElectricFloor, 5.0, 5.0, s.rng)
 	h.Timer = 0
 	h.ChargeDuration = 1.0
@@ -407,7 +407,7 @@ func TestHazardStateMachine(t *testing.T) {
 }
 
 func TestHazardDimensions(t *testing.T) {
-	s := NewSystem(12345)
+	s := NewLegacySystem(12345)
 
 	tests := []struct {
 		hType         Type
@@ -429,20 +429,8 @@ func TestHazardDimensions(t *testing.T) {
 	}
 }
 
-func (t Type) String() string {
-	names := []string{
-		"SpikeTrap", "FireGrate", "PoisonVent", "ElectricFloor",
-		"FallingRocks", "AcidPool", "LaserGrid", "CryoField",
-		"PlasmaJet", "GravityWell",
-	}
-	if int(t) >= 0 && int(t) < len(names) {
-		return names[t]
-	}
-	return "Unknown"
-}
-
 func BenchmarkUpdate(b *testing.B) {
-	s := NewSystem(12345)
+	s := NewLegacySystem(12345)
 	for i := 0; i < 64; i++ {
 		h := s.createHazard(Type(i%10), float64(i), float64(i), s.rng)
 		s.hazards = append(s.hazards, h)
@@ -455,7 +443,7 @@ func BenchmarkUpdate(b *testing.B) {
 }
 
 func BenchmarkCheckCollision(b *testing.B) {
-	s := NewSystem(12345)
+	s := NewLegacySystem(12345)
 	for i := 0; i < 64; i++ {
 		h := s.createHazard(Type(i%10), float64(i), float64(i), s.rng)
 		h.State = StateActive

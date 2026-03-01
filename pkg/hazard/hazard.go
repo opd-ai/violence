@@ -25,6 +25,19 @@ const (
 	TypeGravityWell
 )
 
+// String returns a string representation of the hazard type.
+func (t Type) String() string {
+	names := []string{
+		"SpikeTrap", "FireGrate", "PoisonVent", "ElectricFloor",
+		"FallingRocks", "AcidPool", "LaserGrid", "CryoField",
+		"PlasmaJet", "GravityWell",
+	}
+	if int(t) >= 0 && int(t) < len(names) {
+		return names[t]
+	}
+	return "Unknown"
+}
+
 // State represents the activation state of a hazard.
 type State int
 
@@ -53,29 +66,34 @@ type Hazard struct {
 	Color            uint32
 }
 
-// System manages all environmental hazards.
-type System struct {
+// LegacySystem manages all environmental hazards (deprecated, use ECSSystem).
+type LegacySystem struct {
 	hazards []*Hazard
 	rng     *rand.Rand
 	genre   string
 }
 
-// NewSystem creates a new hazard system.
-func NewSystem(seed int64) *System {
-	return &System{
+// NewLegacySystem creates a new hazard system (deprecated).
+func NewLegacySystem(seed int64) *LegacySystem {
+	return &LegacySystem{
 		hazards: make([]*Hazard, 0, 64),
 		rng:     rand.New(rand.NewSource(seed)),
 		genre:   "fantasy",
 	}
 }
 
+// NewSystem creates a new ECS-based hazard system.
+func NewSystem(seed int64) *ECSSystem {
+	return NewECSSystem(seed)
+}
+
 // SetGenre changes the hazard system's genre.
-func (s *System) SetGenre(genre string) {
+func (s *LegacySystem) SetGenre(genre string) {
 	s.genre = genre
 }
 
 // GenerateHazards procedurally places hazards in a map.
-func (s *System) GenerateHazards(worldMap [][]int, seed int64) {
+func (s *LegacySystem) GenerateHazards(worldMap [][]int, seed int64) {
 	s.hazards = make([]*Hazard, 0, 64)
 	localRNG := rand.New(rand.NewSource(seed))
 
@@ -119,7 +137,7 @@ func (s *System) GenerateHazards(worldMap [][]int, seed int64) {
 }
 
 // getGenreHazards returns hazard types appropriate for the current genre.
-func (s *System) getGenreHazards() []Type {
+func (s *LegacySystem) getGenreHazards() []Type {
 	switch s.genre {
 	case "fantasy":
 		return []Type{TypeSpikeTrap, TypeFireGrate, TypePoisonVent, TypeFallingRocks, TypeAcidPool}
@@ -135,7 +153,7 @@ func (s *System) getGenreHazards() []Type {
 }
 
 // isValidLocation checks if a map location can contain a hazard.
-func (s *System) isValidLocation(worldMap [][]int, x, y int) bool {
+func (s *LegacySystem) isValidLocation(worldMap [][]int, x, y int) bool {
 	width := len(worldMap[0])
 	height := len(worldMap)
 
@@ -166,7 +184,7 @@ func (s *System) isValidLocation(worldMap [][]int, x, y int) bool {
 }
 
 // createHazard creates a hazard of the specified type.
-func (s *System) createHazard(hType Type, x, y float64, rng *rand.Rand) *Hazard {
+func (s *LegacySystem) createHazard(hType Type, x, y float64, rng *rand.Rand) *Hazard {
 	h := &Hazard{
 		Type:   hType,
 		X:      x,
@@ -283,7 +301,7 @@ func (s *System) createHazard(hType Type, x, y float64, rng *rand.Rand) *Hazard 
 }
 
 // Update advances hazard states and timers.
-func (s *System) Update(deltaTime float64) {
+func (s *LegacySystem) Update(deltaTime float64) {
 	for _, h := range s.hazards {
 		h.Timer += deltaTime
 
@@ -305,7 +323,7 @@ func (s *System) Update(deltaTime float64) {
 
 // CheckCollision tests if a position collides with any active hazard.
 // Returns (hit, damage, statusEffect).
-func (s *System) CheckCollision(x, y float64) (bool, int, string) {
+func (s *LegacySystem) CheckCollision(x, y float64) (bool, int, string) {
 	for _, h := range s.hazards {
 		if h.State != StateActive {
 			continue
@@ -328,11 +346,11 @@ func (s *System) CheckCollision(x, y float64) (bool, int, string) {
 }
 
 // GetHazards returns all hazards for rendering.
-func (s *System) GetHazards() []*Hazard {
+func (s *LegacySystem) GetHazards() []*Hazard {
 	return s.hazards
 }
 
 // Clear removes all hazards.
-func (s *System) Clear() {
+func (s *LegacySystem) Clear() {
 	s.hazards = make([]*Hazard, 0, 64)
 }

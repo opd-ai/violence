@@ -189,8 +189,8 @@ type Game struct {
 	chatMessages    []string // Recent chat messages to display
 	chatInputActive bool     // Whether chat input is active
 
-	// Environmental hazard system
-	hazardSystem *hazard.System
+	// Environmental hazard system (ECS-integrated)
+	hazardECSSystem *hazard.ECSSystem
 
 	// Enemy role and squad tactics system
 	roleBasedAISystem *ai.RoleBasedAISystem
@@ -293,7 +293,7 @@ func NewGame() *Game {
 		serverBrowser:      make([]*federation.ServerAnnouncement, 0),
 		browserIdx:         0,
 		useFederation:      false,
-		hazardSystem:       hazard.NewSystem(int64(seed)),
+		hazardECSSystem:    hazard.NewECSSystem(int64(seed)),
 		roleBasedAISystem:  ai.NewRoleBasedAISystem(),
 		spatialSystem:      spatial.NewSystem(64.0), // 64-unit cells for typical 10-50 unit queries
 		animationSystem:    animation.NewAnimationSystem("fantasy"),
@@ -341,6 +341,9 @@ func NewGame() *Game {
 
 	// Register dynamic lighting system with the World
 	g.world.AddSystem(g.lightingSystem)
+
+	// Register hazard ECS system with the World
+	g.world.AddSystem(g.hazardECSSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
@@ -680,9 +683,9 @@ func (g *Game) setupEventTriggers() {
 
 // generateHazards creates environmental hazards for the current level.
 func (g *Game) generateHazards() {
-	if g.hazardSystem != nil && g.currentMap != nil {
-		g.hazardSystem.SetGenre(g.genreID)
-		g.hazardSystem.GenerateHazards(g.currentMap, int64(g.seed))
+	if g.hazardECSSystem != nil && g.currentMap != nil {
+		g.hazardECSSystem.SetGenre(g.genreID)
+		g.hazardECSSystem.GenerateHazards(g.world, g.currentMap, int64(g.seed))
 	}
 }
 
@@ -913,8 +916,8 @@ func (g *Game) setGenre(genreID string) {
 	if g.loreGenerator != nil {
 		g.loreGenerator.SetGenre(genreID)
 	}
-	if g.hazardSystem != nil {
-		g.hazardSystem.SetGenre(genreID)
+	if g.hazardECSSystem != nil {
+		g.hazardECSSystem.SetGenre(genreID)
 	}
 	if g.decorationSystem != nil {
 		g.decorationSystem.SetGenre(genreID)
@@ -1540,10 +1543,8 @@ func (g *Game) updateV3Systems() {
 		g.secretManager.Update(deltaTime)
 	}
 
-	if g.hazardSystem != nil {
-		g.hazardSystem.Update(deltaTime)
-		g.checkHazardCollisions()
-	}
+	// Check for hazard collisions and apply damage/effects
+	g.checkHazardCollisions()
 
 	// Update enemy role-based AI and squad tactics
 	if g.roleBasedAISystem != nil {
@@ -1553,11 +1554,11 @@ func (g *Game) updateV3Systems() {
 
 // checkHazardCollisions tests player collision with environmental hazards.
 func (g *Game) checkHazardCollisions() {
-	if g.hazardSystem == nil {
+	if g.hazardECSSystem == nil {
 		return
 	}
 
-	hit, damage, statusEffect := g.hazardSystem.CheckCollision(g.camera.X, g.camera.Y)
+	hit, damage, statusEffect := g.hazardECSSystem.CheckCollision(g.world, g.camera.X, g.camera.Y)
 	if !hit {
 		return
 	}
@@ -3278,7 +3279,7 @@ func (g *Game) drawPlaying(screen *ebiten.Image) {
 	}
 
 	// Render environmental hazards
-	if g.hazardSystem != nil {
+	if g.hazardECSSystem != nil {
 		g.renderHazards(screen)
 	}
 
@@ -3590,7 +3591,7 @@ func (g *Game) renderShadows(screen *ebiten.Image) {
 
 // renderHazards draws environmental hazards as floor sprites in world space.
 func (g *Game) renderHazards(screen *ebiten.Image) {
-	hazards := g.hazardSystem.GetHazards()
+	hazards := g.hazardECSSystem.GetHazardsForRendering(g.world)
 
 	// Calculate camera plane for sprite projection
 	planeX := 0.0
@@ -3664,8 +3665,9 @@ func (g *Game) renderHazards(screen *ebiten.Image) {
 			alpha = 60
 			hazardColor = color.RGBA{r / 2, g / 2, b / 2, alpha}
 		case hazard.StateCharging:
-			// Pulsate warning
-			alpha = uint8(100 + int(h.Timer*400)%100)
+			// Pulsate warning (use frame counter for animation)
+			ticker := (time.Now().UnixMilli() / 3) % 100
+			alpha = uint8(100 + ticker)
 			hazardColor = color.RGBA{r, g, b, alpha}
 		case hazard.StateActive:
 			// Full brightness when active
@@ -3684,7 +3686,8 @@ func (g *Game) renderHazards(screen *ebiten.Image) {
 
 		// Draw warning indicator when charging
 		if h.State == hazard.StateCharging {
-			warningColor := color.RGBA{255, 255, 0, uint8(150 + int(h.Timer*600)%100)}
+			ticker := (time.Now().UnixMilli() / 2) % 100
+			warningColor := color.RGBA{255, 255, 0, uint8(150 + ticker)}
 			vector.StrokeRect(screen,
 				float32(drawStartX), float32(drawStartY),
 				float32(drawEndX-drawStartX), float32(drawEndY-drawStartY),
