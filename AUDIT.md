@@ -43,6 +43,7 @@ This file tracks the audit status of all Go sub-packages in the repository.
 - [x] pkg/squad — Complete — 8 issues (0 high, 2 med, 6 low)
 - [x] pkg/secret — Complete — 5 issues (0 high, 0 med, 5 low)
 - [x] pkg/loot — Needs Work — 9 issues (2 high, 3 med, 4 low)
+- [x] pkg/status — Needs Work — 10 issues (3 high, 3 med, 4 low)
 
 ## Audit Legend
 - [ ] Package not yet audited
@@ -52,4 +53,4 @@ This file tracks the audit status of all Go sub-packages in the repository.
 Minimum test coverage: 65%
 
 ## Last Updated
-2026-03-01 (pkg/loot audit completed)
+2026-03-01 (pkg/status audit completed)
