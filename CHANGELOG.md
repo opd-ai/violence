@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+#### Documentation
+- **GAPS.md Updated** — Audited and resolved all v1.0–v4.0 implementation gaps (2026-03-01)
+  - Confirmed complete implementation of procedural asset pipeline, ECS query system, lighting, pathfinding, cover detection, squad formations, and text generation
+  - Archived original GAPS.md to `docs/archive/GAPS_ORIGINAL_2026-03-01.md`
+  - Replaced with minimal v5.0+ tracker focusing on multiplayer features (key exchange, mobile input, federation hub hosting, mod sandboxing, profanity filters)
+  - **All core single-player and visual polish features are now implemented and tested**
+
 ## [5.0.0] - 2026-02-28
 
 ### Added
