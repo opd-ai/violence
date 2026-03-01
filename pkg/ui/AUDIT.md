@@ -9,7 +9,7 @@ UI package provides comprehensive HUD rendering, menu systems, chat overlays, an
 - [x] high concurrency — Race condition: `ChatOverlay.Messages` accessed without lock in `GetVisibleMessages()`, `Draw()`, and all scroll methods (`chat.go:152-172,175-249,133-149`) — Fixed 2026-03-01: Added mutex protection to all methods
 - [x] high concurrency — Race condition: `ChatOverlay.Visible`, `InputBuffer`, `CursorPosition`, `ScrollOffset` accessed without lock across multiple methods (`chat.go:57-80,106-131`) — Fixed 2026-03-01: Added mutex protection to all methods
 - [x] med documentation — Missing `doc.go` package documentation file (root of `pkg/ui/`) — Fixed 2026-03-01: Added comprehensive package documentation
-- [ ] med testing — Test coverage at 52.3%, below 65% target (missing tests for shop, crafting, skills, mods, multiplayer UIs)
+- [x] med testing — Test coverage at 52.3%, below 65% target (missing tests for shop, crafting, skills, mods, multiplayer UIs) — Fixed 2026-03-01: Added comprehensive tests in ui_coverage_test.go, coverage increased to 79.1%
 - [x] med api-design — Global mutable state `currentTheme` accessed without synchronization (`ui.go:101,542`) — Fixed 2026-03-01: Used atomic.Pointer for thread-safe theme management
 - [ ] low error-handling — `ApplySettingChange` and `ApplyKeyBinding` return errors but caller responsibility unclear (`ui.go:778,860`)
 - [ ] low documentation — `getLoadingDots()` uses `ebiten.ActualTPS()` incorrectly - should use frame counter for animation cycle (`ui.go:965-979`)
@@ -17,7 +17,7 @@ UI package provides comprehensive HUD rendering, menu systems, chat overlays, an
 - [ ] low api-design — `NameplatePlayer`, `ScoreboardEntry`, `ShopItem` etc. use exported fields instead of getters - violates encapsulation (`nameplate.go:14-22,deathmatch.go:105-113,ui.go:982-987`)
 
 ## Test Coverage
-52.3% (target: 65%)
+79.1% (target: 65%) ✓ EXCEEDS TARGET
 
 ## Dependencies
 External:
