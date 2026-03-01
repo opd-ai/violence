@@ -29,6 +29,7 @@ import (
 	"github.com/opd-ai/violence/pkg/engine"
 	"github.com/opd-ai/violence/pkg/event"
 	"github.com/opd-ai/violence/pkg/federation"
+	"github.com/opd-ai/violence/pkg/hazard"
 	"github.com/opd-ai/violence/pkg/input"
 	"github.com/opd-ai/violence/pkg/inventory"
 	"github.com/opd-ai/violence/pkg/lighting"
@@ -178,6 +179,9 @@ type Game struct {
 	chatInput       string   // Current chat message being typed
 	chatMessages    []string // Recent chat messages to display
 	chatInputActive bool     // Whether chat input is active
+
+	// Environmental hazard system
+	hazardSystem *hazard.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -246,6 +250,7 @@ func NewGame() *Game {
 		serverBrowser:      make([]*federation.ServerAnnouncement, 0),
 		browserIdx:         0,
 		useFederation:      false,
+		hazardSystem:       hazard.NewSystem(int64(seed)),
 	}
 
 	// Initialize BSP generator
@@ -380,6 +385,7 @@ func (g *Game) populateLevel() {
 	g.initializeSquad()
 	g.setupQuests(rooms)
 	g.setupEventTriggers()
+	g.generateHazards()
 }
 
 // placeDecorativeProps places decorative props in BSP rooms.
@@ -525,6 +531,14 @@ func (g *Game) setupEventTriggers() {
 	}
 
 	event.SetGenre(g.genreID)
+}
+
+// generateHazards creates environmental hazards for the current level.
+func (g *Game) generateHazards() {
+	if g.hazardSystem != nil && g.currentMap != nil {
+		g.hazardSystem.SetGenre(g.genreID)
+		g.hazardSystem.GenerateHazards(g.currentMap, int64(g.seed))
+	}
 }
 
 // initializePlayer sets up the player's starting position, stats, and equipment.
@@ -676,6 +690,9 @@ func (g *Game) setGenre(genreID string) {
 	}
 	if g.loreGenerator != nil {
 		g.loreGenerator.SetGenre(genreID)
+	}
+	if g.hazardSystem != nil {
+		g.hazardSystem.SetGenre(genreID)
 	}
 
 	// Generate genre-specific textures
@@ -1148,6 +1165,50 @@ func (g *Game) updateV3Systems() {
 	if g.secretManager != nil {
 		g.secretManager.Update(deltaTime)
 	}
+
+	if g.hazardSystem != nil {
+		g.hazardSystem.Update(deltaTime)
+		g.checkHazardCollisions()
+	}
+}
+
+// checkHazardCollisions tests player collision with environmental hazards.
+func (g *Game) checkHazardCollisions() {
+	if g.hazardSystem == nil {
+		return
+	}
+
+	hit, damage, statusEffect := g.hazardSystem.CheckCollision(g.camera.X, g.camera.Y)
+	if !hit {
+		return
+	}
+
+	// Apply damage
+	healthDamage := damage
+	if g.hud.Armor > 0 {
+		armorDamage := damage / 2
+		g.hud.Armor -= armorDamage
+		if g.hud.Armor < 0 {
+			healthDamage = -g.hud.Armor
+			g.hud.Armor = 0
+		} else {
+			healthDamage = damage / 2
+		}
+	}
+
+	g.hud.Health -= healthDamage
+	if g.hud.Health < 0 {
+		g.hud.Health = 0
+	}
+
+	// Apply status effect if present
+	if statusEffect != "" && g.statusReg != nil {
+		g.statusReg.Apply(statusEffect)
+		g.hud.ShowMessage("Hazard! " + statusEffect)
+	}
+
+	// Screen shake on hazard hit
+	g.audioEngine.PlaySFX("hit", g.camera.X, g.camera.Y)
 }
 
 // updateLightingAndAudio updates lighting calculations and audio positioning.
@@ -2815,6 +2876,11 @@ func (g *Game) drawPlaying(screen *ebiten.Image) {
 		g.renderParticles(screen)
 	}
 
+	// Render environmental hazards
+	if g.hazardSystem != nil {
+		g.renderHazards(screen)
+	}
+
 	// Render automap overlay if visible
 	if g.automapVisible && g.automap != nil {
 		g.drawAutomap(screen)
@@ -3084,6 +3150,111 @@ func (g *Game) renderShadows(screen *ebiten.Image) {
 
 	// Render shadows
 	g.shadowSystem.RenderShadows(screen, casters, lights, coneLights, g.camera.X, g.camera.Y)
+}
+
+// renderHazards draws environmental hazards as floor sprites in world space.
+func (g *Game) renderHazards(screen *ebiten.Image) {
+	hazards := g.hazardSystem.GetHazards()
+
+	// Calculate camera plane for sprite projection
+	planeX := 0.0
+	planeY := 0.66
+	if g.camera.DirX != 0 || g.camera.DirY != 0 {
+		planeX = -g.camera.DirY * 0.66
+		planeY = g.camera.DirX * 0.66
+	}
+
+	for _, h := range hazards {
+		dx := h.X - g.camera.X
+		dy := h.Y - g.camera.Y
+
+		// Simple distance culling
+		distSq := dx*dx + dy*dy
+		if distSq > 400 {
+			continue
+		}
+
+		// Transform to camera space
+		invDet := 1.0 / (planeX*g.camera.DirY - g.camera.DirX*planeY)
+		transformX := invDet * (g.camera.DirY*dx - g.camera.DirX*dy)
+		transformY := invDet * (-planeY*dx + planeX*dy)
+
+		// Skip hazards behind camera
+		if transformY <= 0.1 {
+			continue
+		}
+
+		// Calculate screen position
+		spriteScreenX := int((float64(config.C.InternalWidth) / 2.0) * (1.0 + transformX/transformY))
+
+		// Calculate size based on distance and hazard dimensions
+		spriteHeight := int(float64(config.C.InternalHeight) / transformY * h.Height)
+		spriteWidth := int(float64(config.C.InternalWidth) / transformY * h.Width)
+
+		// Draw bounds
+		drawStartX := spriteScreenX - spriteWidth/2
+		drawEndX := spriteScreenX + spriteWidth/2
+		drawStartY := config.C.InternalHeight/2 + spriteHeight/4 // Offset down for floor effect
+		drawEndY := config.C.InternalHeight/2 + spriteHeight/4 + spriteHeight/2
+
+		// Clip to screen bounds
+		if drawEndX < 0 || drawStartX >= config.C.InternalWidth {
+			continue
+		}
+		if drawStartX < 0 {
+			drawStartX = 0
+		}
+		if drawEndX >= config.C.InternalWidth {
+			drawEndX = config.C.InternalWidth - 1
+		}
+		if drawStartY < 0 {
+			drawStartY = 0
+		}
+		if drawEndY >= config.C.InternalHeight {
+			drawEndY = config.C.InternalHeight - 1
+		}
+
+		// Determine visual representation based on state
+		var hazardColor color.RGBA
+		alpha := uint8(180)
+
+		// Extract RGB from color
+		r := uint8((h.Color >> 16) & 0xFF)
+		g := uint8((h.Color >> 8) & 0xFF)
+		b := uint8(h.Color & 0xFF)
+
+		switch h.State {
+		case hazard.StateInactive:
+			alpha = 60
+			hazardColor = color.RGBA{r / 2, g / 2, b / 2, alpha}
+		case hazard.StateCharging:
+			// Pulsate warning
+			alpha = uint8(100 + int(h.Timer*400)%100)
+			hazardColor = color.RGBA{r, g, b, alpha}
+		case hazard.StateActive:
+			// Full brightness when active
+			alpha = 220
+			hazardColor = color.RGBA{r, g, b, alpha}
+		case hazard.StateCooldown:
+			alpha = 100
+			hazardColor = color.RGBA{r / 2, g / 2, b / 2, alpha}
+		}
+
+		// Draw hazard sprite
+		vector.DrawFilledRect(screen,
+			float32(drawStartX), float32(drawStartY),
+			float32(drawEndX-drawStartX), float32(drawEndY-drawStartY),
+			hazardColor, false)
+
+		// Draw warning indicator when charging
+		if h.State == hazard.StateCharging {
+			warningColor := color.RGBA{255, 255, 0, uint8(150 + int(h.Timer*600)%100)}
+			vector.StrokeRect(screen,
+				float32(drawStartX), float32(drawStartY),
+				float32(drawEndX-drawStartX), float32(drawEndY-drawStartY),
+				2, warningColor, false)
+		}
+	}
 }
 
 // drawAutomap renders the automap overlay.
