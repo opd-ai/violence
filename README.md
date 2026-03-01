@@ -78,8 +78,53 @@ go build -o violence-server ./cmd/server
 ```
 
 Server flags:
-- `-port` — UDP port to listen on (default: 7777)
+- `-port` — TCP port to listen on (default: 7777)
 - `-log-level` — Logging verbosity: debug, info, warn, error (default: info)
+
+## Federation Hub
+
+The federation hub enables cross-server matchmaking and discovery for multiplayer games. It maintains a registry of active game servers and allows players to discover servers across different instances.
+
+Run a federation hub:
+
+```sh
+go build -o federation-hub ./cmd/federation-hub
+./federation-hub -addr :8080 -log-level info
+```
+
+Federation hub flags:
+- `-addr` — HTTP server address to listen on (default: :8080)
+- `-auth-token` — Optional authentication token for server registration (default: none)
+- `-peers` — Comma-separated list of peer hub URLs for federation syncing (default: none)
+- `-log-level` — Logging verbosity: debug, info, warn, error (default: info)
+- `-rate-limit` — Rate limit per IP in requests per minute (default: 60)
+
+### API Endpoints
+
+- `POST /announce` — Register a game server with the hub
+- `GET /query` — Query available game servers by genre or match type
+- `GET /lookup` — Look up specific server by ID
+- `GET /health` — Health check endpoint with uptime and server count
+- `GET /metrics` — Prometheus-compatible metrics endpoint
+
+### Example Usage
+
+Start a federation hub:
+```sh
+./federation-hub -addr :8080
+```
+
+Game servers can announce themselves to the hub:
+```sh
+curl -X POST http://localhost:8080/announce \
+  -H "Content-Type: application/json" \
+  -d '{"server_id":"server1","address":"192.168.1.100:7777","genre":"scifi","max_players":16}'
+```
+
+Query available servers:
+```sh
+curl http://localhost:8080/query?genre=scifi
+```
 
 ## Configuration
 

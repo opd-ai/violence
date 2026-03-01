@@ -1,82 +1,85 @@
-# Implementation Gaps — v5.0+ Multiplayer & Production
+# Implementation Gaps — v6.0 Production Hardening
 
 **Last Updated**: 2026-03-01
 
 ## Status Summary
 
-**v1.0 – v4.0**: ✓ ALL GAPS RESOLVED
+**v1.0 – v5.0**: ✓ ALL CORE FEATURES COMPLETE
 
-All core engine features, weapons, AI, visual polish, and gameplay expansion gaps have been fully implemented and tested. See `docs/archive/GAPS_ORIGINAL_2026-03-01.md` for historical record.
+All milestones through v5.0 are implemented and tested:
+- ✅ Key Exchange Protocol (`pkg/chat/keyexchange.go` — ECDH P-256, HKDF-SHA3-256, AES-256-GCM)
+- ✅ Mobile Touch Controls (`pkg/input/touch.go` — virtual joystick, touch-to-look, action buttons)
+- ✅ Federation Hub (`cmd/federation-hub/` — HTTP API, peer sync, rate limiting)
+- ✅ WASM Mod Sandboxing (`pkg/mod/wasm_loader.go` — Wasmer runtime, capability-based security)
+- ✅ Profanity Filter Framework (`pkg/chat/filter.go` — procedural wordlist generation)
 
-**v5.0+**: Multiplayer and production features require design and implementation.
+**v6.0**: Production hardening features in design/implementation phase.
 
 ---
 
-## v5.0+ Remaining Work
+## v6.0 Remaining Work
 
-### Multiplayer — Core Networking
+### Multiplayer — Competitive Features
 
-- [ ] **Key Exchange Protocol** — Design and implement ECDH key exchange for E2E encrypted chat
-  - **Status**: Networking infrastructure exists (`pkg/network`), chat relay exists (`pkg/chat`), but key exchange not implemented
-  - **Acceptance**: Two clients can establish shared AES key via ECDH without pre-shared secrets
-  - **Files needed**: `pkg/chat/keyexchange.go`
+- [ ] **Matchmaking Algorithm** — Elo-based skill rating and team balancing
+  - **Status**: Queue infrastructure exists, balancing algorithm not implemented
+  - **Acceptance**: Teams balanced within 10% average Elo; configurable tolerance
+  - **Files needed**: `pkg/network/matchmaking.go`
 
-### Multiplayer — Platform Support
+- [ ] **Anti-Cheat Foundation** — Server-side input validation
+  - **Status**: Authoritative server exists, validation rules not implemented
+  - **Acceptance**: Detects speed/damage hacks; logs anomalies for review
+  - **Files needed**: `pkg/network/anticheat.go`
 
-- [ ] **Mobile Input Mapping** — Design touch control overlay for iOS/Android builds
-  - **Status**: Gamepad and keyboard/mouse implemented, mobile touch controls not designed
-  - **Acceptance**: Virtual joystick for movement, touch-to-aim, tap buttons for actions
-  - **Files needed**: `pkg/input/touch.go`, `pkg/ui/touchoverlay.go`
+### Production — Persistence
 
-### Multiplayer — Federation
+- [ ] **Replay System** — Deterministic recording and playback
+  - **Status**: Deterministic RNG exists, replay format not defined
+  - **Acceptance**: Binary format captures inputs; playback reproduces game exactly
+  - **Files needed**: `pkg/replay/`
 
-- [ ] **Federation Hub Hosting** — Specify self-hosting architecture or DHT approach
-  - **Status**: Federation protocol exists (`pkg/federation`), hub hosting strategy undefined
-  - **Acceptance**: Documentation on running self-hosted federation hub or DHT node
-  - **Files needed**: `docs/federation-hosting.md`, possible DHT implementation
+- [ ] **Leaderboards** — Score aggregation and ranking
+  - **Status**: Not implemented
+  - **Acceptance**: Local SQLite storage; federated aggregation optional
+  - **Files needed**: `pkg/leaderboard/`
 
-### Production — Modding
-
-- [ ] **Mod Sandboxing** — Define security model for Go plugins or evaluate WASM runtime
-  - **Status**: Mod loader exists (`pkg/mod`), but no sandboxing or security restrictions
-  - **Acceptance**: Mods cannot access filesystem/network outside permitted paths; documented security model
-  - **Files needed**: `pkg/mod/sandbox.go`, `docs/mod-security.md`
+- [ ] **Achievements** — Progress tracking and unlocks
+  - **Status**: Not implemented
+  - **Acceptance**: Condition-based unlocks; persistent storage; toast notifications
+  - **Files needed**: `pkg/achievements/`
 
 ### Production — Content Safety
 
-- [ ] **Profanity Word List** — Compile and load localized word lists for chat filter
-  - **Status**: Chat filter toggle exists, word lists not provided
-  - **Acceptance**: English, Spanish, German, French, Portuguese profanity lists loaded from config
-  - **Files needed**: `pkg/chat/wordlists/`, `pkg/chat/filter.go`
+- [ ] **Enhanced Profanity Patterns** — L33t speak and variant detection
+  - **Status**: Basic filter works, variant detection limited
+  - **Acceptance**: Detects common substitutions (a→4, e→3, etc.)
+  - **Files needed**: `pkg/chat/filter.go` enhancement
 
 ---
 
-## Design Needed (No Active Tasks Yet)
+## Design Needed (Deferred to v6.1+)
 
-The following features require design before implementation can begin:
-
-- **Matchmaking Algorithm** — How to balance teams in deathmatch/co-op
-- **Anti-Cheat Strategy** — Server-side validation approach
-- **Replay System** — Deterministic replay recording format
-- **Leaderboards** — Score aggregation and persistence
-- **Achievements** — Local and server-synced achievement tracking
+- **DHT Federation**: LibP2P-based decentralized hub discovery
+- **Mod Marketplace**: Centralized mod distribution platform
+- **Mobile Store Publishing**: iOS/Android submission workflows
+- **Cross-Save Sync**: Cloud save synchronization
 
 ---
 
 ## Completion Criteria
 
-v5.0 is considered feature-complete when:
-1. ✓ All checkboxes above marked complete
-2. ✓ Multiplayer integration tests pass (4-player co-op, deathmatch)
-3. ✓ Mobile builds deploy to iOS/Android and accept touch input
-4. ✓ Federation cross-server matchmaking functional
-5. ✓ Mod security model documented and enforced
-6. ✓ Chat profanity filter active for all supported languages
+v6.0 is considered feature-complete when:
+1. ✓ Matchmaking balances teams fairly in <30 seconds queue time
+2. ✓ Anti-cheat validates all movement and damage server-side
+3. ✓ Replays play back identically on any platform
+4. ✓ Leaderboards persist and display correctly
+5. ✓ Achievements unlock based on defined conditions
+6. ✓ 82%+ test coverage maintained
 
 ---
 
 ## Notes
 
-- v1.0 – v4.0 work is **complete** and should not be reopened unless critical bugs discovered.
-- Focus on v5.0 multiplayer features to unlock co-op and deathmatch modes.
-- Mobile and federation features are lower priority until core multiplayer is validated.
+- v5.0 work is **complete** — core multiplayer functional
+- v6.0 focuses on competitive features and persistence
+- DHT and marketplace deferred until player base established

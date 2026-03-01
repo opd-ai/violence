@@ -177,3 +177,30 @@ func TestSetGenre(t *testing.T) {
 	SetGenre("scifi")
 	SetGenre("")
 }
+
+// TestServerUsesTCP verifies that the server uses TCP protocol as documented
+func TestServerUsesTCP(t *testing.T) {
+	server := &Server{Port: 10004}
+	if err := server.Listen(); err != nil {
+		t.Fatalf("failed to listen: %v", err)
+	}
+	defer server.Close()
+
+	// Verify we can connect using TCP
+	client := &Client{}
+	if err := client.Connect("localhost:10004"); err != nil {
+		t.Fatalf("TCP connection failed: %v", err)
+	}
+	defer client.Close()
+
+	// Accept the connection
+	conn, err := server.Accept()
+	if err != nil {
+		t.Fatalf("accept failed: %v", err)
+	}
+
+	// Verify connection type is TCP
+	if conn.RemoteAddr().Network() != "tcp" {
+		t.Errorf("expected TCP protocol, got %s", conn.RemoteAddr().Network())
+	}
+}

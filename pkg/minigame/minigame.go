@@ -149,6 +149,10 @@ func (l *LockpickGame) Advance() {
 	if l.Position > 1.0 {
 		l.Position = 0
 	}
+	// Clamp to valid range for defensive programming
+	if l.Position < 0 {
+		l.Position = 0
+	}
 }
 
 // Attempt tries to unlock current pin at current position.

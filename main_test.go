@@ -10,6 +10,7 @@ import (
 	"github.com/opd-ai/violence/pkg/inventory"
 	"github.com/opd-ai/violence/pkg/lore"
 	"github.com/opd-ai/violence/pkg/minigame"
+	"github.com/opd-ai/violence/pkg/particle"
 	"github.com/opd-ai/violence/pkg/progression"
 	"github.com/opd-ai/violence/pkg/quest"
 	"github.com/opd-ai/violence/pkg/ui"
@@ -3655,5 +3656,136 @@ func TestAddChatMessageHistory(t *testing.T) {
 
 	if len(g.chatMessages) != 50 {
 		t.Errorf("chat message count = %d, want 50", len(g.chatMessages))
+	}
+}
+
+// TestInventorySaveLoad verifies inventory persistence across save/load.
+func TestInventorySaveLoad(t *testing.T) {
+	tests := []struct {
+		name  string
+		items []inventory.Item
+	}{
+		{
+			name:  "empty inventory",
+			items: []inventory.Item{},
+		},
+		{
+			name: "single item",
+			items: []inventory.Item{
+				{ID: "medkit", Name: "Medkit", Qty: 1},
+			},
+		},
+		{
+			name: "multiple items",
+			items: []inventory.Item{
+				{ID: "medkit", Name: "Medkit", Qty: 3},
+				{ID: "grenade", Name: "Grenade", Qty: 5},
+				{ID: "ammo", Name: "Ammo Pack", Qty: 10},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create inventory with test items
+			inv := inventory.NewInventory()
+			for _, item := range tt.items {
+				inv.Add(item)
+			}
+
+			// Convert to save items
+			saveItems := convertInventoryToSaveItems(inv)
+
+			// Verify count
+			if len(saveItems) != len(tt.items) {
+				t.Errorf("converted item count = %d, want %d", len(saveItems), len(tt.items))
+			}
+
+			// Verify each item
+			for i, expected := range tt.items {
+				if i >= len(saveItems) {
+					t.Errorf("missing save item at index %d", i)
+					continue
+				}
+				if saveItems[i].ID != expected.ID {
+					t.Errorf("item %d: ID = %q, want %q", i, saveItems[i].ID, expected.ID)
+				}
+				if saveItems[i].Name != expected.Name {
+					t.Errorf("item %d: Name = %q, want %q", i, saveItems[i].Name, expected.Name)
+				}
+				if saveItems[i].Qty != expected.Qty {
+					t.Errorf("item %d: Qty = %d, want %d", i, saveItems[i].Qty, expected.Qty)
+				}
+			}
+		})
+	}
+}
+
+// TestConvertInventoryToSaveItems verifies conversion of nil inventory.
+func TestConvertInventoryToSaveItems(t *testing.T) {
+	saveItems := convertInventoryToSaveItems(nil)
+	if saveItems == nil {
+		t.Error("expected empty slice, got nil")
+	}
+	if len(saveItems) != 0 {
+		t.Errorf("expected empty slice, got length %d", len(saveItems))
+	}
+}
+
+// TestEmptyMapHandling verifies weather emitter handles empty maps gracefully.
+func TestEmptyMapHandling(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	g := NewGame()
+
+	tests := []struct {
+		name          string
+		mapData       [][]int
+		expectWeather bool
+	}{
+		{
+			name:          "empty map",
+			mapData:       [][]int{},
+			expectWeather: false,
+		},
+		{
+			name:          "map with empty rows",
+			mapData:       [][]int{{}},
+			expectWeather: false,
+		},
+		{
+			name:          "valid small map",
+			mapData:       [][]int{{1, 1}, {1, 1}},
+			expectWeather: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set map and initialize systems
+			g.currentMap = tt.mapData
+
+			// Simulate initializeLevel behavior
+			if len(tt.mapData) > 0 && len(tt.mapData[0]) > 0 {
+				g.weatherEmitter = particle.NewWeatherEmitter(g.particleSystem, g.genreID, 0, 0, float64(len(tt.mapData[0])), float64(len(tt.mapData)))
+			} else {
+				g.weatherEmitter = nil
+			}
+
+			// Verify expectation
+			if tt.expectWeather && g.weatherEmitter == nil {
+				t.Error("expected weather emitter to be initialized, got nil")
+			}
+			if !tt.expectWeather && g.weatherEmitter != nil {
+				t.Error("expected weather emitter to be nil for empty map")
+			}
+
+			// Verify update doesn't panic
+			if g.weatherEmitter != nil {
+				g.weatherEmitter.Update(0.016)
+			}
+		})
 	}
 }

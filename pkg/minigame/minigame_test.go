@@ -550,3 +550,38 @@ func TestAllMiniGamesImplementInterface(t *testing.T) {
 		})
 	}
 }
+
+// TestLockpickGame_PositionClamping verifies position stays in valid range.
+func TestLockpickGame_PositionClamping(t *testing.T) {
+	game := NewLockpickGame(1, 12345)
+	game.Start()
+
+	// Advance multiple times and verify position stays in [0, 1]
+	for i := 0; i < 50; i++ {
+		game.Advance()
+		if game.Position < 0 {
+			t.Errorf("position went below 0: %f", game.Position)
+		}
+		if game.Position > 1.0 {
+			t.Errorf("position exceeded 1.0: %f", game.Position)
+		}
+	}
+}
+
+// TestLockpickGame_PositionWrapping verifies position wraps at boundary.
+func TestLockpickGame_PositionWrapping(t *testing.T) {
+	game := NewLockpickGame(1, 12345)
+	game.Start()
+	game.Speed = 0.6 // Large speed to trigger wrap quickly
+
+	// Advance twice should wrap (0 + 0.6 = 0.6, then 0.6 + 0.6 = 1.2 -> 0)
+	game.Advance()
+	if game.Position < 0.5 || game.Position > 0.65 {
+		t.Errorf("first advance: position = %f, want ~0.6", game.Position)
+	}
+
+	game.Advance()
+	if game.Position < 0 || game.Position > 0.3 {
+		t.Errorf("second advance: position = %f, want ~0.2 (wrapped)", game.Position)
+	}
+}

@@ -414,3 +414,4 @@ The following packages are architecture-neutral and can be copied or imported di
 - 2026-02-28 PLAN.md created for v3.0 — Visual Polish: Textures, Lighting, Particles, Indoor Weather
 - 2026-02-28 PLAN.md created for v4.0 — Gameplay Expansion: Secrets, Upgrades, Squad AI, Storytelling
 - 2026-02-28 PLAN.md created for v5.0+ — Multiplayer, Social Features, Production Polish
+- 2026-03-01 PLAN.md created for v6.0 — Production Hardening & Feature Completion

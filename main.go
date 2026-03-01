@@ -356,10 +356,12 @@ func (g *Game) generateLevel() {
 
 	if len(tiles) > 0 && len(tiles[0]) > 0 {
 		g.automap = automap.NewMap(len(tiles[0]), len(tiles))
+		g.lightMap = lighting.NewSectorLightMap(len(tiles[0]), len(tiles), 0.3)
+		g.weatherEmitter = particle.NewWeatherEmitter(g.particleSystem, g.genreID, 0, 0, float64(len(tiles[0])), float64(len(tiles)))
+	} else {
+		g.lightMap = lighting.NewSectorLightMap(0, 0, 0.3)
+		g.weatherEmitter = nil
 	}
-
-	g.lightMap = lighting.NewSectorLightMap(len(tiles[0]), len(tiles), 0.3)
-	g.weatherEmitter = particle.NewWeatherEmitter(g.particleSystem, g.genreID, 0, 0, float64(len(tiles[0])), float64(len(tiles)))
 	g.setGenre(g.genreID)
 }
 
@@ -731,6 +733,18 @@ func (g *Game) loadGame(slot int) {
 		// Clear current ammo and restore from save
 		for ammoType, amount := range state.AmmoPool {
 			g.ammoPool.Set(ammoType, amount)
+		}
+	}
+
+	// Restore inventory
+	if g.playerInventory != nil && len(state.Inventory.Items) > 0 {
+		g.playerInventory = inventory.NewInventory()
+		for _, saveItem := range state.Inventory.Items {
+			g.playerInventory.Add(inventory.Item{
+				ID:   saveItem.ID,
+				Name: saveItem.Name,
+				Qty:  saveItem.Qty,
+			})
 		}
 	}
 
@@ -1296,6 +1310,25 @@ func (g *Game) isWalkable(x, y float64) bool {
 // tryInteractDoor checks if player is facing a door and attempts to open it.
 // Also checks for secret walls that can be triggered.
 func (g *Game) tryInteractDoor() {
+	mapX, mapY, valid := g.getInteractionTileCoords()
+	if !valid {
+		return
+	}
+
+	tile := g.currentMap[mapY][mapX]
+
+	if tile == bsp.TileSecret {
+		g.handleSecretWall(mapX, mapY)
+		return
+	}
+
+	if tile == bsp.TileDoor {
+		g.handleDoorInteraction(mapX, mapY)
+	}
+}
+
+// getInteractionTileCoords calculates the tile coordinates the player is facing.
+func (g *Game) getInteractionTileCoords() (int, int, bool) {
 	checkDist := 1.5
 	checkX := g.camera.X + g.camera.DirX*checkDist
 	checkY := g.camera.Y + g.camera.DirY*checkDist
@@ -1303,38 +1336,35 @@ func (g *Game) tryInteractDoor() {
 	mapY := int(checkY)
 
 	if g.currentMap == nil || len(g.currentMap) == 0 {
-		return
+		return 0, 0, false
 	}
 	if mapY < 0 || mapY >= len(g.currentMap) || mapX < 0 || mapX >= len(g.currentMap[0]) {
-		return
+		return 0, 0, false
 	}
 
-	tile := g.currentMap[mapY][mapX]
+	return mapX, mapY, true
+}
 
-	// Check for secret walls first
-	if tile == bsp.TileSecret {
-		if g.secretManager != nil && g.secretManager.TriggerAt(mapX, mapY, "player") {
-			g.audioEngine.PlaySFX("secret_open", float64(mapX), float64(mapY))
-			g.hud.ShowMessage("Secret discovered!")
-			// Update quest tracker for secret discovery
-			if g.questTracker != nil {
-				g.questTracker.UpdateProgress("bonus_secrets", 1)
-			}
+// handleSecretWall triggers a secret wall and updates quest progress.
+func (g *Game) handleSecretWall(mapX, mapY int) {
+	if g.secretManager != nil && g.secretManager.TriggerAt(mapX, mapY, "player") {
+		g.audioEngine.PlaySFX("secret_open", float64(mapX), float64(mapY))
+		g.hud.ShowMessage("Secret discovered!")
+		if g.questTracker != nil {
+			g.questTracker.UpdateProgress("bonus_secrets", 1)
 		}
-		return
 	}
+}
 
-	if tile == bsp.TileDoor {
-		requiredColor := g.getDoorColor(mapX, mapY)
-		if requiredColor == "" || g.keycards[requiredColor] {
-			// Open door immediately if no keycard required or player has keycard
-			g.currentMap[mapY][mapX] = bsp.TileFloor
-			g.raycaster.SetMap(g.currentMap)
-			g.audioEngine.PlaySFX("door_open", float64(mapX), float64(mapY))
-		} else {
-			// Door is locked - offer lockpicking minigame
-			g.startMinigame(mapX, mapY)
-		}
+// handleDoorInteraction opens a door or starts lockpicking minigame.
+func (g *Game) handleDoorInteraction(mapX, mapY int) {
+	requiredColor := g.getDoorColor(mapX, mapY)
+	if requiredColor == "" || g.keycards[requiredColor] {
+		g.currentMap[mapY][mapX] = bsp.TileFloor
+		g.raycaster.SetMap(g.currentMap)
+		g.audioEngine.PlaySFX("door_open", float64(mapX), float64(mapY))
+	} else {
+		g.startMinigame(mapX, mapY)
 	}
 }
 
@@ -1585,62 +1615,87 @@ func (g *Game) handleShopPurchase() {
 // applyShopItem applies the effects of a purchased shop item.
 func (g *Game) applyShopItem(itemID string) {
 	switch itemID {
-	case "ammo_bullets":
-		g.ammoPool.Add("bullets", 20)
-	case "ammo_shells":
-		g.ammoPool.Add("shells", 10)
-	case "ammo_cells":
-		g.ammoPool.Add("cells", 15)
-	case "ammo_rockets":
-		g.ammoPool.Add("rockets", 5)
-	case "ammo_arrows":
-		g.ammoPool.Add("arrows", 20)
-	case "ammo_bolts":
-		g.ammoPool.Add("bolts", 10)
+	case "ammo_bullets", "ammo_shells", "ammo_cells", "ammo_rockets", "ammo_arrows", "ammo_bolts":
+		g.applyAmmoItem(itemID)
+	case "medkit", "grenade", "plasma_grenade", "emp_grenade", "bomb", "proximity_mine":
+		g.applyConsumableItem(itemID)
+	case "armor_vest":
+		g.applyArmorItem()
+	case "upgrade_damage", "upgrade_firerate", "upgrade_clipsize", "upgrade_accuracy", "upgrade_range":
+		g.applyWeaponUpgrade(itemID)
+	}
+	g.updateHUDAmmo()
+}
+
+// applyAmmoItem adds ammunition to the ammo pool.
+func (g *Game) applyAmmoItem(itemID string) {
+	ammoAmounts := map[string]int{
+		"ammo_bullets": 20,
+		"ammo_shells":  10,
+		"ammo_cells":   15,
+		"ammo_rockets": 5,
+		"ammo_arrows":  20,
+		"ammo_bolts":   10,
+	}
+
+	if amount, ok := ammoAmounts[itemID]; ok {
+		ammoType := itemID[5:]
+		g.ammoPool.Add(ammoType, amount)
+	}
+}
+
+// applyConsumableItem adds consumable items to inventory.
+func (g *Game) applyConsumableItem(itemID string) {
+	switch itemID {
 	case "medkit":
 		g.playerInventory.Add(inventory.Item{ID: "medkit", Name: "Medkit", Qty: 1})
 	case "grenade", "plasma_grenade", "emp_grenade", "bomb":
 		g.playerInventory.Add(inventory.Item{ID: "grenade", Name: "Grenade", Qty: 1})
 	case "proximity_mine":
 		g.playerInventory.Add(inventory.Item{ID: "proximity_mine", Name: "Proximity Mine", Qty: 1})
-	case "armor_vest":
-		g.hud.Armor += 50
-		if g.hud.Armor > g.hud.MaxArmor {
-			g.hud.Armor = g.hud.MaxArmor
-		}
-	// Weapon upgrades
-	case "upgrade_damage":
-		currentWeapon := g.arsenal.GetCurrentWeapon()
-		weaponID := currentWeapon.Name
-		if g.upgradeManager.ApplyUpgrade(weaponID, upgrade.UpgradeDamage, 2) {
-			g.hud.ShowMessage("Damage upgrade applied!")
-		}
-	case "upgrade_firerate":
-		currentWeapon := g.arsenal.GetCurrentWeapon()
-		weaponID := currentWeapon.Name
-		if g.upgradeManager.ApplyUpgrade(weaponID, upgrade.UpgradeFireRate, 2) {
-			g.hud.ShowMessage("Fire rate upgrade applied!")
-		}
-	case "upgrade_clipsize":
-		currentWeapon := g.arsenal.GetCurrentWeapon()
-		weaponID := currentWeapon.Name
-		if g.upgradeManager.ApplyUpgrade(weaponID, upgrade.UpgradeClipSize, 2) {
-			g.hud.ShowMessage("Clip size upgrade applied!")
-		}
-	case "upgrade_accuracy":
-		currentWeapon := g.arsenal.GetCurrentWeapon()
-		weaponID := currentWeapon.Name
-		if g.upgradeManager.ApplyUpgrade(weaponID, upgrade.UpgradeAccuracy, 2) {
-			g.hud.ShowMessage("Accuracy upgrade applied!")
-		}
-	case "upgrade_range":
-		currentWeapon := g.arsenal.GetCurrentWeapon()
-		weaponID := currentWeapon.Name
-		if g.upgradeManager.ApplyUpgrade(weaponID, upgrade.UpgradeRange, 2) {
-			g.hud.ShowMessage("Range upgrade applied!")
+	}
+}
+
+// applyArmorItem increases player armor.
+func (g *Game) applyArmorItem() {
+	g.hud.Armor += 50
+	if g.hud.Armor > g.hud.MaxArmor {
+		g.hud.Armor = g.hud.MaxArmor
+	}
+}
+
+// applyWeaponUpgrade applies an upgrade to the current weapon.
+func (g *Game) applyWeaponUpgrade(itemID string) {
+	currentWeapon := g.arsenal.GetCurrentWeapon()
+	weaponID := currentWeapon.Name
+
+	upgradeMap := map[string]upgrade.UpgradeType{
+		"upgrade_damage":   upgrade.UpgradeDamage,
+		"upgrade_firerate": upgrade.UpgradeFireRate,
+		"upgrade_clipsize": upgrade.UpgradeClipSize,
+		"upgrade_accuracy": upgrade.UpgradeAccuracy,
+		"upgrade_range":    upgrade.UpgradeRange,
+	}
+
+	upgradeMessages := map[string]string{
+		"upgrade_damage":   "Damage upgrade applied!",
+		"upgrade_firerate": "Fire rate upgrade applied!",
+		"upgrade_clipsize": "Clip size upgrade applied!",
+		"upgrade_accuracy": "Accuracy upgrade applied!",
+		"upgrade_range":    "Range upgrade applied!",
+	}
+
+	if upgradeType, ok := upgradeMap[itemID]; ok {
+		if g.upgradeManager.ApplyUpgrade(weaponID, upgradeType, 2) {
+			if msg, exists := upgradeMessages[itemID]; exists {
+				g.hud.ShowMessage(msg)
+			}
 		}
 	}
-	// Update HUD ammo display
+}
+
+// updateHUDAmmo refreshes the HUD ammo display.
+func (g *Game) updateHUDAmmo() {
 	currentWeapon := g.arsenal.GetCurrentWeapon()
 	g.hud.Ammo = g.ammoPool.Get(currentWeapon.AmmoType)
 }
@@ -2620,6 +2675,26 @@ func (g *Game) scanMods() {
 	}
 }
 
+// convertInventoryToSaveItems converts inventory.Item slice to save.Item slice
+func convertInventoryToSaveItems(inv *inventory.Inventory) []save.Item {
+	if inv == nil {
+		return []save.Item{}
+	}
+
+	// Thread-safe access to inventory items
+	inv.Items = append([]inventory.Item{}, inv.Items...)
+
+	saveItems := make([]save.Item, len(inv.Items))
+	for i, item := range inv.Items {
+		saveItems[i] = save.Item{
+			ID:   item.ID,
+			Name: item.Name,
+			Qty:  item.Qty,
+		}
+	}
+	return saveItems
+}
+
 // saveGame saves the current game state.
 func (g *Game) saveGame(slot int) {
 	// Collect ammo pool state
@@ -2651,7 +2726,7 @@ func (g *Game) saveGame(slot int) {
 			Height: len(g.currentMap),
 			Tiles:  g.currentMap,
 		},
-		Inventory: save.Inventory{Items: []save.Item{}}, // TODO: populate from inventory system when implemented
+		Inventory: save.Inventory{Items: convertInventoryToSaveItems(g.playerInventory)},
 		Progression: save.ProgressionState{
 			Level: g.progression.GetLevel(),
 			XP:    g.progression.GetXP(),
@@ -3349,62 +3424,50 @@ func (g *Game) drawCircuitGame(screen *ebiten.Image, centerX, centerY float32) {
 		return
 	}
 
-	// Draw title
-	titleText := "CIRCUIT TRACE"
-	titleBounds := text.BoundString(basicfont.Face7x13, titleText)
-	titleX := int(centerX) - titleBounds.Dx()/2
-	titleY := int(centerY) - 110
-	text.Draw(screen, titleText, basicfont.Face7x13, titleX, titleY, color.RGBA{0, 255, 200, 255})
-
-	// Draw instructions
-	instrText := "Arrow keys to navigate. Reach BLUE target!"
-	instrBounds := text.BoundString(basicfont.Face7x13, instrText)
-	instrX := int(centerX) - instrBounds.Dx()/2
-	instrY := int(centerY) - 95
-	text.Draw(screen, instrText, basicfont.Face7x13, instrX, instrY, color.RGBA{200, 200, 200, 255})
-
-	// Draw move counter
-	movesText := fmt.Sprintf("Moves: %d/%d", circuitGame.Moves, circuitGame.MaxMoves)
-	movesBounds := text.BoundString(basicfont.Face7x13, movesText)
-	movesX := int(centerX) - movesBounds.Dx()/2
-	movesY := int(centerY) - 80
-	text.Draw(screen, movesText, basicfont.Face7x13, movesX, movesY, color.RGBA{255, 255, 255, 255})
+	g.drawCircuitGameHeader(screen, centerX, centerY, circuitGame)
 
 	gridSize := len(circuitGame.Grid)
 	cellSize := float32(30)
 	startX := centerX - float32(gridSize)*cellSize/2
 	startY := centerY - float32(gridSize)*cellSize/2
 
-	// Draw grid
+	g.drawCircuitGameGrid(screen, circuitGame, startX, startY, cellSize, gridSize)
+	g.drawCircuitGameLegend(screen, startX, startY, cellSize, gridSize)
+}
+
+// drawCircuitGameHeader renders title, instructions, and move counter.
+func (g *Game) drawCircuitGameHeader(screen *ebiten.Image, centerX, centerY float32, circuitGame *minigame.CircuitTraceGame) {
+	titleText := "CIRCUIT TRACE"
+	titleBounds := text.BoundString(basicfont.Face7x13, titleText)
+	titleX := int(centerX) - titleBounds.Dx()/2
+	titleY := int(centerY) - 110
+	text.Draw(screen, titleText, basicfont.Face7x13, titleX, titleY, color.RGBA{0, 255, 200, 255})
+
+	instrText := "Arrow keys to navigate. Reach BLUE target!"
+	instrBounds := text.BoundString(basicfont.Face7x13, instrText)
+	instrX := int(centerX) - instrBounds.Dx()/2
+	instrY := int(centerY) - 95
+	text.Draw(screen, instrText, basicfont.Face7x13, instrX, instrY, color.RGBA{200, 200, 200, 255})
+
+	movesText := fmt.Sprintf("Moves: %d/%d", circuitGame.Moves, circuitGame.MaxMoves)
+	movesBounds := text.BoundString(basicfont.Face7x13, movesText)
+	movesX := int(centerX) - movesBounds.Dx()/2
+	movesY := int(centerY) - 80
+	text.Draw(screen, movesText, basicfont.Face7x13, movesX, movesY, color.RGBA{255, 255, 255, 255})
+}
+
+// drawCircuitGameGrid renders the circuit trace grid with cells.
+func (g *Game) drawCircuitGameGrid(screen *ebiten.Image, circuitGame *minigame.CircuitTraceGame, startX, startY, cellSize float32, gridSize int) {
 	for y := 0; y < gridSize; y++ {
 		for x := 0; x < gridSize; x++ {
 			cellX := startX + float32(x)*cellSize
 			cellY := startY + float32(y)*cellSize
 
-			cellColor := color.RGBA{50, 50, 50, 255}
-			cellLabel := ""
-			labelColor := color.RGBA{150, 150, 150, 255}
-
-			if circuitGame.Grid[y][x] == 2 {
-				cellColor = color.RGBA{200, 0, 0, 255}
-				cellLabel = "X"
-				labelColor = color.RGBA{255, 255, 255, 255}
-			}
-			if x == circuitGame.CurrentX && y == circuitGame.CurrentY {
-				cellColor = color.RGBA{0, 255, 0, 255}
-				cellLabel = "P"
-				labelColor = color.RGBA{0, 0, 0, 255}
-			}
-			if x == circuitGame.TargetX && y == circuitGame.TargetY {
-				cellColor = color.RGBA{0, 200, 255, 255}
-				cellLabel = "T"
-				labelColor = color.RGBA{0, 0, 0, 255}
-			}
+			cellColor, cellLabel, labelColor := g.getCellAppearance(circuitGame, x, y)
 
 			vector.DrawFilledRect(screen, cellX, cellY, cellSize-2, cellSize-2, cellColor, false)
 			vector.StrokeRect(screen, cellX, cellY, cellSize-2, cellSize-2, 1, color.RGBA{100, 100, 100, 255}, false)
 
-			// Draw cell label
 			if cellLabel != "" {
 				labelBounds := text.BoundString(basicfont.Face7x13, cellLabel)
 				labelX := int(cellX) + int(cellSize-2)/2 - labelBounds.Dx()/2
@@ -3413,8 +3476,35 @@ func (g *Game) drawCircuitGame(screen *ebiten.Image, centerX, centerY float32) {
 			}
 		}
 	}
+}
 
-	// Draw legend
+// getCellAppearance determines color and label for a circuit game cell.
+func (g *Game) getCellAppearance(circuitGame *minigame.CircuitTraceGame, x, y int) (color.RGBA, string, color.RGBA) {
+	cellColor := color.RGBA{50, 50, 50, 255}
+	cellLabel := ""
+	labelColor := color.RGBA{150, 150, 150, 255}
+
+	if circuitGame.Grid[y][x] == 2 {
+		cellColor = color.RGBA{200, 0, 0, 255}
+		cellLabel = "X"
+		labelColor = color.RGBA{255, 255, 255, 255}
+	}
+	if x == circuitGame.CurrentX && y == circuitGame.CurrentY {
+		cellColor = color.RGBA{0, 255, 0, 255}
+		cellLabel = "P"
+		labelColor = color.RGBA{0, 0, 0, 255}
+	}
+	if x == circuitGame.TargetX && y == circuitGame.TargetY {
+		cellColor = color.RGBA{0, 200, 255, 255}
+		cellLabel = "T"
+		labelColor = color.RGBA{0, 0, 0, 255}
+	}
+
+	return cellColor, cellLabel, labelColor
+}
+
+// drawCircuitGameLegend renders the legend showing cell type meanings.
+func (g *Game) drawCircuitGameLegend(screen *ebiten.Image, startX, startY, cellSize float32, gridSize int) {
 	legendY := int(startY + float32(gridSize)*cellSize + 15)
 	legendX := int(startX)
 
