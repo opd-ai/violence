@@ -1257,20 +1257,64 @@ func TestDrawLoadingScreen_Rendering(t *testing.T) {
 }
 
 func TestGetLoadingDots(t *testing.T) {
-	// Test that it returns valid dot patterns
-	dots := getLoadingDots()
-
-	validPatterns := []string{".", "..", "...", "...."}
-	valid := false
-	for _, pattern := range validPatterns {
-		if dots == pattern {
-			valid = true
-			break
-		}
+	tests := []struct {
+		name       string
+		frameCount int
+		want       string
+	}{
+		{"cycle_0", 0, "."},
+		{"cycle_1", 15, ".."},
+		{"cycle_2", 30, "..."},
+		{"cycle_3", 45, "...."},
+		{"cycle_wrap", 60, "."},
+		{"mid_cycle", 7, "."},
+		{"mid_cycle_2", 22, ".."},
 	}
 
-	if !valid {
-		t.Errorf("expected one of %v, got '%s'", validPatterns, dots)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := getLoadingDots(tt.frameCount)
+			if got != tt.want {
+				t.Errorf("getLoadingDots(%d) = %q, want %q", tt.frameCount, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestLoadingScreen_Update(t *testing.T) {
+	ls := NewLoadingScreen()
+	ls.Show(12345, "Loading...")
+
+	// Verify initial frame count
+	if ls.frameCount != 0 {
+		t.Errorf("expected frameCount=0 after Show, got %d", ls.frameCount)
+	}
+
+	// Update increments frame count when visible
+	ls.Update()
+	if ls.frameCount != 1 {
+		t.Errorf("expected frameCount=1 after Update, got %d", ls.frameCount)
+	}
+
+	// Multiple updates increment correctly
+	for i := 0; i < 10; i++ {
+		ls.Update()
+	}
+	if ls.frameCount != 11 {
+		t.Errorf("expected frameCount=11 after 11 total updates, got %d", ls.frameCount)
+	}
+
+	// Update does not increment when hidden
+	ls.Hide()
+	ls.Update()
+	if ls.frameCount != 11 {
+		t.Errorf("expected frameCount=11 after update while hidden, got %d", ls.frameCount)
+	}
+
+	// Show resets frame count
+	ls.Show(99999, "Reloading...")
+	if ls.frameCount != 0 {
+		t.Errorf("expected frameCount=0 after re-Show, got %d", ls.frameCount)
 	}
 }
 

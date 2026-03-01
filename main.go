@@ -2516,6 +2516,8 @@ func (g *Game) saveGame(slot int) {
 
 // updateLoading handles loading screen updates.
 func (g *Game) updateLoading() error {
+	// Update loading screen animation
+	g.loadingScreen.Update()
 	// Loading is instantaneous for now, but this could be async
 	return nil
 }

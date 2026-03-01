@@ -83,9 +83,10 @@ type MenuManager struct {
 
 // LoadingScreen manages loading screen display state.
 type LoadingScreen struct {
-	visible bool
-	seed    uint64
-	message string
+	visible    bool
+	seed       uint64
+	message    string
+	frameCount int
 }
 
 // Theme holds genre-specific UI colors.
@@ -783,6 +784,7 @@ func getKeyNameForAction(option string) string {
 }
 
 // ApplySettingChange modifies a setting value and persists to config.
+// Returns error if config save fails. Caller should log or display errors to user.
 func ApplySettingChange(option string, increase bool) error {
 	delta := -1.0
 	if increase {
@@ -865,6 +867,7 @@ func ApplySettingChange(option string, increase bool) error {
 }
 
 // ApplyKeyBinding binds a key to a control action.
+// Returns error if config save fails. Caller should log or display errors to user.
 func ApplyKeyBinding(option string, key ebiten.Key) error {
 	if config.C.KeyBindings == nil {
 		config.C.KeyBindings = make(map[string]int)
@@ -895,9 +898,10 @@ func ApplyKeyBinding(option string, key ebiten.Key) error {
 // NewLoadingScreen creates a new loading screen.
 func NewLoadingScreen() *LoadingScreen {
 	return &LoadingScreen{
-		visible: false,
-		seed:    0,
-		message: "Loading...",
+		visible:    false,
+		seed:       0,
+		message:    "Loading...",
+		frameCount: 0,
 	}
 }
 
@@ -905,6 +909,7 @@ func NewLoadingScreen() *LoadingScreen {
 func (ls *LoadingScreen) Show(seed uint64, message string) {
 	ls.visible = true
 	ls.seed = seed
+	ls.frameCount = 0
 	if message != "" {
 		ls.message = message
 	} else {
@@ -930,6 +935,13 @@ func (ls *LoadingScreen) GetSeed() uint64 {
 // SetMessage updates the loading message.
 func (ls *LoadingScreen) SetMessage(message string) {
 	ls.message = message
+}
+
+// Update increments the frame counter for animation.
+func (ls *LoadingScreen) Update() {
+	if ls.visible {
+		ls.frameCount++
+	}
 }
 
 // DrawLoadingScreen renders the loading screen.
@@ -966,15 +978,14 @@ func DrawLoadingScreen(screen *ebiten.Image, ls *LoadingScreen) {
 
 	// Draw animated loading indicator (simple dots)
 	indicatorY := centerY + 80
-	dots := getLoadingDots()
+	dots := getLoadingDots(ls.frameCount)
 	drawCenteredLabel(screen, centerX, indicatorY, dots, color.RGBA{180, 180, 180, 255})
 }
 
 // getLoadingDots returns animated loading dots based on frame count.
-func getLoadingDots() string {
-	// Simple animation cycle: ".", "..", "...", "...."
-	frameCount := (ebiten.ActualTPS() * 0.25)
-	cycle := int(frameCount) % 4
+func getLoadingDots(frameCount int) string {
+	// Simple animation cycle: ".", "..", "...", "...." (15 frames per dot)
+	cycle := (frameCount / 15) % 4
 	switch cycle {
 	case 0:
 		return "."

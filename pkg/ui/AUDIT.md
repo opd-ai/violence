@@ -11,8 +11,8 @@ UI package provides comprehensive HUD rendering, menu systems, chat overlays, an
 - [x] med documentation — Missing `doc.go` package documentation file (root of `pkg/ui/`) — Fixed 2026-03-01: Added comprehensive package documentation
 - [x] med testing — Test coverage at 52.3%, below 65% target (missing tests for shop, crafting, skills, mods, multiplayer UIs) — Fixed 2026-03-01: Added comprehensive tests in ui_coverage_test.go, coverage increased to 79.1%
 - [x] med api-design — Global mutable state `currentTheme` accessed without synchronization (`ui.go:101,542`) — Fixed 2026-03-01: Used atomic.Pointer for thread-safe theme management
-- [ ] low error-handling — `ApplySettingChange` and `ApplyKeyBinding` return errors but caller responsibility unclear (`ui.go:778,860`)
-- [ ] low documentation — `getLoadingDots()` uses `ebiten.ActualTPS()` incorrectly - should use frame counter for animation cycle (`ui.go:965-979`)
+- [x] low error-handling — `ApplySettingChange` and `ApplyKeyBinding` return errors but caller responsibility unclear (`ui.go:778,860`) — Fixed 2026-03-01: Added godoc comments documenting error handling responsibility
+- [x] low documentation — `getLoadingDots()` uses `ebiten.ActualTPS()` incorrectly - should use frame counter for animation cycle (`ui.go:965-979`) — Fixed 2026-03-01: Refactored to use LoadingScreen.frameCount with proper Update() method
 - [ ] low api-design — `ChatOverlay` fields `Visible`, `Messages`, `InputBuffer` are exported but should be accessed via methods for encapsulation (`chat.go:28-39`)
 - [ ] low api-design — `NameplatePlayer`, `ScoreboardEntry`, `ShopItem` etc. use exported fields instead of getters - violates encapsulation (`nameplate.go:14-22,deathmatch.go:105-113,ui.go:982-987`)
 
