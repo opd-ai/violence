@@ -7,6 +7,7 @@ import (
 	"math"
 	"net"
 	"os"
+	"reflect"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -100,12 +101,14 @@ type Game struct {
 	automap        *automap.Map
 	keycards       map[string]bool
 	automapVisible bool
+	playerEntity   engine.Entity // ECS player entity for status effects and other systems
 
 	// v2.0 systems
 	arsenal      *weapon.Arsenal
 	ammoPool     *ammo.Pool
 	combatSystem *combat.System
 	statusReg    *status.Registry
+	statusSystem *status.System
 	lootTable    *loot.LootTable
 	progression  *progression.Progression
 	aiAgents     []*ai.Agent
@@ -267,6 +270,9 @@ func NewGame() *Game {
 		animationSystem:    animation.NewAnimationSystem("fantasy"),
 	}
 
+	// Initialize status system with the registry
+	g.statusSystem = status.NewSystem(g.statusReg)
+
 	// Initialize BSP generator
 	g.bspGenerator = bsp.NewGenerator(64, 64, g.rng)
 	g.bspGenerator.SetGenre(g.genreID)
@@ -276,6 +282,9 @@ func NewGame() *Game {
 
 	// Register animation system with the World
 	g.world.AddSystem(g.animationSystem)
+
+	// Register status effect system with the World
+	g.world.AddSystem(g.statusSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
@@ -617,6 +626,9 @@ func (g *Game) initializePlayer() {
 
 	g.keycards = make(map[string]bool)
 	g.automapVisible = false
+
+	// Create ECS player entity for status effects and other systems
+	g.playerEntity = g.world.NewPlayerEntity(spawnX, spawnY)
 }
 
 // findSpawnPosition finds a safe starting position for the player.
@@ -648,6 +660,7 @@ func (g *Game) initializeGameSystems() {
 		logrus.WithError(err).Warn("Failed to set progression genre")
 	}
 	g.statusReg = status.NewRegistry()
+	g.statusSystem = status.NewSystem(g.statusReg)
 	status.SetGenre(g.genreID)
 
 	g.shopCredits = shop.NewCredit(100)
@@ -843,7 +856,6 @@ func (g *Game) updatePlaying() error {
 
 	g.arsenal.Update()
 	g.updateAIAgents()
-	g.statusReg.Tick()
 	g.updateSquadAndEventTriggers()
 	g.updateQuestObjectives()
 	g.updateV3Systems()
@@ -855,7 +867,41 @@ func (g *Game) updatePlaying() error {
 	g.handleCollisionAndMovement(deltaX, deltaY, deltaPitch)
 	g.checkTutorialCompletion(deltaX, deltaY)
 
+	// Sync player entity health with HUD
+	g.syncPlayerEntityHealth()
+
 	return nil
+}
+
+// syncPlayerEntityHealth keeps player entity health in sync with HUD.
+func (g *Game) syncPlayerEntityHealth() {
+	if g.playerEntity == 0 {
+		return
+	}
+
+	healthType := reflect.TypeOf(&engine.Health{})
+	comp, ok := g.world.GetComponent(g.playerEntity, healthType)
+	if !ok {
+		return
+	}
+
+	health := comp.(*engine.Health)
+
+	// Sync HUD to entity (entity is authoritative for status effects)
+	if health.Current != g.hud.Health {
+		g.hud.Health = health.Current
+	}
+
+	// Keep entity health in sync with HUD changes (from other damage sources)
+	if g.hud.Health != health.Current {
+		health.Current = g.hud.Health
+		if health.Current < 0 {
+			health.Current = 0
+		}
+		if health.Current > health.Max {
+			health.Current = health.Max
+		}
+	}
 }
 
 // handleMenuActions processes menu-related input actions and returns true if handled.
@@ -1261,7 +1307,7 @@ func (g *Game) checkHazardCollisions() {
 
 	// Apply status effect if present
 	if statusEffect != "" && g.statusReg != nil {
-		g.statusReg.Apply(statusEffect)
+		g.statusReg.ApplyToEntity(g.world, g.playerEntity, statusEffect)
 		g.hud.ShowMessage("Hazard! " + statusEffect)
 	}
 

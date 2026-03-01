@@ -1,8 +1,11 @@
 package status
 
 import (
+	"reflect"
 	"testing"
 	"time"
+
+	"github.com/opd-ai/violence/pkg/engine"
 )
 
 func TestNewRegistry(t *testing.T) {
@@ -12,6 +15,10 @@ func TestNewRegistry(t *testing.T) {
 	}
 	if r.effects == nil {
 		t.Error("Registry effects map not initialized")
+	}
+	// Should have default fantasy effects
+	if len(r.effects) == 0 {
+		t.Error("Registry should have default effects")
 	}
 }
 
@@ -52,7 +59,7 @@ func TestEffect(t *testing.T) {
 func TestApply(t *testing.T) {
 	r := NewRegistry()
 
-	// Apply should not panic
+	// Apply should not panic (deprecated method)
 	defer func() {
 		if rec := recover(); rec != nil {
 			t.Errorf("Apply panicked: %v", rec)
@@ -64,10 +71,80 @@ func TestApply(t *testing.T) {
 	r.Apply("bleeding")
 }
 
+func TestApplyToEntity(t *testing.T) {
+	r := NewRegistry()
+	w := engine.NewWorld()
+
+	// Create entity with health
+	entity := w.AddEntity()
+	w.AddComponent(entity, &engine.Health{Current: 100, Max: 100})
+
+	// Apply effect
+	r.ApplyToEntity(w, entity, "poisoned")
+
+	// Verify status component exists
+	statusType := reflect.TypeOf(&StatusComponent{})
+	comp, ok := w.GetComponent(entity, statusType)
+	if !ok {
+		t.Fatal("StatusComponent not added to entity")
+	}
+
+	statusComp := comp.(*StatusComponent)
+	if len(statusComp.ActiveEffects) != 1 {
+		t.Errorf("Expected 1 active effect, got %d", len(statusComp.ActiveEffects))
+	}
+
+	if statusComp.ActiveEffects[0].EffectName != "poisoned" {
+		t.Errorf("Expected 'poisoned', got '%s'", statusComp.ActiveEffects[0].EffectName)
+	}
+}
+
+func TestNonStackableEffects(t *testing.T) {
+	r := NewRegistry()
+	w := engine.NewWorld()
+
+	entity := w.AddEntity()
+	w.AddComponent(entity, &engine.Health{Current: 100, Max: 100})
+
+	// Apply poisoned twice
+	r.ApplyToEntity(w, entity, "poisoned")
+	r.ApplyToEntity(w, entity, "poisoned")
+
+	statusType := reflect.TypeOf(&StatusComponent{})
+	comp, _ := w.GetComponent(entity, statusType)
+	statusComp := comp.(*StatusComponent)
+
+	// Should still only have one instance
+	if len(statusComp.ActiveEffects) != 1 {
+		t.Errorf("Non-stackable effect should not stack, got %d instances", len(statusComp.ActiveEffects))
+	}
+}
+
+func TestStackableEffects(t *testing.T) {
+	r := NewRegistry()
+	w := engine.NewWorld()
+
+	entity := w.AddEntity()
+	w.AddComponent(entity, &engine.Health{Current: 100, Max: 100})
+
+	// Bleeding is stackable in fantasy genre
+	r.ApplyToEntity(w, entity, "bleeding")
+	r.ApplyToEntity(w, entity, "bleeding")
+
+	statusType := reflect.TypeOf(&StatusComponent{})
+	comp, _ := w.GetComponent(entity, statusType)
+	statusComp := comp.(*StatusComponent)
+
+	// Should have multiple instances
+	if len(statusComp.ActiveEffects) != 2 {
+		t.Errorf("Stackable effect should stack, got %d instances", len(statusComp.ActiveEffects))
+	}
+}
+
 func TestTick(t *testing.T) {
 	r := NewRegistry()
 
-	// Tick should not panic on empty registry
+	// Tick should not panic on empty registry (deprecated)
 	defer func() {
 		if rec := recover(); rec != nil {
 			t.Errorf("Tick panicked: %v", rec)
@@ -75,12 +152,125 @@ func TestTick(t *testing.T) {
 	}()
 
 	r.Tick()
+}
 
-	// Apply some effects and tick
-	r.Apply("poison")
-	r.Apply("burning")
-	r.Tick()
-	r.Tick()
+func TestSystemUpdate(t *testing.T) {
+	r := NewRegistry()
+	s := NewSystem(r)
+	w := engine.NewWorld()
+
+	// Create entity with health and poison effect
+	entity := w.AddEntity()
+	w.AddComponent(entity, &engine.Health{Current: 100, Max: 100})
+	r.ApplyToEntity(w, entity, "poisoned")
+
+	// Wait for tick interval
+	time.Sleep(1100 * time.Millisecond)
+
+	// Run system update
+	s.Update(w)
+
+	// Check health decreased
+	healthType := reflect.TypeOf(&engine.Health{})
+	comp, _ := w.GetComponent(entity, healthType)
+	health := comp.(*engine.Health)
+
+	if health.Current >= 100 {
+		t.Errorf("Poison should have dealt damage, health: %d", health.Current)
+	}
+}
+
+func TestHealingEffect(t *testing.T) {
+	r := NewRegistry()
+	s := NewSystem(r)
+	w := engine.NewWorld()
+
+	// Create entity with low health
+	entity := w.AddEntity()
+	w.AddComponent(entity, &engine.Health{Current: 50, Max: 100})
+	r.ApplyToEntity(w, entity, "regeneration")
+
+	initialHealth := 50
+
+	// Wait for tick interval
+	time.Sleep(1100 * time.Millisecond)
+
+	// Run system update
+	s.Update(w)
+
+	// Check health increased
+	healthType := reflect.TypeOf(&engine.Health{})
+	comp, _ := w.GetComponent(entity, healthType)
+	health := comp.(*engine.Health)
+
+	if health.Current <= initialHealth {
+		t.Errorf("Regeneration should have healed, health: %d", health.Current)
+	}
+}
+
+func TestEffectExpiration(t *testing.T) {
+	r := NewRegistry()
+	s := NewSystem(r)
+	w := engine.NewWorld()
+
+	entity := w.AddEntity()
+	w.AddComponent(entity, &engine.Health{Current: 100, Max: 100})
+
+	// Apply short-duration stun
+	r.ApplyToEntity(w, entity, "stunned")
+
+	// Simulate many frames (~2.5 seconds at 60fps)
+	for i := 0; i < 150; i++ {
+		s.Update(w)
+		time.Sleep(16 * time.Millisecond)
+	}
+
+	// Effect should have expired
+	statusType := reflect.TypeOf(&StatusComponent{})
+	comp, _ := w.GetComponent(entity, statusType)
+	statusComp := comp.(*StatusComponent)
+
+	if len(statusComp.ActiveEffects) != 0 {
+		t.Errorf("Effect should have expired, got %d active effects", len(statusComp.ActiveEffects))
+	}
+}
+
+func TestGetSpeedMultiplier(t *testing.T) {
+	r := NewRegistry()
+	w := engine.NewWorld()
+
+	entity := w.AddEntity()
+
+	// No effects - should be 1.0
+	speed := GetSpeedMultiplier(w, entity)
+	if speed != 1.0 {
+		t.Errorf("No effects: expected speed 1.0, got %f", speed)
+	}
+
+	// Apply slow effect
+	r.ApplyToEntity(w, entity, "slowed")
+	speed = GetSpeedMultiplier(w, entity)
+	if speed >= 1.0 {
+		t.Errorf("Slowed: expected speed < 1.0, got %f", speed)
+	}
+}
+
+func TestIsStunned(t *testing.T) {
+	r := NewRegistry()
+	w := engine.NewWorld()
+
+	entity := w.AddEntity()
+
+	// Not stunned initially
+	if IsStunned(w, entity) {
+		t.Error("Entity should not be stunned initially")
+	}
+
+	// Apply stun
+	r.ApplyToEntity(w, entity, "stunned")
+	if !IsStunned(w, entity) {
+		t.Error("Entity should be stunned after applying stun effect")
+	}
 }
 
 func TestSetGenre(t *testing.T) {
@@ -97,18 +287,18 @@ func TestSetGenre(t *testing.T) {
 	}
 }
 
-func TestMultipleEffects(t *testing.T) {
-	r := NewRegistry()
+func TestGenreSpecificEffects(t *testing.T) {
+	genres := []string{"fantasy", "scifi", "horror", "cyberpunk", "postapoc"}
 
-	// Apply multiple effects
-	effects := []string{"poison", "burning", "bleeding", "irradiated", "stunned"}
-	for _, eff := range effects {
-		r.Apply(eff)
-	}
+	for _, genre := range genres {
+		t.Run(genre, func(t *testing.T) {
+			r := NewRegistry()
+			r.loadDefaultEffects(genre)
 
-	// Should handle multiple ticks
-	for i := 0; i < 10; i++ {
-		r.Tick()
+			if len(r.effects) == 0 {
+				t.Errorf("Genre %s should have effects loaded", genre)
+			}
+		})
 	}
 }
 
