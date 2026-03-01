@@ -793,77 +793,90 @@ func ApplySettingChange(option string, increase bool) error {
 
 	switch option {
 	case "Resolution":
-		resolutions := [][2]int{
-			{640, 400}, {800, 500}, {960, 600}, {1280, 800}, {1600, 1000}, {1920, 1200},
-		}
-		currentIdx := 2 // Default 960x600
-		for i, res := range resolutions {
-			if res[0] == config.C.WindowWidth && res[1] == config.C.WindowHeight {
-				currentIdx = i
-				break
-			}
-		}
-		if increase && currentIdx < len(resolutions)-1 {
-			currentIdx++
-		} else if !increase && currentIdx > 0 {
-			currentIdx--
-		}
-		config.C.WindowWidth = resolutions[currentIdx][0]
-		config.C.WindowHeight = resolutions[currentIdx][1]
-
+		applyResolutionChange(increase)
 	case "VSync":
 		config.C.VSync = !config.C.VSync
-
 	case "Fullscreen":
 		config.C.FullScreen = !config.C.FullScreen
-
 	case "FOV":
-		config.C.FOV += delta * 5
-		if config.C.FOV < 50 {
-			config.C.FOV = 50
-		}
-		if config.C.FOV > 120 {
-			config.C.FOV = 120
-		}
-
+		applyFOVChange(delta)
 	case "Master Volume":
-		config.C.MasterVolume += delta * 0.1
-		if config.C.MasterVolume < 0 {
-			config.C.MasterVolume = 0
-		}
-		if config.C.MasterVolume > 1 {
-			config.C.MasterVolume = 1
-		}
-
+		applyVolumeChange(&config.C.MasterVolume, delta)
 	case "Music Volume":
-		config.C.MusicVolume += delta * 0.1
-		if config.C.MusicVolume < 0 {
-			config.C.MusicVolume = 0
-		}
-		if config.C.MusicVolume > 1 {
-			config.C.MusicVolume = 1
-		}
-
+		applyVolumeChange(&config.C.MusicVolume, delta)
 	case "SFX Volume":
-		config.C.SFXVolume += delta * 0.1
-		if config.C.SFXVolume < 0 {
-			config.C.SFXVolume = 0
-		}
-		if config.C.SFXVolume > 1 {
-			config.C.SFXVolume = 1
-		}
-
+		applyVolumeChange(&config.C.SFXVolume, delta)
 	case "Mouse Sensitivity":
-		config.C.MouseSensitivity += delta * 0.1
-		if config.C.MouseSensitivity < 0.1 {
-			config.C.MouseSensitivity = 0.1
-		}
-		if config.C.MouseSensitivity > 5.0 {
-			config.C.MouseSensitivity = 5.0
-		}
+		applySensitivityChange(delta)
 	}
 
 	return config.Save()
+}
+
+// applyResolutionChange adjusts the screen resolution.
+func applyResolutionChange(increase bool) {
+	resolutions := [][2]int{
+		{640, 400}, {800, 500}, {960, 600}, {1280, 800}, {1600, 1000}, {1920, 1200},
+	}
+	currentIdx := findCurrentResolutionIndex(resolutions)
+	newIdx := calculateNewResolutionIndex(currentIdx, increase, len(resolutions))
+	config.C.WindowWidth = resolutions[newIdx][0]
+	config.C.WindowHeight = resolutions[newIdx][1]
+}
+
+// findCurrentResolutionIndex finds the index of the current resolution.
+func findCurrentResolutionIndex(resolutions [][2]int) int {
+	currentIdx := 2
+	for i, res := range resolutions {
+		if res[0] == config.C.WindowWidth && res[1] == config.C.WindowHeight {
+			currentIdx = i
+			break
+		}
+	}
+	return currentIdx
+}
+
+// calculateNewResolutionIndex calculates the new resolution index based on direction.
+func calculateNewResolutionIndex(currentIdx int, increase bool, maxIdx int) int {
+	if increase && currentIdx < maxIdx-1 {
+		return currentIdx + 1
+	} else if !increase && currentIdx > 0 {
+		return currentIdx - 1
+	}
+	return currentIdx
+}
+
+// applyFOVChange adjusts the field of view within limits.
+func applyFOVChange(delta float64) {
+	config.C.FOV += delta * 5
+	if config.C.FOV < 50 {
+		config.C.FOV = 50
+	}
+	if config.C.FOV > 120 {
+		config.C.FOV = 120
+	}
+}
+
+// applyVolumeChange adjusts a volume setting within 0-1 range.
+func applyVolumeChange(volume *float64, delta float64) {
+	*volume += delta * 0.1
+	if *volume < 0 {
+		*volume = 0
+	}
+	if *volume > 1 {
+		*volume = 1
+	}
+}
+
+// applySensitivityChange adjusts mouse sensitivity within limits.
+func applySensitivityChange(delta float64) {
+	config.C.MouseSensitivity += delta * 0.1
+	if config.C.MouseSensitivity < 0.1 {
+		config.C.MouseSensitivity = 0.1
+	}
+	if config.C.MouseSensitivity > 5.0 {
+		config.C.MouseSensitivity = 5.0
+	}
 }
 
 // ApplyKeyBinding binds a key to a control action.
@@ -1395,97 +1408,137 @@ func DrawCommandWheel(screen *ebiten.Image, cw *CommandWheel) {
 	screenWidth := float32(bounds.Dx())
 	screenHeight := float32(bounds.Dy())
 
-	// Draw semi-transparent overlay
-	overlay := color.RGBA{0, 0, 0, 160}
-	vector.DrawFilledRect(screen, 0, 0, screenWidth, screenHeight, overlay, false)
+	drawCommandWheelOverlay(screen, screenWidth, screenHeight)
 
-	// Calculate center position
 	centerX := screenWidth / 2
 	centerY := screenHeight / 2
 	theme := currentTheme.Load()
 
-	// Draw command title
-	titleY := centerY - 120
-	commandTitle := getCommandTitle(cw.selectedCommand)
-	drawCenteredLabel(screen, centerX, titleY, commandTitle, color.RGBA{255, 255, 100, 255})
+	drawCommandWheelHeader(screen, centerX, centerY, cw.selectedCommand)
 
-	// Draw instruction
-	instructionY := titleY + 30
-	drawCenteredLabel(screen, centerX, instructionY, "Select Target Player", color.RGBA{200, 200, 200, 255})
-
-	// Draw player list
 	if len(cw.players) == 0 {
-		noPlayersY := centerY
-		drawCenteredLabel(screen, centerX, noPlayersY, "No players available", color.RGBA{180, 180, 180, 255})
+		drawCenteredLabel(screen, centerX, centerY, "No players available", color.RGBA{180, 180, 180, 255})
 		return
 	}
 
+	drawCommandWheelPlayers(screen, centerX, centerY, cw.players, cw.selectedIndex, theme)
+	drawCommandWheelHint(screen, centerX, screenHeight)
+}
+
+// drawCommandWheelOverlay renders the semi-transparent overlay.
+func drawCommandWheelOverlay(screen *ebiten.Image, screenWidth, screenHeight float32) {
+	overlay := color.RGBA{0, 0, 0, 160}
+	vector.DrawFilledRect(screen, 0, 0, screenWidth, screenHeight, overlay, false)
+}
+
+// drawCommandWheelHeader renders the command title and instructions.
+func drawCommandWheelHeader(screen *ebiten.Image, centerX, centerY float32, selectedCommand string) {
+	titleY := centerY - 120
+	commandTitle := getCommandTitle(selectedCommand)
+	drawCenteredLabel(screen, centerX, titleY, commandTitle, color.RGBA{255, 255, 100, 255})
+
+	instructionY := titleY + 30
+	drawCenteredLabel(screen, centerX, instructionY, "Select Target Player", color.RGBA{200, 200, 200, 255})
+}
+
+// drawCommandWheelPlayers renders the player list.
+func drawCommandWheelPlayers(screen *ebiten.Image, centerX, centerY float32, players []*CommandWheelPlayer, selectedIndex int, theme *Theme) {
 	itemHeight := float32(40)
-	listStartY := centerY - float32(len(cw.players))*itemHeight/2
+	listStartY := centerY - float32(len(players))*itemHeight/2
 
-	for i, player := range cw.players {
+	for i, player := range players {
 		itemY := listStartY + float32(i)*itemHeight
+		drawCommandWheelPlayerItem(screen, centerX, itemY, player, i == selectedIndex, theme, itemHeight)
+	}
+}
 
-		// Highlight selected item
-		if i == cw.selectedIndex {
-			highlightColor := color.RGBA{80, 120, 80, 220}
-			highlightX := centerX - 200
-			vector.DrawFilledRect(screen, highlightX, itemY-5, 400, itemHeight-5, highlightColor, false)
-			vector.StrokeRect(screen, highlightX, itemY-5, 400, itemHeight-5, 2, color.RGBA{120, 200, 120, 255}, false)
-		}
-
-		// Draw player name
-		nameColor := theme.TextColor
-		if !player.Active {
-			nameColor = color.RGBA{100, 100, 100, 255}
-		} else if i == cw.selectedIndex {
-			nameColor = color.RGBA{255, 255, 255, 255}
-		}
-
-		nameX := centerX - 180
-		nameY := itemY + 15
-		playerLabel := fmt.Sprintf("%s (ID: %d)", player.Name, player.PlayerID)
-		drawLabel(screen, nameX, nameY, playerLabel, nameColor)
-
-		// Draw health bar
-		if player.Active {
-			barX := centerX - 180
-			barY := itemY + 22
-			barWidth := float32(360)
-			barHeight := float32(8)
-
-			healthPercent := player.Health / 100.0
-			if healthPercent > 1.0 {
-				healthPercent = 1.0
-			}
-			if healthPercent < 0 {
-				healthPercent = 0
-			}
-
-			// Draw health bar background
-			vector.DrawFilledRect(screen, barX, barY, barWidth, barHeight, color.RGBA{40, 40, 40, 255}, false)
-
-			// Draw health bar fill
-			fillWidth := barWidth * float32(healthPercent)
-			healthColor := theme.HealthColor
-			if healthPercent < 0.3 {
-				healthColor = color.RGBA{200, 50, 50, 255}
-			} else if healthPercent < 0.6 {
-				healthColor = color.RGBA{200, 150, 50, 255}
-			}
-			vector.DrawFilledRect(screen, barX, barY, fillWidth, barHeight, healthColor, false)
-
-			// Draw border
-			vector.StrokeRect(screen, barX, barY, barWidth, barHeight, 1, color.RGBA{100, 100, 100, 255}, false)
-		} else {
-			// Draw "Disconnected" status
-			statusX := centerX + 100
-			statusY := itemY + 15
-			drawLabel(screen, statusX, statusY, "[DISCONNECTED]", color.RGBA{150, 50, 50, 255})
-		}
+// drawCommandWheelPlayerItem renders a single player item.
+func drawCommandWheelPlayerItem(screen *ebiten.Image, centerX, itemY float32, player *CommandWheelPlayer, isSelected bool, theme *Theme, itemHeight float32) {
+	if isSelected {
+		drawCommandWheelHighlight(screen, centerX, itemY, itemHeight)
 	}
 
-	// Draw controls hint at bottom
+	nameColor := selectPlayerNameColor(player.Active, isSelected, theme)
+	nameX := centerX - 180
+	nameY := itemY + 15
+	playerLabel := fmt.Sprintf("%s (ID: %d)", player.Name, player.PlayerID)
+	drawLabel(screen, nameX, nameY, playerLabel, nameColor)
+
+	if player.Active {
+		drawCommandWheelHealthBar(screen, centerX, itemY, player.Health, theme)
+	} else {
+		drawCommandWheelDisconnectedStatus(screen, centerX, itemY)
+	}
+}
+
+// drawCommandWheelHighlight renders the selection highlight.
+func drawCommandWheelHighlight(screen *ebiten.Image, centerX, itemY, itemHeight float32) {
+	highlightColor := color.RGBA{80, 120, 80, 220}
+	highlightX := centerX - 200
+	vector.DrawFilledRect(screen, highlightX, itemY-5, 400, itemHeight-5, highlightColor, false)
+	vector.StrokeRect(screen, highlightX, itemY-5, 400, itemHeight-5, 2, color.RGBA{120, 200, 120, 255}, false)
+}
+
+// selectPlayerNameColor determines the color for a player name.
+func selectPlayerNameColor(active, selected bool, theme *Theme) color.RGBA {
+	if !active {
+		return color.RGBA{100, 100, 100, 255}
+	}
+	if selected {
+		return color.RGBA{255, 255, 255, 255}
+	}
+	return theme.TextColor
+}
+
+// drawCommandWheelHealthBar renders the health bar for a player.
+func drawCommandWheelHealthBar(screen *ebiten.Image, centerX, itemY float32, health float64, theme *Theme) {
+	barX := float32(centerX - 180)
+	barY := float32(itemY + 22)
+	barWidth := float32(360)
+	barHeight := float32(8)
+
+	healthPercent := clampHealthPercent(health / 100.0)
+
+	vector.DrawFilledRect(screen, barX, barY, barWidth, barHeight, color.RGBA{40, 40, 40, 255}, false)
+
+	fillWidth := barWidth * float32(healthPercent)
+	healthColor := selectHealthColor(healthPercent, theme)
+	vector.DrawFilledRect(screen, barX, barY, fillWidth, barHeight, healthColor, false)
+
+	vector.StrokeRect(screen, barX, barY, barWidth, barHeight, 1, color.RGBA{100, 100, 100, 255}, false)
+}
+
+// clampHealthPercent clamps health percentage to 0-1 range.
+func clampHealthPercent(healthPercent float64) float64 {
+	if healthPercent > 1.0 {
+		return 1.0
+	}
+	if healthPercent < 0 {
+		return 0
+	}
+	return healthPercent
+}
+
+// selectHealthColor determines health bar color based on percentage.
+func selectHealthColor(healthPercent float64, theme *Theme) color.RGBA {
+	if healthPercent < 0.3 {
+		return color.RGBA{200, 50, 50, 255}
+	}
+	if healthPercent < 0.6 {
+		return color.RGBA{200, 150, 50, 255}
+	}
+	return theme.HealthColor
+}
+
+// drawCommandWheelDisconnectedStatus renders disconnected player status.
+func drawCommandWheelDisconnectedStatus(screen *ebiten.Image, centerX, itemY float32) {
+	statusX := centerX + 100
+	statusY := itemY + 15
+	drawLabel(screen, statusX, statusY, "[DISCONNECTED]", color.RGBA{150, 50, 50, 255})
+}
+
+// drawCommandWheelHint renders the control hints at the bottom.
+func drawCommandWheelHint(screen *ebiten.Image, centerX, screenHeight float32) {
 	hintY := screenHeight - 60
 	drawCenteredLabel(screen, centerX, hintY, "↑/↓ to select, Enter to confirm, ESC to cancel", color.RGBA{150, 150, 150, 255})
 }

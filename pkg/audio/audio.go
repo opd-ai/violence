@@ -412,38 +412,8 @@ func hashString(s string) uint64 {
 func generateMusic(seed uint64, samples int, genreID string, layer int) []byte {
 	rng := newLocalRNG(seed)
 
-	// Genre-specific parameters
-	tempo := 120.0
-	scale := []int{0, 2, 4, 5, 7, 9, 11} // Major scale default
-	baseNote := 48                       // C3
-
-	switch genreID {
-	case "fantasy":
-		tempo = 100.0
-		scale = []int{0, 2, 3, 5, 7, 8, 10} // Natural minor
-		baseNote = 55                       // G3
-	case "scifi":
-		tempo = 128.0
-		scale = []int{0, 2, 4, 6, 7, 9, 11} // Lydian mode
-		baseNote = 60                       // C4
-	case "horror":
-		tempo = 80.0
-		scale = []int{0, 1, 3, 5, 6, 8, 10} // Locrian mode
-		baseNote = 36                       // C2
-	case "cyberpunk":
-		tempo = 140.0
-		scale = []int{0, 2, 3, 5, 7, 8, 10} // Natural minor
-		baseNote = 52                       // E3
-	case "postapoc":
-		tempo = 90.0
-		scale = []int{0, 2, 3, 5, 7, 8, 11} // Harmonic minor
-		baseNote = 43                       // G2
-	}
-
-	// Layer-specific intensity
-	complexity := float64(layer + 1)
-	noteDensity := 0.3 + float64(layer)*0.15
-
+	tempo, scale, baseNote := selectGenreParameters(genreID)
+	complexity, noteDensity := calculateLayerParameters(layer)
 	beatLength := int(float64(sampleRate) * 60.0 / tempo)
 	numBeats := samples / beatLength
 
@@ -451,86 +421,125 @@ func generateMusic(seed uint64, samples int, genreID string, layer int) []byte {
 	writeWAVHeader(buf, samples)
 
 	pcmData := make([]int16, samples*2)
+	generateMelodicContent(pcmData, samples, numBeats, beatLength, rng, baseNote, scale, layer, complexity, noteDensity)
 
-	// Generate melodic content
-	for beat := 0; beat < numBeats; beat++ {
-		if rng.Float64() < noteDensity {
-			noteIdx := rng.Intn(len(scale))
-			midiNote := baseNote + scale[noteIdx] + (rng.Intn(2))*12
-			freq := midiToFreq(midiNote)
-
-			startSample := beat * beatLength
-			noteLen := beatLength / 2
-			if startSample+noteLen > samples {
-				noteLen = samples - startSample
-			}
-
-			// Layer 0: Simple sine wave (bass)
-			// Layer 1: Add harmonics (pad)
-			// Layer 2: Add higher octave (lead)
-			// Layer 3: Add percussion
-			harmonics := []float64{1.0}
-			harmAmps := []float64{1.0}
-
-			if layer >= 1 {
-				harmonics = append(harmonics, 2.0, 3.0)
-				harmAmps = append(harmAmps, 0.3, 0.15)
-			}
-			if layer >= 2 {
-				harmonics = append(harmonics, 4.0)
-				harmAmps = append(harmAmps, 0.08)
-			}
-
-			for i := 0; i < noteLen; i++ {
-				sampleIdx := startSample + i
-				if sampleIdx >= samples {
-					break
-				}
-
-				// ADSR envelope
-				env := adsrEnvelope(i, noteLen, 0.05, 0.1, 0.6, 0.2)
-
-				val := 0.0
-				for h := 0; h < len(harmonics); h++ {
-					val += math.Sin(2*math.Pi*freq*harmonics[h]*float64(sampleIdx)/float64(sampleRate)) * harmAmps[h]
-				}
-				val *= env * 3000.0 / complexity
-
-				pcmData[sampleIdx*2] += int16(val)
-				pcmData[sampleIdx*2+1] += int16(val)
-			}
-		}
-
-		// Layer 3: Add percussion
-		if layer >= 3 && beat%2 == 0 {
-			startSample := beat * beatLength
-			kickLen := sampleRate / 50
-			if startSample+kickLen > samples {
-				kickLen = samples - startSample
-			}
-
-			for i := 0; i < kickLen; i++ {
-				sampleIdx := startSample + i
-				if sampleIdx >= samples {
-					break
-				}
-
-				env := math.Exp(-float64(i) / float64(kickLen/3))
-				freq := 80.0 * math.Exp(-float64(i)/float64(kickLen/10))
-				val := math.Sin(2*math.Pi*freq*float64(i)/float64(sampleRate)) * env * 5000.0
-
-				pcmData[sampleIdx*2] += int16(val)
-				pcmData[sampleIdx*2+1] += int16(val)
-			}
-		}
-	}
-
-	// Write PCM data
 	for i := 0; i < len(pcmData); i++ {
 		writeInt16(buf, pcmData[i])
 	}
 
 	return buf.Bytes()
+}
+
+// selectGenreParameters returns tempo, scale, and base note for a genre.
+func selectGenreParameters(genreID string) (float64, []int, int) {
+	switch genreID {
+	case "fantasy":
+		return 100.0, []int{0, 2, 3, 5, 7, 8, 10}, 55
+	case "scifi":
+		return 128.0, []int{0, 2, 4, 6, 7, 9, 11}, 60
+	case "horror":
+		return 80.0, []int{0, 1, 3, 5, 6, 8, 10}, 36
+	case "cyberpunk":
+		return 140.0, []int{0, 2, 3, 5, 7, 8, 10}, 52
+	case "postapoc":
+		return 90.0, []int{0, 2, 3, 5, 7, 8, 11}, 43
+	default:
+		return 120.0, []int{0, 2, 4, 5, 7, 9, 11}, 48
+	}
+}
+
+// calculateLayerParameters determines complexity and note density for a layer.
+func calculateLayerParameters(layer int) (float64, float64) {
+	complexity := float64(layer + 1)
+	noteDensity := 0.3 + float64(layer)*0.15
+	return complexity, noteDensity
+}
+
+// generateMelodicContent creates melodic and percussive content for music.
+func generateMelodicContent(pcmData []int16, samples, numBeats, beatLength int, rng *localRNG, baseNote int, scale []int, layer int, complexity, noteDensity float64) {
+	for beat := 0; beat < numBeats; beat++ {
+		if rng.Float64() < noteDensity {
+			generateMelodyNote(pcmData, samples, beat, beatLength, rng, baseNote, scale, layer, complexity)
+		}
+		if layer >= 3 && beat%2 == 0 {
+			generatePercussion(pcmData, samples, beat, beatLength)
+		}
+	}
+}
+
+// generateMelodyNote generates a single melodic note with harmonics.
+func generateMelodyNote(pcmData []int16, samples, beat, beatLength int, rng *localRNG, baseNote int, scale []int, layer int, complexity float64) {
+	noteIdx := rng.Intn(len(scale))
+	midiNote := baseNote + scale[noteIdx] + (rng.Intn(2))*12
+	freq := midiToFreq(midiNote)
+
+	startSample := beat * beatLength
+	noteLen := beatLength / 2
+	if startSample+noteLen > samples {
+		noteLen = samples - startSample
+	}
+
+	harmonics, harmAmps := selectHarmonics(layer)
+	renderNoteWithHarmonics(pcmData, samples, startSample, noteLen, freq, harmonics, harmAmps, complexity)
+}
+
+// selectHarmonics returns harmonic frequencies and amplitudes based on layer.
+func selectHarmonics(layer int) ([]float64, []float64) {
+	harmonics := []float64{1.0}
+	harmAmps := []float64{1.0}
+
+	if layer >= 1 {
+		harmonics = append(harmonics, 2.0, 3.0)
+		harmAmps = append(harmAmps, 0.3, 0.15)
+	}
+	if layer >= 2 {
+		harmonics = append(harmonics, 4.0)
+		harmAmps = append(harmAmps, 0.08)
+	}
+	return harmonics, harmAmps
+}
+
+// renderNoteWithHarmonics renders a note with multiple harmonics to PCM data.
+func renderNoteWithHarmonics(pcmData []int16, samples, startSample, noteLen int, freq float64, harmonics, harmAmps []float64, complexity float64) {
+	for i := 0; i < noteLen; i++ {
+		sampleIdx := startSample + i
+		if sampleIdx >= samples {
+			break
+		}
+
+		env := adsrEnvelope(i, noteLen, 0.05, 0.1, 0.6, 0.2)
+		val := 0.0
+		for h := 0; h < len(harmonics); h++ {
+			val += math.Sin(2*math.Pi*freq*harmonics[h]*float64(sampleIdx)/float64(sampleRate)) * harmAmps[h]
+		}
+		val *= env * 3000.0 / complexity
+
+		pcmData[sampleIdx*2] += int16(val)
+		pcmData[sampleIdx*2+1] += int16(val)
+	}
+}
+
+// generatePercussion adds percussion elements to the music.
+func generatePercussion(pcmData []int16, samples, beat, beatLength int) {
+	startSample := beat * beatLength
+	kickLen := sampleRate / 50
+	if startSample+kickLen > samples {
+		kickLen = samples - startSample
+	}
+
+	for i := 0; i < kickLen; i++ {
+		sampleIdx := startSample + i
+		if sampleIdx >= samples {
+			break
+		}
+
+		env := math.Exp(-float64(i) / float64(kickLen/3))
+		freq := 80.0 * math.Exp(-float64(i)/float64(kickLen/10))
+		val := math.Sin(2*math.Pi*freq*float64(i)/float64(sampleRate)) * env * 5000.0
+
+		pcmData[sampleIdx*2] += int16(val)
+		pcmData[sampleIdx*2+1] += int16(val)
+	}
 }
 
 // generateSFX creates procedural sound effects based on name.

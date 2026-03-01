@@ -22,90 +22,112 @@ func (n *astarNode) f() float64 {
 }
 
 // FindPathCoord uses A* algorithm to find a path from start to goal on a TileMap.
-// Returns a slice of coordinates representing the path, or an empty slice if no path exists.
-// Uses Manhattan distance heuristic and disables diagonal movement.
 func FindPathCoord(grid level.TileMap, start, goal Coord) []Coord {
-	// Validate inputs
-	if !grid.InBounds(start.X, start.Y) || !grid.InBounds(goal.X, goal.Y) {
+	if !validateCoordPathInput(grid, start, goal) {
 		return []Coord{}
-	}
-	if !grid.IsWalkable(start.X, start.Y) || !grid.IsWalkable(goal.X, goal.Y) {
-		return []Coord{}
-	}
-	if start.X == goal.X && start.Y == goal.Y {
-		return []Coord{start}
 	}
 
-	// A* initialization
 	openSet := []*astarNode{{coord: start, g: 0, h: manhattanDistance(start, goal)}}
 	closedSet := make(map[Coord]bool)
+
+	path := findAStarPathCoord(openSet, closedSet, grid, goal)
+	if path != nil {
+		return path
+	}
+
+	return []Coord{}
+}
+
+// validateCoordPathInput validates pathfinding inputs for coordinate-based search.
+func validateCoordPathInput(grid level.TileMap, start, goal Coord) bool {
+	if !grid.InBounds(start.X, start.Y) || !grid.InBounds(goal.X, goal.Y) {
+		return false
+	}
+	if !grid.IsWalkable(start.X, start.Y) || !grid.IsWalkable(goal.X, goal.Y) {
+		return false
+	}
+	if start.X == goal.X && start.Y == goal.Y {
+		return false
+	}
+	return true
+}
+
+// findAStarPathCoord performs A* pathfinding with coordinate nodes.
+func findAStarPathCoord(openSet []*astarNode, closedSet map[Coord]bool, grid level.TileMap, goal Coord) []Coord {
 	maxIter := 1000
-
 	for iter := 0; iter < maxIter && len(openSet) > 0; iter++ {
-		// Find node with lowest f score
-		current := openSet[0]
-		currentIdx := 0
-		for i, n := range openSet {
-			if n.f() < current.f() {
-				current = n
-				currentIdx = i
-			}
-		}
-
-		// Remove current from open set
+		current, currentIdx := findLowestFNodeCoord(openSet)
 		openSet = append(openSet[:currentIdx], openSet[currentIdx+1:]...)
 
-		// Check if goal reached
 		if current.coord.X == goal.X && current.coord.Y == goal.Y {
 			return reconstructPathCoord(current)
 		}
 
 		closedSet[current.coord] = true
+		openSet = expandCoordNode(current, openSet, closedSet, grid, goal)
+	}
+	return nil
+}
 
-		// Explore neighbors (4-directional, no diagonals)
-		neighbors := []Coord{
-			{X: current.coord.X + 1, Y: current.coord.Y},
-			{X: current.coord.X - 1, Y: current.coord.Y},
-			{X: current.coord.X, Y: current.coord.Y + 1},
-			{X: current.coord.X, Y: current.coord.Y - 1},
-		}
-
-		for _, neighborCoord := range neighbors {
-			// Skip if out of bounds or not walkable
-			if !grid.InBounds(neighborCoord.X, neighborCoord.Y) {
-				continue
-			}
-			if !grid.IsWalkable(neighborCoord.X, neighborCoord.Y) {
-				continue
-			}
-			if closedSet[neighborCoord] {
-				continue
-			}
-
-			// Calculate scores
-			g := current.g + 1
-			h := manhattanDistance(neighborCoord, goal)
-			neighbor := &astarNode{coord: neighborCoord, g: g, h: h, parent: current}
-
-			// Check if already in open set with better score
-			found := false
-			for i, n := range openSet {
-				if n.coord.X == neighborCoord.X && n.coord.Y == neighborCoord.Y {
-					if g < n.g {
-						openSet[i] = neighbor
-					}
-					found = true
-					break
-				}
-			}
-			if !found {
-				openSet = append(openSet, neighbor)
-			}
+// findLowestFNodeCoord finds the node with lowest f score.
+func findLowestFNodeCoord(openSet []*astarNode) (*astarNode, int) {
+	current := openSet[0]
+	currentIdx := 0
+	for i, n := range openSet {
+		if n.f() < current.f() {
+			current = n
+			currentIdx = i
 		}
 	}
+	return current, currentIdx
+}
 
-	// No path found
-	return []Coord{}
+// expandCoordNode explores neighbors of the current node.
+func expandCoordNode(current *astarNode, openSet []*astarNode, closedSet map[Coord]bool, grid level.TileMap, goal Coord) []*astarNode {
+	neighbors := []Coord{
+		{X: current.coord.X + 1, Y: current.coord.Y},
+		{X: current.coord.X - 1, Y: current.coord.Y},
+		{X: current.coord.X, Y: current.coord.Y + 1},
+		{X: current.coord.X, Y: current.coord.Y - 1},
+	}
+
+	for _, neighborCoord := range neighbors {
+		if isValidCoordNeighbor(neighborCoord, closedSet, grid) {
+			openSet = addOrUpdateCoordNeighbor(neighborCoord, current, openSet, goal)
+		}
+	}
+	return openSet
+}
+
+// isValidCoordNeighbor checks if a coordinate neighbor is valid for pathfinding.
+func isValidCoordNeighbor(coord Coord, closedSet map[Coord]bool, grid level.TileMap) bool {
+	if !grid.InBounds(coord.X, coord.Y) {
+		return false
+	}
+	if !grid.IsWalkable(coord.X, coord.Y) {
+		return false
+	}
+	if closedSet[coord] {
+		return false
+	}
+	return true
+}
+
+// addOrUpdateCoordNeighbor adds or updates a neighbor in the open set.
+func addOrUpdateCoordNeighbor(neighborCoord Coord, current *astarNode, openSet []*astarNode, goal Coord) []*astarNode {
+	g := current.g + 1
+	h := manhattanDistance(neighborCoord, goal)
+	neighbor := &astarNode{coord: neighborCoord, g: g, h: h, parent: current}
+
+	for i, n := range openSet {
+		if n.coord.X == neighborCoord.X && n.coord.Y == neighborCoord.Y {
+			if g < n.g {
+				openSet[i] = neighbor
+			}
+			return openSet
+		}
+	}
+	return append(openSet, neighbor)
 }
 
 // manhattanDistance computes Manhattan distance heuristic.

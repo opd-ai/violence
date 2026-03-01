@@ -178,98 +178,129 @@ func (sb *Scoreboard) Draw(screen *ebiten.Image) {
 	screenWidth := screen.Bounds().Dx()
 	screenHeight := screen.Bounds().Dy()
 
-	// Semi-transparent background
+	drawScoreboardBackground(screen, screenWidth, screenHeight)
+	y := drawScoreboardHeader(screen, sb.Title, sb.WinnerText, screenWidth)
+	y = drawScoreboardColumnHeaders(screen, y, sb.ShowTeams)
+	drawScoreboardEntries(screen, sb.Entries, y, sb.ShowTeams)
+}
+
+// drawScoreboardBackground renders the background and border.
+func drawScoreboardBackground(screen *ebiten.Image, screenWidth, screenHeight int) {
 	bgColor := color.RGBA{R: 0, G: 0, B: 0, A: 200}
 	vector.DrawFilledRect(screen, 50, 50, float32(screenWidth-100), float32(screenHeight-100), bgColor, false)
 
-	// Border
 	borderColor := color.RGBA{R: 100, G: 100, B: 100, A: 255}
 	vector.StrokeRect(screen, 50, 50, float32(screenWidth-100), float32(screenHeight-100), 2, borderColor, false)
+}
 
+// drawScoreboardHeader renders the title and winner text, returns updated Y position.
+func drawScoreboardHeader(screen *ebiten.Image, title, winnerText string, screenWidth int) int {
 	y := 80
 
-	// Title
 	titleColor := color.RGBA{R: 255, G: 255, B: 255, A: 255}
-	titleX := (screenWidth / 2) - (len(sb.Title) * 7 / 2)
-	text.Draw(screen, sb.Title, basicfont.Face7x13, titleX, y, titleColor)
+	titleX := (screenWidth / 2) - (len(title) * 7 / 2)
+	text.Draw(screen, title, basicfont.Face7x13, titleX, y, titleColor)
 	y += 30
 
-	// Winner text
-	if sb.WinnerText != "" {
+	if winnerText != "" {
 		winnerColor := color.RGBA{R: 255, G: 215, B: 0, A: 255}
-		winnerX := (screenWidth / 2) - (len(sb.WinnerText) * 7 / 2)
-		text.Draw(screen, sb.WinnerText, basicfont.Face7x13, winnerX, y, winnerColor)
+		winnerX := (screenWidth / 2) - (len(winnerText) * 7 / 2)
+		text.Draw(screen, winnerText, basicfont.Face7x13, winnerX, y, winnerColor)
 		y += 25
 	}
 
-	// Column headers
+	return y
+}
+
+// drawScoreboardColumnHeaders renders column headers, returns updated Y position.
+func drawScoreboardColumnHeaders(screen *ebiten.Image, y int, showTeams bool) int {
 	headerColor := color.RGBA{R: 200, G: 200, B: 200, A: 255}
-	headerY := y
 
-	if sb.ShowTeams {
-		text.Draw(screen, "Player", basicfont.Face7x13, 100, headerY, headerColor)
-		text.Draw(screen, "Team", basicfont.Face7x13, 250, headerY, headerColor)
-		text.Draw(screen, "K", basicfont.Face7x13, 350, headerY, headerColor)
-		text.Draw(screen, "D", basicfont.Face7x13, 400, headerY, headerColor)
-		text.Draw(screen, "A", basicfont.Face7x13, 450, headerY, headerColor)
-		text.Draw(screen, "K/D", basicfont.Face7x13, 500, headerY, headerColor)
+	if showTeams {
+		text.Draw(screen, "Player", basicfont.Face7x13, 100, y, headerColor)
+		text.Draw(screen, "Team", basicfont.Face7x13, 250, y, headerColor)
+		text.Draw(screen, "K", basicfont.Face7x13, 350, y, headerColor)
+		text.Draw(screen, "D", basicfont.Face7x13, 400, y, headerColor)
+		text.Draw(screen, "A", basicfont.Face7x13, 450, y, headerColor)
+		text.Draw(screen, "K/D", basicfont.Face7x13, 500, y, headerColor)
 	} else {
-		text.Draw(screen, "Player", basicfont.Face7x13, 100, headerY, headerColor)
-		text.Draw(screen, "Frags", basicfont.Face7x13, 300, headerY, headerColor)
-		text.Draw(screen, "Deaths", basicfont.Face7x13, 400, headerY, headerColor)
-		text.Draw(screen, "K/D", basicfont.Face7x13, 500, headerY, headerColor)
+		text.Draw(screen, "Player", basicfont.Face7x13, 100, y, headerColor)
+		text.Draw(screen, "Frags", basicfont.Face7x13, 300, y, headerColor)
+		text.Draw(screen, "Deaths", basicfont.Face7x13, 400, y, headerColor)
+		text.Draw(screen, "K/D", basicfont.Face7x13, 500, y, headerColor)
 	}
-	y += 25
 
-	// Entries
+	return y + 25
+}
+
+// drawScoreboardEntries renders player entries.
+func drawScoreboardEntries(screen *ebiten.Image, entries []ScoreboardEntry, y int, showTeams bool) {
 	entryColor := color.RGBA{R: 255, G: 255, B: 255, A: 255}
-	redTeamColor := color.RGBA{R: 255, G: 100, B: 100, A: 255}
-	blueTeamColor := color.RGBA{R: 100, G: 100, B: 255, A: 255}
 
-	for i, entry := range sb.Entries {
+	for i, entry := range entries {
 		if i >= 16 {
-			break // Max 16 entries visible
+			break
 		}
-
-		playerColor := entryColor
-		if sb.ShowTeams {
-			if entry.Team == 0 {
-				playerColor = redTeamColor
-			} else if entry.Team == 1 {
-				playerColor = blueTeamColor
-			}
-		}
-
-		// Player name
-		text.Draw(screen, entry.PlayerName, basicfont.Face7x13, 100, y, playerColor)
-
-		if sb.ShowTeams {
-			// Team
-			teamName := "Red"
-			if entry.Team == 1 {
-				teamName = "Blue"
-			}
-			text.Draw(screen, teamName, basicfont.Face7x13, 250, y, playerColor)
-
-			// K/D/A
-			text.Draw(screen, fmt.Sprintf("%d", entry.Frags), basicfont.Face7x13, 350, y, entryColor)
-			text.Draw(screen, fmt.Sprintf("%d", entry.Deaths), basicfont.Face7x13, 400, y, entryColor)
-			text.Draw(screen, fmt.Sprintf("%d", entry.Assists), basicfont.Face7x13, 450, y, entryColor)
-		} else {
-			// Frags/Deaths
-			text.Draw(screen, fmt.Sprintf("%d", entry.Frags), basicfont.Face7x13, 300, y, entryColor)
-			text.Draw(screen, fmt.Sprintf("%d", entry.Deaths), basicfont.Face7x13, 400, y, entryColor)
-		}
-
-		// K/D ratio
-		kdRatio := 0.0
-		if entry.Deaths > 0 {
-			kdRatio = float64(entry.Frags) / float64(entry.Deaths)
-		} else if entry.Frags > 0 {
-			kdRatio = float64(entry.Frags)
-		}
-		text.Draw(screen, fmt.Sprintf("%.2f", kdRatio), basicfont.Face7x13, 500, y, entryColor)
-
-		y += 18
+		playerColor := selectPlayerColor(entry.Team, showTeams)
+		y = drawScoreboardEntry(screen, entry, y, playerColor, entryColor, showTeams)
 	}
+}
+
+// selectPlayerColor determines the color for a player based on team.
+func selectPlayerColor(team int, showTeams bool) color.RGBA {
+	if !showTeams {
+		return color.RGBA{R: 255, G: 255, B: 255, A: 255}
+	}
+	if team == 0 {
+		return color.RGBA{R: 255, G: 100, B: 100, A: 255}
+	}
+	if team == 1 {
+		return color.RGBA{R: 100, G: 100, B: 255, A: 255}
+	}
+	return color.RGBA{R: 255, G: 255, B: 255, A: 255}
+}
+
+// drawScoreboardEntry renders a single player entry, returns updated Y position.
+func drawScoreboardEntry(screen *ebiten.Image, entry ScoreboardEntry, y int, playerColor, entryColor color.RGBA, showTeams bool) int {
+	text.Draw(screen, entry.PlayerName, basicfont.Face7x13, 100, y, playerColor)
+
+	if showTeams {
+		drawTeamEntry(screen, entry, y, playerColor, entryColor)
+	} else {
+		drawDeathmatchEntry(screen, entry, y, entryColor)
+	}
+
+	kdRatio := calculateKDRatio(entry.Frags, entry.Deaths)
+	text.Draw(screen, fmt.Sprintf("%.2f", kdRatio), basicfont.Face7x13, 500, y, entryColor)
+
+	return y + 18
+}
+
+// drawTeamEntry renders team-specific stats for an entry.
+func drawTeamEntry(screen *ebiten.Image, entry ScoreboardEntry, y int, playerColor, entryColor color.RGBA) {
+	teamName := "Red"
+	if entry.Team == 1 {
+		teamName = "Blue"
+	}
+	text.Draw(screen, teamName, basicfont.Face7x13, 250, y, playerColor)
+	text.Draw(screen, fmt.Sprintf("%d", entry.Frags), basicfont.Face7x13, 350, y, entryColor)
+	text.Draw(screen, fmt.Sprintf("%d", entry.Deaths), basicfont.Face7x13, 400, y, entryColor)
+	text.Draw(screen, fmt.Sprintf("%d", entry.Assists), basicfont.Face7x13, 450, y, entryColor)
+}
+
+// drawDeathmatchEntry renders deathmatch-specific stats for an entry.
+func drawDeathmatchEntry(screen *ebiten.Image, entry ScoreboardEntry, y int, entryColor color.RGBA) {
+	text.Draw(screen, fmt.Sprintf("%d", entry.Frags), basicfont.Face7x13, 300, y, entryColor)
+	text.Draw(screen, fmt.Sprintf("%d", entry.Deaths), basicfont.Face7x13, 400, y, entryColor)
+}
+
+// calculateKDRatio computes the kill/death ratio.
+func calculateKDRatio(frags, deaths int) float64 {
+	if deaths > 0 {
+		return float64(frags) / float64(deaths)
+	}
+	if frags > 0 {
+		return float64(frags)
+	}
+	return 0.0
 }

@@ -67,16 +67,36 @@ func (r *Raycaster) CastRays(posX, posY, dirX, dirY float64) []RayHit {
 
 // castRay performs DDA against the map grid for a single ray.
 func (r *Raycaster) castRay(posX, posY, rayDirX, rayDirY float64) RayHit {
-	// Check for nil or empty map before proceeding
 	if r.Map == nil || len(r.Map) == 0 || len(r.Map[0]) == 0 {
 		return RayHit{Distance: 1e30, WallType: 1, Side: 0}
 	}
 
-	// Current map cell
 	mapX := int(posX)
 	mapY := int(posY)
 
-	// Length of ray from one x or y-side to next x or y-side
+	deltaDistX, deltaDistY := calculateDeltaDistances(rayDirX, rayDirY)
+	stepX, stepY, sideDistX, sideDistY := initializeDDA(posX, posY, rayDirX, rayDirY, mapX, mapY, deltaDistX, deltaDistY)
+
+	side, hit := performDDA(&mapX, &mapY, &sideDistX, &sideDistY, deltaDistX, deltaDistY, stepX, stepY, r.Map)
+	if !hit {
+		return RayHit{Distance: 1e30, WallType: 0, Side: side}
+	}
+
+	perpWallDist, hitX, hitY := calculateWallDistance(side, mapX, mapY, posX, posY, rayDirX, rayDirY, stepX, stepY)
+	textureX := calculateTextureCoordinate(side, hitX, hitY)
+
+	return RayHit{
+		Distance: math.Abs(perpWallDist),
+		WallType: r.Map[mapY][mapX],
+		Side:     side,
+		HitX:     hitX,
+		HitY:     hitY,
+		TextureX: textureX,
+	}
+}
+
+// calculateDeltaDistances computes the distance the ray travels between grid lines.
+func calculateDeltaDistances(rayDirX, rayDirY float64) (float64, float64) {
 	var deltaDistX, deltaDistY float64
 	if rayDirX == 0 {
 		deltaDistX = 1e30
@@ -88,8 +108,11 @@ func (r *Raycaster) castRay(posX, posY, rayDirX, rayDirY float64) RayHit {
 	} else {
 		deltaDistY = math.Abs(1.0 / rayDirY)
 	}
+	return deltaDistX, deltaDistY
+}
 
-	// Step direction and initial sideDist
+// initializeDDA sets up initial values for the DDA algorithm.
+func initializeDDA(posX, posY, rayDirX, rayDirY float64, mapX, mapY int, deltaDistX, deltaDistY float64) (int, int, float64, float64) {
 	var stepX, stepY int
 	var sideDistX, sideDistY float64
 
@@ -109,44 +132,42 @@ func (r *Raycaster) castRay(posX, posY, rayDirX, rayDirY float64) RayHit {
 		sideDistY = (float64(mapY+1) - posY) * deltaDistY
 	}
 
-	// DDA algorithm
-	var side int // 0 = X-side, 1 = Y-side
-	var hit bool
+	return stepX, stepY, sideDistX, sideDistY
+}
+
+// performDDA executes the DDA algorithm to find wall intersections.
+func performDDA(mapX, mapY *int, sideDistX, sideDistY *float64, deltaDistX, deltaDistY float64, stepX, stepY int, tileMap [][]int) (int, bool) {
+	var side int
 	const maxDepth = 100
 
-	for depth := 0; depth < maxDepth && !hit; depth++ {
-		// Jump to next map square
-		if sideDistX < sideDistY {
-			sideDistX += deltaDistX
-			mapX += stepX
+	for depth := 0; depth < maxDepth; depth++ {
+		if *sideDistX < *sideDistY {
+			*sideDistX += deltaDistX
+			*mapX += stepX
 			side = 0
 		} else {
-			sideDistY += deltaDistY
-			mapY += stepY
+			*sideDistY += deltaDistY
+			*mapY += stepY
 			side = 1
 		}
 
-		// Check if ray hit a wall
-		if mapX < 0 || mapY < 0 || mapY >= len(r.Map) || mapX >= len(r.Map[0]) {
-			// Out of bounds = wall
-			return RayHit{Distance: 1e30, WallType: 1, Side: side}
+		if *mapX < 0 || *mapY < 0 || *mapY >= len(tileMap) || *mapX >= len(tileMap[0]) {
+			return side, false
 		}
 
-		if r.Map[mapY][mapX] > 0 {
-			hit = true
+		if tileMap[*mapY][*mapX] > 0 {
+			return side, true
 		}
 	}
 
-	if !hit {
-		return RayHit{Distance: 1e30, WallType: 0, Side: side}
-	}
+	return side, false
+}
 
-	// Calculate perpendicular distance to avoid fisheye effect
-	var perpWallDist float64
-	var hitX, hitY float64
+// calculateWallDistance computes the perpendicular distance to the wall and hit coordinates.
+func calculateWallDistance(side, mapX, mapY int, posX, posY, rayDirX, rayDirY float64, stepX, stepY int) (float64, float64, float64) {
+	var perpWallDist, hitX, hitY float64
 
 	if side == 0 {
-		// Hit on X-side (vertical wall)
 		perpWallDist = (float64(mapX) - posX + (1.0-float64(stepX))/2.0) / rayDirX
 		if stepX > 0 {
 			hitX = float64(mapX)
@@ -155,7 +176,6 @@ func (r *Raycaster) castRay(posX, posY, rayDirX, rayDirY float64) RayHit {
 		}
 		hitY = posY + perpWallDist*rayDirY
 	} else {
-		// Hit on Y-side (horizontal wall)
 		perpWallDist = (float64(mapY) - posY + (1.0-float64(stepY))/2.0) / rayDirY
 		if stepY > 0 {
 			hitY = float64(mapY)
@@ -165,24 +185,15 @@ func (r *Raycaster) castRay(posX, posY, rayDirX, rayDirY float64) RayHit {
 		hitX = posX + perpWallDist*rayDirX
 	}
 
-	// Calculate texture coordinate (0.0-1.0) along wall
-	var textureX float64
-	if side == 0 {
-		// Vertical wall: use Y coordinate fractional part
-		textureX = hitY - math.Floor(hitY)
-	} else {
-		// Horizontal wall: use X coordinate fractional part
-		textureX = hitX - math.Floor(hitX)
-	}
+	return perpWallDist, hitX, hitY
+}
 
-	return RayHit{
-		Distance: math.Abs(perpWallDist),
-		WallType: r.Map[mapY][mapX],
-		Side:     side,
-		HitX:     hitX,
-		HitY:     hitY,
-		TextureX: textureX,
+// calculateTextureCoordinate computes the texture coordinate along the wall.
+func calculateTextureCoordinate(side int, hitX, hitY float64) float64 {
+	if side == 0 {
+		return hitY - math.Floor(hitY)
 	}
+	return hitX - math.Floor(hitX)
 }
 
 // FloorCeilPixel contains floor/ceiling pixel information.
@@ -285,112 +296,131 @@ func (r *Raycaster) CastSprites(sprites []Sprite, posX, posY, dirX, dirY float64
 		return nil
 	}
 
-	// Camera plane perpendicular to direction vector
-	planeX := -dirY * Tan(r.FOV*math.Pi/360.0)
-	planeY := dirX * Tan(r.FOV*math.Pi/360.0)
+	planeX, planeY := calculateCameraPlane(dirX, dirY, r.FOV)
+	spriteList := prepareSpriteList(sprites, posX, posY)
+	sortSpritesByDistance(spriteList)
 
-	// Transform sprites to camera space and calculate distance
-	type spriteData struct {
-		sprite   Sprite
-		distance float64
-		index    int
-	}
+	return projectSprites(spriteList, posX, posY, dirX, dirY, planeX, planeY, wallDistances, r.Width, r.Height)
+}
 
+// calculateCameraPlane computes the camera plane perpendicular to direction.
+func calculateCameraPlane(dirX, dirY, fov float64) (float64, float64) {
+	planeX := -dirY * Tan(fov*math.Pi/360.0)
+	planeY := dirX * Tan(fov*math.Pi/360.0)
+	return planeX, planeY
+}
+
+// prepareSpriteList transforms sprites to camera space with distances.
+func prepareSpriteList(sprites []Sprite, posX, posY float64) []spriteData {
 	spriteList := make([]spriteData, 0, len(sprites))
 	for i, spr := range sprites {
-		// Translate sprite position relative to camera
 		dx := spr.X - posX
 		dy := spr.Y - posY
-
-		// Distance for sorting
 		dist := math.Sqrt(dx*dx + dy*dy)
 		spriteList = append(spriteList, spriteData{sprite: spr, distance: dist, index: i})
 	}
+	return spriteList
+}
 
-	// Sort by distance (farthest first for painter's algorithm)
+// sortSpritesByDistance sorts sprites from farthest to nearest.
+func sortSpritesByDistance(spriteList []spriteData) {
 	sort.Slice(spriteList, func(i, j int) bool {
 		return spriteList[i].distance > spriteList[j].distance
 	})
+}
 
-	// Project each sprite
-	hits := make([]SpriteHit, 0, len(sprites))
+// projectSprites projects sprites onto the screen.
+func projectSprites(spriteList []spriteData, posX, posY, dirX, dirY, planeX, planeY float64, wallDistances []RayHit, width, height int) []SpriteHit {
+	hits := make([]SpriteHit, 0, len(spriteList))
+
 	for _, sd := range spriteList {
-		spr := sd.sprite
-
-		// Sprite position relative to camera
-		spriteX := spr.X - posX
-		spriteY := spr.Y - posY
-
-		// Inverse camera matrix for transformation
-		invDet := 1.0 / (planeX*dirY - dirX*planeY)
-		transformX := invDet * (dirY*spriteX - dirX*spriteY)
-		transformY := invDet * (-planeY*spriteX + planeX*spriteY)
-
-		// Skip sprites behind camera
-		if transformY <= 0 {
-			continue
+		hit := projectSingleSprite(sd.sprite, posX, posY, dirX, dirY, planeX, planeY, wallDistances, width, height)
+		if hit != nil {
+			hits = append(hits, *hit)
 		}
-
-		// Screen X position
-		spriteScreenX := int(float64(r.Width) / 2.0 * (1.0 + transformX/transformY))
-
-		// Sprite dimensions in pixels
-		spriteHeight := int(math.Abs(float64(r.Height) / transformY * spr.Height))
-		spriteWidth := int(math.Abs(float64(r.Height) / transformY * spr.Width))
-
-		// Calculate draw bounds
-		drawStartY := -spriteHeight/2 + r.Height/2
-		drawEndY := spriteHeight/2 + r.Height/2
-		drawStartX := -spriteWidth/2 + spriteScreenX
-		drawEndX := spriteWidth/2 + spriteScreenX
-
-		// Clip to screen bounds
-		if drawStartX < 0 {
-			drawStartX = 0
-		}
-		if drawEndX >= r.Width {
-			drawEndX = r.Width - 1
-		}
-		if drawStartY < 0 {
-			drawStartY = 0
-		}
-		if drawEndY >= r.Height {
-			drawEndY = r.Height - 1
-		}
-
-		// Skip if completely off-screen
-		if drawStartX >= r.Width || drawEndX < 0 {
-			continue
-		}
-
-		// Check occlusion against wall distances
-		occluded := true
-		for x := drawStartX; x <= drawEndX && x < len(wallDistances); x++ {
-			if transformY < wallDistances[x].Distance {
-				occluded = false
-				break
-			}
-		}
-
-		if occluded {
-			continue
-		}
-
-		hits = append(hits, SpriteHit{
-			ScreenX:      spriteScreenX,
-			ScreenY:      r.Height / 2,
-			ScreenWidth:  spriteWidth,
-			ScreenHeight: spriteHeight,
-			Distance:     transformY,
-			Type:         spr.Type,
-			DrawStartX:   drawStartX,
-			DrawEndX:     drawEndX,
-			DrawStartY:   drawStartY,
-			DrawEndY:     drawEndY,
-		})
 	}
 
 	return hits
+}
+
+// projectSingleSprite projects a single sprite onto screen space.
+func projectSingleSprite(spr Sprite, posX, posY, dirX, dirY, planeX, planeY float64, wallDistances []RayHit, width, height int) *SpriteHit {
+	spriteX := spr.X - posX
+	spriteY := spr.Y - posY
+
+	invDet := 1.0 / (planeX*dirY - dirX*planeY)
+	transformX := invDet * (dirY*spriteX - dirX*spriteY)
+	transformY := invDet * (-planeY*spriteX + planeX*spriteY)
+
+	if transformY <= 0 {
+		return nil
+	}
+
+	spriteScreenX := int(float64(width) / 2.0 * (1.0 + transformX/transformY))
+	spriteHeight := int(math.Abs(float64(height) / transformY * spr.Height))
+	spriteWidth := int(math.Abs(float64(height) / transformY * spr.Width))
+
+	drawStartX, drawEndX, drawStartY, drawEndY := calculateSpriteBounds(spriteScreenX, spriteWidth, spriteHeight, width, height)
+
+	if drawStartX >= width || drawEndX < 0 {
+		return nil
+	}
+
+	if isSpriteOccluded(drawStartX, drawEndX, transformY, wallDistances) {
+		return nil
+	}
+
+	return &SpriteHit{
+		ScreenX:      spriteScreenX,
+		ScreenY:      height / 2,
+		ScreenWidth:  spriteWidth,
+		ScreenHeight: spriteHeight,
+		Distance:     transformY,
+		Type:         spr.Type,
+		DrawStartX:   drawStartX,
+		DrawEndX:     drawEndX,
+		DrawStartY:   drawStartY,
+		DrawEndY:     drawEndY,
+	}
+}
+
+// calculateSpriteBounds computes and clips sprite drawing bounds.
+func calculateSpriteBounds(spriteScreenX, spriteWidth, spriteHeight, screenWidth, screenHeight int) (int, int, int, int) {
+	drawStartY := -spriteHeight/2 + screenHeight/2
+	drawEndY := spriteHeight/2 + screenHeight/2
+	drawStartX := -spriteWidth/2 + spriteScreenX
+	drawEndX := spriteWidth/2 + spriteScreenX
+
+	if drawStartX < 0 {
+		drawStartX = 0
+	}
+	if drawEndX >= screenWidth {
+		drawEndX = screenWidth - 1
+	}
+	if drawStartY < 0 {
+		drawStartY = 0
+	}
+	if drawEndY >= screenHeight {
+		drawEndY = screenHeight - 1
+	}
+
+	return drawStartX, drawEndX, drawStartY, drawEndY
+}
+
+// isSpriteOccluded checks if a sprite is occluded by walls.
+func isSpriteOccluded(drawStartX, drawEndX int, transformY float64, wallDistances []RayHit) bool {
+	for x := drawStartX; x <= drawEndX && x < len(wallDistances); x++ {
+		if transformY < wallDistances[x].Distance {
+			return false
+		}
+	}
+	return true
+}
+
+type spriteData struct {
+	sprite   Sprite
+	distance float64
+	index    int
 }
 
 // ApplyFog applies exponential fog to a color based on distance.

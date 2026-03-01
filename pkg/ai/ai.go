@@ -448,71 +448,111 @@ func (n *pathNode) f() float64 {
 
 // FindPath uses A* to find a path from start to goal.
 func FindPath(x1, y1, x2, y2 float64, tileMap [][]int) []Waypoint {
-	if tileMap == nil || len(tileMap) == 0 || len(tileMap[0]) == 0 {
+	if !validatePathInput(x1, y1, x2, y2, tileMap) {
 		return []Waypoint{{X: x1, Y: y1}}
+	}
+
+	startX, startY := int(x1), int(y1)
+	goalX, goalY := int(x2), int(y2)
+
+	openSet := []*pathNode{{x: startX, y: startY, g: 0, h: heuristic(startX, startY, goalX, goalY)}}
+	closedSet := make(map[int]bool)
+
+	path := findAStarPath(openSet, closedSet, goalX, goalY, tileMap)
+	if path != nil {
+		return path
+	}
+
+	return []Waypoint{{X: x1, Y: y1}, {X: x2, Y: y2}}
+}
+
+// validatePathInput checks if pathfinding inputs are valid.
+func validatePathInput(x1, y1, x2, y2 float64, tileMap [][]int) bool {
+	if tileMap == nil || len(tileMap) == 0 || len(tileMap[0]) == 0 {
+		return false
 	}
 	startX, startY := int(x1), int(y1)
 	goalX, goalY := int(x2), int(y2)
 	if startX < 0 || startY < 0 || startX >= len(tileMap[0]) || startY >= len(tileMap) {
-		return []Waypoint{{X: x1, Y: y1}}
+		return false
 	}
 	if goalX < 0 || goalY < 0 || goalX >= len(tileMap[0]) || goalY >= len(tileMap) {
-		return []Waypoint{{X: x1, Y: y1}}
+		return false
 	}
-	// A* implementation
-	openSet := []*pathNode{{x: startX, y: startY, g: 0, h: heuristic(startX, startY, goalX, goalY)}}
-	closedSet := make(map[int]bool)
+	return true
+}
+
+// findAStarPath performs A* pathfinding algorithm.
+func findAStarPath(openSet []*pathNode, closedSet map[int]bool, goalX, goalY int, tileMap [][]int) []Waypoint {
 	maxIter := 500
 	for iter := 0; iter < maxIter && len(openSet) > 0; iter++ {
-		// Find node with lowest f
-		current := openSet[0]
-		currentIdx := 0
-		for i, node := range openSet {
-			if node.f() < current.f() {
-				current = node
-				currentIdx = i
-			}
-		}
-		// Remove from open set
+		current, currentIdx := findLowestFNode(openSet)
 		openSet = append(openSet[:currentIdx], openSet[currentIdx+1:]...)
-		// Check if reached goal
+
 		if current.x == goalX && current.y == goalY {
 			return reconstructPath(current)
 		}
+
 		closedSet[current.y*len(tileMap[0])+current.x] = true
-		// Check neighbors
-		for _, dir := range []struct{ dx, dy int }{{0, 1}, {1, 0}, {0, -1}, {-1, 0}} {
-			nx, ny := current.x+dir.dx, current.y+dir.dy
-			if ny < 0 || ny >= len(tileMap) || nx < 0 || nx >= len(tileMap[0]) {
-				continue
-			}
-			if !isWalkable(float64(nx)+0.5, float64(ny)+0.5, tileMap) {
-				continue
-			}
-			if closedSet[ny*len(tileMap[0])+nx] {
-				continue
-			}
-			g := current.g + 1
-			h := heuristic(nx, ny, goalX, goalY)
-			neighbor := &pathNode{x: nx, y: ny, g: g, h: h, parent: current}
-			// Check if already in open set
-			found := false
-			for i, node := range openSet {
-				if node.x == nx && node.y == ny {
-					if g < node.g {
-						openSet[i] = neighbor
-					}
-					found = true
-					break
-				}
-			}
-			if !found {
-				openSet = append(openSet, neighbor)
-			}
+		openSet = expandPathNode(current, openSet, closedSet, goalX, goalY, tileMap)
+	}
+	return nil
+}
+
+// findLowestFNode finds the node with the lowest f score in the open set.
+func findLowestFNode(openSet []*pathNode) (*pathNode, int) {
+	current := openSet[0]
+	currentIdx := 0
+	for i, node := range openSet {
+		if node.f() < current.f() {
+			current = node
+			currentIdx = i
 		}
 	}
-	// No path found, return direct line
-	return []Waypoint{{X: x1, Y: y1}, {X: x2, Y: y2}}
+	return current, currentIdx
+}
+
+// expandPathNode expands a node by checking all neighbors.
+func expandPathNode(current *pathNode, openSet []*pathNode, closedSet map[int]bool, goalX, goalY int, tileMap [][]int) []*pathNode {
+	directions := []struct{ dx, dy int }{{0, 1}, {1, 0}, {0, -1}, {-1, 0}}
+	for _, dir := range directions {
+		nx, ny := current.x+dir.dx, current.y+dir.dy
+		if isValidPathNeighbor(nx, ny, closedSet, tileMap) {
+			openSet = addOrUpdateNeighbor(nx, ny, current, openSet, goalX, goalY)
+		}
+	}
+	return openSet
+}
+
+// isValidPathNeighbor checks if a neighbor position is valid for pathfinding.
+func isValidPathNeighbor(nx, ny int, closedSet map[int]bool, tileMap [][]int) bool {
+	if ny < 0 || ny >= len(tileMap) || nx < 0 || nx >= len(tileMap[0]) {
+		return false
+	}
+	if !isWalkable(float64(nx)+0.5, float64(ny)+0.5, tileMap) {
+		return false
+	}
+	if closedSet[ny*len(tileMap[0])+nx] {
+		return false
+	}
+	return true
+}
+
+// addOrUpdateNeighbor adds a neighbor to the open set or updates if better path found.
+func addOrUpdateNeighbor(nx, ny int, current *pathNode, openSet []*pathNode, goalX, goalY int) []*pathNode {
+	g := current.g + 1
+	h := heuristic(nx, ny, goalX, goalY)
+	neighbor := &pathNode{x: nx, y: ny, g: g, h: h, parent: current}
+
+	for i, node := range openSet {
+		if node.x == nx && node.y == ny {
+			if g < node.g {
+				openSet[i] = neighbor
+			}
+			return openSet
+		}
+	}
+	return append(openSet, neighbor)
 }
 
 func heuristic(x1, y1, x2, y2 int) float64 {

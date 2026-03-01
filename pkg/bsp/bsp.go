@@ -183,47 +183,7 @@ func (g *Generator) split(n *Node, depth int) bool {
 // createRooms carves rooms in leaf nodes.
 func (g *Generator) createRooms(n *Node, tiles [][]int) {
 	if n.Left == nil && n.Right == nil {
-		// Leaf node: create a room
-		maxW := min(n.W-2, g.MaxSize)
-		maxH := min(n.H-2, g.MaxSize)
-
-		if maxW < g.MinSize || maxH < g.MinSize {
-			return // Node too small for a room
-		}
-
-		wRange := maxW - g.MinSize + 1
-		hRange := maxH - g.MinSize + 1
-
-		w := g.MinSize
-		h := g.MinSize
-		if wRange > 1 {
-			w += g.rng.Intn(wRange)
-		}
-		if hRange > 1 {
-			h += g.rng.Intn(hRange)
-		}
-
-		xRange := n.W - w - 1
-		yRange := n.H - h - 1
-
-		x := n.X + 1
-		y := n.Y + 1
-		if xRange > 1 {
-			x += g.rng.Intn(xRange)
-		}
-		if yRange > 1 {
-			y += g.rng.Intn(yRange)
-		}
-
-		n.Room = &Room{X: x, Y: y, W: w, H: h}
-
-		for dy := 0; dy < h; dy++ {
-			for dx := 0; dx < w; dx++ {
-				if y+dy >= 0 && y+dy < g.Height && x+dx >= 0 && x+dx < g.Width {
-					tiles[y+dy][x+dx] = g.floorTile
-				}
-			}
-		}
+		g.createLeafRoom(n, tiles)
 		return
 	}
 
@@ -232,6 +192,65 @@ func (g *Generator) createRooms(n *Node, tiles [][]int) {
 	}
 	if n.Right != nil {
 		g.createRooms(n.Right, tiles)
+	}
+}
+
+// createLeafRoom creates a room in a leaf node.
+func (g *Generator) createLeafRoom(n *Node, tiles [][]int) {
+	maxW := min(n.W-2, g.MaxSize)
+	maxH := min(n.H-2, g.MaxSize)
+
+	if maxW < g.MinSize || maxH < g.MinSize {
+		return
+	}
+
+	w, h := g.calculateRoomDimensions(maxW, maxH)
+	x, y := g.calculateRoomPosition(n, w, h)
+
+	n.Room = &Room{X: x, Y: y, W: w, H: h}
+	g.fillRoomFloor(x, y, w, h, tiles)
+}
+
+// calculateRoomDimensions determines random room dimensions within constraints.
+func (g *Generator) calculateRoomDimensions(maxW, maxH int) (int, int) {
+	wRange := maxW - g.MinSize + 1
+	hRange := maxH - g.MinSize + 1
+
+	w := g.MinSize
+	h := g.MinSize
+	if wRange > 1 {
+		w += g.rng.Intn(wRange)
+	}
+	if hRange > 1 {
+		h += g.rng.Intn(hRange)
+	}
+	return w, h
+}
+
+// calculateRoomPosition determines random room position within node bounds.
+func (g *Generator) calculateRoomPosition(n *Node, w, h int) (int, int) {
+	xRange := n.W - w - 1
+	yRange := n.H - h - 1
+
+	x := n.X + 1
+	y := n.Y + 1
+	if xRange > 1 {
+		x += g.rng.Intn(xRange)
+	}
+	if yRange > 1 {
+		y += g.rng.Intn(yRange)
+	}
+	return x, y
+}
+
+// fillRoomFloor fills the room area with floor tiles.
+func (g *Generator) fillRoomFloor(x, y, w, h int, tiles [][]int) {
+	for dy := 0; dy < h; dy++ {
+		for dx := 0; dx < w; dx++ {
+			if y+dy >= 0 && y+dy < g.Height && x+dx >= 0 && x+dx < g.Width {
+				tiles[y+dy][x+dx] = g.floorTile
+			}
+		}
 	}
 }
 
@@ -338,48 +357,69 @@ func (g *Generator) placeDoors(n *Node, tiles [][]int) {
 
 // placeSecrets inserts secret walls in dead ends.
 func (g *Generator) placeSecrets(n *Node, tiles [][]int) {
-	if n == nil {
-		return
-	}
-	if len(tiles) == 0 || len(tiles[0]) == 0 {
-		return
-	}
-	if len(tiles) < g.Height || len(tiles[0]) < g.Width {
+	if !g.validateSecretPlacement(n, tiles) {
 		return
 	}
 
-	// Find dead ends (floor tiles with 3 wall neighbors)
 	for y := 1; y < g.Height-1; y++ {
 		for x := 1; x < g.Width-1; x++ {
 			if tiles[y][x] == g.floorTile {
-				wallCount := 0
-				if tiles[y-1][x] == g.wallTile {
-					wallCount++
-				}
-				if tiles[y+1][x] == g.wallTile {
-					wallCount++
-				}
-				if tiles[y][x-1] == g.wallTile {
-					wallCount++
-				}
-				if tiles[y][x+1] == g.wallTile {
-					wallCount++
-				}
-
-				if wallCount == 3 && g.rng.Intn(100) < 15 { // 15% chance
-					// Place secret on one of the walls
-					if tiles[y-1][x] == g.wallTile && g.rng.Intn(2) == 0 {
-						tiles[y-1][x] = TileSecret
-					} else if tiles[y+1][x] == g.wallTile && g.rng.Intn(2) == 0 {
-						tiles[y+1][x] = TileSecret
-					} else if tiles[y][x-1] == g.wallTile && g.rng.Intn(2) == 0 {
-						tiles[y][x-1] = TileSecret
-					} else if tiles[y][x+1] == g.wallTile {
-						tiles[y][x+1] = TileSecret
-					}
-				}
+				g.tryPlaceSecretAtDeadEnd(x, y, tiles)
 			}
 		}
+	}
+}
+
+// validateSecretPlacement checks if secret placement is possible.
+func (g *Generator) validateSecretPlacement(n *Node, tiles [][]int) bool {
+	if n == nil {
+		return false
+	}
+	if len(tiles) == 0 || len(tiles[0]) == 0 {
+		return false
+	}
+	if len(tiles) < g.Height || len(tiles[0]) < g.Width {
+		return false
+	}
+	return true
+}
+
+// tryPlaceSecretAtDeadEnd attempts to place a secret at a dead end location.
+func (g *Generator) tryPlaceSecretAtDeadEnd(x, y int, tiles [][]int) {
+	wallCount := g.countAdjacentWalls(x, y, tiles)
+	if wallCount == 3 && g.rng.Intn(100) < 15 {
+		g.placeSecretOnWall(x, y, tiles)
+	}
+}
+
+// countAdjacentWalls counts the number of walls adjacent to a position.
+func (g *Generator) countAdjacentWalls(x, y int, tiles [][]int) int {
+	wallCount := 0
+	if tiles[y-1][x] == g.wallTile {
+		wallCount++
+	}
+	if tiles[y+1][x] == g.wallTile {
+		wallCount++
+	}
+	if tiles[y][x-1] == g.wallTile {
+		wallCount++
+	}
+	if tiles[y][x+1] == g.wallTile {
+		wallCount++
+	}
+	return wallCount
+}
+
+// placeSecretOnWall places a secret tile on one of the adjacent walls.
+func (g *Generator) placeSecretOnWall(x, y int, tiles [][]int) {
+	if tiles[y-1][x] == g.wallTile && g.rng.Intn(2) == 0 {
+		tiles[y-1][x] = TileSecret
+	} else if tiles[y+1][x] == g.wallTile && g.rng.Intn(2) == 0 {
+		tiles[y+1][x] = TileSecret
+	} else if tiles[y][x-1] == g.wallTile && g.rng.Intn(2) == 0 {
+		tiles[y][x-1] = TileSecret
+	} else if tiles[y][x+1] == g.wallTile {
+		tiles[y][x+1] = TileSecret
 	}
 }
 
