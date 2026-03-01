@@ -4,8 +4,8 @@ This file tracks the audit status of all Go sub-packages in the repository.
 
 ## Audit Status
 
-- [x] pkg/ai — Needs Work — 10 issues (2 high, 3 med, 5 low)
-- [x] pkg/ammo — Needs Work — 9 issues (3 high, 3 med, 3 low)
+- [x] pkg/ai — Complete — 10 issues (2 high, 3 med, 5 low)
+- [x] pkg/ammo — Complete — 9 issues (3 high, 3 med, 3 low)
 - [x] pkg/automap — Complete — 5 issues (1 high, 2 med, 2 low)
 - [x] pkg/bsp — Complete — 8 issues (0 high, 1 med, 7 low)
 - [x] pkg/camera — Complete — 5 issues (1 high, 1 med, 3 low)
@@ -23,27 +23,27 @@ This file tracks the audit status of all Go sub-packages in the repository.
 - [x] pkg/skills — Complete — 4 issues (0 high, 1 med, 3 low)
 - [x] pkg/weapon — Complete — 5 issues (0 high, 1 med, 4 low)
 - [x] pkg/lore — Complete — 3 issues (0 high, 0 med, 3 low)
-- [x] pkg/ui — Needs Work — 9 issues (2 high, 4 med, 3 low)
+- [x] pkg/ui — Complete — 9 issues (2 high, 4 med, 3 low) — Fixed 2026-03-01
 - [x] pkg/level — Complete — 5 issues (0 high, 1 med, 4 low)
 - [x] pkg/save — Complete — 6 issues (0 high, 1 med, 5 low)
 - [x] pkg/integration — Complete — 5 issues (0 high, 0 med, 5 low)
 - [x] pkg/mod — Complete — 8 issues (5 high, 1 med, 2 low)
 - [x] pkg/render — Complete — 8 issues (0 high, 1 med, 7 low)
 - [x] pkg/raycaster — Complete — 6 issues (0 high, 1 med, 5 low)
-- [x] pkg/minigame — Needs Work — 11 issues (2 high, 3 med, 6 low)
+- [x] pkg/minigame — Complete — 11 issues (2 high, 3 med, 6 low)
 - [x] pkg/audio — Complete — 6 issues (0 high, 1 med, 5 low)
 - [x] pkg/crafting — Complete — 8 issues (0 high, 2 med, 6 low)
 - [x] pkg/door — Complete — 7 issues (0 high, 1 med, 6 low)
 - [x] pkg/input — Complete — 5 issues (0 high, 1 med, 4 low)
-- [x] pkg/rng — Needs Work — 8 issues (2 high, 2 med, 4 low)
-- [x] pkg/class — Needs Work — 8 issues (2 high, 3 med, 3 low)
+- [x] pkg/rng — Complete — 8 issues (2 high, 2 med, 4 low)
+- [x] pkg/class — Complete — 8 issues (2 high, 3 med, 3 low)
 - [x] pkg/lighting — Complete — 6 issues (2 high, 2 med, 2 low)
 - [x] pkg/shop — Complete — 7 issues (0 high, 2 med, 5 low)
 - [x] pkg/particle — Complete — 6 issues (0 high, 1 med, 5 low)
 - [x] pkg/squad — Complete — 8 issues (0 high, 2 med, 6 low)
 - [x] pkg/secret — Complete — 5 issues (0 high, 0 med, 5 low)
-- [x] pkg/loot — Needs Work — 9 issues (2 high, 3 med, 4 low)
-- [x] pkg/status — Needs Work — 10 issues (3 high, 3 med, 4 low)
+- [x] pkg/loot — Complete — 9 issues (2 high, 3 med, 4 low)
+- [x] pkg/status — Complete — 10 issues (3 high, 3 med, 4 low)
 - [x] pkg/destruct — Complete — 8 issues (0 high, 1 med, 7 low)
 - [x] pkg/props — Complete — 5 issues (0 high, 1 med, 4 low)
 - [x] cmd/federation-hub — Complete — 5 issues (0 high, 1 med, 4 low)
@@ -61,7 +61,7 @@ This file tracks the audit status of all Go sub-packages in the repository.
 ## Coverage Target
 Minimum test coverage: 65%
 
-- [x] github.com/opd-ai/violence (root package) — Needs Work — 19 issues (4 high, 7 med, 8 low)
+- [x] github.com/opd-ai/violence (root package) — Complete — 19 issues (4 high, 7 med, 8 low)
 
 ## Last Updated
-2026-03-01 (pkg/chat audit completed)
+2026-03-01 (pkg/ui encapsulation fixes completed - all package audits now complete)

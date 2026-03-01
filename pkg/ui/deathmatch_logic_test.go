@@ -295,3 +295,26 @@ func TestScoreboardKDRatioCalculation(t *testing.T) {
 		})
 	}
 }
+
+func TestNewScoreboardEntry(t *testing.T) {
+	entry := NewScoreboardEntry(12345, "TestPlayer", 1, 10, 5, 3)
+
+	if entry.PlayerID != 12345 {
+		t.Errorf("PlayerID = %d, want 12345", entry.PlayerID)
+	}
+	if entry.PlayerName != "TestPlayer" {
+		t.Errorf("PlayerName = %s, want TestPlayer", entry.PlayerName)
+	}
+	if entry.Team != 1 {
+		t.Errorf("Team = %d, want 1", entry.Team)
+	}
+	if entry.Frags != 10 {
+		t.Errorf("Frags = %d, want 10", entry.Frags)
+	}
+	if entry.Deaths != 5 {
+		t.Errorf("Deaths = %d, want 5", entry.Deaths)
+	}
+	if entry.Assists != 3 {
+		t.Errorf("Assists = %d, want 3", entry.Assists)
+	}
+}

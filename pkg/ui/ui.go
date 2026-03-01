@@ -1006,6 +1006,17 @@ type ShopItem struct {
 	Stock int // -1 = unlimited
 }
 
+// NewShopItem creates a ShopItem with the given parameters.
+// Stock of -1 indicates unlimited stock.
+func NewShopItem(id, name string, price, stock int) ShopItem {
+	return ShopItem{
+		ID:    id,
+		Name:  name,
+		Price: price,
+		Stock: stock,
+	}
+}
+
 // ShopState holds the shop display state for rendering.
 type ShopState struct {
 	ShopName string

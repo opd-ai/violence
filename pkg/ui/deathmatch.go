@@ -103,6 +103,8 @@ func (kf *KillFeed) Draw(screen *ebiten.Image) {
 }
 
 // ScoreboardEntry represents a player's stats in the scoreboard.
+// Fields are exported to allow struct literal construction in rendering contexts.
+// Use NewScoreboardEntry for canonical construction.
 type ScoreboardEntry struct {
 	PlayerID   uint64
 	PlayerName string
@@ -110,6 +112,18 @@ type ScoreboardEntry struct {
 	Frags      int
 	Deaths     int
 	Assists    int
+}
+
+// NewScoreboardEntry creates a ScoreboardEntry with the given stats.
+func NewScoreboardEntry(id uint64, name string, team, frags, deaths, assists int) ScoreboardEntry {
+	return ScoreboardEntry{
+		PlayerID:   id,
+		PlayerName: name,
+		Team:       team,
+		Frags:      frags,
+		Deaths:     deaths,
+		Assists:    assists,
+	}
 }
 
 // Scoreboard displays end-of-match or in-game statistics.

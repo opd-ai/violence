@@ -1605,3 +1605,36 @@ func TestCommandWheel_SetPlayers_ResetIndex(t *testing.T) {
 		t.Errorf("selectedIndex = %d, want 0 (reset after setting fewer players)", cw.selectedIndex)
 	}
 }
+
+func TestNewShopItem(t *testing.T) {
+	tests := []struct {
+		name  string
+		id    string
+		iname string
+		price int
+		stock int
+	}{
+		{"normal item", "pistol", "Pistol", 100, 5},
+		{"unlimited stock", "ammo", "Ammo Pack", 50, -1},
+		{"free item", "medkit", "Free Medkit", 0, 10},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			item := NewShopItem(tt.id, tt.iname, tt.price, tt.stock)
+
+			if item.ID != tt.id {
+				t.Errorf("ID = %s, want %s", item.ID, tt.id)
+			}
+			if item.Name != tt.iname {
+				t.Errorf("Name = %s, want %s", item.Name, tt.iname)
+			}
+			if item.Price != tt.price {
+				t.Errorf("Price = %d, want %d", item.Price, tt.price)
+			}
+			if item.Stock != tt.stock {
+				t.Errorf("Stock = %d, want %d", item.Stock, tt.stock)
+			}
+		})
+	}
+}

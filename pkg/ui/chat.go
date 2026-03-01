@@ -27,11 +27,11 @@ type ChatMessage struct {
 // ChatOverlay displays in-game chat UI overlay.
 type ChatOverlay struct {
 	mu             sync.Mutex
-	Visible        bool
-	Messages       []ChatMessage
-	InputBuffer    string
-	CursorPosition int
-	ScrollOffset   int
+	visible        bool
+	messages       []ChatMessage
+	inputBuffer    string
+	cursorPosition int
+	scrollOffset   int
 	X              int
 	Y              int
 	Width          int
@@ -41,11 +41,11 @@ type ChatOverlay struct {
 // NewChatOverlay creates a new chat overlay.
 func NewChatOverlay(x, y, width, height int) *ChatOverlay {
 	return &ChatOverlay{
-		Visible:        false,
-		Messages:       make([]ChatMessage, 0, ChatHistoryMaxLength),
-		InputBuffer:    "",
-		CursorPosition: 0,
-		ScrollOffset:   0,
+		visible:        false,
+		messages:       make([]ChatMessage, 0, ChatHistoryMaxLength),
+		inputBuffer:    "",
+		cursorPosition: 0,
+		scrollOffset:   0,
 		X:              x,
 		Y:              y,
 		Width:          width,
@@ -57,26 +57,26 @@ func NewChatOverlay(x, y, width, height int) *ChatOverlay {
 func (co *ChatOverlay) Show() {
 	co.mu.Lock()
 	defer co.mu.Unlock()
-	co.Visible = true
+	co.visible = true
 }
 
 // Hide makes the chat overlay invisible.
 func (co *ChatOverlay) Hide() {
 	co.mu.Lock()
 	defer co.mu.Unlock()
-	co.Visible = false
-	co.InputBuffer = ""
-	co.CursorPosition = 0
+	co.visible = false
+	co.inputBuffer = ""
+	co.cursorPosition = 0
 }
 
 // Toggle toggles chat overlay visibility.
 func (co *ChatOverlay) Toggle() {
 	co.mu.Lock()
 	defer co.mu.Unlock()
-	co.Visible = !co.Visible
-	if !co.Visible {
-		co.InputBuffer = ""
-		co.CursorPosition = 0
+	co.visible = !co.visible
+	if !co.visible {
+		co.inputBuffer = ""
+		co.cursorPosition = 0
 	}
 }
 
@@ -84,7 +84,7 @@ func (co *ChatOverlay) Toggle() {
 func (co *ChatOverlay) IsVisible() bool {
 	co.mu.Lock()
 	defer co.mu.Unlock()
-	return co.Visible
+	return co.visible
 }
 
 // AddMessage adds a message to the chat history. Safe for concurrent use.
@@ -98,16 +98,16 @@ func (co *ChatOverlay) AddMessage(sender, content string, timestamp int64) {
 		Time:    timestamp,
 	}
 
-	co.Messages = append(co.Messages, msg)
+	co.messages = append(co.messages, msg)
 
 	// Trim old messages
-	if len(co.Messages) > ChatHistoryMaxLength {
-		co.Messages = co.Messages[1:]
+	if len(co.messages) > ChatHistoryMaxLength {
+		co.messages = co.messages[1:]
 	}
 
 	// Auto-scroll to bottom on new message
-	if len(co.Messages) > ChatMaxVisibleMessages {
-		co.ScrollOffset = len(co.Messages) - ChatMaxVisibleMessages
+	if len(co.messages) > ChatMaxVisibleMessages {
+		co.scrollOffset = len(co.messages) - ChatMaxVisibleMessages
 	}
 }
 
@@ -115,24 +115,24 @@ func (co *ChatOverlay) AddMessage(sender, content string, timestamp int64) {
 func (co *ChatOverlay) GetInput() string {
 	co.mu.Lock()
 	defer co.mu.Unlock()
-	return co.InputBuffer
+	return co.inputBuffer
 }
 
 // ClearInput clears the input buffer.
 func (co *ChatOverlay) ClearInput() {
 	co.mu.Lock()
 	defer co.mu.Unlock()
-	co.InputBuffer = ""
-	co.CursorPosition = 0
+	co.inputBuffer = ""
+	co.cursorPosition = 0
 }
 
 // AppendToInput appends a character to the input buffer.
 func (co *ChatOverlay) AppendToInput(char rune) {
 	co.mu.Lock()
 	defer co.mu.Unlock()
-	if len(co.InputBuffer) < ChatInputMaxLength {
-		co.InputBuffer += string(char)
-		co.CursorPosition = len(co.InputBuffer)
+	if len(co.inputBuffer) < ChatInputMaxLength {
+		co.inputBuffer += string(char)
+		co.cursorPosition = len(co.inputBuffer)
 	}
 }
 
@@ -140,9 +140,9 @@ func (co *ChatOverlay) AppendToInput(char rune) {
 func (co *ChatOverlay) Backspace() {
 	co.mu.Lock()
 	defer co.mu.Unlock()
-	if len(co.InputBuffer) > 0 {
-		co.InputBuffer = co.InputBuffer[:len(co.InputBuffer)-1]
-		co.CursorPosition = len(co.InputBuffer)
+	if len(co.inputBuffer) > 0 {
+		co.inputBuffer = co.inputBuffer[:len(co.inputBuffer)-1]
+		co.cursorPosition = len(co.inputBuffer)
 	}
 }
 
@@ -150,8 +150,8 @@ func (co *ChatOverlay) Backspace() {
 func (co *ChatOverlay) ScrollUp() {
 	co.mu.Lock()
 	defer co.mu.Unlock()
-	if co.ScrollOffset > 0 {
-		co.ScrollOffset--
+	if co.scrollOffset > 0 {
+		co.scrollOffset--
 	}
 }
 
@@ -159,12 +159,12 @@ func (co *ChatOverlay) ScrollUp() {
 func (co *ChatOverlay) ScrollDown() {
 	co.mu.Lock()
 	defer co.mu.Unlock()
-	maxScroll := len(co.Messages) - ChatMaxVisibleMessages
+	maxScroll := len(co.messages) - ChatMaxVisibleMessages
 	if maxScroll < 0 {
 		maxScroll = 0
 	}
-	if co.ScrollOffset < maxScroll {
-		co.ScrollOffset++
+	if co.scrollOffset < maxScroll {
+		co.scrollOffset++
 	}
 }
 
@@ -172,13 +172,13 @@ func (co *ChatOverlay) ScrollDown() {
 func (co *ChatOverlay) GetVisibleMessages() []ChatMessage {
 	co.mu.Lock()
 	defer co.mu.Unlock()
-	totalMessages := len(co.Messages)
+	totalMessages := len(co.messages)
 	if totalMessages == 0 {
 		return []ChatMessage{}
 	}
 
-	startIdx := co.ScrollOffset
-	endIdx := co.ScrollOffset + ChatMaxVisibleMessages
+	startIdx := co.scrollOffset
+	endIdx := co.scrollOffset + ChatMaxVisibleMessages
 
 	if endIdx > totalMessages {
 		endIdx = totalMessages
@@ -190,16 +190,69 @@ func (co *ChatOverlay) GetVisibleMessages() []ChatMessage {
 		}
 	}
 
-	return co.Messages[startIdx:endIdx]
+	return co.messages[startIdx:endIdx]
+}
+
+// GetMessages returns a copy of all messages. Safe for concurrent use.
+func (co *ChatOverlay) GetMessages() []ChatMessage {
+	co.mu.Lock()
+	defer co.mu.Unlock()
+	result := make([]ChatMessage, len(co.messages))
+	copy(result, co.messages)
+	return result
+}
+
+// GetCursorPosition returns the current cursor position.
+func (co *ChatOverlay) GetCursorPosition() int {
+	co.mu.Lock()
+	defer co.mu.Unlock()
+	return co.cursorPosition
+}
+
+// GetScrollOffset returns the current scroll offset.
+func (co *ChatOverlay) GetScrollOffset() int {
+	co.mu.Lock()
+	defer co.mu.Unlock()
+	return co.scrollOffset
+}
+
+// SetScrollOffset sets the scroll offset directly (for testing).
+func (co *ChatOverlay) SetScrollOffset(offset int) {
+	co.mu.Lock()
+	defer co.mu.Unlock()
+	co.scrollOffset = offset
+}
+
+// SetInputBuffer sets the input buffer directly (for testing).
+func (co *ChatOverlay) SetInputBuffer(input string) {
+	co.mu.Lock()
+	defer co.mu.Unlock()
+	co.inputBuffer = input
+	co.cursorPosition = len(input)
+}
+
+// SetVisible sets the visibility state directly (for testing).
+func (co *ChatOverlay) SetVisible(visible bool) {
+	co.mu.Lock()
+	defer co.mu.Unlock()
+	co.visible = visible
+}
+
+// ClearMessages removes all messages (for testing).
+func (co *ChatOverlay) ClearMessages() {
+	co.mu.Lock()
+	defer co.mu.Unlock()
+	co.messages = []ChatMessage{}
+	co.scrollOffset = 0
 }
 
 // Draw renders the chat overlay to the screen.
 func (co *ChatOverlay) Draw(screen *ebiten.Image) {
 	co.mu.Lock()
-	visible := co.Visible
-	inputBuffer := co.InputBuffer
-	messages := co.Messages
-	scrollOffset := co.ScrollOffset
+	visible := co.visible
+	inputBuffer := co.inputBuffer
+	messages := co.messages
+	scrollOffset := co.scrollOffset
 	co.mu.Unlock()
 
 	if !visible {

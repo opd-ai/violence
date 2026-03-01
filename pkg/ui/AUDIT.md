@@ -1,6 +1,6 @@
 # Audit: github.com/opd-ai/violence/pkg/ui
 **Date**: 2026-03-01
-**Status**: Needs Work
+**Status**: Complete
 
 ## Summary
 UI package provides comprehensive HUD rendering, menu systems, chat overlays, and multiplayer UI components. Overall architecture is solid with good separation of concerns, but exhibits race condition risks in chat overlay, lacks complete test coverage (52.3% vs 65% target), and has no package-level documentation.
@@ -13,8 +13,8 @@ UI package provides comprehensive HUD rendering, menu systems, chat overlays, an
 - [x] med api-design — Global mutable state `currentTheme` accessed without synchronization (`ui.go:101,542`) — Fixed 2026-03-01: Used atomic.Pointer for thread-safe theme management
 - [x] low error-handling — `ApplySettingChange` and `ApplyKeyBinding` return errors but caller responsibility unclear (`ui.go:778,860`) — Fixed 2026-03-01: Added godoc comments documenting error handling responsibility
 - [x] low documentation — `getLoadingDots()` uses `ebiten.ActualTPS()` incorrectly - should use frame counter for animation cycle (`ui.go:965-979`) — Fixed 2026-03-01: Refactored to use LoadingScreen.frameCount with proper Update() method
-- [ ] low api-design — `ChatOverlay` fields `Visible`, `Messages`, `InputBuffer` are exported but should be accessed via methods for encapsulation (`chat.go:28-39`)
-- [ ] low api-design — `NameplatePlayer`, `ScoreboardEntry`, `ShopItem` etc. use exported fields instead of getters - violates encapsulation (`nameplate.go:14-22,deathmatch.go:105-113,ui.go:982-987`)
+- [x] low api-design — `ChatOverlay` fields `Visible`, `Messages`, `InputBuffer` are exported but should be accessed via methods for encapsulation (`chat.go:28-39`) — Fixed 2026-03-01: Made fields private, added getter/setter methods
+- [x] low api-design — `NameplatePlayer`, `ScoreboardEntry`, `ShopItem` etc. use exported fields instead of getters - violates encapsulation (`nameplate.go:14-22,deathmatch.go:105-113,ui.go:982-987`) — Fixed 2026-03-01: Added NewXXX constructors with validation, documented DTO pattern
 
 ## Test Coverage
 79.1% (target: 65%) ✓ EXCEEDS TARGET

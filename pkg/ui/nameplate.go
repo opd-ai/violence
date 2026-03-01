@@ -11,6 +11,8 @@ import (
 )
 
 // NameplatePlayer represents a player's info for nameplate display.
+// Fields are exported to allow struct literal construction in rendering contexts.
+// Use NewNameplatePlayer for canonical construction with validation.
 type NameplatePlayer struct {
 	PlayerID   string
 	PlayerName string
@@ -19,6 +21,23 @@ type NameplatePlayer struct {
 	ScreenY    float32
 	IsTeammate bool
 	IsSelf     bool
+}
+
+// NewNameplatePlayer creates a NameplatePlayer with validation.
+func NewNameplatePlayer(id, name, tag string, x, y float32, isTeammate, isSelf bool) NameplatePlayer {
+	// Truncate squad tag to max length
+	if len(tag) > 4 {
+		tag = tag[:4]
+	}
+	return NameplatePlayer{
+		PlayerID:   id,
+		PlayerName: name,
+		SquadTag:   tag,
+		ScreenX:    x,
+		ScreenY:    y,
+		IsTeammate: isTeammate,
+		IsSelf:     isSelf,
+	}
 }
 
 // Nameplate manages display of player nameplates in multiplayer.

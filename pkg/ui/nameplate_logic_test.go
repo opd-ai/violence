@@ -324,3 +324,50 @@ func TestNameplate_SingleCharacterTag(t *testing.T) {
 		t.Errorf("expected tag 'X', got %s", np.players[0].SquadTag)
 	}
 }
+
+func TestNewNameplatePlayer(t *testing.T) {
+	tests := []struct {
+		name        string
+		id          string
+		playerName  string
+		tag         string
+		expectedTag string
+		x           float32
+		y           float32
+		isTeammate  bool
+		isSelf      bool
+	}{
+		{"normal tag", "p1", "Alice", "TEAM", "TEAM", 100, 200, true, false},
+		{"truncate long tag", "p2", "Bob", "TOOLONG", "TOOL", 150, 250, false, false},
+		{"empty tag", "p3", "Charlie", "", "", 200, 300, true, true},
+		{"exactly 4 chars", "p4", "Dave", "ABCD", "ABCD", 250, 350, false, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			player := NewNameplatePlayer(tt.id, tt.playerName, tt.tag, tt.x, tt.y, tt.isTeammate, tt.isSelf)
+
+			if player.PlayerID != tt.id {
+				t.Errorf("PlayerID = %s, want %s", player.PlayerID, tt.id)
+			}
+			if player.PlayerName != tt.playerName {
+				t.Errorf("PlayerName = %s, want %s", player.PlayerName, tt.playerName)
+			}
+			if player.SquadTag != tt.expectedTag {
+				t.Errorf("SquadTag = %s, want %s", player.SquadTag, tt.expectedTag)
+			}
+			if player.ScreenX != tt.x {
+				t.Errorf("ScreenX = %f, want %f", player.ScreenX, tt.x)
+			}
+			if player.ScreenY != tt.y {
+				t.Errorf("ScreenY = %f, want %f", player.ScreenY, tt.y)
+			}
+			if player.IsTeammate != tt.isTeammate {
+				t.Errorf("IsTeammate = %v, want %v", player.IsTeammate, tt.isTeammate)
+			}
+			if player.IsSelf != tt.isSelf {
+				t.Errorf("IsSelf = %v, want %v", player.IsSelf, tt.isSelf)
+			}
+		})
+	}
+}

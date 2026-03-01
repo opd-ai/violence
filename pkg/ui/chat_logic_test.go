@@ -24,7 +24,7 @@ func TestNewChatOverlay(t *testing.T) {
 			if co == nil {
 				t.Fatal("NewChatOverlay returned nil")
 			}
-			if co.Visible {
+			if co.IsVisible() {
 				t.Error("ChatOverlay should start hidden")
 			}
 			if co.X != tt.x {
@@ -39,10 +39,10 @@ func TestNewChatOverlay(t *testing.T) {
 			if co.Height != tt.height {
 				t.Errorf("Height = %d, want %d", co.Height, tt.height)
 			}
-			if len(co.Messages) != 0 {
-				t.Errorf("Messages should be empty initially, got %d", len(co.Messages))
+			if len(co.GetMessages()) != 0 {
+				t.Errorf("Messages should be empty initially, got %d", len(co.GetMessages()))
 			}
-			if co.InputBuffer != "" {
+			if co.GetInput() != "" {
 				t.Error("InputBuffer should be empty initially")
 			}
 		})
@@ -66,18 +66,18 @@ func TestChatOverlayVisibility(t *testing.T) {
 	})
 
 	t.Run("hide", func(t *testing.T) {
-		co.InputBuffer = "test"
+		co.SetInputBuffer("test")
 		co.Hide()
 		if co.IsVisible() {
 			t.Error("ChatOverlay should be invisible after Hide()")
 		}
-		if co.InputBuffer != "" {
+		if co.GetInput() != "" {
 			t.Error("InputBuffer should be cleared on Hide()")
 		}
 	})
 
 	t.Run("toggle on", func(t *testing.T) {
-		co.Visible = false
+		co.SetVisible(false)
 		co.Toggle()
 		if !co.IsVisible() {
 			t.Error("Toggle should make invisible overlay visible")
@@ -85,13 +85,13 @@ func TestChatOverlayVisibility(t *testing.T) {
 	})
 
 	t.Run("toggle off", func(t *testing.T) {
-		co.Visible = true
-		co.InputBuffer = "test"
+		co.SetVisible(true)
+		co.SetInputBuffer("test")
 		co.Toggle()
 		if co.IsVisible() {
 			t.Error("Toggle should make visible overlay invisible")
 		}
-		if co.InputBuffer != "" {
+		if co.GetInput() != "" {
 			t.Error("InputBuffer should be cleared when toggling off")
 		}
 	})
@@ -114,14 +114,14 @@ func TestAddMessage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			initialCount := len(co.Messages)
+			initialCount := len(co.GetMessages())
 			co.AddMessage(tt.sender, tt.content, tt.timestamp)
 
-			if len(co.Messages) != initialCount+1 {
-				t.Errorf("Message count = %d, want %d", len(co.Messages), initialCount+1)
+			if len(co.GetMessages()) != initialCount+1 {
+				t.Errorf("Message count = %d, want %d", len(co.GetMessages()), initialCount+1)
 			}
 
-			lastMsg := co.Messages[len(co.Messages)-1]
+			lastMsg := co.GetMessages()[len(co.GetMessages())-1]
 			if lastMsg.Sender != tt.sender {
 				t.Errorf("Sender = %q, want %q", lastMsg.Sender, tt.sender)
 			}
@@ -143,13 +143,13 @@ func TestAddMessageHistoryLimit(t *testing.T) {
 		co.AddMessage("Player", "Message", int64(i))
 	}
 
-	if len(co.Messages) > ChatHistoryMaxLength {
-		t.Errorf("Message count = %d, should not exceed %d", len(co.Messages), ChatHistoryMaxLength)
+	if len(co.GetMessages()) > ChatHistoryMaxLength {
+		t.Errorf("Message count = %d, should not exceed %d", len(co.GetMessages()), ChatHistoryMaxLength)
 	}
 
 	// Verify oldest messages were removed
-	if co.Messages[0].Time != 50 {
-		t.Errorf("Oldest message time = %d, want 50", co.Messages[0].Time)
+	if co.GetMessages()[0].Time != 50 {
+		t.Errorf("Oldest message time = %d, want 50", co.GetMessages()[0].Time)
 	}
 }
 
@@ -161,9 +161,9 @@ func TestAddMessageAutoScroll(t *testing.T) {
 		co.AddMessage("Player", "Message", int64(i))
 	}
 
-	expectedScroll := len(co.Messages) - ChatMaxVisibleMessages
-	if co.ScrollOffset != expectedScroll {
-		t.Errorf("ScrollOffset = %d, want %d", co.ScrollOffset, expectedScroll)
+	expectedScroll := len(co.GetMessages()) - ChatMaxVisibleMessages
+	if co.GetScrollOffset() != expectedScroll {
+		t.Errorf("ScrollOffset = %d, want %d", co.GetScrollOffset(), expectedScroll)
 	}
 }
 
@@ -185,7 +185,7 @@ func TestInputBuffer(t *testing.T) {
 	})
 
 	t.Run("backspace", func(t *testing.T) {
-		co.InputBuffer = "Hello"
+		co.SetInputBuffer("Hello")
 		co.Backspace()
 		if co.GetInput() != "Hell" {
 			t.Errorf("GetInput = %q, want %q", co.GetInput(), "Hell")
@@ -193,7 +193,7 @@ func TestInputBuffer(t *testing.T) {
 	})
 
 	t.Run("backspace on empty", func(t *testing.T) {
-		co.InputBuffer = ""
+		co.SetInputBuffer("")
 		co.Backspace()
 		if co.GetInput() != "" {
 			t.Error("Backspace on empty buffer should remain empty")
@@ -201,18 +201,18 @@ func TestInputBuffer(t *testing.T) {
 	})
 
 	t.Run("clear input", func(t *testing.T) {
-		co.InputBuffer = "Test message"
+		co.SetInputBuffer("Test message")
 		co.ClearInput()
 		if co.GetInput() != "" {
 			t.Error("ClearInput should empty the buffer")
 		}
-		if co.CursorPosition != 0 {
+		if co.GetCursorPosition() != 0 {
 			t.Error("ClearInput should reset cursor position")
 		}
 	})
 
 	t.Run("max length enforcement", func(t *testing.T) {
-		co.InputBuffer = ""
+		co.SetInputBuffer("")
 		for i := 0; i < ChatInputMaxLength+10; i++ {
 			co.AppendToInput('x')
 		}
@@ -231,34 +231,34 @@ func TestScrolling(t *testing.T) {
 	}
 
 	t.Run("scroll up", func(t *testing.T) {
-		initialScroll := co.ScrollOffset
+		initialScroll := co.GetScrollOffset()
 		co.ScrollUp()
-		if co.ScrollOffset != initialScroll-1 {
-			t.Errorf("ScrollOffset = %d, want %d", co.ScrollOffset, initialScroll-1)
+		if co.GetScrollOffset() != initialScroll-1 {
+			t.Errorf("ScrollOffset = %d, want %d", co.GetScrollOffset(), initialScroll-1)
 		}
 	})
 
 	t.Run("scroll up at top", func(t *testing.T) {
-		co.ScrollOffset = 0
+		co.SetScrollOffset(0)
 		co.ScrollUp()
-		if co.ScrollOffset != 0 {
+		if co.GetScrollOffset() != 0 {
 			t.Error("ScrollUp at top should not go negative")
 		}
 	})
 
 	t.Run("scroll down", func(t *testing.T) {
-		co.ScrollOffset = 0
+		co.SetScrollOffset(0)
 		co.ScrollDown()
-		if co.ScrollOffset != 1 {
-			t.Errorf("ScrollOffset = %d, want 1", co.ScrollOffset)
+		if co.GetScrollOffset() != 1 {
+			t.Errorf("ScrollOffset = %d, want 1", co.GetScrollOffset())
 		}
 	})
 
 	t.Run("scroll down at bottom", func(t *testing.T) {
-		maxScroll := len(co.Messages) - ChatMaxVisibleMessages
-		co.ScrollOffset = maxScroll
+		maxScroll := len(co.GetMessages()) - ChatMaxVisibleMessages
+		co.SetScrollOffset(maxScroll)
 		co.ScrollDown()
-		if co.ScrollOffset > maxScroll {
+		if co.GetScrollOffset() > maxScroll {
 			t.Error("ScrollDown at bottom should not exceed max")
 		}
 	})
@@ -275,11 +275,11 @@ func TestGetVisibleMessages(t *testing.T) {
 	})
 
 	t.Run("less than max visible", func(t *testing.T) {
-		co.Messages = []ChatMessage{}
+		co.ClearMessages()
 		for i := 0; i < 5; i++ {
 			co.AddMessage("Player", "Message", int64(i))
 		}
-		co.ScrollOffset = 0
+		co.SetScrollOffset(0)
 
 		visible := co.GetVisibleMessages()
 		if len(visible) != 5 {
@@ -288,11 +288,11 @@ func TestGetVisibleMessages(t *testing.T) {
 	})
 
 	t.Run("exactly max visible", func(t *testing.T) {
-		co.Messages = []ChatMessage{}
+		co.ClearMessages()
 		for i := 0; i < ChatMaxVisibleMessages; i++ {
 			co.AddMessage("Player", "Message", int64(i))
 		}
-		co.ScrollOffset = 0
+		co.SetScrollOffset(0)
 
 		visible := co.GetVisibleMessages()
 		if len(visible) != ChatMaxVisibleMessages {
@@ -301,11 +301,11 @@ func TestGetVisibleMessages(t *testing.T) {
 	})
 
 	t.Run("more than max visible", func(t *testing.T) {
-		co.Messages = []ChatMessage{}
+		co.ClearMessages()
 		for i := 0; i < ChatMaxVisibleMessages+10; i++ {
 			co.AddMessage("Player", "Message", int64(i))
 		}
-		co.ScrollOffset = 0
+		co.SetScrollOffset(0)
 
 		visible := co.GetVisibleMessages()
 		if len(visible) != ChatMaxVisibleMessages {
@@ -319,11 +319,11 @@ func TestGetVisibleMessages(t *testing.T) {
 	})
 
 	t.Run("scrolled position", func(t *testing.T) {
-		co.Messages = []ChatMessage{}
+		co.ClearMessages()
 		for i := 0; i < ChatMaxVisibleMessages+10; i++ {
 			co.AddMessage("Player", "Message", int64(i))
 		}
-		co.ScrollOffset = 5
+		co.SetScrollOffset(5)
 
 		visible := co.GetVisibleMessages()
 		if len(visible) != ChatMaxVisibleMessages {
@@ -337,11 +337,11 @@ func TestGetVisibleMessages(t *testing.T) {
 	})
 
 	t.Run("invalid scroll offset", func(t *testing.T) {
-		co.Messages = []ChatMessage{}
+		co.ClearMessages()
 		for i := 0; i < 5; i++ {
 			co.AddMessage("Player", "Message", int64(i))
 		}
-		co.ScrollOffset = 100 // Invalid offset
+		co.SetScrollOffset(100) // Invalid offset
 
 		visible := co.GetVisibleMessages()
 		if len(visible) == 0 {
@@ -374,8 +374,8 @@ func TestChatOverlayConcurrency(t *testing.T) {
 	if expectedCount > ChatHistoryMaxLength {
 		expectedCount = ChatHistoryMaxLength
 	}
-	if len(co.Messages) != expectedCount {
-		t.Errorf("Message count = %d, want %d", len(co.Messages), expectedCount)
+	if len(co.GetMessages()) != expectedCount {
+		t.Errorf("Message count = %d, want %d", len(co.GetMessages()), expectedCount)
 	}
 }
 
@@ -445,10 +445,10 @@ func TestChatOverlayRaceConditions(t *testing.T) {
 	}
 
 	// Verify state is valid after concurrent access
-	if co.ScrollOffset < 0 {
+	if co.GetScrollOffset() < 0 {
 		t.Error("ScrollOffset became negative after concurrent access")
 	}
-	if co.CursorPosition < 0 {
+	if co.GetCursorPosition() < 0 {
 		t.Error("CursorPosition became negative after concurrent access")
 	}
 }
