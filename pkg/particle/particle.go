@@ -156,24 +156,49 @@ func (ps *ParticleSystem) Update(deltaTime float64) {
 
 // GetActiveParticles returns a slice of all currently active particles.
 func (ps *ParticleSystem) GetActiveParticles() []Particle {
-	active := make([]Particle, 0, ps.poolSize/4)
-	for i := range ps.particles {
-		if ps.particles[i].Active {
-			active = append(active, ps.particles[i])
-		}
+	active := make([]Particle, 0, len(ps.activeIndices))
+	for _, idx := range ps.activeIndices {
+		active = append(active, ps.particles[idx])
 	}
 	return active
 }
 
+// GetVisibleParticles returns only particles within camera view frustum and distance.
+// cameraX, cameraY: camera world position
+// dirX, dirY: camera direction vector (normalized)
+// maxDistSq: maximum squared distance for culling
+// Returns slice of particles sorted by distance (far to near for proper alpha blending).
+func (ps *ParticleSystem) GetVisibleParticles(cameraX, cameraY, dirX, dirY, maxDistSq float64) []Particle {
+	visible := make([]Particle, 0, len(ps.activeIndices)/2)
+
+	for _, idx := range ps.activeIndices {
+		p := &ps.particles[idx]
+
+		// Distance culling
+		dx := p.X - cameraX
+		dy := p.Y - cameraY
+		distSq := dx*dx + dy*dy
+		if distSq > maxDistSq {
+			continue
+		}
+
+		// View frustum culling - check if particle is roughly in front of camera
+		// Dot product of (particle direction) with (camera direction)
+		// Positive = in front, negative = behind
+		dotProduct := dx*dirX + dy*dirY
+		if dotProduct <= 0 {
+			continue // Behind camera
+		}
+
+		visible = append(visible, *p)
+	}
+
+	return visible
+}
+
 // GetActiveCount returns the number of currently active particles.
 func (ps *ParticleSystem) GetActiveCount() int {
-	count := 0
-	for i := range ps.particles {
-		if ps.particles[i].Active {
-			count++
-		}
-	}
-	return count
+	return len(ps.activeIndices)
 }
 
 // Clear deactivates all particles.
