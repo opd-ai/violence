@@ -15,6 +15,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/opd-ai/violence/pkg/ai"
 	"github.com/opd-ai/violence/pkg/ammo"
+	"github.com/opd-ai/violence/pkg/animation"
 	"github.com/opd-ai/violence/pkg/audio"
 	"github.com/opd-ai/violence/pkg/automap"
 	"github.com/opd-ai/violence/pkg/bsp"
@@ -189,6 +190,9 @@ type Game struct {
 
 	// Spatial partitioning system for fast proximity queries
 	spatialSystem *spatial.System
+
+	// Animation system for state-based sprite animation
+	animationSystem *animation.AnimationSystem
 }
 
 // NewGame creates and initializes a new game instance.
@@ -260,6 +264,7 @@ func NewGame() *Game {
 		hazardSystem:       hazard.NewSystem(int64(seed)),
 		roleBasedAISystem:  ai.NewRoleBasedAISystem(),
 		spatialSystem:      spatial.NewSystem(64.0), // 64-unit cells for typical 10-50 unit queries
+		animationSystem:    animation.NewAnimationSystem("fantasy"),
 	}
 
 	// Initialize BSP generator
@@ -268,6 +273,9 @@ func NewGame() *Game {
 
 	// Register spatial system with the World
 	g.world.AddSystem(g.spatialSystem)
+
+	// Register animation system with the World
+	g.world.AddSystem(g.animationSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
@@ -735,6 +743,9 @@ func (g *Game) setGenre(genreID string) {
 	}
 	if g.hazardSystem != nil {
 		g.hazardSystem.SetGenre(genreID)
+	}
+	if g.animationSystem != nil {
+		g.animationSystem.SetGenre(genreID)
 	}
 
 	// Generate genre-specific textures
