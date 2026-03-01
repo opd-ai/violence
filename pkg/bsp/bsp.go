@@ -38,6 +38,8 @@ type Node struct {
 // Room represents a rectangular room within a BSP node.
 type Room struct {
 	X, Y, W, H int
+	Type       int
+	Index      int
 }
 
 // Generator produces levels using binary space partitioning.
@@ -114,11 +116,20 @@ func (g *Generator) Generate() (*Node, [][]int) {
 	}
 
 	g.createRooms(root, tiles)
+	g.assignRoomIndices(root)
 	g.createCorridors(root, tiles)
 	g.placeDoors(root, tiles)
 	g.placeSecrets(root, tiles)
 
 	return root, tiles
+}
+
+// assignRoomIndices assigns sequential indices to rooms.
+func (g *Generator) assignRoomIndices(n *Node) {
+	rooms := GetRooms(n)
+	for i, room := range rooms {
+		room.Index = i
+	}
 }
 
 // GetRooms returns all rooms from a BSP tree.

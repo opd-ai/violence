@@ -26,6 +26,7 @@ import (
 	"github.com/opd-ai/violence/pkg/combat"
 	"github.com/opd-ai/violence/pkg/config"
 	"github.com/opd-ai/violence/pkg/crafting"
+	"github.com/opd-ai/violence/pkg/decoration"
 	"github.com/opd-ai/violence/pkg/destruct"
 	"github.com/opd-ai/violence/pkg/door"
 	"github.com/opd-ai/violence/pkg/engine"
@@ -199,6 +200,10 @@ type Game struct {
 	// Animation system for state-based sprite animation
 	animationSystem *animation.AnimationSystem
 
+	// Room decoration and environmental storytelling system
+	decorationSystem *decoration.System
+	roomDecorations  map[int]*decoration.RoomDecor
+
 	// Combo system for weapon attack chains
 	comboSystem *combat.ComboSystem
 
@@ -290,6 +295,8 @@ func NewGame() *Game {
 		feedbackSystem:     feedback.NewFeedbackSystem(int64(seed)),
 		spriteGenerator:    sprite.NewGenerator(100),
 		defenseSystem:      combat.NewDefenseSystem("fantasy"),
+		decorationSystem:   decoration.NewSystem(),
+		roomDecorations:    make(map[int]*decoration.RoomDecor),
 	}
 
 	// Initialize status system with the registry
@@ -429,6 +436,9 @@ func (g *Game) generateLevel() {
 	g.currentBSPTree = bspTree
 	g.raycaster.SetMap(tiles)
 
+	// Decorate rooms based on type and genre
+	g.decorateRooms(bspTree, tiles)
+
 	if len(tiles) > 0 && len(tiles[0]) > 0 {
 		g.automap = automap.NewMap(len(tiles[0]), len(tiles))
 		g.lightMap = lighting.NewSectorLightMap(len(tiles[0]), len(tiles), 0.3)
@@ -452,6 +462,32 @@ func (g *Game) populateLevel() {
 	g.setupQuests(rooms)
 	g.setupEventTriggers()
 	g.generateHazards()
+}
+
+// decorateRooms assigns room types and generates decorations for each room.
+func (g *Game) decorateRooms(bspTree *bsp.Node, tiles [][]int) {
+	if g.decorationSystem == nil {
+		return
+	}
+
+	rooms := bsp.GetRooms(bspTree)
+	totalRooms := len(rooms)
+
+	for i, room := range rooms {
+		// Determine room type based on size, position, and genre
+		roomType := g.decorationSystem.DetermineRoomType(room.W, room.H, i, totalRooms, g.rng)
+		room.Type = int(roomType)
+
+		// Generate decorations for the room
+		decor := g.decorationSystem.DecorateRoom(roomType, room.X, room.Y, room.W, room.H, tiles, g.rng)
+		g.roomDecorations[i] = decor
+
+		logrus.WithFields(logrus.Fields{
+			"room_index": i,
+			"room_type":  decoration.GetRoomTypeName(roomType),
+			"decos":      len(decor.Decorations),
+		}).Debug("Room decorated")
+	}
 }
 
 // placeDecorativeProps places decorative props in BSP rooms.
@@ -797,6 +833,9 @@ func (g *Game) setGenre(genreID string) {
 	}
 	if g.hazardSystem != nil {
 		g.hazardSystem.SetGenre(genreID)
+	}
+	if g.decorationSystem != nil {
+		g.decorationSystem.SetGenre(genreID)
 	}
 	if g.animationSystem != nil {
 		g.animationSystem.SetGenre(genreID)
