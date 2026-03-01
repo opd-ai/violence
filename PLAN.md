@@ -142,9 +142,26 @@ func (p *ReplayPlayer) Seek(timestampMs uint32)
 func (p *ReplayPlayer) Reset()
 ```
 
-### 4. Leaderboards — Score Aggregation
+### 4. Leaderboards — Score Aggregation ✅ [2026-03-01]
 - **Deliverable**: `pkg/leaderboard/` package with local and federated leaderboards
 - **Dependencies**: `pkg/federation` for cross-server aggregation
+- **Status**: Implemented with 86.8% test coverage
+
+**Implementation Summary**:
+- ✅ SQLite-based persistent storage with indexed queries
+- ✅ `Leaderboard` - local score tracking with multi-period support (all_time, weekly, daily)
+- ✅ `RecordScore()` - upsert player scores with automatic timestamp tracking
+- ✅ `GetTop()` - retrieve top N entries for any stat/period combination
+- ✅ `GetRank()` - query player's rank in leaderboard
+- ✅ `IncrementScore()` - atomic score increments (thread-safe)
+- ✅ `ClearPeriod()` - reset time-based leaderboards (e.g., weekly reset)
+- ✅ `FederatedLeaderboard` - opt-in cross-server leaderboard aggregation
+- ✅ `SyncToHub()` - upload local scores to federation hub
+- ✅ `FetchGlobalTop()` - retrieve global leaderboard rankings
+- ✅ `GetGlobalRank()` - query player's global rank across all servers
+- ✅ Comprehensive unit tests with edge cases and error paths (29 test functions)
+- ✅ Benchmarks for record, query, and federation performance
+- ✅ Privacy-focused: federation is opt-in only
 
 **Technical Approach**:
 - Local SQLite database for persistent storage
@@ -163,9 +180,20 @@ type LeaderboardEntry struct {
     UpdatedAt  time.Time
 }
 
-func (lb *Leaderboard) RecordScore(playerID, stat string, value int64)
-func (lb *Leaderboard) GetTop(stat, period string, limit int) []LeaderboardEntry
+func (lb *Leaderboard) RecordScore(playerID, playerName, stat, period string, value int64) error
+func (lb *Leaderboard) GetTop(stat, period string, limit int) ([]LeaderboardEntry, error)
 func (lb *Leaderboard) GetRank(playerID, stat, period string) (int, error)
+func (lb *Leaderboard) IncrementScore(playerID, playerName, stat, period string, delta int64) error
+func (lb *Leaderboard) ClearPeriod(period string) error
+
+type FederatedLeaderboard struct {
+    *Leaderboard
+    config FederatedConfig
+}
+
+func (flb *FederatedLeaderboard) SyncToHub(stat string) error
+func (flb *FederatedLeaderboard) FetchGlobalTop(stat string, limit int) ([]LeaderboardEntry, error)
+func (flb *FederatedLeaderboard) GetGlobalRank(playerID, stat string) (int, error)
 ```
 
 ### 5. Achievements System — Local Tracking
@@ -234,10 +262,10 @@ func (pf *ProfanityFilter) LoadAllLanguages() error
 - [x] Anti-cheat detects speed >2x normal and rejects invalid movement ✅ (SpeedHackThreshold = 2x MaxSprintSpeed)
 - [x] Replay files save and load correctly with identical input frames ✅ (89.5% test coverage)
 - [ ] Replay playback produces deterministic results when re-executing with same seed (integration test needed)
-- [ ] Leaderboards persist across game restarts
+- [x] Leaderboards persist across game restarts ✅ (TestPersistence validates DB persistence)
 - [ ] Achievements unlock correctly when conditions met
 - [ ] Profanity filter detects l33t speak variants (e.g., "b4d" matches "bad")
-- [x] All new code has >82% test coverage ✅ (matchmaking: 88-100%, anticheat: 89-100%, replay: 89.5%)
+- [x] All new code has >82% test coverage ✅ (matchmaking: 88-100%, anticheat: 89-100%, replay: 89.5%, leaderboard: 86.8%)
 - [ ] Integration tests verify 4-player matchmaking queue
 
 ## Known Gaps
