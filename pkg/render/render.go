@@ -205,16 +205,23 @@ func (r *Renderer) renderWall(x, y int, hit raycaster.RayHit) color.RGBA {
 
 // getWallTextureName maps wall type to texture name.
 func getWallTextureName(wallType int) string {
-	// Map wall types 1-4 to corresponding wall textures
 	switch wallType {
 	case 1:
 		return "wall_1"
-	case 2:
-		return "wall_2"
-	case 3:
+	case 3: // Door
 		return "wall_3"
-	case 4:
+	case 4: // Secret
 		return "wall_4"
+	case 10: // Fantasy stone
+		return "wall_1"
+	case 11: // SciFi hull
+		return "wall_2"
+	case 12: // Horror plaster
+		return "wall_3"
+	case 13: // Cyberpunk concrete
+		return "wall_4"
+	case 14: // PostApoc rust
+		return "wall_1"
 	default:
 		return "wall_1"
 	}
@@ -420,51 +427,61 @@ func getPaletteForGenre(genreID string) map[int]color.RGBA {
 	switch genreID {
 	case "fantasy":
 		return map[int]color.RGBA{
-			0: {20, 15, 30, 255},   // Sky/background
-			1: {100, 80, 60, 255},  // Stone wall
-			2: {40, 35, 30, 255},   // Floor
-			3: {30, 25, 35, 255},   // Ceiling
-			4: {120, 100, 80, 255}, // Alternate wall
+			0:  {20, 15, 30, 255},   // Sky/background
+			1:  {100, 80, 60, 255},  // Stone wall
+			2:  {40, 35, 30, 255},   // Floor
+			3:  {30, 25, 35, 255},   // Ceiling
+			4:  {120, 100, 80, 255}, // Alternate wall
+			10: {100, 80, 60, 255},  // Genre wall: stone
 		}
 	case "scifi":
 		return map[int]color.RGBA{
-			0: {10, 15, 25, 255},    // Sky/background
-			1: {80, 90, 100, 255},   // Metal hull
-			2: {30, 35, 40, 255},    // Floor
-			3: {25, 30, 35, 255},    // Ceiling
-			4: {100, 110, 120, 255}, // Alternate wall
+			0:  {10, 15, 25, 255},    // Sky/background
+			1:  {80, 90, 100, 255},   // Metal hull
+			2:  {30, 35, 40, 255},    // Floor
+			3:  {25, 30, 35, 255},    // Ceiling
+			4:  {100, 110, 120, 255}, // Alternate wall
+			11: {80, 90, 100, 255},   // Genre wall: hull
 		}
 	case "horror":
 		return map[int]color.RGBA{
-			0: {15, 5, 5, 255},    // Sky/background
-			1: {80, 60, 50, 255},  // Decayed plaster
-			2: {30, 20, 15, 255},  // Floor
-			3: {25, 15, 10, 255},  // Ceiling
-			4: {100, 70, 60, 255}, // Alternate wall
+			0:  {15, 5, 5, 255},    // Sky/background
+			1:  {80, 60, 50, 255},  // Decayed plaster
+			2:  {30, 20, 15, 255},  // Floor
+			3:  {25, 15, 10, 255},  // Ceiling
+			4:  {100, 70, 60, 255}, // Alternate wall
+			12: {80, 60, 50, 255},  // Genre wall: plaster
 		}
 	case "cyberpunk":
 		return map[int]color.RGBA{
-			0: {20, 10, 25, 255},   // Sky/background
-			1: {90, 70, 100, 255},  // Neon-lit concrete
-			2: {35, 30, 40, 255},   // Floor
-			3: {30, 25, 35, 255},   // Ceiling
-			4: {110, 80, 120, 255}, // Alternate wall
+			0:  {20, 10, 25, 255},   // Sky/background
+			1:  {90, 70, 100, 255},  // Neon-lit concrete
+			2:  {35, 30, 40, 255},   // Floor
+			3:  {30, 25, 35, 255},   // Ceiling
+			4:  {110, 80, 120, 255}, // Alternate wall
+			13: {90, 70, 100, 255},  // Genre wall: concrete
 		}
 	case "postapoc":
 		return map[int]color.RGBA{
-			0: {25, 20, 15, 255},  // Sky/background
-			1: {100, 80, 60, 255}, // Rusted metal
-			2: {40, 30, 25, 255},  // Floor
-			3: {35, 25, 20, 255},  // Ceiling
-			4: {120, 90, 70, 255}, // Alternate wall
+			0:  {25, 20, 15, 255},  // Sky/background
+			1:  {100, 80, 60, 255}, // Rusted metal
+			2:  {40, 30, 25, 255},  // Floor
+			3:  {35, 25, 20, 255},  // Ceiling
+			4:  {120, 90, 70, 255}, // Alternate wall
+			14: {100, 80, 60, 255}, // Genre wall: rust
 		}
 	default:
 		return map[int]color.RGBA{
-			0: {0, 0, 0, 255},
-			1: {128, 128, 128, 255},
-			2: {64, 64, 64, 255},
-			3: {96, 96, 96, 255},
-			4: {160, 160, 160, 255},
+			0:  {0, 0, 0, 255},
+			1:  {128, 128, 128, 255},
+			2:  {64, 64, 64, 255},
+			3:  {96, 96, 96, 255},
+			4:  {160, 160, 160, 255},
+			10: {128, 128, 128, 255},
+			11: {128, 128, 128, 255},
+			12: {128, 128, 128, 255},
+			13: {128, 128, 128, 255},
+			14: {128, 128, 128, 255},
 		}
 	}
 }

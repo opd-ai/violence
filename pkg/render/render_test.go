@@ -86,12 +86,12 @@ func TestGetPaletteForGenre(t *testing.T) {
 		genreID       string
 		expectedWalls int
 	}{
-		{"Fantasy palette", "fantasy", 5},
-		{"SciFi palette", "scifi", 5},
-		{"Horror palette", "horror", 5},
-		{"Cyberpunk palette", "cyberpunk", 5},
-		{"PostApoc palette", "postapoc", 5},
-		{"Default palette", "unknown", 5},
+		{"Fantasy palette", "fantasy", 6},
+		{"SciFi palette", "scifi", 6},
+		{"Horror palette", "horror", 6},
+		{"Cyberpunk palette", "cyberpunk", 6},
+		{"PostApoc palette", "postapoc", 6},
+		{"Default palette", "unknown", 10},
 	}
 
 	for _, tt := range tests {
@@ -102,7 +102,8 @@ func TestGetPaletteForGenre(t *testing.T) {
 				t.Errorf("Palette size = %d, want %d", len(palette), tt.expectedWalls)
 			}
 
-			for i := 0; i < tt.expectedWalls; i++ {
+			// Verify base entries 0-4 exist
+			for i := 0; i < 5; i++ {
 				c, ok := palette[i]
 				if !ok {
 					t.Errorf("Palette missing entry for key %d", i)
@@ -1141,11 +1142,15 @@ func TestGetWallTextureName(t *testing.T) {
 		want     string
 	}{
 		{1, "wall_1"},
-		{2, "wall_2"},
-		{3, "wall_3"},
-		{4, "wall_4"},
-		{0, "wall_1"}, // default
-		{5, "wall_1"}, // default
+		{3, "wall_3"},  // Door
+		{4, "wall_4"},  // Secret
+		{10, "wall_1"}, // Fantasy stone
+		{11, "wall_2"}, // SciFi hull
+		{12, "wall_3"}, // Horror plaster
+		{13, "wall_4"}, // Cyberpunk concrete
+		{14, "wall_1"}, // PostApoc rust
+		{0, "wall_1"},  // default
+		{5, "wall_1"},  // default
 	}
 
 	for _, tt := range tests {

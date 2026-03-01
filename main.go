@@ -441,13 +441,13 @@ func (g *Game) scanSecretWalls() {
 // determineSecretDirection determines the slide direction for a secret wall.
 func (g *Game) determineSecretDirection(x, y int, tiles [][]int) secret.Direction {
 	dir := secret.DirNorth
-	if y+1 < len(tiles) && tiles[y+1][x] == bsp.TileFloor {
+	if y+1 < len(tiles) && isWalkableTile(tiles[y+1][x]) {
 		dir = secret.DirSouth
-	} else if y > 0 && tiles[y-1][x] == bsp.TileFloor {
+	} else if y > 0 && isWalkableTile(tiles[y-1][x]) {
 		dir = secret.DirNorth
-	} else if x+1 < len(tiles[y]) && tiles[y][x+1] == bsp.TileFloor {
+	} else if x+1 < len(tiles[y]) && isWalkableTile(tiles[y][x+1]) {
 		dir = secret.DirEast
-	} else if x > 0 && tiles[y][x-1] == bsp.TileFloor {
+	} else if x > 0 && isWalkableTile(tiles[y][x-1]) {
 		dir = secret.DirWest
 	}
 	return dir
@@ -457,8 +457,23 @@ func (g *Game) determineSecretDirection(x, y int, tiles [][]int) secret.Directio
 func (g *Game) spawnEnemies() {
 	g.aiAgents = make([]*ai.Agent, 0)
 	ai.SetGenre(g.genreID)
+	rooms := bsp.GetRooms(g.currentBSPTree)
 	for i := 0; i < 3; i++ {
-		agent := ai.NewAgent("enemy_"+string(rune(i+'0')), float64(10+i*5), float64(10+i*3))
+		var spawnX, spawnY float64
+		if i+1 < len(rooms) {
+			// Spawn in different rooms, skip room 0 (player spawn)
+			r := rooms[i+1]
+			spawnX = float64(r.X+r.W/2) + 0.5
+			spawnY = float64(r.Y+r.H/2) + 0.5
+		} else if len(rooms) > 1 {
+			r := rooms[len(rooms)-1]
+			spawnX = float64(r.X+r.W/2) + 0.5
+			spawnY = float64(r.Y+r.H/2) + 0.5
+		} else {
+			spawnX = float64(10 + i*5)
+			spawnY = float64(10 + i*3)
+		}
+		agent := ai.NewAgent("enemy_"+string(rune(i+'0')), spawnX, spawnY)
 		g.aiAgents = append(g.aiAgents, agent)
 	}
 }
@@ -467,13 +482,28 @@ func (g *Game) spawnEnemies() {
 func (g *Game) spawnDestructibles() {
 	g.destructibleSystem = destruct.NewSystem()
 	destruct.SetGenre(g.genreID)
+	rooms := bsp.GetRooms(g.currentBSPTree)
 	for i := 0; i < 5; i++ {
+		// Place destructibles inside BSP rooms so they're on walkable tiles
+		var bx, by, cx, cy float64
+		if i < len(rooms) {
+			r := rooms[i]
+			bx = float64(r.X+1) + 0.5
+			by = float64(r.Y+1) + 0.5
+			cx = float64(r.X+r.W-2) + 0.5
+			cy = float64(r.Y+r.H-2) + 0.5
+		} else {
+			bx = float64(15 + i*4)
+			by = float64(8 + i*2)
+			cx = float64(12 + i*3)
+			cy = float64(12 + i*3)
+		}
 		barrel := destruct.NewDestructibleObject(
 			"barrel_"+string(rune(i+'0')),
 			"barrel",
 			50.0,
-			float64(15+i*4),
-			float64(8+i*2),
+			bx,
+			by,
 			true,
 		)
 		barrel.AddDropItem("ammo_shells")
@@ -483,8 +513,8 @@ func (g *Game) spawnDestructibles() {
 			"crate_"+string(rune(i+'0')),
 			"crate",
 			30.0,
-			float64(12+i*3),
-			float64(12+i*3),
+			cx,
+			cy,
 			false,
 		)
 		crate.AddDropItem("health_small")
@@ -3305,14 +3335,14 @@ func (g *Game) drawAutomap(screen *ebiten.Image) {
 			tileY := overlayY + float32(y)*scale
 
 			var tileColor color.RGBA
-			switch tile {
-			case bsp.TileWall:
+			switch {
+			case tile == bsp.TileWall || (tile >= 10 && tile <= 14): // Generic or genre-specific wall
 				tileColor = color.RGBA{150, 150, 150, 255}
-			case bsp.TileFloor, bsp.TileEmpty:
+			case tile == bsp.TileFloor || tile == bsp.TileEmpty || (tile >= 20 && tile <= 29): // Floor variants
 				tileColor = color.RGBA{50, 50, 50, 255}
-			case bsp.TileDoor:
+			case tile == bsp.TileDoor:
 				tileColor = color.RGBA{100, 100, 200, 255}
-			case bsp.TileSecret:
+			case tile == bsp.TileSecret:
 				tileColor = color.RGBA{200, 200, 50, 255}
 			default:
 				tileColor = color.RGBA{80, 80, 80, 255}
