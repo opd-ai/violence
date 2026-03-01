@@ -31,6 +31,7 @@ import (
 	"github.com/opd-ai/violence/pkg/engine"
 	"github.com/opd-ai/violence/pkg/event"
 	"github.com/opd-ai/violence/pkg/federation"
+	"github.com/opd-ai/violence/pkg/feedback"
 	"github.com/opd-ai/violence/pkg/hazard"
 	"github.com/opd-ai/violence/pkg/input"
 	"github.com/opd-ai/violence/pkg/inventory"
@@ -202,6 +203,9 @@ type Game struct {
 
 	// Loot drop system
 	lootDropSystem *loot.LootDropSystem
+
+	// Screen feedback system for combat juice
+	feedbackSystem *feedback.FeedbackSystem
 }
 
 // NewGame creates and initializes a new game instance.
@@ -276,6 +280,7 @@ func NewGame() *Game {
 		animationSystem:    animation.NewAnimationSystem("fantasy"),
 		comboSystem:        combat.NewComboSystem("fantasy", int64(seed)),
 		lootDropSystem:     loot.NewLootDropSystem(int64(seed)),
+		feedbackSystem:     feedback.NewFeedbackSystem(int64(seed)),
 	}
 
 	// Initialize status system with the registry
@@ -302,6 +307,9 @@ func NewGame() *Game {
 
 	// Register loot drop system with the World
 	g.world.AddSystem(g.lootDropSystem)
+
+	// Register feedback system with the World
+	g.world.AddSystem(g.feedbackSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
@@ -777,6 +785,9 @@ func (g *Game) setGenre(genreID string) {
 	if g.animationSystem != nil {
 		g.animationSystem.SetGenre(genreID)
 	}
+	if g.feedbackSystem != nil {
+		g.feedbackSystem.SetGenre(genreID)
+	}
 
 	// Generate genre-specific textures
 	g.textureAtlas.GenerateWallSet(genreID)
@@ -1046,6 +1057,30 @@ func (g *Game) processWeaponHits(hitResults []weapon.HitResult, currentWeapon we
 		upgradedDamage := g.getUpgradedWeaponDamage(currentWeapon)
 		agent.Health -= upgradedDamage
 
+		// Add screen feedback for hit
+		if g.feedbackSystem != nil {
+			shakeIntensity := upgradedDamage / 10.0
+			if shakeIntensity > 5.0 {
+				shakeIntensity = 5.0
+			}
+			g.feedbackSystem.AddScreenShake(shakeIntensity)
+
+			isCritical := g.rng.Float64() < 0.15 // 15% crit chance
+			g.feedbackSystem.SpawnDamageNumber(agent.X, agent.Y, int(upgradedDamage), isCritical)
+
+			impactType := feedback.ImpactHit
+			if isCritical {
+				impactType = feedback.ImpactCritical
+			}
+			g.feedbackSystem.SpawnImpactEffect(agent.X, agent.Y, impactType)
+		}
+
+		// Add blood particle burst
+		if g.particleSystem != nil {
+			bloodColor := color.RGBA{R: 180, G: 0, B: 0, A: 255}
+			g.particleSystem.SpawnBurst(agent.X, agent.Y, 0, 15, 8.0, 0.5, 1.0, 1.2, bloodColor)
+		}
+
 		if g.masteryManager != nil {
 			g.masteryManager.AddMasteryXP(g.arsenal.CurrentSlot, 10)
 		}
@@ -1130,6 +1165,15 @@ func (g *Game) handleDestructibleDestroyed(obj *destruct.Destructible) {
 		g.particleSystem.SpawnBurst(obj.X, obj.Y, 0, 15, 8.0, 1.0, 1.5, 1.0, debrisColor)
 	}
 
+	// Add screen shake for explosion
+	if g.feedbackSystem != nil {
+		dist := math.Sqrt((obj.X-g.camera.X)*(obj.X-g.camera.X) + (obj.Y-g.camera.Y)*(obj.Y-g.camera.Y))
+		if dist < 10.0 {
+			shakeIntensity := 5.0 / (1.0 + dist*0.5)
+			g.feedbackSystem.AddScreenShake(shakeIntensity)
+		}
+	}
+
 	if g.scrapStorage != nil {
 		scrapName := crafting.GetScrapNameForGenre(g.genreID)
 		g.scrapStorage.Add(scrapName, 2)
@@ -1183,6 +1227,16 @@ func (g *Game) handleAgentAttack(agent *ai.Agent) {
 	agent.Cooldown = 60
 	g.audioEngine.PlaySFX("enemy_attack", agent.X, agent.Y)
 	g.hud.ShowMessage("Taking damage!")
+
+	// Add screen feedback for player damage
+	if g.feedbackSystem != nil {
+		shakeIntensity := healthDamage / 5.0
+		if shakeIntensity > 8.0 {
+			shakeIntensity = 8.0
+		}
+		g.feedbackSystem.AddScreenShake(shakeIntensity)
+		g.feedbackSystem.AddHitFlash(0.3 + (healthDamage / 100.0))
+	}
 
 	if g.hud.Health <= 0 {
 		g.hud.Health = 0
@@ -1328,7 +1382,16 @@ func (g *Game) checkHazardCollisions() {
 		g.hud.ShowMessage("Hazard! " + statusEffect)
 	}
 
-	// Screen shake on hazard hit
+	// Screen shake and flash on hazard hit
+	if g.feedbackSystem != nil {
+		shakeIntensity := float64(healthDamage) / 8.0
+		if shakeIntensity > 4.0 {
+			shakeIntensity = 4.0
+		}
+		g.feedbackSystem.AddScreenShake(shakeIntensity)
+		g.feedbackSystem.AddHitFlash(0.2)
+	}
+
 	g.audioEngine.PlaySFX("hit", g.camera.X, g.camera.Y)
 }
 
@@ -2972,6 +3035,14 @@ func (g *Game) drawMenu(screen *ebiten.Image) {
 
 // drawPlaying renders the game world and HUD.
 func (g *Game) drawPlaying(screen *ebiten.Image) {
+	// Apply camera shake offset if active
+	camX, camY := g.camera.X, g.camera.Y
+	if g.feedbackSystem != nil {
+		shakeX, shakeY := g.feedbackSystem.GetScreenShakeOffset()
+		camX += shakeX * 0.01
+		camY += shakeY * 0.01
+	}
+
 	// Wire v3.0 systems to renderer (Step 28)
 	g.renderer.SetTextureAtlas(g.textureAtlas)
 	g.renderer.SetLightMap(g.lightMap)
@@ -2979,7 +3050,7 @@ func (g *Game) drawPlaying(screen *ebiten.Image) {
 	g.renderer.Tick() // Increment animation ticker
 
 	// Render 3D world
-	g.renderer.Render(screen, g.camera.X, g.camera.Y, g.camera.DirX, g.camera.DirY, g.camera.Pitch)
+	g.renderer.Render(screen, camX, camY, g.camera.DirX, g.camera.DirY, g.camera.Pitch)
 
 	// Render props as sprites in world space
 	if g.propsManager != nil {
@@ -3005,6 +3076,20 @@ func (g *Game) drawPlaying(screen *ebiten.Image) {
 	// Render environmental hazards
 	if g.hazardSystem != nil {
 		g.renderHazards(screen)
+	}
+
+	// Render damage numbers and impact effects
+	if g.feedbackSystem != nil {
+		g.renderFeedbackEffects(screen)
+	}
+
+	// Apply hit flash overlay
+	if g.feedbackSystem != nil {
+		intensity := g.feedbackSystem.GetHitFlashIntensity()
+		if intensity > 0.01 {
+			flashColor := g.feedbackSystem.GetHitFlashColor()
+			vector.DrawFilledRect(screen, 0, 0, float32(config.C.InternalWidth), float32(config.C.InternalHeight), flashColor, false)
+		}
 	}
 
 	// Render automap overlay if visible
@@ -3381,6 +3466,95 @@ func (g *Game) renderHazards(screen *ebiten.Image) {
 				2, warningColor, false)
 		}
 	}
+}
+
+// renderFeedbackEffects renders damage numbers and impact effects.
+func (g *Game) renderFeedbackEffects(screen *ebiten.Image) {
+	planeX, planeY := calculateCameraPlane(g.camera)
+
+	// Render damage numbers
+	damageNumbers := g.feedbackSystem.GetDamageNumbers()
+	for _, dn := range damageNumbers {
+		dnX, dnY := dn.GetPosition()
+		if !shouldRenderFeedbackAtPosition(dnX, dnY, g.camera) {
+			continue
+		}
+
+		transformX, transformY := calculateSpriteTransform(&lore.LoreItem{PosX: dnX, PosY: dnY}, g.camera, planeX, planeY)
+		if transformY <= 0.1 {
+			continue
+		}
+
+		spriteScreenX := int((float64(config.C.InternalWidth) / 2.0) * (1.0 + transformX/transformY))
+		spriteScreenY := int(float64(config.C.InternalHeight)/2.0 - float64(config.C.InternalHeight)/(transformY*2.0))
+
+		dnText := dn.FormatDamageNumber()
+		dnColor := dn.GetColor()
+		scale := dn.GetScale()
+
+		textBounds := text.BoundString(basicfont.Face7x13, dnText)
+		textX := spriteScreenX - int(float64(textBounds.Dx())*scale/2.0)
+		textY := spriteScreenY
+
+		if scale > 1.0 {
+			for dx := -1; dx <= 1; dx++ {
+				for dy := -1; dy <= 1; dy++ {
+					if dx == 0 && dy == 0 {
+						continue
+					}
+					outlineColor := color.RGBA{R: 0, G: 0, B: 0, A: dnColor.A}
+					text.Draw(screen, dnText, basicfont.Face7x13, textX+dx, textY+dy, outlineColor)
+				}
+			}
+		}
+
+		text.Draw(screen, dnText, basicfont.Face7x13, textX, textY, dnColor)
+	}
+
+	// Render impact effects
+	impactEffects := g.feedbackSystem.GetImpactEffects()
+	for _, ie := range impactEffects {
+		ieX, ieY := ie.GetPosition()
+		if !shouldRenderFeedbackAtPosition(ieX, ieY, g.camera) {
+			continue
+		}
+
+		transformX, transformY := calculateSpriteTransform(&lore.LoreItem{PosX: ieX, PosY: ieY}, g.camera, planeX, planeY)
+		if transformY <= 0.1 {
+			continue
+		}
+
+		spriteScreenX := int((float64(config.C.InternalWidth) / 2.0) * (1.0 + transformX/transformY))
+		spriteScreenY := int(float64(config.C.InternalHeight)/2.0 - float64(config.C.InternalHeight)/(transformY*4.0))
+
+		size := int(20.0 * ie.GetScale() / transformY * 10.0)
+		if size < 2 {
+			size = 2
+		}
+		if size > 30 {
+			size = 30
+		}
+
+		ieColor := ie.GetColor()
+
+		vector.DrawFilledCircle(screen,
+			float32(spriteScreenX), float32(spriteScreenY),
+			float32(size/2), ieColor, false)
+
+		vector.StrokeCircle(screen,
+			float32(spriteScreenX), float32(spriteScreenY),
+			float32(size/2+2), 2,
+			color.RGBA{R: 255, G: 255, B: 255, A: ieColor.A / 2},
+			false)
+	}
+}
+
+// shouldRenderFeedbackAtPosition checks if a feedback effect is close enough to render.
+func shouldRenderFeedbackAtPosition(x, y float64, camera *camera.Camera) bool {
+	dx := x - camera.X
+	dy := y - camera.Y
+	dist := dx*dx + dy*dy
+	return dist <= 400
 }
 
 // drawAutomap renders the automap overlay.
