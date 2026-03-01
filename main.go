@@ -222,6 +222,9 @@ type Game struct {
 
 	// Collision geometry extraction system for precise hitboxes
 	collisionGeometry *collision.CollisionGeometrySystem
+
+	// Dynamic lighting system for entity-attached lights
+	lightingSystem *lighting.LightingSystem
 }
 
 // NewGame creates and initializes a new game instance.
@@ -302,6 +305,7 @@ func NewGame() *Game {
 		decorationSystem:   decoration.NewSystem(),
 		roomDecorations:    make(map[int]*decoration.RoomDecor),
 		collisionGeometry:  collision.NewCollisionGeometrySystem(),
+		lightingSystem:     lighting.NewLightingSystem("fantasy"),
 	}
 
 	// Initialize status system with the registry
@@ -334,6 +338,9 @@ func NewGame() *Game {
 
 	// Register defense system with the World
 	g.world.AddSystem(g.defenseSystem)
+
+	// Register dynamic lighting system with the World
+	g.world.AddSystem(g.lightingSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
@@ -467,6 +474,7 @@ func (g *Game) populateLevel() {
 	g.setupQuests(rooms)
 	g.setupEventTriggers()
 	g.generateHazards()
+	g.spawnDynamicLights(rooms)
 }
 
 // decorateRooms assigns room types and generates decorations for each room.
@@ -678,6 +686,74 @@ func (g *Game) generateHazards() {
 	}
 }
 
+// spawnDynamicLights places procedural light entities in rooms.
+func (g *Game) spawnDynamicLights(rooms []*bsp.Room) {
+	if g.lightingSystem == nil {
+		return
+	}
+
+	// Get genre-specific light presets
+	presets := lighting.GetGenrePresets(g.genreID)
+	if len(presets) == 0 {
+		return
+	}
+
+	// Place lights in each room based on size and type
+	for roomIdx, room := range rooms {
+		// Calculate number of lights based on room size
+		roomArea := float64(room.W * room.H)
+		lightsPerRoom := int(roomArea / 40.0) // ~1 light per 40 square units
+		if lightsPerRoom < 1 {
+			lightsPerRoom = 1
+		}
+		if lightsPerRoom > 6 {
+			lightsPerRoom = 6 // Cap to prevent over-lighting
+		}
+
+		// Seed for this room
+		roomSeed := int64(g.seed) + int64(roomIdx*1000)
+		roomRNG := rng.NewRNG(uint64(roomSeed))
+
+		for i := 0; i < lightsPerRoom; i++ {
+			// Pick a random light preset for variety
+			presetIdx := roomRNG.Intn(len(presets))
+			preset := presets[presetIdx]
+
+			// Random position within room (avoid edges)
+			margin := 2
+			if room.W <= 4 || room.H <= 4 {
+				margin = 1
+			}
+			lightX := float64(room.X+margin) + roomRNG.Float64()*float64(room.W-2*margin)
+			lightY := float64(room.Y+margin) + roomRNG.Float64()*float64(room.H-2*margin)
+
+			// Create light entity
+			entity := g.world.AddEntity()
+
+			// Add position component (not attached to moving entities)
+			posComp := &lighting.PositionComponent{
+				X: lightX,
+				Y: lightY,
+			}
+			g.world.AddComponent(entity, posComp)
+
+			// Add light component
+			lightComp := lighting.NewLightComponent(preset, roomSeed+int64(i))
+			lightComp.X = lightX
+			lightComp.Y = lightY
+			g.world.AddComponent(entity, lightComp)
+
+			logrus.WithFields(logrus.Fields{
+				"room":      roomIdx,
+				"light_idx": i,
+				"type":      preset.Name,
+				"x":         lightX,
+				"y":         lightY,
+			}).Debug("Spawned dynamic light")
+		}
+	}
+}
+
 // initializePlayer sets up the player's starting position, stats, and equipment.
 func (g *Game) initializePlayer() {
 	rooms := bsp.GetRooms(g.currentBSPTree)
@@ -806,6 +882,7 @@ func (g *Game) setGenre(genreID string) {
 	g.textureAtlas.SetGenre(genreID)
 	g.lightMap.SetGenre(genreID)
 	g.shadowSystem.SetGenre(genreID)
+	g.lightingSystem.SetGenre(genreID)
 	g.postProcessor.SetGenre(genreID)
 	g.renderer.SetGenre(genreID)
 	// WeatherEmitter doesn't have SetGenre - recreate it on genre change
@@ -3467,6 +3544,12 @@ func (g *Game) renderShadows(screen *ebiten.Image) {
 	// For now, we'll use a simple approach: add point lights based on torches and ambient sources
 	var lights []lighting.Light
 	var coneLights []lighting.ConeLight
+
+	// Collect dynamic lights from the lighting system
+	if g.lightingSystem != nil {
+		dynamicLights := g.lightingSystem.CollectLights(g.world)
+		lights = append(lights, dynamicLights...)
+	}
 
 	// Add torch props as light sources
 	if g.propsManager != nil {
