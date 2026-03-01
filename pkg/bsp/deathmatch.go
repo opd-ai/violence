@@ -323,40 +323,64 @@ func (g *ArenaGenerator) countVisibleTiles(tiles [][]int, x, y, maxDist int) int
 
 // balanceSightlines adjusts cover placement to balance sightlines.
 func (g *ArenaGenerator) balanceSightlines(tiles [][]int) {
-	// Find spawn pads with excessive sightlines
-	threshold := 150 // Max visible tiles from spawn
-
+	threshold := 150
 	for _, spawn := range g.SpawnPads {
-		centerX := spawn.X + spawn.W/2
-		centerY := spawn.Y + spawn.H/2
+		g.processSpawnSightline(tiles, spawn, threshold)
+	}
+}
 
-		if centerX < 0 || centerX >= g.Width || centerY < 0 || centerY >= g.Height {
-			continue
-		}
+// processSpawnSightline checks and balances sightlines for a single spawn point.
+func (g *ArenaGenerator) processSpawnSightline(tiles [][]int, spawn Room, threshold int) {
+	centerX, centerY := calculateSpawnCenter(spawn)
 
-		if g.sightlineMap[centerY][centerX] > threshold {
-			// Add blocking cover nearby
-			offsetX := 3 + g.rng.Intn(2)
-			offsetY := 3 + g.rng.Intn(2)
+	if !isValidSpawnCenter(centerX, centerY, g.Width, g.Height) {
+		return
+	}
 
-			// Place cover in random direction
-			if g.rng.Intn(2) == 0 {
-				offsetX = -offsetX
-			}
-			if g.rng.Intn(2) == 0 {
-				offsetY = -offsetY
-			}
+	if g.sightlineMap[centerY][centerX] > threshold {
+		g.addBlockingCover(tiles, centerX, centerY)
+	}
+}
 
-			coverX := centerX + offsetX
-			coverY := centerY + offsetY
+// calculateSpawnCenter computes the center coordinates of a spawn pad.
+func calculateSpawnCenter(spawn Room) (int, int) {
+	return spawn.X + spawn.W/2, spawn.Y + spawn.H/2
+}
 
-			if coverX >= 0 && coverX < g.Width && coverY >= 0 && coverY < g.Height {
-				if tiles[coverY][coverX] == g.floorTile {
-					tiles[coverY][coverX] = TileCover
-				}
-			}
+// isValidSpawnCenter checks if spawn center coordinates are within map bounds.
+func isValidSpawnCenter(x, y, width, height int) bool {
+	return x >= 0 && x < width && y >= 0 && y < height
+}
+
+// addBlockingCover places cover near a spawn point to block excessive sightlines.
+func (g *ArenaGenerator) addBlockingCover(tiles [][]int, centerX, centerY int) {
+	coverX, coverY := calculateCoverPosition(g, centerX, centerY)
+
+	if isValidCoverPosition(coverX, coverY, g.Width, g.Height) {
+		if tiles[coverY][coverX] == g.floorTile {
+			tiles[coverY][coverX] = TileCover
 		}
 	}
+}
+
+// calculateCoverPosition determines where to place cover relative to a spawn center.
+func calculateCoverPosition(g *ArenaGenerator, centerX, centerY int) (int, int) {
+	offsetX := 3 + g.rng.Intn(2)
+	offsetY := 3 + g.rng.Intn(2)
+
+	if g.rng.Intn(2) == 0 {
+		offsetX = -offsetX
+	}
+	if g.rng.Intn(2) == 0 {
+		offsetY = -offsetY
+	}
+
+	return centerX + offsetX, centerY + offsetY
+}
+
+// isValidCoverPosition checks if cover coordinates are within map bounds.
+func isValidCoverPosition(x, y, width, height int) bool {
+	return x >= 0 && x < width && y >= 0 && y < height
 }
 
 // cosApprox approximates cosine using Taylor series (good enough for map gen).

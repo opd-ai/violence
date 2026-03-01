@@ -37,34 +37,51 @@ func (p *PostProcessor) SetGenre(genreID string) {
 // The framebuffer is modified in place (RGBA format: width*height*4 bytes).
 func (p *PostProcessor) Apply(framebuffer []byte) {
 	preset := GetGenrePreset(p.genreID)
-
-	// Reset RNG for deterministic effects
 	p.rng = rand.New(rand.NewSource(p.seed))
 
-	// Apply effects in order: Color Grade → Vignette → Film Grain → Scanlines → Chromatic Aberration → Bloom → Static Burst → Film Scratches
+	applyAllEffects(p, framebuffer, preset)
+}
+
+// applyAllEffects applies all enabled post-processing effects in sequence.
+func applyAllEffects(p *PostProcessor, framebuffer []byte, preset GenrePreset) {
+	applyColorEffects(p, framebuffer, preset)
+	applyTextureEffects(p, framebuffer, preset)
+	applyDistortionEffects(p, framebuffer, preset)
+}
+
+// applyColorEffects applies color-based post-processing effects.
+func applyColorEffects(p *PostProcessor, framebuffer []byte, preset GenrePreset) {
 	if preset.ColorGrade.Enabled {
 		p.ApplyColorGrade(framebuffer, preset.ColorGrade)
 	}
 	if preset.Vignette.Enabled {
 		p.ApplyVignette(framebuffer, preset.Vignette)
 	}
+	if preset.Bloom.Enabled {
+		p.ApplyBloom(framebuffer, preset.Bloom)
+	}
+}
+
+// applyTextureEffects applies texture-based post-processing effects.
+func applyTextureEffects(p *PostProcessor, framebuffer []byte, preset GenrePreset) {
 	if preset.FilmGrain.Enabled {
 		p.ApplyFilmGrain(framebuffer, preset.FilmGrain)
 	}
 	if preset.Scanlines.Enabled {
 		p.ApplyScanlines(framebuffer, preset.Scanlines)
 	}
+	if preset.FilmScratches.Enabled {
+		p.ApplyFilmScratches(framebuffer, preset.FilmScratches)
+	}
+}
+
+// applyDistortionEffects applies distortion-based post-processing effects.
+func applyDistortionEffects(p *PostProcessor, framebuffer []byte, preset GenrePreset) {
 	if preset.ChromaticAberration.Enabled {
 		p.ApplyChromaticAberration(framebuffer, preset.ChromaticAberration)
 	}
-	if preset.Bloom.Enabled {
-		p.ApplyBloom(framebuffer, preset.Bloom)
-	}
 	if preset.StaticBurst.Enabled {
 		p.ApplyStaticBurst(framebuffer, preset.StaticBurst)
-	}
-	if preset.FilmScratches.Enabled {
-		p.ApplyFilmScratches(framebuffer, preset.FilmScratches)
 	}
 }
 

@@ -1058,71 +1058,99 @@ func DrawShop(screen *ebiten.Image, state *ShopState) {
 	bounds := screen.Bounds()
 	screenWidth := float32(bounds.Dx())
 	screenHeight := float32(bounds.Dy())
-
-	// Draw semi-transparent overlay
-	overlay := color.RGBA{0, 0, 0, 200}
-	vector.DrawFilledRect(screen, 0, 0, screenWidth, screenHeight, overlay, false)
-
 	centerX := screenWidth / 2
-	theme := currentTheme.Load()
 
-	// Draw shop title
+	drawShopOverlay(screen, screenWidth, screenHeight)
+	drawShopHeader(screen, centerX, state)
+
+	startY := drawShopItems(screen, centerX, state)
+	drawShopControls(screen, centerX, screenHeight, startY)
+}
+
+// drawShopOverlay renders the semi-transparent background overlay for the shop.
+func drawShopOverlay(screen *ebiten.Image, width, height float32) {
+	overlay := color.RGBA{0, 0, 0, 200}
+	vector.DrawFilledRect(screen, 0, 0, width, height, overlay, false)
+}
+
+// drawShopHeader renders the shop title and credits display.
+func drawShopHeader(screen *ebiten.Image, centerX float32, state *ShopState) {
 	titleY := float32(30)
 	drawCenteredLabel(screen, centerX, titleY, state.ShopName, color.RGBA{255, 220, 100, 255})
 
-	// Draw credits
 	creditsY := titleY + 25
 	creditsText := fmt.Sprintf("Credits: %d", state.Credits)
 	drawCenteredLabel(screen, centerX, creditsY, creditsText, color.RGBA{200, 200, 100, 255})
+}
 
-	// Draw items list
+// drawShopItems renders the list of shop items and returns the starting Y position.
+func drawShopItems(screen *ebiten.Image, centerX float32, state *ShopState) float32 {
 	itemHeight := float32(25)
-	startY := creditsY + 30
+	startY := float32(85)
+	theme := currentTheme.Load()
 
 	if len(state.Items) == 0 {
 		drawCenteredLabel(screen, centerX, startY+20, "No items available", color.RGBA{150, 150, 150, 255})
+		return startY
 	}
 
 	for i, item := range state.Items {
 		itemY := startY + float32(i)*itemHeight
-
-		// Highlight selected item
-		if i == state.Selected {
-			highlightX := centerX - 180
-			vector.DrawFilledRect(screen, highlightX, itemY-5, 360, itemHeight-2, color.RGBA{80, 80, 120, 200}, false)
-		}
-
-		// Item name
-		nameColor := theme.TextColor
-		if i == state.Selected {
-			nameColor = color.RGBA{255, 255, 255, 255}
-		}
-		nameX := centerX - 170
-		drawLabel(screen, nameX, itemY+10, item.Name, nameColor)
-
-		// Price
-		priceText := fmt.Sprintf("%d cr", item.Price)
-		priceX := centerX + 80
-		priceColor := color.RGBA{200, 200, 100, 255}
-		if item.Price > state.Credits {
-			priceColor = color.RGBA{200, 80, 80, 255} // Red if can't afford
-		}
-		drawLabel(screen, priceX, itemY+10, priceText, priceColor)
-
-		// Stock
-		stockX := centerX + 140
-		stockText := "∞"
-		if item.Stock >= 0 {
-			stockText = fmt.Sprintf("x%d", item.Stock)
-		}
-		stockColor := color.RGBA{150, 150, 150, 255}
-		if item.Stock == 0 {
-			stockColor = color.RGBA{200, 80, 80, 255}
-		}
-		drawLabel(screen, stockX, itemY+10, stockText, stockColor)
+		drawShopItemRow(screen, centerX, itemY, i, item, state, theme, itemHeight)
 	}
 
-	// Draw controls hint
+	return startY
+}
+
+// drawShopItemRow renders a single shop item row with name, price, and stock.
+func drawShopItemRow(screen *ebiten.Image, centerX, itemY float32, index int, item ShopItem, state *ShopState, theme *Theme, itemHeight float32) {
+	if index == state.Selected {
+		highlightX := centerX - 180
+		vector.DrawFilledRect(screen, highlightX, itemY-5, 360, itemHeight-2, color.RGBA{80, 80, 120, 200}, false)
+	}
+
+	drawItemName(screen, centerX, itemY, index, item, state, theme)
+	drawItemPrice(screen, centerX, itemY, item, state)
+	drawItemStock(screen, centerX, itemY, item)
+}
+
+// drawItemName renders the item name with appropriate color based on selection.
+func drawItemName(screen *ebiten.Image, centerX, itemY float32, index int, item ShopItem, state *ShopState, theme *Theme) {
+	nameColor := theme.TextColor
+	if index == state.Selected {
+		nameColor = color.RGBA{255, 255, 255, 255}
+	}
+	nameX := centerX - 170
+	drawLabel(screen, nameX, itemY+10, item.Name, nameColor)
+}
+
+// drawItemPrice renders the item price with color based on affordability.
+func drawItemPrice(screen *ebiten.Image, centerX, itemY float32, item ShopItem, state *ShopState) {
+	priceText := fmt.Sprintf("%d cr", item.Price)
+	priceX := centerX + 80
+	priceColor := color.RGBA{200, 200, 100, 255}
+	if item.Price > state.Credits {
+		priceColor = color.RGBA{200, 80, 80, 255}
+	}
+	drawLabel(screen, priceX, itemY+10, priceText, priceColor)
+}
+
+// drawItemStock renders the item stock with color based on availability.
+func drawItemStock(screen *ebiten.Image, centerX, itemY float32, item ShopItem) {
+	stockX := centerX + 140
+	stockText := "∞"
+	if item.Stock >= 0 {
+		stockText = fmt.Sprintf("x%d", item.Stock)
+	}
+	stockColor := color.RGBA{150, 150, 150, 255}
+	if item.Stock == 0 {
+		stockColor = color.RGBA{200, 80, 80, 255}
+	}
+	drawLabel(screen, stockX, itemY+10, stockText, stockColor)
+}
+
+// drawShopControls renders the control hints at the bottom of the shop.
+func drawShopControls(screen *ebiten.Image, centerX, screenHeight, startY float32) {
 	hintY := screenHeight - 40
 	drawCenteredLabel(screen, centerX, hintY, "Up/Down: Select | Enter: Buy | ESC: Back", color.RGBA{150, 150, 150, 255})
 }

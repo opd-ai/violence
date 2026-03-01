@@ -1944,6 +1944,19 @@ func (g *Game) buildSkillsState() *ui.SkillsState {
 		return nil
 	}
 
+	trees := buildSkillTrees(g)
+	totalPoints := getTotalAvailablePoints(g.skillManager)
+
+	return &ui.SkillsState{
+		Trees:       trees,
+		ActiveTree:  g.skillsTreeIdx,
+		Selected:    g.skillsNodeIdx,
+		TotalPoints: totalPoints,
+	}
+}
+
+// buildSkillTrees constructs UI representations of all skill trees.
+func buildSkillTrees(g *Game) []ui.SkillTreeState {
 	treeIDs := []string{"combat", "survival", "tech"}
 	treeNames := []string{"Combat", "Survival", "Tech"}
 	trees := make([]ui.SkillTreeState, 0, len(treeIDs))
@@ -1954,50 +1967,65 @@ func (g *Game) buildSkillsState() *ui.SkillsState {
 			continue
 		}
 
-		nodeList := g.getTreeNodeList(tree)
-		uiNodes := make([]ui.SkillNode, len(nodeList))
-		for j, node := range nodeList {
-			// Check if prerequisites are met
-			available := true
-			for _, reqID := range node.Requires {
-				if !tree.IsAllocated(reqID) {
-					available = false
-					break
-				}
-			}
-			available = available && tree.GetPoints() >= node.Cost && !tree.IsAllocated(node.ID)
+		treeState := buildSingleSkillTree(g, tree, treeNames[i], treeID)
+		trees = append(trees, treeState)
+	}
 
-			uiNodes[j] = ui.SkillNode{
-				ID:          node.ID,
-				Name:        node.Name,
-				Description: node.Description,
-				Cost:        node.Cost,
-				Allocated:   tree.IsAllocated(node.ID),
-				Available:   available,
-			}
+	return trees
+}
+
+// buildSingleSkillTree creates a UI skill tree state from a skill tree.
+func buildSingleSkillTree(g *Game, tree *skills.Tree, treeName, treeID string) ui.SkillTreeState {
+	nodeList := g.getTreeNodeList(tree)
+	uiNodes := buildSkillNodes(tree, nodeList)
+
+	return ui.SkillTreeState{
+		TreeName: treeName,
+		TreeID:   treeID,
+		Nodes:    uiNodes,
+		Points:   tree.GetPoints(),
+		Selected: g.skillsNodeIdx,
+	}
+}
+
+// buildSkillNodes converts skill nodes to UI representations with availability status.
+func buildSkillNodes(tree *skills.Tree, nodeList []skills.Node) []ui.SkillNode {
+	uiNodes := make([]ui.SkillNode, len(nodeList))
+	for j, node := range nodeList {
+		available := checkNodeAvailability(tree, &node)
+		uiNodes[j] = ui.SkillNode{
+			ID:          node.ID,
+			Name:        node.Name,
+			Description: node.Description,
+			Cost:        node.Cost,
+			Allocated:   tree.IsAllocated(node.ID),
+			Available:   available,
 		}
+	}
+	return uiNodes
+}
 
-		trees = append(trees, ui.SkillTreeState{
-			TreeName: treeNames[i],
-			TreeID:   treeID,
-			Nodes:    uiNodes,
-			Points:   tree.GetPoints(),
-			Selected: g.skillsNodeIdx,
-		})
+// checkNodeAvailability determines if a skill node can be allocated.
+func checkNodeAvailability(tree *skills.Tree, node *skills.Node) bool {
+	if tree.IsAllocated(node.ID) {
+		return false
 	}
 
-	// Total points available across all trees (they share the same pool via AddPoints)
-	totalPoints := 0
-	if t, err := g.skillManager.GetTree("combat"); err == nil {
-		totalPoints = t.GetPoints()
+	for _, reqID := range node.Requires {
+		if !tree.IsAllocated(reqID) {
+			return false
+		}
 	}
 
-	return &ui.SkillsState{
-		Trees:       trees,
-		ActiveTree:  g.skillsTreeIdx,
-		Selected:    g.skillsNodeIdx,
-		TotalPoints: totalPoints,
+	return tree.GetPoints() >= node.Cost
+}
+
+// getTotalAvailablePoints retrieves the total skill points available across all trees.
+func getTotalAvailablePoints(skillManager *skills.Manager) int {
+	if t, err := skillManager.GetTree("combat"); err == nil {
+		return t.GetPoints()
 	}
+	return 0
 }
 
 // openMultiplayer transitions to the multiplayer lobby state.
@@ -2057,28 +2085,38 @@ func (g *Game) handleMultiplayerModeToggle() {
 // handleMultiplayerServerNavigation handles navigation through servers or modes.
 func (g *Game) handleMultiplayerServerNavigation() {
 	if g.input.IsJustPressed(input.ActionMoveForward) {
-		if g.useFederation {
-			if g.browserIdx > 0 {
-				g.browserIdx--
-			}
-		} else {
-			if g.mpSelectedMode > 0 {
-				g.mpSelectedMode--
-			}
-		}
+		g.handleNavigationUp()
 	}
 
 	if g.input.IsJustPressed(input.ActionMoveBackward) {
-		if g.useFederation {
-			if g.browserIdx < len(g.serverBrowser)-1 {
-				g.browserIdx++
-			}
-		} else {
-			g.mpSelectedMode++
-			modes := g.getMultiplayerModes()
-			if g.mpSelectedMode >= len(modes) {
-				g.mpSelectedMode = len(modes) - 1
-			}
+		g.handleNavigationDown()
+	}
+}
+
+// handleNavigationUp moves selection up in the multiplayer menu.
+func (g *Game) handleNavigationUp() {
+	if g.useFederation {
+		if g.browserIdx > 0 {
+			g.browserIdx--
+		}
+	} else {
+		if g.mpSelectedMode > 0 {
+			g.mpSelectedMode--
+		}
+	}
+}
+
+// handleNavigationDown moves selection down in the multiplayer menu.
+func (g *Game) handleNavigationDown() {
+	if g.useFederation {
+		if g.browserIdx < len(g.serverBrowser)-1 {
+			g.browserIdx++
+		}
+	} else {
+		g.mpSelectedMode++
+		modes := g.getMultiplayerModes()
+		if g.mpSelectedMode >= len(modes) {
+			g.mpSelectedMode = len(modes) - 1
 		}
 	}
 }
@@ -2940,65 +2978,110 @@ func (g *Game) drawLoading(screen *ebiten.Image) {
 
 // renderLoreItems draws lore items as simple sprites in world space.
 func (g *Game) renderLoreItems(screen *ebiten.Image) {
-	fov := g.camera.FOV
-	planeX := -g.camera.DirY * fov / 66.0
-	planeY := g.camera.DirX * fov / 66.0
+	planeX, planeY := calculateCameraPlane(g.camera)
 
 	for _, loreItem := range g.loreItems {
 		if loreItem.Activated {
 			continue
 		}
 
-		dx := loreItem.PosX - g.camera.X
-		dy := loreItem.PosY - g.camera.Y
-		dist := dx*dx + dy*dy
-		if dist > 400 {
+		if !shouldRenderLoreItem(loreItem, g.camera) {
 			continue
 		}
 
-		invDet := 1.0 / (planeX*g.camera.DirY - g.camera.DirX*planeY)
-		transformX := invDet * (g.camera.DirY*dx - g.camera.DirX*dy)
-		transformY := invDet * (-planeY*dx + planeX*dy)
+		drawLoreItemSprite(screen, loreItem, g.camera, planeX, planeY, g.animationTicker)
+	}
+}
 
-		if transformY <= 0.1 {
-			continue
-		}
+// calculateCameraPlane computes the camera's view plane vectors.
+func calculateCameraPlane(camera *camera.Camera) (float64, float64) {
+	fov := camera.FOV
+	planeX := -camera.DirY * fov / 66.0
+	planeY := camera.DirX * fov / 66.0
+	return planeX, planeY
+}
 
-		spriteScreenX := int((float64(config.C.InternalWidth) / 2.0) * (1.0 + transformX/transformY))
-		spriteHeight := int(float64(config.C.InternalHeight) / transformY / 2)
-		spriteWidth := spriteHeight
+// shouldRenderLoreItem checks if a lore item is close enough to render.
+func shouldRenderLoreItem(loreItem *lore.LoreItem, camera *camera.Camera) bool {
+	dx := loreItem.PosX - camera.X
+	dy := loreItem.PosY - camera.Y
+	dist := dx*dx + dy*dy
+	return dist <= 400
+}
 
-		drawStartX := spriteScreenX - spriteWidth/2
-		drawEndX := spriteScreenX + spriteWidth/2
-		drawStartY := config.C.InternalHeight/2 - spriteHeight/2
-		drawEndY := config.C.InternalHeight/2 + spriteHeight/2
+// drawLoreItemSprite renders a single lore item sprite on screen.
+func drawLoreItemSprite(screen *ebiten.Image, loreItem *lore.LoreItem, camera *camera.Camera, planeX, planeY float64, animationTicker int) {
+	transformX, transformY := calculateSpriteTransform(loreItem, camera, planeX, planeY)
+	if transformY <= 0.1 {
+		return
+	}
 
-		if drawEndX < 0 || drawStartX >= config.C.InternalWidth {
-			continue
-		}
-		if drawStartX < 0 {
-			drawStartX = 0
-		}
-		if drawEndX >= config.C.InternalWidth {
-			drawEndX = config.C.InternalWidth - 1
-		}
+	spriteScreenX, spriteHeight, spriteWidth := calculateSpriteDimensions(transformX, transformY)
+	drawStartX, drawEndX, drawStartY, drawEndY := calculateSpriteDrawBounds(spriteScreenX, spriteHeight, spriteWidth)
 
-		// Color based on lore item type - pulsing glow effect
-		pulse := float32(0.7 + 0.3*float64(g.animationTicker%60)/60.0)
-		var loreColor color.RGBA
-		switch loreItem.Type {
-		case lore.LoreItemNote:
-			loreColor = color.RGBA{uint8(255 * pulse), uint8(255 * pulse), 200, 255}
-		case lore.LoreItemAudioLog:
-			loreColor = color.RGBA{100, uint8(200 * pulse), uint8(255 * pulse), 255}
-		case lore.LoreItemGraffiti:
-			loreColor = color.RGBA{uint8(255 * pulse), 100, 100, 255}
-		case lore.LoreItemBodyArrangement:
-			loreColor = color.RGBA{150, 150, uint8(150 * pulse), 255}
-		}
+	if !isWithinScreenBounds(drawStartX, drawEndX) {
+		return
+	}
 
-		vector.DrawFilledRect(screen, float32(drawStartX), float32(drawStartY),
-			float32(drawEndX-drawStartX), float32(drawEndY-drawStartY), loreColor, false)
+	loreColor := calculateLoreItemColor(loreItem, animationTicker)
+	vector.DrawFilledRect(screen, float32(drawStartX), float32(drawStartY),
+		float32(drawEndX-drawStartX), float32(drawEndY-drawStartY), loreColor, false)
+}
+
+// calculateSpriteTransform computes the sprite's transform coordinates.
+func calculateSpriteTransform(loreItem *lore.LoreItem, camera *camera.Camera, planeX, planeY float64) (float64, float64) {
+	dx := loreItem.PosX - camera.X
+	dy := loreItem.PosY - camera.Y
+	invDet := 1.0 / (planeX*camera.DirY - camera.DirX*planeY)
+	transformX := invDet * (camera.DirY*dx - camera.DirX*dy)
+	transformY := invDet * (-planeY*dx + planeX*dy)
+	return transformX, transformY
+}
+
+// calculateSpriteDimensions computes sprite screen position and size.
+func calculateSpriteDimensions(transformX, transformY float64) (int, int, int) {
+	spriteScreenX := int((float64(config.C.InternalWidth) / 2.0) * (1.0 + transformX/transformY))
+	spriteHeight := int(float64(config.C.InternalHeight) / transformY / 2)
+	spriteWidth := spriteHeight
+	return spriteScreenX, spriteHeight, spriteWidth
+}
+
+// calculateSpriteDrawBounds computes the screen-space draw boundaries for the sprite.
+func calculateSpriteDrawBounds(spriteScreenX, spriteHeight, spriteWidth int) (int, int, int, int) {
+	drawStartX := spriteScreenX - spriteWidth/2
+	drawEndX := spriteScreenX + spriteWidth/2
+	drawStartY := config.C.InternalHeight/2 - spriteHeight/2
+	drawEndY := config.C.InternalHeight/2 + spriteHeight/2
+
+	if drawStartX < 0 {
+		drawStartX = 0
+	}
+	if drawEndX >= config.C.InternalWidth {
+		drawEndX = config.C.InternalWidth - 1
+	}
+
+	return drawStartX, drawEndX, drawStartY, drawEndY
+}
+
+// isWithinScreenBounds checks if the sprite is visible on screen.
+func isWithinScreenBounds(drawStartX, drawEndX int) bool {
+	return drawEndX >= 0 && drawStartX < config.C.InternalWidth
+}
+
+// calculateLoreItemColor determines the color for a lore item with pulsing effect.
+func calculateLoreItemColor(loreItem *lore.LoreItem, animationTicker int) color.RGBA {
+	pulse := float32(0.7 + 0.3*float64(animationTicker%60)/60.0)
+	switch loreItem.Type {
+	case lore.LoreItemNote:
+		return color.RGBA{uint8(255 * pulse), uint8(255 * pulse), 200, 255}
+	case lore.LoreItemAudioLog:
+		return color.RGBA{100, uint8(200 * pulse), uint8(255 * pulse), 255}
+	case lore.LoreItemGraffiti:
+		return color.RGBA{uint8(255 * pulse), 100, 100, 255}
+	case lore.LoreItemBodyArrangement:
+		return color.RGBA{150, 150, uint8(150 * pulse), 255}
+	default:
+		return color.RGBA{150, 150, 150, 255}
 	}
 }
 

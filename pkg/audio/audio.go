@@ -60,15 +60,37 @@ func NewEngine() *Engine {
 // PlayMusic loads and plays a base music track with additional intensity layers.
 // intensity parameter (0.0-1.0) crossfades additional layers on top of the base track.
 func (e *Engine) PlayMusic(name string, intensity float64) error {
-	// Get genre outside of lock to avoid deadlock
-	e.mu.RLock()
-	genreID := e.genreID
-	e.mu.RUnlock()
-
-	// Generate all music data before acquiring write lock
-	baseData := generateMusicForEngine(name, 0, genreID)
+	genreID := e.getGenreIDSafe()
+	baseData, layerDataSlice := generateAllMusicLayers(name, genreID)
 	if baseData == nil {
 		return nil
+	}
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.intensity = clamp(intensity, 0.0, 1.0)
+	e.stopCurrentMusic()
+
+	if err := e.startMusicPlayback(baseData, layerDataSlice); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// getGenreIDSafe retrieves the genre ID with read lock protection.
+func (e *Engine) getGenreIDSafe() string {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.genreID
+}
+
+// generateAllMusicLayers generates base and intensity layer audio data.
+func generateAllMusicLayers(name, genreID string) ([]byte, [][]byte) {
+	baseData := generateMusicForEngine(name, 0, genreID)
+	if baseData == nil {
+		return nil, nil
 	}
 
 	layerDataSlice := make([][]byte, 0, 3)
@@ -80,21 +102,31 @@ func (e *Engine) PlayMusic(name string, intensity float64) error {
 		layerDataSlice = append(layerDataSlice, layerData)
 	}
 
-	// Now acquire write lock for player management
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	return baseData, layerDataSlice
+}
 
-	e.intensity = clamp(intensity, 0.0, 1.0)
-
-	// Stop previous music
+// stopCurrentMusic stops all currently playing music layers.
+func (e *Engine) stopCurrentMusic() {
 	for _, player := range e.musicLayers {
 		if player != nil {
 			player.Pause()
 		}
 	}
 	e.musicLayers = nil
+}
 
-	// Create base player
+// startMusicPlayback creates and starts all music layer players.
+func (e *Engine) startMusicPlayback(baseData []byte, layerDataSlice [][]byte) error {
+	if err := e.startBaseLayer(baseData); err != nil {
+		return err
+	}
+
+	e.startIntensityLayers(layerDataSlice)
+	return nil
+}
+
+// startBaseLayer creates and starts the base music layer.
+func (e *Engine) startBaseLayer(baseData []byte) error {
 	basePlayer, err := e.createPlayer(baseData)
 	if err != nil {
 		return err
@@ -102,22 +134,22 @@ func (e *Engine) PlayMusic(name string, intensity float64) error {
 	basePlayer.SetVolume(1.0)
 	basePlayer.Play()
 	e.musicLayers = append(e.musicLayers, basePlayer)
+	return nil
+}
 
-	// Create intensity layer players
+// startIntensityLayers creates and starts all intensity layer players.
+func (e *Engine) startIntensityLayers(layerDataSlice [][]byte) {
 	for i, layerData := range layerDataSlice {
 		layerPlayer, err := e.createPlayer(layerData)
 		if err != nil {
 			continue
 		}
 
-		// Calculate layer volume based on intensity (i+1 because layer 0 is base)
 		layerVolume := e.calculateLayerVolume(i+1, e.intensity)
 		layerPlayer.SetVolume(layerVolume)
 		layerPlayer.Play()
 		e.musicLayers = append(e.musicLayers, layerPlayer)
 	}
-
-	return nil
 }
 
 // SetIntensity adjusts music intensity dynamically (0.0-1.0).

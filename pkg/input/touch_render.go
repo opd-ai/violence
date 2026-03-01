@@ -213,41 +213,80 @@ func (tr *TouchRenderer) getKnobColor() color.Color {
 
 // getButtonColor returns button color based on active state
 func (tr *TouchRenderer) getButtonColor(active bool) color.Color {
-	baseAlpha := tr.overlayAlpha
-	if active {
-		baseAlpha = tr.overlayAlpha + 64
-	}
+	baseAlpha := calculateButtonAlpha(tr.overlayAlpha, active)
+	return selectButtonColorByStyle(tr.style, active, baseAlpha)
+}
 
-	switch tr.style {
-	case StyleHorror:
-		if active {
-			return color.RGBA{R: 180, G: 20, B: 20, A: baseAlpha}
-		}
-		return color.RGBA{R: 60, G: 20, B: 20, A: baseAlpha}
-	case StyleCyberpunk:
-		if active {
-			return color.RGBA{R: 255, G: 0, B: 255, A: baseAlpha}
-		}
-		return color.RGBA{R: 40, G: 20, B: 80, A: baseAlpha}
-	case StylePostApoc:
-		if active {
-			return color.RGBA{R: 255, G: 160, B: 40, A: baseAlpha}
-		}
-		return color.RGBA{R: 80, G: 60, B: 30, A: baseAlpha}
-	case StyleSciFi:
-		if active {
-			return color.RGBA{R: 0, G: 200, B: 255, A: baseAlpha}
-		}
-		return color.RGBA{R: 30, G: 60, B: 100, A: baseAlpha}
-	case StyleFantasy:
-		if active {
-			return color.RGBA{R: 255, G: 215, B: 0, A: baseAlpha}
-		}
-		return color.RGBA{R: 100, G: 80, B: 50, A: baseAlpha}
-	default:
-		if active {
-			return color.RGBA{R: 200, G: 200, B: 200, A: baseAlpha}
-		}
-		return color.RGBA{R: 100, G: 100, B: 100, A: baseAlpha}
+// calculateButtonAlpha computes the alpha value for a button based on active state.
+func calculateButtonAlpha(overlayAlpha uint8, active bool) uint8 {
+	if active {
+		return overlayAlpha + 64
 	}
+	return overlayAlpha
+}
+
+// selectButtonColorByStyle returns the appropriate color for a button based on style and state.
+func selectButtonColorByStyle(style TouchRenderStyle, active bool, alpha uint8) color.Color {
+	switch style {
+	case StyleHorror:
+		return getHorrorButtonColor(active, alpha)
+	case StyleCyberpunk:
+		return getCyberpunkButtonColor(active, alpha)
+	case StylePostApoc:
+		return getPostApocButtonColor(active, alpha)
+	case StyleSciFi:
+		return getSciFiButtonColor(active, alpha)
+	case StyleFantasy:
+		return getFantasyButtonColor(active, alpha)
+	default:
+		return getDefaultButtonColor(active, alpha)
+	}
+}
+
+// getHorrorButtonColor returns horror-themed button color.
+func getHorrorButtonColor(active bool, alpha uint8) color.Color {
+	if active {
+		return color.RGBA{R: 180, G: 20, B: 20, A: alpha}
+	}
+	return color.RGBA{R: 60, G: 20, B: 20, A: alpha}
+}
+
+// getCyberpunkButtonColor returns cyberpunk-themed button color.
+func getCyberpunkButtonColor(active bool, alpha uint8) color.Color {
+	if active {
+		return color.RGBA{R: 255, G: 0, B: 255, A: alpha}
+	}
+	return color.RGBA{R: 40, G: 20, B: 80, A: alpha}
+}
+
+// getPostApocButtonColor returns post-apocalyptic-themed button color.
+func getPostApocButtonColor(active bool, alpha uint8) color.Color {
+	if active {
+		return color.RGBA{R: 255, G: 160, B: 40, A: alpha}
+	}
+	return color.RGBA{R: 80, G: 60, B: 30, A: alpha}
+}
+
+// getSciFiButtonColor returns sci-fi-themed button color.
+func getSciFiButtonColor(active bool, alpha uint8) color.Color {
+	if active {
+		return color.RGBA{R: 0, G: 200, B: 255, A: alpha}
+	}
+	return color.RGBA{R: 30, G: 60, B: 100, A: alpha}
+}
+
+// getFantasyButtonColor returns fantasy-themed button color.
+func getFantasyButtonColor(active bool, alpha uint8) color.Color {
+	if active {
+		return color.RGBA{R: 255, G: 215, B: 0, A: alpha}
+	}
+	return color.RGBA{R: 100, G: 80, B: 50, A: alpha}
+}
+
+// getDefaultButtonColor returns default button color.
+func getDefaultButtonColor(active bool, alpha uint8) color.Color {
+	if active {
+		return color.RGBA{R: 200, G: 200, B: 200, A: alpha}
+	}
+	return color.RGBA{R: 100, G: 100, B: 100, A: alpha}
 }

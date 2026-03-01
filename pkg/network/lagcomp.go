@@ -116,67 +116,99 @@ func (lc *LagCompensator) RewindWorld(targetTick uint64) (*WorldSnapshot, error)
 
 // interpolateSnapshots linearly interpolates between two snapshots.
 func (lc *LagCompensator) interpolateSnapshots(before, after *WorldSnapshot, targetTick uint64) *WorldSnapshot {
-	// Calculate interpolation factor
-	tickDelta := float64(after.TickNumber - before.TickNumber)
-	if tickDelta == 0 {
+	t := calculateInterpolationFactor(before, after, targetTick)
+	if t < 0 {
 		return before
 	}
-	t := float64(targetTick-before.TickNumber) / tickDelta
 
-	result := &WorldSnapshot{
-		TickNumber: targetTick,
+	result := createEmptySnapshot(targetTick)
+	interpolateAllEntities(result, before, after, t)
+	logInterpolation(before.TickNumber, after.TickNumber, targetTick, t)
+
+	return result
+}
+
+// calculateInterpolationFactor computes the interpolation factor between two snapshots.
+func calculateInterpolationFactor(before, after *WorldSnapshot, targetTick uint64) float64 {
+	tickDelta := float64(after.TickNumber - before.TickNumber)
+	if tickDelta == 0 {
+		return -1
+	}
+	return float64(targetTick-before.TickNumber) / tickDelta
+}
+
+// createEmptySnapshot creates a new world snapshot with the given tick number.
+func createEmptySnapshot(tickNumber uint64) *WorldSnapshot {
+	return &WorldSnapshot{
+		TickNumber: tickNumber,
 		Entities:   make(map[engine.Entity]*EntitySnapshot),
 	}
+}
 
-	// Interpolate position for each entity that exists in both snapshots
+// interpolateAllEntities processes all entities and interpolates their states.
+func interpolateAllEntities(result, before, after *WorldSnapshot, t float64) {
 	for entityID, beforeEntity := range before.Entities {
 		afterEntity, exists := after.Entities[entityID]
 		if !exists {
-			// Entity only exists in before snapshot, copy it
 			result.Entities[entityID] = beforeEntity
 			continue
 		}
 
-		// Interpolate entity state
-		interpolated := &EntitySnapshot{
-			EntityID:   entityID,
-			Components: make(map[string]interface{}),
-			FieldMask:  make(map[string]bool),
-		}
-
-		// Copy all components from before snapshot
-		for compName, compValue := range beforeEntity.Components {
-			interpolated.Components[compName] = compValue
-			interpolated.FieldMask[compName] = true
-		}
-
-		// Interpolate Position component if it exists
-		beforePos, hasBefore := beforeEntity.Components["Position"]
-		afterPos, hasAfter := afterEntity.Components["Position"]
-		if hasBefore && hasAfter {
-			if bp, ok := beforePos.(Position); ok {
-				if ap, ok := afterPos.(Position); ok {
-					interpolated.Components["Position"] = Position{
-						X: bp.X + (ap.X-bp.X)*t,
-						Y: bp.Y + (ap.Y-bp.Y)*t,
-						Z: bp.Z + (ap.Z-bp.Z)*t,
-					}
-				}
-			}
-		}
-
+		interpolated := interpolateEntityState(beforeEntity, afterEntity, entityID, t)
 		result.Entities[entityID] = interpolated
 	}
+}
 
+// interpolateEntityState creates an interpolated entity snapshot between two states.
+func interpolateEntityState(beforeEntity, afterEntity *EntitySnapshot, entityID engine.Entity, t float64) *EntitySnapshot {
+	interpolated := &EntitySnapshot{
+		EntityID:   entityID,
+		Components: make(map[string]interface{}),
+		FieldMask:  make(map[string]bool),
+	}
+
+	copyComponentsFromSnapshot(interpolated, beforeEntity)
+	interpolatePositionComponent(interpolated, beforeEntity, afterEntity, t)
+
+	return interpolated
+}
+
+// copyComponentsFromSnapshot copies all components from source to destination.
+func copyComponentsFromSnapshot(dest, src *EntitySnapshot) {
+	for compName, compValue := range src.Components {
+		dest.Components[compName] = compValue
+		dest.FieldMask[compName] = true
+	}
+}
+
+// interpolatePositionComponent interpolates position data if available in both snapshots.
+func interpolatePositionComponent(interpolated, beforeEntity, afterEntity *EntitySnapshot, t float64) {
+	beforePos, hasBefore := beforeEntity.Components["Position"]
+	afterPos, hasAfter := afterEntity.Components["Position"]
+	if !hasBefore || !hasAfter {
+		return
+	}
+
+	bp, bpOk := beforePos.(Position)
+	ap, apOk := afterPos.(Position)
+	if bpOk && apOk {
+		interpolated.Components["Position"] = Position{
+			X: bp.X + (ap.X-bp.X)*t,
+			Y: bp.Y + (ap.Y-bp.Y)*t,
+			Z: bp.Z + (ap.Z-bp.Z)*t,
+		}
+	}
+}
+
+// logInterpolation logs debugging information about the interpolation operation.
+func logInterpolation(beforeTick, afterTick, targetTick uint64, interpFactor float64) {
 	logrus.WithFields(logrus.Fields{
 		"system_name":   "lag_compensator",
-		"before_tick":   before.TickNumber,
-		"after_tick":    after.TickNumber,
+		"before_tick":   beforeTick,
+		"after_tick":    afterTick,
 		"target_tick":   targetTick,
-		"interp_factor": t,
+		"interp_factor": interpFactor,
 	}).Debug("Snapshots interpolated")
-
-	return result
 }
 
 // PerformHitscan performs hitscan hit detection using rewound world state.

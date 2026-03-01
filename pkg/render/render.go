@@ -77,39 +77,61 @@ func (r *Renderer) Tick() {
 // Calls raycaster, writes column data to framebuffer, blits to screen.
 func (r *Renderer) Render(screen *ebiten.Image, posX, posY, dirX, dirY, pitch float64) {
 	hits := r.raycaster.CastRays(posX, posY, dirX, dirY)
+	r.renderFrame(hits, posX, posY, dirX, dirY, pitch)
+	r.applyPostProcessing()
+	r.displayFramebuffer(screen)
+}
 
+// renderFrame renders all pixels in the framebuffer using raycasting results.
+func (r *Renderer) renderFrame(hits []raycaster.RayHit, posX, posY, dirX, dirY, pitch float64) {
 	for y := 0; y < r.Height; y++ {
 		for x := 0; x < r.Width; x++ {
 			idx := (y*r.Width + x) * 4
-			var c color.RGBA
+			c := r.computePixelColor(x, y, hits, posX, posY, dirX, dirY, pitch)
+			r.setFramebufferPixel(idx, c)
+		}
+	}
+}
 
-			if y < r.Height/2 {
-				c = r.renderCeiling(x, y, posX, posY, dirX, dirY, pitch)
-			} else if y > r.Height/2 {
-				c = r.renderFloor(x, y, posX, posY, dirX, dirY, pitch)
-			} else {
-				c = r.palette[0]
-			}
+// computePixelColor determines the color for a single pixel based on position.
+func (r *Renderer) computePixelColor(x, y int, hits []raycaster.RayHit, posX, posY, dirX, dirY, pitch float64) color.RGBA {
+	var c color.RGBA
 
-			if x < len(hits) {
-				wallColor := r.renderWall(x, y, hits[x])
-				if wallColor.A > 0 {
-					c = wallColor
-				}
-			}
+	if y < r.Height/2 {
+		c = r.renderCeiling(x, y, posX, posY, dirX, dirY, pitch)
+	} else if y > r.Height/2 {
+		c = r.renderFloor(x, y, posX, posY, dirX, dirY, pitch)
+	} else {
+		c = r.palette[0]
+	}
 
-			r.framebuffer[idx] = c.R
-			r.framebuffer[idx+1] = c.G
-			r.framebuffer[idx+2] = c.B
-			r.framebuffer[idx+3] = c.A
+	if x < len(hits) {
+		wallColor := r.renderWall(x, y, hits[x])
+		if wallColor.A > 0 {
+			c = wallColor
 		}
 	}
 
-	// Apply post-processing if enabled
+	return c
+}
+
+// setFramebufferPixel writes a color to the framebuffer at the given index.
+func (r *Renderer) setFramebufferPixel(idx int, c color.RGBA) {
+	r.framebuffer[idx] = c.R
+	r.framebuffer[idx+1] = c.G
+	r.framebuffer[idx+2] = c.B
+	r.framebuffer[idx+3] = c.A
+}
+
+// applyPostProcessing applies post-processing effects to the framebuffer.
+func (r *Renderer) applyPostProcessing() {
 	if r.postProcessor != nil {
 		r.postProcessor.Apply(r.framebuffer)
 	}
+}
 
+// displayFramebuffer converts the framebuffer to an image and draws it to screen.
+func (r *Renderer) displayFramebuffer(screen *ebiten.Image) {
 	img := ebiten.NewImageFromImageWithOptions(
 		&frameImage{data: r.framebuffer, width: r.Width, height: r.Height},
 		&ebiten.NewImageFromImageOptions{Unmanaged: true},
