@@ -182,6 +182,9 @@ type Game struct {
 
 	// Environmental hazard system
 	hazardSystem *hazard.System
+
+	// Enemy role and squad tactics system
+	roleBasedAISystem *ai.RoleBasedAISystem
 }
 
 // NewGame creates and initializes a new game instance.
@@ -251,6 +254,7 @@ func NewGame() *Game {
 		browserIdx:         0,
 		useFederation:      false,
 		hazardSystem:       hazard.NewSystem(int64(seed)),
+		roleBasedAISystem:  ai.NewRoleBasedAISystem(),
 	}
 
 	// Initialize BSP generator
@@ -1169,6 +1173,11 @@ func (g *Game) updateV3Systems() {
 	if g.hazardSystem != nil {
 		g.hazardSystem.Update(deltaTime)
 		g.checkHazardCollisions()
+	}
+
+	// Update enemy role-based AI and squad tactics
+	if g.roleBasedAISystem != nil {
+		g.roleBasedAISystem.Update(g.world)
 	}
 }
 
