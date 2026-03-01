@@ -6,16 +6,8 @@ import (
 )
 
 // Test components
-type Position struct {
-	X, Y float64
-}
-
 type Velocity struct {
 	DX, DY float64
-}
-
-type Health struct {
-	Current, Max int
 }
 
 type Name struct {

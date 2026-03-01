@@ -10,17 +10,20 @@
 
 ### Priority 1: Core Engine Gaps (v1.0 blockers)
 
-1. **Implement ECS Component Query API**
-   - **Deliverable**: `pkg/engine/query.go` with `World.Query(componentTypes ...ComponentID) EntityIterator` method using bitmask archetype matching
+1. **[x] Implement ECS Component Query API** *(2026-02-28)*
+   - **Deliverable**: `pkg/engine/query.go` with `World.QueryWithBitmask(componentIDs ...ComponentID) *EntityIterator` method using bitmask archetype matching
    - **Dependencies**: None
+   - **Summary**: Implemented bitmask-based query API with ComponentID type (0-63), EntityIterator with Next/Reset/HasNext methods, archetype management (SetArchetype, AddArchetypeComponent, RemoveArchetypeComponent), comprehensive tests achieving 89.3% coverage
 
-2. **Define Shared TileMap Type**
+2. **[x] Define Shared TileMap Type** *(2026-02-28)*
    - **Deliverable**: `pkg/level/tilemap.go` with `TileMap` struct (`[][]TileType` with constants: `TileEmpty`, `TileWall`, `TileDoor`, `TileSecret`)
    - **Dependencies**: None
+   - **Summary**: Created TileMap struct with row-major indexing, tile type constants using iota, Get/Set/IsWalkable/InBounds methods, comprehensive tests achieving 100% coverage
 
-3. **Define Player Entity Schema**
+3. **[x] Define Player Entity Schema** *(2026-02-28)*
    - **Deliverable**: `pkg/engine/player.go` documenting canonical player component set (Position, Health, Armor, Inventory, Camera, Input) with factory function `NewPlayerEntity()`
    - **Dependencies**: Step 1 (Query API)
+   - **Summary**: Defined 6 player components (Position, Health, Armor, Inventory, Camera, Input), implemented NewPlayerEntity factory with default values, added IsPlayer validation method, comprehensive tests achieving 91.5% engine package coverage
 
 4. **Define Fantasy Genre Asset Parameters**
    - **Deliverable**: `pkg/procgen/genre/fantasy_params.go` with fog color (RGB), palette values, texture seed parameters, SFX synthesis parameters (waveform, frequency, envelope), music parameters (scale, tempo)

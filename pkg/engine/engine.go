@@ -20,6 +20,7 @@ type System interface {
 type World struct {
 	nextID     Entity
 	components map[Entity]map[reflect.Type]Component
+	archetypes map[Entity]uint64
 	systems    []System
 	genre      string
 }
@@ -28,6 +29,7 @@ type World struct {
 func NewWorld() *World {
 	return &World{
 		components: make(map[Entity]map[reflect.Type]Component),
+		archetypes: make(map[Entity]uint64),
 		genre:      "fantasy",
 	}
 }
