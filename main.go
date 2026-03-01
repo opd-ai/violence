@@ -336,42 +336,61 @@ func (g *Game) handleMenuAction(action string) {
 
 // startNewGame initializes a new game session.
 func (g *Game) startNewGame() {
-	// Show loading screen
 	g.state = StateLoading
 	g.loadingScreen.Show(g.seed, "Generating level...")
 
-	// Generate level
+	g.generateLevel()
+	g.populateLevel()
+	g.initializePlayer()
+	g.initializeGameSystems()
+	g.finalizeGameStart()
+}
+
+// generateLevel generates the BSP level and initializes core map systems.
+func (g *Game) generateLevel() {
 	g.bspGenerator.SetGenre(g.genreID)
 	bspTree, tiles := g.bspGenerator.Generate()
 	g.currentMap = tiles
 	g.currentBSPTree = bspTree
 	g.raycaster.SetMap(tiles)
 
-	// Initialize automap
 	if len(tiles) > 0 && len(tiles[0]) > 0 {
 		g.automap = automap.NewMap(len(tiles[0]), len(tiles))
 	}
 
-	// Initialize v3.0 systems with correct dimensions
 	g.lightMap = lighting.NewSectorLightMap(len(tiles[0]), len(tiles), 0.3)
 	g.weatherEmitter = particle.NewWeatherEmitter(g.particleSystem, g.genreID, 0, 0, float64(len(tiles[0])), float64(len(tiles)))
-
-	// Set genre for all systems (Step 29: SetGenre cascade)
 	g.setGenre(g.genreID)
+}
 
-	// Place decorative props in rooms (v3.0 enhancement)
+// populateLevel populates the generated level with content and entities.
+func (g *Game) populateLevel() {
+	rooms := bsp.GetRooms(g.currentBSPTree)
+	g.placeDecorativeProps(rooms)
+	g.placeLoreItems(rooms)
+	g.scanSecretWalls()
+	g.spawnEnemies()
+	g.spawnDestructibles()
+	g.initializeSquad()
+	g.setupQuests(rooms)
+	g.setupEventTriggers()
+}
+
+// placeDecorativeProps places decorative props in BSP rooms.
+func (g *Game) placeDecorativeProps(rooms []*bsp.Room) {
 	g.propsManager.Clear()
 	g.propsManager.SetGenre(g.genreID)
-	rooms := bsp.GetRooms(bspTree)
 	for _, room := range rooms {
 		propRoom := &props.Room{X: room.X, Y: room.Y, W: room.W, H: room.H}
 		g.propsManager.PlaceProps(propRoom, 0.2, g.seed+uint64(room.X*1000+room.Y))
 	}
+}
 
-	// Generate and place lore items in rooms
+// placeLoreItems generates and places lore items in level rooms.
+func (g *Game) placeLoreItems(rooms []*bsp.Room) {
 	g.loreItems = make([]*lore.LoreItem, 0)
 	g.loreGenerator.SetGenre(g.genreID)
-	loreItemsPerLevel := 5 + len(rooms)/3 // Scale with level size
+	loreItemsPerLevel := 5 + len(rooms)/3
 	if loreItemsPerLevel > len(rooms) {
 		loreItemsPerLevel = len(rooms)
 	}
@@ -387,36 +406,157 @@ func (g *Game) startNewGame() {
 		codexEntry := g.loreGenerator.Generate(loreItem.CodexID)
 		g.loreCodex.AddEntry(codexEntry)
 	}
+}
 
-	// Scan map for secret walls and register them
+// scanSecretWalls scans the map for secret walls and registers them.
+func (g *Game) scanSecretWalls() {
+	tiles := g.currentMap
 	g.secretManager = secret.NewManager(len(tiles[0]))
 	for y := 0; y < len(tiles); y++ {
 		for x := 0; x < len(tiles[y]); x++ {
 			if tiles[y][x] == bsp.TileSecret {
-				// Determine slide direction based on neighboring floor tiles
-				dir := secret.DirNorth
-				if y+1 < len(tiles) && tiles[y+1][x] == bsp.TileFloor {
-					dir = secret.DirSouth
-				} else if y > 0 && tiles[y-1][x] == bsp.TileFloor {
-					dir = secret.DirNorth
-				} else if x+1 < len(tiles[y]) && tiles[y][x+1] == bsp.TileFloor {
-					dir = secret.DirEast
-				} else if x > 0 && tiles[y][x-1] == bsp.TileFloor {
-					dir = secret.DirWest
-				}
+				dir := g.determineSecretDirection(x, y, tiles)
 				g.secretManager.Add(x, y, dir)
 			}
 		}
 	}
+}
 
-	// Reset player position to a safe starting location
-	// Find the center of the first BSP room as spawn point
+// determineSecretDirection determines the slide direction for a secret wall.
+func (g *Game) determineSecretDirection(x, y int, tiles [][]int) secret.Direction {
+	dir := secret.DirNorth
+	if y+1 < len(tiles) && tiles[y+1][x] == bsp.TileFloor {
+		dir = secret.DirSouth
+	} else if y > 0 && tiles[y-1][x] == bsp.TileFloor {
+		dir = secret.DirNorth
+	} else if x+1 < len(tiles[y]) && tiles[y][x+1] == bsp.TileFloor {
+		dir = secret.DirEast
+	} else if x > 0 && tiles[y][x-1] == bsp.TileFloor {
+		dir = secret.DirWest
+	}
+	return dir
+}
+
+// spawnEnemies spawns AI enemies in the level.
+func (g *Game) spawnEnemies() {
+	g.aiAgents = make([]*ai.Agent, 0)
+	ai.SetGenre(g.genreID)
+	for i := 0; i < 3; i++ {
+		agent := ai.NewAgent("enemy_"+string(rune(i+'0')), float64(10+i*5), float64(10+i*3))
+		g.aiAgents = append(g.aiAgents, agent)
+	}
+}
+
+// spawnDestructibles spawns destructible objects like barrels and crates.
+func (g *Game) spawnDestructibles() {
+	g.destructibleSystem = destruct.NewSystem()
+	destruct.SetGenre(g.genreID)
+	for i := 0; i < 5; i++ {
+		barrel := destruct.NewDestructibleObject(
+			"barrel_"+string(rune(i+'0')),
+			"barrel",
+			50.0,
+			float64(15+i*4),
+			float64(8+i*2),
+			true,
+		)
+		barrel.AddDropItem("ammo_shells")
+		g.destructibleSystem.Add(&barrel.Destructible)
+
+		crate := destruct.NewDestructibleObject(
+			"crate_"+string(rune(i+'0')),
+			"crate",
+			30.0,
+			float64(12+i*3),
+			float64(12+i*3),
+			false,
+		)
+		crate.AddDropItem("health_small")
+		g.destructibleSystem.Add(&crate.Destructible)
+	}
+}
+
+// initializeSquad initializes squad companions near the player.
+func (g *Game) initializeSquad() {
+	g.squadCompanions = squad.NewSquad(3)
+	squad.SetGenre(g.genreID)
+	g.squadCompanions.AddMember("companion_1", "grunt", "assault_rifle", g.camera.X-2, g.camera.Y+1, g.seed)
+	g.squadCompanions.AddMember("companion_2", "medic", "pistol", g.camera.X-2, g.camera.Y-1, g.seed)
+}
+
+// setupQuests initializes the quest tracker with level objectives.
+func (g *Game) setupQuests(rooms []*bsp.Room) {
+	g.questTracker = quest.NewTracker()
+	g.questTracker.SetGenre(g.genreID)
+
+	questRooms := make([]quest.Room, len(rooms))
+	for i, r := range rooms {
+		questRooms[i] = quest.Room{X: r.X, Y: r.Y, Width: r.W, Height: r.H}
+	}
+
+	exitPos := g.findExitPosition(rooms, g.camera.X, g.camera.Y)
+	layout := quest.LevelLayout{
+		Width:       len(g.currentMap[0]),
+		Height:      len(g.currentMap),
+		ExitPos:     exitPos,
+		SecretCount: len(g.secretManager.GetAll()),
+		Rooms:       questRooms,
+	}
+	g.questTracker.GenerateWithLayout(g.seed, layout)
+}
+
+// setupEventTriggers initializes event triggers for alarms, lockdowns, and boss arenas.
+func (g *Game) setupEventTriggers() {
+	g.alarmTrigger = event.NewAlarmTrigger("alarm_1", 30.0)
+	g.lockdownTrigger = event.NewTimedLockdown("lockdown_1", 180.0)
+
+	centerX := len(g.currentMap[0]) / 2
+	centerY := len(g.currentMap) / 2
+	g.bossArena = event.NewBossArenaEvent("boss_1", "center_room", 3, 5.0)
+
+	if int(g.camera.X) == centerX && int(g.camera.Y) == centerY {
+		g.bossArena.Trigger()
+	}
+
+	event.SetGenre(g.genreID)
+}
+
+// initializePlayer sets up the player's starting position, stats, and equipment.
+func (g *Game) initializePlayer() {
+	rooms := bsp.GetRooms(g.currentBSPTree)
+	spawnX, spawnY := g.findSpawnPosition(rooms)
+
+	g.camera.X = spawnX
+	g.camera.Y = spawnY
+	g.camera.DirX = 1.0
+	g.camera.DirY = 0.0
+	g.camera.Pitch = 0.0
+
+	g.hud.Health = 100
+	g.hud.Armor = 0
+	g.hud.MaxHealth = 100
+	g.hud.MaxArmor = 100
+
+	g.ammoPool.Add("bullets", 50)
+	g.ammoPool.Add("shells", 8)
+	g.ammoPool.Add("cells", 20)
+	g.ammoPool.Add("rockets", 0)
+
+	currentWeapon := g.arsenal.GetCurrentWeapon()
+	g.hud.Ammo = g.ammoPool.Get(currentWeapon.AmmoType)
+
+	g.keycards = make(map[string]bool)
+	g.automapVisible = false
+}
+
+// findSpawnPosition finds a safe starting position for the player.
+func (g *Game) findSpawnPosition(rooms []*bsp.Room) (float64, float64) {
 	spawnX, spawnY := 5.0, 5.0
 	if len(rooms) > 0 {
 		spawnX = float64(rooms[0].X + rooms[0].W/2)
 		spawnY = float64(rooms[0].Y + rooms[0].H/2)
 	} else {
-		// Fallback: scan for any walkable tile near (5,5)
+		tiles := g.currentMap
 		for dy := 0; dy < len(tiles); dy++ {
 			for dx := 0; dx < len(tiles[0]); dx++ {
 				if isWalkableTile(tiles[dy][dx]) {
@@ -428,33 +568,11 @@ func (g *Game) startNewGame() {
 		}
 	foundSpawn:
 	}
-	g.camera.X = spawnX
-	g.camera.Y = spawnY
-	g.camera.DirX = 1.0
-	g.camera.DirY = 0.0
-	g.camera.Pitch = 0.0
+	return spawnX, spawnY
+}
 
-	// Initialize player stats
-	g.hud.Health = 100
-	g.hud.Armor = 0
-	g.hud.MaxHealth = 100
-	g.hud.MaxArmor = 100
-
-	// Initialize starting ammo
-	g.ammoPool.Add("bullets", 50)
-	g.ammoPool.Add("shells", 8)
-	g.ammoPool.Add("cells", 20)
-	g.ammoPool.Add("rockets", 0)
-
-	// Set initial ammo display
-	currentWeapon := g.arsenal.GetCurrentWeapon()
-	g.hud.Ammo = g.ammoPool.Get(currentWeapon.AmmoType)
-
-	// Reset keycards
-	g.keycards = make(map[string]bool)
-	g.automapVisible = false
-
-	// Reset v2.0 systems
+// initializeGameSystems initializes progression, shop, crafting, and mod systems.
+func (g *Game) initializeGameSystems() {
 	g.progression = progression.NewProgression()
 	if err := g.progression.SetGenre(g.genreID); err != nil {
 		logrus.WithError(err).Warn("Failed to set progression genre")
@@ -462,126 +580,35 @@ func (g *Game) startNewGame() {
 	g.statusReg = status.NewRegistry()
 	status.SetGenre(g.genreID)
 
-	// Spawn AI enemies (simple placement for now)
-	g.aiAgents = make([]*ai.Agent, 0)
-	ai.SetGenre(g.genreID)
-	for i := 0; i < 3; i++ {
-		agent := ai.NewAgent("enemy_"+string(rune(i+'0')), float64(10+i*5), float64(10+i*3))
-		g.aiAgents = append(g.aiAgents, agent)
-	}
-
-	// Spawn destructible objects (barrels, crates)
-	g.destructibleSystem = destruct.NewSystem()
-	destruct.SetGenre(g.genreID)
-	// Spawn some barrels and crates in the level
-	for i := 0; i < 5; i++ {
-		// Explosive barrels
-		barrel := destruct.NewDestructibleObject(
-			"barrel_"+string(rune(i+'0')),
-			"barrel",
-			50.0, // health
-			float64(15+i*4),
-			float64(8+i*2),
-			true, // explosive
-		)
-		barrel.AddDropItem("ammo_shells")
-		g.destructibleSystem.Add(&barrel.Destructible)
-
-		// Non-explosive crates
-		crate := destruct.NewDestructibleObject(
-			"crate_"+string(rune(i+'0')),
-			"crate",
-			30.0, // health
-			float64(12+i*3),
-			float64(12+i*3),
-			false, // not explosive
-		)
-		crate.AddDropItem("health_small")
-		g.destructibleSystem.Add(&crate.Destructible)
-	}
-
-	// Initialize squad companions
-	g.squadCompanions = squad.NewSquad(3)
-	squad.SetGenre(g.genreID)
-	// Spawn 2 squad companions near player
-	g.squadCompanions.AddMember("companion_1", "grunt", "assault_rifle", g.camera.X-2, g.camera.Y+1, g.seed)
-	g.squadCompanions.AddMember("companion_2", "medic", "pistol", g.camera.X-2, g.camera.Y-1, g.seed)
-
-	// Initialize quest tracker with level objectives
-	g.questTracker = quest.NewTracker()
-	g.questTracker.SetGenre(g.genreID)
-
-	// Convert BSP rooms to quest rooms
-	questRooms := make([]quest.Room, len(rooms))
-	for i, r := range rooms {
-		questRooms[i] = quest.Room{X: r.X, Y: r.Y, Width: r.W, Height: r.H}
-	}
-
-	// Find exit position (furthest room from player spawn)
-	exitPos := g.findExitPosition(rooms, g.camera.X, g.camera.Y)
-
-	layout := quest.LevelLayout{
-		Width:       len(tiles[0]),
-		Height:      len(tiles),
-		ExitPos:     exitPos,
-		SecretCount: len(g.secretManager.GetAll()),
-		Rooms:       questRooms,
-	}
-	g.questTracker.GenerateWithLayout(g.seed, layout)
-
-	// Initialize event triggers
-	g.alarmTrigger = event.NewAlarmTrigger("alarm_1", 30.0)         // 30 second alarm
-	g.lockdownTrigger = event.NewTimedLockdown("lockdown_1", 180.0) // 3 minute escape timer
-	// Find a room for boss arena (use center of map for now)
-	centerX := len(tiles[0]) / 2
-	centerY := len(tiles) / 2
-	g.bossArena = event.NewBossArenaEvent("boss_1", "center_room", 3, 5.0) // 3 waves, 5 sec between
-	// Trigger boss arena when player enters center region
-	if int(g.camera.X) == centerX && int(g.camera.Y) == centerY {
-		g.bossArena.Trigger()
-	}
-
-	// Set event genre
-	event.SetGenre(g.genreID)
-
-	// Initialize shop and crafting systems (v5.0)
-	g.shopCredits = shop.NewCredit(100) // Start with 100 credits
+	g.shopCredits = shop.NewCredit(100)
 	g.shopArmory = shop.NewArmory(g.genreID)
 	g.shopInventory = &g.shopArmory.Inventory
 	g.scrapStorage = crafting.NewScrapStorage()
 	scrapName := crafting.GetScrapNameForGenre(g.genreID)
-	g.scrapStorage.Add(scrapName, 10) // Start with some scrap
+	g.scrapStorage.Add(scrapName, 10)
 	g.craftingMenu = crafting.NewCraftingMenu(g.scrapStorage, g.genreID)
 	g.craftingResult = ""
 
-	// Initialize skills system (v5.0)
 	g.skillManager = skills.NewManager()
-	g.skillManager.AddPoints(3) // Start with 3 skill points
+	g.skillManager.AddPoints(3)
 	g.skillsTreeIdx = 0
 	g.skillsNodeIdx = 0
 
-	// Initialize mod loader (v5.0)
 	if g.modLoader == nil {
 		g.modLoader = mod.NewLoader()
 	}
-	// Scan mods directory for available mods
 	g.scanMods()
 
-	// Reset inventory
 	g.playerInventory = inventory.NewInventory()
 	inventory.SetGenre(g.genreID)
+}
 
-	// Track level start time for speedrun objectives
+// finalizeGameStart completes the game initialization and transitions to playing state.
+func (g *Game) finalizeGameStart() {
 	g.levelStartTime = time.Now()
-
-	// Play music
 	g.audioEngine.PlayMusic("theme", 0.5)
-
-	// Hide loading screen and start playing
 	g.loadingScreen.Hide()
 	g.state = StatePlaying
-
-	// Show movement tutorial
 	g.tutorialSystem.ShowPrompt(tutorial.PromptMovement, tutorial.GetMessage(tutorial.PromptMovement))
 }
 
@@ -718,363 +745,415 @@ func (g *Game) loadGame(slot int) {
 
 // updatePlaying handles gameplay updates.
 func (g *Game) updatePlaying() error {
-	// Check for pause
-	if g.input.IsJustPressed(input.ActionPause) {
-		g.state = StatePaused
-		g.menuManager.Show(ui.MenuTypePause)
+	if handled := g.handleMenuActions(); handled {
 		return nil
 	}
 
-	// Toggle automap
+	g.handlePlayerActions()
+	g.handleWeaponFiring()
+
+	g.arsenal.Update()
+	g.updateAIAgents()
+	g.statusReg.Tick()
+	g.updateSquadAndEventTriggers()
+	g.updateQuestObjectives()
+	g.updateV3Systems()
+	g.updateLightingAndAudio()
+
+	g.animationTicker++
+
+	deltaX, deltaY, deltaPitch := g.processPlayerMovement()
+	g.handleCollisionAndMovement(deltaX, deltaY, deltaPitch)
+	g.checkTutorialCompletion(deltaX, deltaY)
+
+	return nil
+}
+
+// handleMenuActions processes menu-related input actions and returns true if handled.
+func (g *Game) handleMenuActions() bool {
+	if g.input.IsJustPressed(input.ActionPause) {
+		g.state = StatePaused
+		g.menuManager.Show(ui.MenuTypePause)
+		return true
+	}
+
 	if g.input.IsJustPressed(input.ActionAutomap) {
 		g.automapVisible = !g.automapVisible
 	}
 
-	// Open shop overlay
 	if g.input.IsJustPressed(input.ActionShop) {
 		g.openShop()
-		return nil
+		return true
 	}
 
-	// Open crafting overlay
 	if g.input.IsJustPressed(input.ActionCraft) {
 		g.openCrafting()
-		return nil
+		return true
 	}
 
-	// Open skills overlay
 	if g.input.IsJustPressed(input.ActionSkills) {
 		g.openSkills()
-		return nil
+		return true
 	}
 
-	// Open multiplayer lobby
 	if g.input.IsJustPressed(input.ActionMultiplayer) {
 		g.openMultiplayer()
-		return nil
+		return true
 	}
 
-	// Open lore codex
 	if g.input.IsJustPressed(input.ActionCodex) {
 		g.state = StateCodex
 		g.codexScrollIdx = 0
-		return nil
+		return true
 	}
 
-	// Use quick slot item
+	return false
+}
+
+// handlePlayerActions processes player interaction actions.
+func (g *Game) handlePlayerActions() {
 	if g.input.IsJustPressed(input.ActionUseItem) {
 		g.useQuickSlotItem()
 	}
 
-	// Check for door interaction and lore item collection
 	if g.input.IsJustPressed(input.ActionInteract) {
 		g.tryCollectLore()
 		g.tryInteractDoor()
 	}
+}
 
-	// Weapon firing
-	if g.input.IsJustPressed(input.ActionFire) {
-		currentWeapon := g.arsenal.GetCurrentWeapon()
-		if currentWeapon.Name != "" { // Check if weapon is valid
-			ammoType := currentWeapon.AmmoType
-			availableAmmo := g.ammoPool.Get(ammoType)
-
-			if currentWeapon.Type == weapon.TypeMelee || availableAmmo > 0 {
-				// Create raycast function wrapper
-				raycastFn := func(x, y, dx, dy, maxDist float64) (bool, float64, float64, float64, uint64) {
-					// Simple raycast against enemies
-					for i, agent := range g.aiAgents {
-						if agent.Health <= 0 {
-							continue
-						}
-						// Check if ray hits this agent (simplified sphere collision)
-						agentDist := (agent.X-x)*(agent.X-x) + (agent.Y-y)*(agent.Y-y)
-						if agentDist < maxDist*maxDist {
-							// Check if agent is in ray direction
-							toAgentX := agent.X - x
-							toAgentY := agent.Y - y
-							dot := toAgentX*dx + toAgentY*dy
-							if dot > 0 { // Agent is in front
-								return true, agentDist, agent.X, agent.Y, uint64(i + 1)
-							}
-						}
-					}
-					return false, 0, 0, 0, 0
-				}
-
-				// Fire weapon and get hit results
-				hitResults := g.arsenal.Fire(g.camera.X, g.camera.Y, g.camera.DirX, g.camera.DirY, raycastFn)
-
-				// Consume ammo for non-melee weapons
-				if currentWeapon.Type != weapon.TypeMelee {
-					g.ammoPool.Consume(ammoType, 1)
-					g.hud.Ammo = g.ammoPool.Get(ammoType)
-				}
-
-				// Apply damage to hit enemies
-				for _, hitResult := range hitResults {
-					if hitResult.Hit && hitResult.EntityID > 0 {
-						agentIdx := int(hitResult.EntityID - 1)
-						if agentIdx >= 0 && agentIdx < len(g.aiAgents) {
-							agent := g.aiAgents[agentIdx]
-							if agent.Health > 0 {
-								// Apply damage with upgrades and mastery bonuses
-								upgradedDamage := g.getUpgradedWeaponDamage(currentWeapon)
-								agent.Health -= upgradedDamage
-
-								// Award mastery XP only after damage is successfully applied
-								if g.masteryManager != nil {
-									g.masteryManager.AddMasteryXP(g.arsenal.CurrentSlot, 10)
-								}
-
-								if agent.Health <= 0 {
-									// Enemy died - award XP and credits
-									oldLevel := g.progression.GetLevel()
-									if err := g.progression.AddXP(50); err != nil {
-										logrus.WithError(err).Warn("Failed to add XP")
-									}
-									// Check for level-up (auto-leveling handles this)
-									newLevel := g.progression.GetLevel()
-									if newLevel > oldLevel {
-										// Award skill point on level-up
-										if g.skillManager != nil {
-											g.skillManager.AddPoints(1)
-										}
-										g.hud.ShowMessage("Level Up! Skill point earned!")
-									}
-									if g.shopCredits != nil {
-										g.shopCredits.Add(25) // 25 credits per kill
-									}
-									// Drop upgrade tokens for weapon upgrades
-									if g.upgradeManager != nil {
-										g.upgradeManager.GetTokens().Add(1) // 1 token per kill
-									}
-									// Drop scrap for crafting
-									if g.scrapStorage != nil {
-										scrapName := crafting.GetScrapNameForGenre(g.genreID)
-										g.scrapStorage.Add(scrapName, 3)
-									}
-									// Update kill count objective
-									if g.questTracker != nil {
-										g.questTracker.UpdateProgress("bonus_kills", 1)
-									}
-								}
-							}
-						}
-					}
-				}
-
-				// Check for destructible hits (simple raycast)
-				if hitResults == nil || len(hitResults) == 0 {
-					// No enemy hit, check destructibles
-					allDestructibles := g.destructibleSystem.GetAll()
-					for _, obj := range allDestructibles {
-						if obj.IsDestroyed() {
-							continue
-						}
-						// Check if ray hits this object (simplified sphere collision)
-						objDist := (obj.X-g.camera.X)*(obj.X-g.camera.X) + (obj.Y-g.camera.Y)*(obj.Y-g.camera.Y)
-						if objDist < 100 { // Max range
-							// Check if object is in ray direction
-							toObjX := obj.X - g.camera.X
-							toObjY := obj.Y - g.camera.Y
-							dot := toObjX*g.camera.DirX + toObjY*g.camera.DirY
-							if dot > 0 { // Object is in front
-								// Apply damage with upgrades
-								upgradedDamage := g.getUpgradedWeaponDamage(currentWeapon)
-								destroyed := obj.Damage(upgradedDamage)
-								if destroyed {
-									// Spawn particles for destruction
-									if g.particleSystem != nil {
-										debrisColor := color.RGBA{R: 100, G: 80, B: 60, A: 255}
-										g.particleSystem.SpawnBurst(obj.X, obj.Y, 0, 15, 8.0, 1.0, 1.5, 1.0, debrisColor)
-									}
-									// Drop scrap from destroyed objects
-									if g.scrapStorage != nil {
-										scrapName := crafting.GetScrapNameForGenre(g.genreID)
-										g.scrapStorage.Add(scrapName, 2)
-									}
-									// Award credits for destruction
-									if g.shopCredits != nil {
-										g.shopCredits.Add(10)
-									}
-									// Play destruction sound
-									g.audioEngine.PlaySFX("barrel_explode", obj.X, obj.Y)
-								}
-								break // Only hit one object
-							}
-						}
-					}
-				}
-
-				// Play weapon sound
-				g.audioEngine.PlaySFX("weapon_fire", g.camera.X, g.camera.Y)
-			}
-		}
+// handleWeaponFiring processes weapon firing and hit detection.
+func (g *Game) handleWeaponFiring() {
+	if !g.input.IsJustPressed(input.ActionFire) {
+		return
 	}
 
-	// Update weapon animations
-	g.arsenal.Update()
+	currentWeapon := g.arsenal.GetCurrentWeapon()
+	if currentWeapon.Name == "" {
+		return
+	}
 
-	// Update AI agents (simplified for initial integration)
+	ammoType := currentWeapon.AmmoType
+	availableAmmo := g.ammoPool.Get(ammoType)
+
+	if currentWeapon.Type != weapon.TypeMelee && availableAmmo <= 0 {
+		return
+	}
+
+	raycastFn := g.createEnemyRaycastFunction()
+	hitResults := g.arsenal.Fire(g.camera.X, g.camera.Y, g.camera.DirX, g.camera.DirY, raycastFn)
+
+	if currentWeapon.Type != weapon.TypeMelee {
+		g.ammoPool.Consume(ammoType, 1)
+		g.hud.Ammo = g.ammoPool.Get(ammoType)
+	}
+
+	g.processWeaponHits(hitResults, currentWeapon)
+	g.checkDestructibleHits(hitResults, currentWeapon)
+	g.audioEngine.PlaySFX("weapon_fire", g.camera.X, g.camera.Y)
+}
+
+// createEnemyRaycastFunction creates a raycast function for enemy hit detection.
+func (g *Game) createEnemyRaycastFunction() func(float64, float64, float64, float64, float64) (bool, float64, float64, float64, uint64) {
+	return func(x, y, dx, dy, maxDist float64) (bool, float64, float64, float64, uint64) {
+		for i, agent := range g.aiAgents {
+			if agent.Health <= 0 {
+				continue
+			}
+			agentDist := (agent.X-x)*(agent.X-x) + (agent.Y-y)*(agent.Y-y)
+			if agentDist < maxDist*maxDist {
+				toAgentX := agent.X - x
+				toAgentY := agent.Y - y
+				dot := toAgentX*dx + toAgentY*dy
+				if dot > 0 {
+					return true, agentDist, agent.X, agent.Y, uint64(i + 1)
+				}
+			}
+		}
+		return false, 0, 0, 0, 0
+	}
+}
+
+// processWeaponHits applies damage to enemies hit by weapon fire.
+func (g *Game) processWeaponHits(hitResults []weapon.HitResult, currentWeapon weapon.Weapon) {
+	for _, hitResult := range hitResults {
+		if !hitResult.Hit || hitResult.EntityID == 0 {
+			continue
+		}
+
+		agentIdx := int(hitResult.EntityID - 1)
+		if agentIdx < 0 || agentIdx >= len(g.aiAgents) {
+			continue
+		}
+
+		agent := g.aiAgents[agentIdx]
+		if agent.Health <= 0 {
+			continue
+		}
+
+		upgradedDamage := g.getUpgradedWeaponDamage(currentWeapon)
+		agent.Health -= upgradedDamage
+
+		if g.masteryManager != nil {
+			g.masteryManager.AddMasteryXP(g.arsenal.CurrentSlot, 10)
+		}
+
+		if agent.Health <= 0 {
+			g.handleEnemyDeath()
+		}
+	}
+}
+
+// handleEnemyDeath processes enemy death rewards and progression.
+func (g *Game) handleEnemyDeath() {
+	oldLevel := g.progression.GetLevel()
+	if err := g.progression.AddXP(50); err != nil {
+		logrus.WithError(err).Warn("Failed to add XP")
+	}
+
+	newLevel := g.progression.GetLevel()
+	if newLevel > oldLevel {
+		if g.skillManager != nil {
+			g.skillManager.AddPoints(1)
+		}
+		g.hud.ShowMessage("Level Up! Skill point earned!")
+	}
+
+	if g.shopCredits != nil {
+		g.shopCredits.Add(25)
+	}
+
+	if g.upgradeManager != nil {
+		g.upgradeManager.GetTokens().Add(1)
+	}
+
+	if g.scrapStorage != nil {
+		scrapName := crafting.GetScrapNameForGenre(g.genreID)
+		g.scrapStorage.Add(scrapName, 3)
+	}
+
+	if g.questTracker != nil {
+		g.questTracker.UpdateProgress("bonus_kills", 1)
+	}
+}
+
+// checkDestructibleHits checks for and processes hits on destructible objects.
+func (g *Game) checkDestructibleHits(hitResults []weapon.HitResult, currentWeapon weapon.Weapon) {
+	if hitResults != nil && len(hitResults) > 0 {
+		return
+	}
+
+	allDestructibles := g.destructibleSystem.GetAll()
+	upgradedDamage := g.getUpgradedWeaponDamage(currentWeapon)
+
+	for _, obj := range allDestructibles {
+		if obj.IsDestroyed() {
+			continue
+		}
+
+		objDist := (obj.X-g.camera.X)*(obj.X-g.camera.X) + (obj.Y-g.camera.Y)*(obj.Y-g.camera.Y)
+		if objDist >= 100 {
+			continue
+		}
+
+		toObjX := obj.X - g.camera.X
+		toObjY := obj.Y - g.camera.Y
+		dot := toObjX*g.camera.DirX + toObjY*g.camera.DirY
+		if dot <= 0 {
+			continue
+		}
+
+		destroyed := obj.Damage(upgradedDamage)
+		if destroyed {
+			g.handleDestructibleDestroyed(obj)
+		}
+		break
+	}
+}
+
+// handleDestructibleDestroyed processes the destruction of a destructible object.
+func (g *Game) handleDestructibleDestroyed(obj *destruct.Destructible) {
+	if g.particleSystem != nil {
+		debrisColor := color.RGBA{R: 100, G: 80, B: 60, A: 255}
+		g.particleSystem.SpawnBurst(obj.X, obj.Y, 0, 15, 8.0, 1.0, 1.5, 1.0, debrisColor)
+	}
+
+	if g.scrapStorage != nil {
+		scrapName := crafting.GetScrapNameForGenre(g.genreID)
+		g.scrapStorage.Add(scrapName, 2)
+	}
+
+	if g.shopCredits != nil {
+		g.shopCredits.Add(10)
+	}
+
+	g.audioEngine.PlaySFX("barrel_explode", obj.X, obj.Y)
+}
+
+// updateAIAgents updates all AI agents' behavior and combat actions.
+func (g *Game) updateAIAgents() {
 	for _, agent := range g.aiAgents {
-		if agent.Health > 0 {
-			// Simple AI: attack player if in range
-			dx := g.camera.X - agent.X
-			dy := g.camera.Y - agent.Y
-			distSq := dx*dx + dy*dy
+		if agent.Health <= 0 {
+			continue
+		}
 
-			if distSq < 100 && agent.Cooldown <= 0 { // Within attack range and cooled down
-				// Enemy attacks player
-				damage := agent.Damage
-				healthDamage := damage
+		dx := g.camera.X - agent.X
+		dy := g.camera.Y - agent.Y
+		distSq := dx*dx + dy*dy
 
-				// Apply damage to player (simplified)
-				if g.hud.Armor > 0 {
-					armorDamage := damage * 0.5
-					g.hud.Armor -= int(armorDamage)
-					if g.hud.Armor < 0 {
-						healthDamage = -float64(g.hud.Armor)
-						g.hud.Armor = 0
-					} else {
-						healthDamage = damage * 0.5
-					}
-				}
+		if distSq < 100 && agent.Cooldown <= 0 {
+			g.handleAgentAttack(agent)
+		}
 
-				g.hud.Health -= int(healthDamage)
-				agent.Cooldown = 60 // 1 second at 60 TPS
-				g.audioEngine.PlaySFX("enemy_attack", agent.X, agent.Y)
+		if agent.Cooldown > 0 {
+			agent.Cooldown--
+		}
+	}
+}
 
-				// Show damage indicator
-				g.hud.ShowMessage("Taking damage!")
+// handleAgentAttack processes an AI agent's attack on the player.
+func (g *Game) handleAgentAttack(agent *ai.Agent) {
+	damage := agent.Damage
+	healthDamage := damage
 
-				// Check for player death
-				if g.hud.Health <= 0 {
-					g.hud.Health = 0
-					// TODO: handle player death
-				}
-			}
-
-			// Decrement cooldowns
-			if agent.Cooldown > 0 {
-				agent.Cooldown--
-			}
+	if g.hud.Armor > 0 {
+		armorDamage := damage * 0.5
+		g.hud.Armor -= int(armorDamage)
+		if g.hud.Armor < 0 {
+			healthDamage = -float64(g.hud.Armor)
+			g.hud.Armor = 0
+		} else {
+			healthDamage = damage * 0.5
 		}
 	}
 
-	// Update status effects
-	g.statusReg.Tick()
+	g.hud.Health -= int(healthDamage)
+	agent.Cooldown = 60
+	g.audioEngine.PlaySFX("enemy_attack", agent.X, agent.Y)
+	g.hud.ShowMessage("Taking damage!")
 
-	// Update squad companions
+	if g.hud.Health <= 0 {
+		g.hud.Health = 0
+	}
+}
+
+// updateSquadAndEventTriggers updates squad companions and event trigger systems.
+func (g *Game) updateSquadAndEventTriggers() {
 	if g.squadCompanions != nil {
-		// Update squad AI with player as leader
 		g.squadCompanions.Update(g.camera.X, g.camera.Y, g.currentMap, g.camera.X, g.camera.Y, g.seed)
 	}
 
-	// Update event triggers
-	deltaTime := 1.0 / 60.0 // Assuming 60 TPS
+	deltaTime := 1.0 / 60.0
+	g.updateAlarmTrigger(deltaTime)
+	g.updateLockdownTrigger(deltaTime)
+	g.checkBossArenaTrigger()
+}
+
+// updateAlarmTrigger updates the alarm event trigger if active.
+func (g *Game) updateAlarmTrigger(deltaTime float64) {
 	if g.alarmTrigger != nil && g.alarmTrigger.IsActive() {
 		g.alarmTrigger.Update(deltaTime)
-		// During alarm, all enemies are on alert (TODO: implement alert state)
 	}
-	if g.lockdownTrigger != nil && g.lockdownTrigger.IsActive() {
-		g.lockdownTrigger.Update(deltaTime)
-		// Update speedrun objective with remaining time
-		if g.questTracker != nil {
-			remainingTime := g.lockdownTrigger.GetRemaining()
-			// Check if player is out of time
-			if g.lockdownTrigger.IsExpired() {
-				// TODO: handle lockdown failure (restart level or game over)
-				g.hud.ShowMessage("Lockdown complete - you are trapped!")
-			} else if remainingTime < 10 {
-				g.hud.ShowMessage("WARNING: 10 seconds remaining!")
+}
+
+// updateLockdownTrigger updates the lockdown event trigger and checks time limits.
+func (g *Game) updateLockdownTrigger(deltaTime float64) {
+	if g.lockdownTrigger == nil || !g.lockdownTrigger.IsActive() {
+		return
+	}
+
+	g.lockdownTrigger.Update(deltaTime)
+
+	if g.questTracker == nil {
+		return
+	}
+
+	remainingTime := g.lockdownTrigger.GetRemaining()
+	if g.lockdownTrigger.IsExpired() {
+		g.hud.ShowMessage("Lockdown complete - you are trapped!")
+	} else if remainingTime < 10 {
+		g.hud.ShowMessage("WARNING: 10 seconds remaining!")
+	}
+}
+
+// checkBossArenaTrigger checks if the player has entered the boss arena.
+func (g *Game) checkBossArenaTrigger() {
+	if g.bossArena == nil || g.bossArena.IsTriggered() {
+		return
+	}
+
+	centerX := float64(len(g.currentMap[0]) / 2)
+	centerY := float64(len(g.currentMap) / 2)
+	distToCenterSq := (g.camera.X-centerX)*(g.camera.X-centerX) + (g.camera.Y-centerY)*(g.camera.Y-centerY)
+
+	if distToCenterSq >= 25 {
+		return
+	}
+
+	g.bossArena.Trigger()
+	_ = event.GenerateEventAudioSting(g.seed, event.EventBossArena)
+	g.audioEngine.PlaySFX("boss_encounter", g.camera.X, g.camera.Y)
+	eventText := event.GenerateEventText(g.seed, event.EventBossArena)
+	g.hud.ShowMessage(eventText)
+}
+
+// updateQuestObjectives updates quest progress and speedrun timers.
+func (g *Game) updateQuestObjectives() {
+	if g.questTracker == nil {
+		return
+	}
+
+	elapsedTime := time.Since(g.levelStartTime).Seconds()
+	for i := range g.questTracker.Objectives {
+		obj := &g.questTracker.Objectives[i]
+		if obj.ID == "bonus_speed" && !obj.Complete {
+			if elapsedTime > float64(obj.Count) {
+				obj.Complete = false
 			}
 		}
 	}
+}
 
-	// Check boss arena trigger
-	if g.bossArena != nil && !g.bossArena.IsTriggered() {
-		// Check if player entered boss arena region (simplified)
-		centerX := float64(len(g.currentMap[0]) / 2)
-		centerY := float64(len(g.currentMap) / 2)
-		distToCenterSq := (g.camera.X-centerX)*(g.camera.X-centerX) + (g.camera.Y-centerY)*(g.camera.Y-centerY)
-		if distToCenterSq < 25 { // Within 5 units of center
-			g.bossArena.Trigger()
-			// Generate and play event audio sting (parameters available for future procedural audio)
-			_ = event.GenerateEventAudioSting(g.seed, event.EventBossArena)
-			g.audioEngine.PlaySFX("boss_encounter", g.camera.X, g.camera.Y)
-			// Show event text
-			eventText := event.GenerateEventText(g.seed, event.EventBossArena)
-			g.hud.ShowMessage(eventText)
-			// TODO: spawn boss waves
-		}
-	}
+// updateV3Systems updates particle, weather, and secret wall systems.
+func (g *Game) updateV3Systems() {
+	deltaTime := 1.0 / 60.0
 
-	// Update quest objectives
-	if g.questTracker != nil {
-		// Update speedrun timer
-		elapsedTime := time.Since(g.levelStartTime).Seconds()
-		for i := range g.questTracker.Objectives {
-			obj := &g.questTracker.Objectives[i]
-			if obj.ID == "bonus_speed" && !obj.Complete {
-				if elapsedTime > float64(obj.Count) {
-					// Failed speed run objective
-					obj.Complete = false // Already false, but explicit
-				}
-			}
-		}
-	}
-
-	// Progression updates happen automatically
-	// TODO: Add Level and XP to HUD display
-
-	// Update v3.0 systems (Step 28: Wire to game loop)
-	// Update particles (assuming 60 TPS = 1/60 second per frame)
 	if g.particleSystem != nil {
 		g.particleSystem.Update(deltaTime)
 	}
 
-	// Update weather emitter
 	if g.weatherEmitter != nil {
 		g.weatherEmitter.Update(deltaTime)
 	}
 
-	// Update secret wall animations
 	if g.secretManager != nil {
 		g.secretManager.Update(deltaTime)
 	}
+}
 
-	// Recalculate lighting with flashlight
+// updateLightingAndAudio updates lighting calculations and audio positioning.
+func (g *Game) updateLightingAndAudio() {
 	if g.lightMap != nil {
-		// Create genre-specific flashlight
 		preset := lighting.GetFlashlightPreset(g.genreID)
 		flashlight := lighting.NewConeLight(g.camera.X, g.camera.Y, g.camera.DirX, g.camera.DirY, preset)
-
-		// Clear previous lights and add current flashlight
 		g.lightMap.Clear()
 		g.lightMap.AddLight(flashlight.GetContributionAsPointLight())
 		g.lightMap.Calculate()
 	}
 
-	// Update reverb based on current room position
 	if g.currentBSPTree != nil {
 		g.audioEngine.UpdateReverb(int(g.camera.X), int(g.camera.Y), g.currentBSPTree)
 	}
+}
 
-	// Increment animation ticker for animated textures
-	g.animationTicker++
-
-	// Movement speed (units per frame at 60 TPS)
+// processPlayerMovement calculates player movement delta based on input.
+func (g *Game) processPlayerMovement() (float64, float64, float64) {
 	moveSpeed := 0.05
 	rotSpeed := 0.03
-
 	deltaX := 0.0
 	deltaY := 0.0
-	deltaDirX := 0.0
-	deltaDirY := 0.0
 	deltaPitch := 0.0
 
-	// Keyboard: Forward/backward movement
 	if g.input.IsPressed(input.ActionMoveForward) {
 		deltaX += g.camera.DirX * moveSpeed
 		deltaY += g.camera.DirY * moveSpeed
@@ -1084,7 +1163,6 @@ func (g *Game) updatePlaying() error {
 		deltaY -= g.camera.DirY * moveSpeed
 	}
 
-	// Keyboard: Strafing
 	if g.input.IsPressed(input.ActionStrafeLeft) {
 		deltaX += g.camera.DirY * moveSpeed
 		deltaY -= g.camera.DirX * moveSpeed
@@ -1094,15 +1172,24 @@ func (g *Game) updatePlaying() error {
 		deltaY += g.camera.DirX * moveSpeed
 	}
 
-	// Gamepad: Left stick movement
+	g.processGamepadMovement(&deltaX, &deltaY, moveSpeed)
+	g.processCameraRotation(rotSpeed, &deltaPitch)
+
+	return deltaX, deltaY, deltaPitch
+}
+
+// processGamepadMovement processes gamepad stick input for player movement.
+func (g *Game) processGamepadMovement(deltaX, deltaY *float64, moveSpeed float64) {
 	leftX, leftY := g.input.GamepadLeftStick()
 	deadzone := 0.15
 	if leftX*leftX+leftY*leftY > deadzone*deadzone {
-		deltaX += (g.camera.DirX*leftY - g.camera.DirY*leftX) * moveSpeed
-		deltaY += (g.camera.DirY*leftY + g.camera.DirX*leftX) * moveSpeed
+		*deltaX += (g.camera.DirX*leftY - g.camera.DirY*leftX) * moveSpeed
+		*deltaY += (g.camera.DirY*leftY + g.camera.DirX*leftX) * moveSpeed
 	}
+}
 
-	// Keyboard: Rotation
+// processCameraRotation processes keyboard, mouse, and gamepad camera rotation.
+func (g *Game) processCameraRotation(rotSpeed float64, deltaPitch *float64) {
 	if g.input.IsPressed(input.ActionTurnLeft) {
 		g.camera.Rotate(-rotSpeed)
 	}
@@ -1110,58 +1197,57 @@ func (g *Game) updatePlaying() error {
 		g.camera.Rotate(rotSpeed)
 	}
 
-	// Mouse look
 	mouseDX, mouseDY := g.input.MouseDelta()
 	if mouseDX != 0 || mouseDY != 0 {
 		sensitivity := config.C.MouseSensitivity * 0.002
 		g.camera.Rotate(mouseDX * sensitivity)
-		deltaPitch = -mouseDY * sensitivity * 3.0 // Balanced pitch sensitivity
+		*deltaPitch = -mouseDY * sensitivity * 3.0
 	}
 
-	// Gamepad: Right stick camera
 	rightX, rightY := g.input.GamepadRightStick()
+	deadzone := 0.15
 	if rightX*rightX+rightY*rightY > deadzone*deadzone {
 		g.camera.Rotate(rightX * rotSpeed * 1.5)
-		deltaPitch = -rightY * rotSpeed * 15.0
+		*deltaPitch = -rightY * rotSpeed * 15.0
 	}
+}
 
-	// Collision detection with wall-sliding
+// handleCollisionAndMovement applies collision detection and updates camera position.
+func (g *Game) handleCollisionAndMovement(deltaX, deltaY, deltaPitch float64) {
 	newX := g.camera.X + deltaX
 	newY := g.camera.Y + deltaY
+
 	if g.isWalkable(newX, newY) {
-		g.camera.Update(deltaX, deltaY, deltaDirX, deltaDirY, deltaPitch)
+		g.camera.Update(deltaX, deltaY, 0, 0, deltaPitch)
 	} else if g.isWalkable(newX, g.camera.Y) {
-		// Slide along X axis only
-		g.camera.Update(deltaX, 0, deltaDirX, deltaDirY, deltaPitch)
+		g.camera.Update(deltaX, 0, 0, 0, deltaPitch)
 	} else if g.isWalkable(g.camera.X, newY) {
-		// Slide along Y axis only
-		g.camera.Update(0, deltaY, deltaDirX, deltaDirY, deltaPitch)
+		g.camera.Update(0, deltaY, 0, 0, deltaPitch)
 	} else {
-		// Completely blocked \u2014 still allow look changes
-		g.camera.Update(0, 0, deltaDirX, deltaDirY, deltaPitch)
+		g.camera.Update(0, 0, 0, 0, deltaPitch)
 	}
+
 	if g.automap != nil {
 		g.automap.Reveal(int(g.camera.X), int(g.camera.Y))
 	}
 
-	// Update ECS world
 	g.world.Update()
-
-	// Update audio listener position
 	g.audioEngine.SetListenerPosition(g.camera.X, g.camera.Y)
+}
 
-	// Tutorial completion checks — dismiss on movement or any key press
-	if g.tutorialSystem.Active {
-		if g.tutorialSystem.Type == tutorial.PromptMovement && (deltaX != 0 || deltaY != 0) {
-			g.tutorialSystem.Complete()
-		}
-		// Allow dismissing any tutorial with fire/interact
-		if g.input.IsJustPressed(input.ActionFire) || g.input.IsJustPressed(input.ActionInteract) {
-			g.tutorialSystem.Complete()
-		}
+// checkTutorialCompletion checks and completes active tutorial prompts based on player actions.
+func (g *Game) checkTutorialCompletion(deltaX, deltaY float64) {
+	if !g.tutorialSystem.Active {
+		return
 	}
 
-	return nil
+	if g.tutorialSystem.Type == tutorial.PromptMovement && (deltaX != 0 || deltaY != 0) {
+		g.tutorialSystem.Complete()
+	}
+
+	if g.input.IsJustPressed(input.ActionFire) || g.input.IsJustPressed(input.ActionInteract) {
+		g.tutorialSystem.Complete()
+	}
 }
 
 // isWalkableTile returns true if the tile type permits player movement.
@@ -1925,30 +2011,46 @@ func (g *Game) openMultiplayer() {
 
 // updateMultiplayer handles multiplayer lobby input.
 func (g *Game) updateMultiplayer() error {
-	// Handle encrypted chat input
 	g.handleChatInput()
 
-	// Don't process other inputs while typing in chat
 	if g.chatInputActive {
 		return nil
 	}
 
-	// Back to playing
-	if g.input.IsJustPressed(input.ActionPause) || g.input.IsJustPressed(input.ActionMultiplayer) {
-		g.state = StatePlaying
-		g.menuManager.Hide()
+	if handled := g.handleMultiplayerNavigation(); handled {
 		return nil
 	}
 
-	// Toggle between local and federation mode with L key
+	g.handleMultiplayerModeToggle()
+	g.handleMultiplayerServerNavigation()
+	g.handleMultiplayerRefresh()
+	g.handleMultiplayerAction()
+
+	return nil
+}
+
+// handleMultiplayerNavigation handles back to playing action and returns true if handled.
+func (g *Game) handleMultiplayerNavigation() bool {
+	if g.input.IsJustPressed(input.ActionPause) || g.input.IsJustPressed(input.ActionMultiplayer) {
+		g.state = StatePlaying
+		g.menuManager.Hide()
+		return true
+	}
+	return false
+}
+
+// handleMultiplayerModeToggle toggles between local and federation multiplayer modes.
+func (g *Game) handleMultiplayerModeToggle() {
 	if g.input.IsJustPressed(input.ActionCodex) {
 		g.useFederation = !g.useFederation
 		if g.useFederation {
 			g.refreshServerBrowser()
 		}
 	}
+}
 
-	// Navigate modes or servers
+// handleMultiplayerServerNavigation handles navigation through servers or modes.
+func (g *Game) handleMultiplayerServerNavigation() {
 	if g.input.IsJustPressed(input.ActionMoveForward) {
 		if g.useFederation {
 			if g.browserIdx > 0 {
@@ -1960,6 +2062,7 @@ func (g *Game) updateMultiplayer() error {
 			}
 		}
 	}
+
 	if g.input.IsJustPressed(input.ActionMoveBackward) {
 		if g.useFederation {
 			if g.browserIdx < len(g.serverBrowser)-1 {
@@ -1973,13 +2076,17 @@ func (g *Game) updateMultiplayer() error {
 			}
 		}
 	}
+}
 
-	// Refresh server browser with R key
+// handleMultiplayerRefresh refreshes the federation server browser.
+func (g *Game) handleMultiplayerRefresh() {
 	if g.useFederation && g.input.IsJustPressed(input.ActionCraft) {
 		g.refreshServerBrowser()
 	}
+}
 
-	// Select mode or join server
+// handleMultiplayerAction handles mode selection or server join action.
+func (g *Game) handleMultiplayerAction() {
 	if g.input.IsJustPressed(input.ActionFire) || g.input.IsJustPressed(input.ActionInteract) {
 		if g.useFederation {
 			g.handleFederationJoin()
@@ -1987,8 +2094,6 @@ func (g *Game) updateMultiplayer() error {
 			g.handleMultiplayerSelect()
 		}
 	}
-
-	return nil
 }
 
 // updateCodex handles lore codex UI updates.
@@ -3363,52 +3468,75 @@ func (g *Game) handleChatInput() {
 		return
 	}
 
-	// Toggle chat input with T key
+	if g.handleChatToggle() {
+		return
+	}
+
+	if g.handleChatExit() {
+		return
+	}
+
+	if g.handleChatSend() {
+		return
+	}
+
+	g.handleChatTextInput()
+}
+
+// handleChatToggle activates chat input mode and returns true if activated.
+func (g *Game) handleChatToggle() bool {
 	if inpututil.IsKeyJustPressed(ebiten.KeyT) && !g.chatInputActive {
 		g.chatInputActive = true
 		g.chatInput = ""
-		return
+		return true
 	}
+	return false
+}
 
-	// Exit chat input on Escape
+// handleChatExit exits chat input mode and returns true if exited.
+func (g *Game) handleChatExit() bool {
 	if g.chatInputActive && g.input.IsJustPressed(input.ActionPause) {
 		g.chatInputActive = false
 		g.chatInput = ""
-		return
+		return true
+	}
+	return false
+}
+
+// handleChatSend sends the current chat message and returns true if sent.
+func (g *Game) handleChatSend() bool {
+	if !g.chatInputActive || !inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
+		return false
 	}
 
-	// Send message on Enter
-	if g.chatInputActive && inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
-		if g.chatInput != "" {
-			// Encrypt the message before sending
-			encrypted, err := g.chatManager.Encrypt(g.chatInput)
+	if g.chatInput != "" {
+		encrypted, err := g.chatManager.Encrypt(g.chatInput)
+		if err == nil {
+			decrypted, err := g.chatManager.Decrypt(encrypted)
 			if err == nil {
-				// In real network implementation, would send encrypted over wire
-				// For now, decrypt locally to simulate receiving
-				decrypted, err := g.chatManager.Decrypt(encrypted)
-				if err == nil {
-					g.addChatMessage("[You]: " + decrypted)
-				}
+				g.addChatMessage("[You]: " + decrypted)
 			}
-			g.chatInput = ""
 		}
-		g.chatInputActive = false
+		g.chatInput = ""
+	}
+	g.chatInputActive = false
+	return true
+}
+
+// handleChatTextInput processes text input and backspace for chat.
+func (g *Game) handleChatTextInput() {
+	if !g.chatInputActive {
 		return
 	}
 
-	// Handle text input
-	if g.chatInputActive {
-		g.chatInput = g.chatInput + string(ebiten.AppendInputChars(nil))
+	g.chatInput = g.chatInput + string(ebiten.AppendInputChars(nil))
 
-		// Handle backspace
-		if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) && len(g.chatInput) > 0 {
-			g.chatInput = g.chatInput[:len(g.chatInput)-1]
-		}
+	if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) && len(g.chatInput) > 0 {
+		g.chatInput = g.chatInput[:len(g.chatInput)-1]
+	}
 
-		// Limit input length
-		if len(g.chatInput) > 100 {
-			g.chatInput = g.chatInput[:100]
-		}
+	if len(g.chatInput) > 100 {
+		g.chatInput = g.chatInput[:100]
 	}
 }
 
