@@ -1,4 +1,31 @@
-// Package input handles keyboard, mouse, and gamepad input.
+// Package input handles keyboard, mouse, gamepad, and touch input for the Violence game.
+//
+// Touch Input System:
+//
+// The touch input system provides mobile-friendly controls including:
+//   - Virtual joystick for movement (left 25% of screen)
+//   - Touch-to-look camera control (center 60% of screen)
+//   - Fire/alt-fire buttons (right 20% of screen)
+//   - Action bar with 6 buttons (bottom 8% of screen)
+//   - Haptic feedback for game events
+//
+// Example usage:
+//
+//	// Initialize touch input manager
+//	touchMgr := input.NewTouchInputManager()
+//	hapticMgr := input.NewTouchHapticManager()
+//	renderer := input.NewTouchRenderer(input.StyleCyberpunk)
+//
+//	// In game update loop:
+//	touchMgr.Update()
+//	x, y := touchMgr.Joystick.GetAxis()
+//	if touchMgr.FireButton.IsPressed() {
+//	    hapticMgr.TriggerEvent(input.HapticEventFire)
+//	}
+//
+//	// In game render loop:
+//	renderer.RenderJoystick(screen, touchMgr.Joystick)
+//	renderer.RenderButton(screen, touchMgr.FireButton, screenW, screenH)
 package input
 
 import (

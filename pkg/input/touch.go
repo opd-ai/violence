@@ -1,6 +1,10 @@
 package input
 
-import "github.com/hajimehoshi/ebiten/v2"
+import (
+	"time"
+
+	"github.com/hajimehoshi/ebiten/v2"
+)
 
 // VirtualJoystick represents a floating virtual joystick for touch input
 type VirtualJoystick struct {
@@ -272,4 +276,72 @@ func (tim *TouchInputManager) Update() {
 		// Default: look control (center area)
 		tim.LookControl.HandleTouch(id, x, y)
 	}
+}
+
+// HapticEvent represents different types of haptic feedback events
+type HapticEvent int
+
+const (
+	HapticEventFire HapticEvent = iota
+	HapticEventDamage
+	HapticEventPickup
+)
+
+// HapticPattern represents vibration pattern intensity
+type HapticPattern int
+
+const (
+	HapticPatternLight  HapticPattern = iota // 50ms light vibration
+	HapticPatternShort                       // 100ms medium vibration
+	HapticPatternMedium                      // 200ms strong vibration
+)
+
+// TouchHapticManager handles haptic feedback for touch events
+type TouchHapticManager struct {
+	enabled     bool
+	lastPattern HapticPattern
+}
+
+// NewTouchHapticManager creates a new haptic feedback manager
+func NewTouchHapticManager() *TouchHapticManager {
+	return &TouchHapticManager{
+		enabled: true,
+	}
+}
+
+// SetEnabled enables or disables haptic feedback
+func (thm *TouchHapticManager) SetEnabled(enabled bool) {
+	thm.enabled = enabled
+}
+
+// TriggerEvent triggers haptic feedback for a specific event
+func (thm *TouchHapticManager) TriggerEvent(event HapticEvent) {
+	if !thm.enabled {
+		return
+	}
+
+	var pattern HapticPattern
+	var duration time.Duration
+	var magnitude float64
+
+	switch event {
+	case HapticEventFire:
+		pattern = HapticPatternShort
+		duration = 100 * time.Millisecond
+		magnitude = 0.7
+	case HapticEventDamage:
+		pattern = HapticPatternMedium
+		duration = 200 * time.Millisecond
+		magnitude = 1.0
+	case HapticEventPickup:
+		pattern = HapticPatternLight
+		duration = 50 * time.Millisecond
+		magnitude = 0.4
+	}
+
+	ebiten.Vibrate(&ebiten.VibrateOptions{
+		Duration:  duration,
+		Magnitude: magnitude,
+	})
+	thm.lastPattern = pattern
 }
