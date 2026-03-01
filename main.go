@@ -23,6 +23,7 @@ import (
 	"github.com/opd-ai/violence/pkg/camera"
 	"github.com/opd-ai/violence/pkg/chat"
 	"github.com/opd-ai/violence/pkg/class"
+	"github.com/opd-ai/violence/pkg/collision"
 	"github.com/opd-ai/violence/pkg/combat"
 	"github.com/opd-ai/violence/pkg/config"
 	"github.com/opd-ai/violence/pkg/crafting"
@@ -218,6 +219,9 @@ type Game struct {
 
 	// Defense system for dodge/parry/block mechanics
 	defenseSystem *combat.DefenseSystem
+
+	// Collision geometry extraction system for precise hitboxes
+	collisionGeometry *collision.CollisionGeometrySystem
 }
 
 // NewGame creates and initializes a new game instance.
@@ -297,6 +301,7 @@ func NewGame() *Game {
 		defenseSystem:      combat.NewDefenseSystem("fantasy"),
 		decorationSystem:   decoration.NewSystem(),
 		roomDecorations:    make(map[int]*decoration.RoomDecor),
+		collisionGeometry:  collision.NewCollisionGeometrySystem(),
 	}
 
 	// Initialize status system with the registry
