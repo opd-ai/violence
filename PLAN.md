@@ -52,9 +52,10 @@
    - **Dependencies**: Step 2 (TileMap)
    - **Summary**: Implemented A* pathfinding with Manhattan distance heuristic, 4-directional movement (no diagonals), TileMap integration, proper boundary/walkability validation. Comprehensive tests covering straight paths, obstacle navigation, blocked paths, edge cases (same position, out of bounds, non-walkable tiles), door/secret traversal, and diagonal-free movement. Achieved 94.3% test coverage.
 
-9. **Implement Cover Detection**
+9. **[x] Implement Cover Detection** *(2026-03-01)*
    - **Deliverable**: `pkg/ai/cover.go` with `FindCoverTiles(grid TileMap, threatPos Coord) []CoverTile` scoring adjacent-to-wall positions by threat visibility
    - **Dependencies**: Step 2 (TileMap), Step 8 (Pathfinding)
+   - **Summary**: Implemented cover detection system with CoverTile struct (Position, Score), FindCoverTiles scanning for walkable tiles adjacent to walls with blocked line-of-sight to threat, scoring algorithm (70% LOS blocking + 30% distance preference), Bresenham line-of-sight algorithm, 20-tile search radius, comprehensive tests covering simple walls, multiple positions, L-shaped rooms, diagonal walls, doors, and large areas, achieving 95.4% package coverage
 
 10. **Implement Procedural Weapon Sprites**
     - **Deliverable**: `pkg/weapon/sprite_gen.go` with `GenerateWeaponSprite(seed int64, weaponType WeaponType, frame FrameType) *image.RGBA` using geometric primitives
