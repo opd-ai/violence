@@ -10,6 +10,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/audio"
 	"github.com/hajimehoshi/ebiten/v2/audio/wav"
 	"github.com/opd-ai/violence/pkg/bsp"
+	"github.com/sirupsen/logrus"
 )
 
 const sampleRate = 48000
@@ -142,6 +143,11 @@ func (e *Engine) startIntensityLayers(layerDataSlice [][]byte) {
 	for i, layerData := range layerDataSlice {
 		layerPlayer, err := e.createPlayer(layerData)
 		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"system": "audio",
+				"layer":  i + 1,
+				"error":  err.Error(),
+			}).Warn("Failed to create music layer player")
 			continue
 		}
 
@@ -190,8 +196,10 @@ func (e *Engine) PlaySFX(name string, x, y float64) error {
 	pan := e.calculatePan(x - listenerX)
 
 	player.SetVolume(volume)
-	// Ebitengine doesn't have SetPan, so we simulate it by adjusting volume
-	// In a full implementation, we'd use a custom audio stream for stereo panning
+	// Stereo panning limitation: Ebitengine v2 audio.Player does not expose SetPan().
+	// Pan value is calculated but cannot be applied with current API.
+	// Future enhancement: implement custom audio.ReadSeekCloser that applies
+	// per-channel volume scaling to achieve stereo panning effect.
 	_ = pan
 
 	player.Play()
@@ -341,7 +349,9 @@ func (e *Engine) getMusicData(name string, layer int) []byte {
 	return generateMusicForEngine(name, layer, genreID)
 }
 
-// generateMusicForEngine is a helper that generates music without locking.
+// generateMusicForEngine generates procedural music data for a specific track name, layer index, and genre.
+// This is a helper function that generates music without acquiring locks.
+// Returns WAV-encoded audio data with deterministic output based on input parameters.
 func generateMusicForEngine(name string, layer int, genreID string) []byte {
 	// Incorporate genre into seed for variety
 	seed := hashString(name+genreID) + uint64(layer)*1000
@@ -781,7 +791,9 @@ func midiToFreq(midi int) float64 {
 	return 440.0 * math.Pow(2.0, float64(midi-69)/12.0)
 }
 
-// writeWAVHeader writes a WAV file header for stereo 16-bit PCM.
+// writeWAVHeader writes a standard RIFF WAV file header for stereo 16-bit PCM audio.
+// The header includes format chunk with sample rate and data chunk size.
+// buf is the output buffer and samples is the number of stereo sample frames to encode.
 func writeWAVHeader(buf *bytes.Buffer, samples int) {
 	buf.Write([]byte("RIFF"))
 	writeUint32(buf, uint32(36+samples*4))
@@ -798,7 +810,8 @@ func writeWAVHeader(buf *bytes.Buffer, samples int) {
 	writeUint32(buf, uint32(samples*4))
 }
 
-// writeInt16 writes a signed 16-bit integer in little-endian.
+// writeInt16 writes a signed 16-bit integer to w in little-endian byte order.
+// This is a helper for writing PCM audio samples to WAV data chunks.
 func writeInt16(w io.Writer, v int16) {
 	w.Write([]byte{byte(v), byte(v >> 8)})
 }
