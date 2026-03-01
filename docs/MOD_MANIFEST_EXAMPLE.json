@@ -1,0 +1,35 @@
+{
+  "name": "example-weapon-mod",
+  "version": "1.2.3",
+  "description": "Adds futuristic weapons with enhanced visual effects",
+  "author": "ModAuthor",
+  "license": "MIT",
+  "homepage": "https://github.com/example/weapon-mod",
+  "tags": ["weapons", "gameplay", "visual-effects"],
+  "genre_overrides": ["fps", "sci-fi"],
+  "dependencies": [
+    {
+      "name": "base-effects-lib",
+      "version": "^2.0.0"
+    },
+    {
+      "name": "sound-enhancement",
+      "version": ">=1.5.0",
+      "optional": true
+    }
+  ],
+  "conflicts": ["legacy-weapons-mod"],
+  "min_game_version": "1.0.0",
+  "max_game_version": "2.0.0",
+  "entry_point": "weapon_mod.wasm",
+  "permissions": {
+    "file_read": true,
+    "entity_spawn": true,
+    "asset_load": true
+  },
+  "config": {
+    "damage_multiplier": 1.5,
+    "enable_particle_effects": true,
+    "max_ammo": 100
+  }
+}

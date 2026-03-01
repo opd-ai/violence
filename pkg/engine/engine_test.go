@@ -539,3 +539,34 @@ func TestWorld_WithTestUtil(t *testing.T) {
 		})
 	}
 }
+
+func TestSetGenre(t *testing.T) {
+	tests := []struct {
+		name     string
+		genreID  string
+		expected string
+	}{
+		{"fantasy", "fantasy", "fantasy"},
+		{"scifi", "scifi", "scifi"},
+		{"horror", "horror", "horror"},
+		{"cyberpunk", "cyberpunk", "cyberpunk"},
+		{"postapoc", "postapoc", "postapoc"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			SetGenre(tt.genreID)
+			if got := GetCurrentGenre(); got != tt.expected {
+				t.Errorf("GetCurrentGenre() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestSetGenreDefault(t *testing.T) {
+	// Reset to fantasy
+	SetGenre("fantasy")
+	if got := GetCurrentGenre(); got != "fantasy" {
+		t.Errorf("Default genre = %v, want fantasy", got)
+	}
+}

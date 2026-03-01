@@ -33,3 +33,19 @@ go.work.sum
 
 # Built binary
 violence*
+
+# Repository cleanup
+# Additional binary artifacts
+*.o
+*.bin
+*.pyc
+*.class
+*.wasm
+*.a
+
+# Auto-generated analysis/report files
+baseline.json
+*_refactored.json
+refactored*.json
+*_improvements.html
+improvements.html

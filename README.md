@@ -102,10 +102,10 @@ Federation hub flags:
 ### API Endpoints
 
 - `POST /announce` — Register a game server with the hub
-- `GET /query` — Query available game servers by genre or match type
-- `GET /lookup` — Look up specific server by ID
+- `POST /query` — Query available game servers by genre or match type
+- `POST /lookup` — Look up which server a player is on
 - `GET /health` — Health check endpoint with uptime and server count
-- `GET /metrics` — Prometheus-compatible metrics endpoint
+- `GET /peers` — List configured peer hubs
 
 ### Example Usage
 

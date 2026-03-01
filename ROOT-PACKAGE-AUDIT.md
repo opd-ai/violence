@@ -3,31 +3,31 @@
 **Status**: Needs Work
 
 ## Summary
-The root package contains the main game entry point (main.go, 3459 lines) implementing the complete VIOLENCE raycasting FPS game loop using ebiten/v2. The package has extensive integration test coverage (9 test files, 5426 lines) and achieves 60.9% test coverage, below the 65% target. Critical risks include incomplete error handling, missing error wrapping, several unimplemented TODOs in core gameplay loops, and absence of package documentation.
+The root package contains the main game entry point (main.go, ~4150 lines) implementing the complete VIOLENCE raycasting FPS game loop using ebiten/v2. The package has extensive integration test coverage (9 test files) and achieves approximately 60% test coverage, below the 65% target. Critical risks include incomplete error handling, missing error wrapping, several unimplemented TODOs in core gameplay loops, and absence of package documentation.
 
 ## Issues Found
-- [x] high error — No error wrapping with %w format in entire codebase (`main.go:2499`, `main.go:2241`, `main.go:3410`, `main.go:3447`, `main.go:3457`)
-- [x] high error — Error swallowed in mod loader without logging (`main.go:2455`)
-- [x] high stub — Player death handling unimplemented in combat loop (`main.go:939`)
-- [x] high stub — Boss wave spawning unimplemented in boss arena event (`main.go:994`)
-- [x] med error — Unused return values swallowed in event audio generation (`main.go:989`)
-- [x] med error — Multiple unused return values from weapon upgrade stats (`main.go:1619`)
-- [x] med error — Unused variables in chat rendering (`main.go:2343-2344`)
-- [x] med test — Test coverage at 60.9%, below 65% target (needs 4.1% improvement)
+- [x] high error — No error wrapping with %w format in entire codebase
+- [x] high error — Error swallowed in mod loader without logging
+- [x] high stub — Player death handling unimplemented in combat loop
+- [x] high stub — Boss wave spawning unimplemented in boss arena event
+- [x] med error — Unused return values swallowed in event audio generation
+- [x] med error — Multiple unused return values from weapon upgrade stats
+- [x] med error — Unused variables in chat rendering
+- [x] med test — Test coverage below 65% target
 - [x] med doc — No package-level doc.go file
-- [x] med doc — Only 3 of 78 exported methods have godoc comments (96% missing documentation)
-- [x] med api — Uses bare `interface{}` type instead of `any` for multiplayerMgr field (`main.go:138`)
-- [x] low stub — Lockdown failure handling unimplemented (`main.go:972`)
-- [x] low stub — Enemy alert state during alarm unimplemented (`main.go:963`)
-- [x] low stub — Inventory system population incomplete in save system (`main.go:2491`)
-- [x] low stub — Level/XP display missing from HUD (`main.go:1014`)
-- [x] low stub — Particle rendering marked as placeholder implementation (`main.go:2588`)
-- [x] low stub — Prop rendering uses placeholder colored dots (`main.go:2668`)
-- [x] low stub — Quest objective rendering uses placeholder dots (`main.go:2786`)
-- [x] low error — Inconsistent logging: mixed use of log and logrus packages (`main.go:57`, `main.go:2241`, `main.go:3410`, `main.go:3447`)
+- [x] med doc — Most exported methods lack godoc comments
+- [x] med api — Uses bare `interface{}` type instead of `any` for multiplayerMgr field
+- [x] low stub — Lockdown failure handling unimplemented
+- [x] low stub — Enemy alert state during alarm unimplemented
+- [x] low stub — Inventory system population incomplete in save system
+- [x] low stub — Level/XP display missing from HUD
+- [x] low stub — Particle rendering marked as placeholder implementation
+- [x] low stub — Prop rendering uses placeholder colored dots
+- [x] low stub — Quest objective rendering uses placeholder dots
+- [x] low error — Inconsistent logging: mixed use of log and logrus packages
 
 ## Test Coverage
-60.9% (target: 65%)
+Approximately 60% (target: 65%)
 
 **Test Files**:
 - main_test.go (95,320 bytes) - comprehensive game state tests

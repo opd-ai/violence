@@ -52,7 +52,7 @@ Run the dedicated server:
 ```sh
 # Build and run the dedicated server
 go build -o violence-server ./cmd/server
-./violence-server --port 7777
+./violence-server -port 7777
 ```
 
 Or use Docker:
