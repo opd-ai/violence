@@ -456,7 +456,9 @@ func (g *Game) startNewGame() {
 
 	// Reset v2.0 systems
 	g.progression = progression.NewProgression()
-	progression.SetGenre(g.genreID)
+	if err := g.progression.SetGenre(g.genreID); err != nil {
+		logrus.WithError(err).Warn("Failed to set progression genre")
+	}
 	g.statusReg = status.NewRegistry()
 	status.SetGenre(g.genreID)
 
@@ -602,7 +604,9 @@ func (g *Game) setGenre(genreID string) {
 	g.combatSystem.SetGenre(genreID)
 	status.SetGenre(genreID)
 	loot.SetGenre(genreID)
-	progression.SetGenre(genreID)
+	if err := g.progression.SetGenre(genreID); err != nil {
+		logrus.WithError(err).Warn("Failed to set progression genre")
+	}
 	class.SetGenre(genreID)
 	ai.SetGenre(genreID)
 
@@ -674,8 +678,18 @@ func (g *Game) loadGame(slot int) {
 
 	// Restore progression
 	if g.progression != nil {
-		g.progression.Level = state.Progression.Level
-		g.progression.XP = state.Progression.XP
+		// Create new progression and add XP to restore state
+		g.progression = progression.NewProgression()
+		// Set level by adding appropriate XP
+		// Calculate total XP needed to reach saved level
+		totalXP := 0
+		for lvl := 1; lvl < state.Progression.Level; lvl++ {
+			totalXP += lvl * 100 // Base XP per level
+		}
+		totalXP += state.Progression.XP // Add remaining XP
+		if err := g.progression.AddXP(totalXP); err != nil {
+			logrus.WithError(err).Warn("Failed to restore progression XP")
+		}
 	}
 
 	// Restore keycards
@@ -815,12 +829,13 @@ func (g *Game) updatePlaying() error {
 
 								if agent.Health <= 0 {
 									// Enemy died - award XP and credits
-									oldLevel := g.progression.Level
-									g.progression.AddXP(50)
-									// Check for level-up (every 100 XP)
-									newLevel := g.progression.XP / 100
+									oldLevel := g.progression.GetLevel()
+									if err := g.progression.AddXP(50); err != nil {
+										logrus.WithError(err).Warn("Failed to add XP")
+									}
+									// Check for level-up (auto-leveling handles this)
+									newLevel := g.progression.GetLevel()
 									if newLevel > oldLevel {
-										g.progression.Level = newLevel
 										// Award skill point on level-up
 										if g.skillManager != nil {
 											g.skillManager.AddPoints(1)
@@ -1240,7 +1255,7 @@ func (g *Game) tryInteractDoor() {
 // startMinigame initiates a minigame for the current genre.
 func (g *Game) startMinigame(doorX, doorY int) {
 	// Determine difficulty based on progression level
-	difficulty := g.progression.Level / 3
+	difficulty := g.progression.GetLevel() / 3
 	if difficulty > 3 {
 		difficulty = 3
 	}
@@ -2490,8 +2505,8 @@ func (g *Game) saveGame(slot int) {
 		},
 		Inventory: save.Inventory{Items: []save.Item{}}, // TODO: populate from inventory system when implemented
 		Progression: save.ProgressionState{
-			Level: g.progression.Level,
-			XP:    g.progression.XP,
+			Level: g.progression.GetLevel(),
+			XP:    g.progression.GetXP(),
 		},
 		Keycards: g.keycards,
 		AmmoPool: ammoPoolState,

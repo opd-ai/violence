@@ -37,7 +37,11 @@ func TestGenreCascade(t *testing.T) {
 			ammo.SetGenre(genreID)
 			status.SetGenre(genreID)
 			loot.SetGenre(genreID)
-			progression.SetGenre(genreID)
+			// progression.SetGenre is now instance method
+			p := progression.NewProgression()
+			if err := p.SetGenre(genreID); err != nil {
+				t.Errorf("progression.SetGenre(%s) failed: %v", genreID, err)
+			}
 			class.SetGenre(genreID)
 			inventory.SetGenre(genreID)
 			quest.SetGenre(genreID)
@@ -56,7 +60,7 @@ func TestGenreCascade(t *testing.T) {
 				{"ammo", ammo.GetCurrentGenre()},
 				{"status", status.GetCurrentGenre()},
 				{"loot", loot.GetCurrentGenre()},
-				{"progression", progression.GetCurrentGenre()},
+				{"progression", p.GetGenre()},
 				{"class", class.GetCurrentGenre()},
 				{"inventory", inventory.GetCurrentGenre()},
 				{"quest", quest.GetCurrentGenre()},
