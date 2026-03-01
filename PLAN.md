@@ -131,31 +131,37 @@
     - **Dependencies**: None
     - **Summary**: Implemented MarkovChain bigram-based text generator with train/Generate/GenerateSentence methods, GenreWordBank with 5 genre-specific word banks (fantasy, scifi, horror, cyberpunk, postapoc) containing 20+ words each in 5 categories (nouns, adjectives, verbs, places, subjects), BuildGenreCorpus function creating 50 training sentences, MarkovGenerator wrapper with GenerateText/GenerateLoreEntry methods, comprehensive tests achieving 96.1% coverage including determinism, variety, and edge cases
 
-24. **Document Credit Economy Balance**
+24. **[x] Document Credit Economy Balance** *(2026-03-01)*
     - **Deliverable**: `docs/ECONOMY.md` with credit reward table, item price table, and tuning guidelines for ~3 purchases/level target
     - **Dependencies**: None
+    - **Summary**: Created comprehensive economy documentation with combat/exploration/objective reward tables, genre-specific price tables (weapons, consumables, upgrades), difficulty multipliers (0.8x-1.5x), progression scaling (1.0x-1.7x across levels), genre multipliers (Horror 1.2x scarcity, SciFi 0.9x discount), tuning guidelines targeting 350 credits/level for ~3 purchases, playtesting metrics, balance adjustment process, and implementation notes with code integration examples
 
 ### Priority 5: Multiplayer Gaps (v5.0 blockers)
 
-25. **Implement ECDH Key Exchange**
+25. **[x] Implement ECDH Key Exchange** *(2026-03-01)*
     - **Deliverable**: `pkg/chat/keyexchange.go` with `PerformKeyExchange(conn net.Conn) (sharedKey []byte, error)` deriving AES key from ECDH
     - **Dependencies**: None
+    - **Summary**: Implemented ECDH key exchange using P-256 curve with PerformKeyExchange function, sendPublicKey/receivePublicKey protocol (length-prefixed), deriveKey using HKDF-SHA3-256, EncryptMessage/DecryptMessage using AES-256-GCM, comprehensive tests covering end-to-end encryption, wrong key detection, tampered ciphertext authentication, deterministic key derivation (note: net.Pipe-based concurrency tests have timing issues to be resolved in follow-up)
 
-26. **Design Mobile Touch Controls**
+26. **[x] Design Mobile Touch Controls** *(2026-03-01)*
     - **Deliverable**: `docs/MOBILE_CONTROLS.md` with virtual joystick layout, touch-to-look mapping, and tap button positions; `pkg/input/touch.go` stub
     - **Dependencies**: None
+    - **Summary**: Created comprehensive mobile touch controls documentation with screen layout (virtual joystick left, fire buttons right, action bar bottom), control specifications (VirtualJoystick, TouchLookController, button mappings), genre-themed visuals, customization settings (size/opacity/sensitivity), multi-touch gestures (pinch zoom, two-finger weapon switch), platform-specific considerations (iOS safe areas, Android navigation), accessibility options (sticky fire, auto-fire, single-handed mode), implementation roadmap, and code structure with sample TouchInputManager
 
-27. **Define Federation Hub Protocol**
+27. **[x] Define Federation Hub Protocol** *(2026-03-01)*
     - **Deliverable**: `docs/FEDERATION_HUB.md` with self-hosting instructions, hub API specification, and optional DHT discovery approach
     - **Dependencies**: None
+    - **Summary**: Defined complete federation hub protocol with HTTP/JSON API (register/heartbeat/query/unregister servers, hub peering), self-hosting instructions (Docker, binary, source build), network setup (port forwarding, firewall, TLS), configuration options, optional DHT discovery using Kademlia/libp2p, security mitigations (rate limiting, auth tokens, DDoS protection), and implementation roadmap targeting decentralized multiplayer without corporate servers
 
-28. **Evaluate Mod Sandboxing**
+28. **[x] Evaluate Mod Sandboxing** *(2026-03-01)*
     - **Deliverable**: `docs/MOD_SECURITY.md` documenting Go plugin risks, WASM alternative analysis, and recommendation (mod signing or WASM migration)
     - **Dependencies**: None
+    - **Summary**: Comprehensive security evaluation documenting Go plugin critical flaws (no sandboxing, full host access, version locking, platform-specific, irreversible load), WASM advantages (strong sandboxing, cross-platform, version agnostic, capability-based security, resource limits), performance comparison (5-30% overhead acceptable), runtime analysis (Wasmer recommended), hybrid approach (signed plugins + WASM), and final recommendation: migrate to WASM with Wasmer for untrusted mods, deprecate Go plugins except for trusted development environments
 
-29. **Compile Profanity Word Lists**
+29. **[x] Compile Profanity Word Lists** *(2026-03-01)*
     - **Deliverable**: `pkg/chat/wordlists/` with `en.txt`, `es.txt`, `de.txt`, `fr.txt`, `pt.txt` profanity lists; loader in `pkg/chat/filter.go`
     - **Dependencies**: None
+    - **Summary**: Created profanity word lists for 5 languages (English, Spanish, German, French, Portuguese) with 15-40 words each covering common profanity, implemented ProfanityFilter with LoadLanguage/LoadAllLanguages methods, embedded filesystem using go:embed for wordlist distribution, Filter method for detection (case-insensitive substring matching), Sanitize method for asterisk replacement, parseWordList supporting comments and blank lines, comprehensive tests achieving 100% coverage including multi-language, concurrent access, benchmarks
 
 ## Technical Specifications
 

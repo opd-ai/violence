@@ -8,6 +8,7 @@ require (
 	github.com/hajimehoshi/ebiten/v2 v2.8.8
 	github.com/sirupsen/logrus v1.9.4
 	github.com/spf13/viper v1.20.1
+	golang.org/x/crypto v0.32.0
 	golang.org/x/image v0.20.0
 	golang.org/x/text v0.21.0
 	gopkg.in/yaml.v3 v3.0.1
