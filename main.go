@@ -53,6 +53,7 @@ import (
 	"github.com/opd-ai/violence/pkg/shop"
 	"github.com/opd-ai/violence/pkg/skills"
 	"github.com/opd-ai/violence/pkg/spatial"
+	"github.com/opd-ai/violence/pkg/sprite"
 	"github.com/opd-ai/violence/pkg/squad"
 	"github.com/opd-ai/violence/pkg/status"
 	"github.com/opd-ai/violence/pkg/texture"
@@ -206,6 +207,9 @@ type Game struct {
 
 	// Screen feedback system for combat juice
 	feedbackSystem *feedback.FeedbackSystem
+
+	// Procedural sprite generation system
+	spriteGenerator *sprite.Generator
 }
 
 // NewGame creates and initializes a new game instance.
@@ -281,6 +285,7 @@ func NewGame() *Game {
 		comboSystem:        combat.NewComboSystem("fantasy", int64(seed)),
 		lootDropSystem:     loot.NewLootDropSystem(int64(seed)),
 		feedbackSystem:     feedback.NewFeedbackSystem(int64(seed)),
+		spriteGenerator:    sprite.NewGenerator(100),
 	}
 
 	// Initialize status system with the registry
@@ -787,6 +792,9 @@ func (g *Game) setGenre(genreID string) {
 	}
 	if g.feedbackSystem != nil {
 		g.feedbackSystem.SetGenre(genreID)
+	}
+	if g.spriteGenerator != nil {
+		g.spriteGenerator.SetGenre(genreID)
 	}
 
 	// Generate genre-specific textures
@@ -3177,53 +3185,68 @@ func (g *Game) renderProps(screen *ebiten.Image) {
 
 		// Draw bounds
 		drawStartX := spriteScreenX - spriteWidth/2
-		drawEndX := spriteScreenX + spriteWidth/2
 		drawStartY := config.C.InternalHeight/2 - spriteHeight/2
-		drawEndY := config.C.InternalHeight/2 + spriteHeight/2
 
 		// Clip to screen bounds
-		if drawEndX < 0 || drawStartX >= config.C.InternalWidth {
+		if spriteScreenX+spriteWidth/2 < 0 || drawStartX >= config.C.InternalWidth {
 			continue
 		}
 		if drawStartX < 0 {
 			drawStartX = 0
 		}
-		if drawEndX >= config.C.InternalWidth {
-			drawEndX = config.C.InternalWidth - 1
-		}
 
-		// Choose color based on prop type (placeholder - will be replaced with actual sprites)
-		var propColor color.RGBA
+		// Map prop type to sprite subtype string
+		var propSubtype string
 		switch prop.SpriteType {
 		case props.PropBarrel:
-			propColor = color.RGBA{139, 69, 19, 255} // Brown
+			propSubtype = "barrel"
 		case props.PropCrate:
-			propColor = color.RGBA{160, 82, 45, 255} // Saddle brown
+			propSubtype = "crate"
 		case props.PropTable:
-			propColor = color.RGBA{101, 67, 33, 255} // Dark brown
+			propSubtype = "table"
 		case props.PropTerminal:
-			propColor = color.RGBA{50, 50, 200, 255} // Blue
+			propSubtype = "terminal"
 		case props.PropBones:
-			propColor = color.RGBA{220, 220, 200, 255} // Bone white
+			propSubtype = "bones"
 		case props.PropPlant:
-			propColor = color.RGBA{34, 139, 34, 255} // Forest green
+			propSubtype = "plant"
 		case props.PropPillar:
-			propColor = color.RGBA{128, 128, 128, 255} // Gray
+			propSubtype = "pillar"
 		case props.PropTorch:
-			propColor = color.RGBA{255, 165, 0, 255} // Orange
+			propSubtype = "torch"
 		case props.PropDebris:
-			propColor = color.RGBA{105, 105, 105, 255} // Dim gray
+			propSubtype = "debris"
 		case props.PropContainer:
-			propColor = color.RGBA{192, 192, 192, 255} // Silver
+			propSubtype = "container"
 		default:
-			propColor = color.RGBA{128, 128, 128, 255} // Gray default
+			propSubtype = "crate"
 		}
 
-		// Draw simplified sprite as a colored rectangle
-		vector.DrawFilledRect(screen,
-			float32(drawStartX), float32(drawStartY),
-			float32(drawEndX-drawStartX), float32(drawEndY-drawStartY),
-			propColor, false)
+		// Generate deterministic seed from prop position
+		propSeed := int64(prop.X*1000 + prop.Y)
+
+		// Get or generate sprite (32x32 base size)
+		spriteImg := g.spriteGenerator.GetSprite(sprite.SpriteProp, propSubtype, propSeed, g.animationTicker/10, 32)
+
+		// Render sprite with scaling
+		if spriteImg != nil {
+			op := &ebiten.DrawImageOptions{}
+			scaleX := float64(spriteWidth) / float64(spriteImg.Bounds().Dx())
+			scaleY := float64(spriteHeight) / float64(spriteImg.Bounds().Dy())
+			op.GeoM.Scale(scaleX, scaleY)
+			op.GeoM.Translate(float64(drawStartX), float64(drawStartY))
+
+			// Apply distance-based alpha fade for far props
+			if dist > 250 {
+				alpha := 1.0 - (dist-250)/150
+				if alpha < 0.3 {
+					alpha = 0.3
+				}
+				op.ColorScale.Scale(1, 1, 1, float32(alpha))
+			}
+
+			screen.DrawImage(spriteImg, op)
+		}
 	}
 }
 
@@ -3681,7 +3704,7 @@ func (g *Game) renderLoreItems(screen *ebiten.Image) {
 			continue
 		}
 
-		drawLoreItemSprite(screen, loreItem, g.camera, planeX, planeY, g.animationTicker)
+		g.drawLoreItemSprite(screen, loreItem, g.camera, planeX, planeY, g.animationTicker)
 	}
 }
 
@@ -3702,22 +3725,53 @@ func shouldRenderLoreItem(loreItem *lore.LoreItem, camera *camera.Camera) bool {
 }
 
 // drawLoreItemSprite renders a single lore item sprite on screen.
-func drawLoreItemSprite(screen *ebiten.Image, loreItem *lore.LoreItem, camera *camera.Camera, planeX, planeY float64, animationTicker int) {
+func (g *Game) drawLoreItemSprite(screen *ebiten.Image, loreItem *lore.LoreItem, camera *camera.Camera, planeX, planeY float64, animationTicker int) {
 	transformX, transformY := calculateSpriteTransform(loreItem, camera, planeX, planeY)
 	if transformY <= 0.1 {
 		return
 	}
 
 	spriteScreenX, spriteHeight, spriteWidth := calculateSpriteDimensions(transformX, transformY)
-	drawStartX, drawEndX, drawStartY, drawEndY := calculateSpriteDrawBounds(spriteScreenX, spriteHeight, spriteWidth)
+	drawStartX, _, drawStartY, _ := calculateSpriteDrawBounds(spriteScreenX, spriteHeight, spriteWidth)
 
-	if !isWithinScreenBounds(drawStartX, drawEndX) {
+	if !isWithinScreenBounds(drawStartX, drawStartX+spriteWidth) {
 		return
 	}
 
-	loreColor := calculateLoreItemColor(loreItem, animationTicker)
-	vector.DrawFilledRect(screen, float32(drawStartX), float32(drawStartY),
-		float32(drawEndX-drawStartX), float32(drawEndY-drawStartY), loreColor, false)
+	// Map lore item type to sprite subtype
+	var loreSubtype string
+	switch loreItem.Type {
+	case lore.LoreItemNote:
+		loreSubtype = "note"
+	case lore.LoreItemAudioLog:
+		loreSubtype = "audiolog"
+	case lore.LoreItemGraffiti:
+		loreSubtype = "graffiti"
+	case lore.LoreItemBodyArrangement:
+		loreSubtype = "body"
+	default:
+		loreSubtype = "note"
+	}
+
+	// Generate deterministic seed from lore item position
+	loreSeed := int64(loreItem.PosX*1000 + loreItem.PosY)
+
+	// Get or generate sprite
+	spriteImg := g.spriteGenerator.GetSprite(sprite.SpriteLoreItem, loreSubtype, loreSeed, animationTicker/10, 32)
+
+	if spriteImg != nil {
+		op := &ebiten.DrawImageOptions{}
+		scaleX := float64(spriteWidth) / float64(spriteImg.Bounds().Dx())
+		scaleY := float64(spriteHeight) / float64(spriteImg.Bounds().Dy())
+		op.GeoM.Scale(scaleX, scaleY)
+		op.GeoM.Translate(float64(drawStartX), float64(drawStartY))
+
+		// Add pulsing glow effect
+		pulse := float32(0.7 + 0.3*math.Sin(float64(animationTicker)*0.05))
+		op.ColorScale.Scale(pulse, pulse, pulse, 1.0)
+
+		screen.DrawImage(spriteImg, op)
+	}
 }
 
 // calculateSpriteTransform computes the sprite's transform coordinates.
@@ -3758,23 +3812,6 @@ func calculateSpriteDrawBounds(spriteScreenX, spriteHeight, spriteWidth int) (in
 // isWithinScreenBounds checks if the sprite is visible on screen.
 func isWithinScreenBounds(drawStartX, drawEndX int) bool {
 	return drawEndX >= 0 && drawStartX < config.C.InternalWidth
-}
-
-// calculateLoreItemColor determines the color for a lore item with pulsing effect.
-func calculateLoreItemColor(loreItem *lore.LoreItem, animationTicker int) color.RGBA {
-	pulse := float32(0.7 + 0.3*float64(animationTicker%60)/60.0)
-	switch loreItem.Type {
-	case lore.LoreItemNote:
-		return color.RGBA{uint8(255 * pulse), uint8(255 * pulse), 200, 255}
-	case lore.LoreItemAudioLog:
-		return color.RGBA{100, uint8(200 * pulse), uint8(255 * pulse), 255}
-	case lore.LoreItemGraffiti:
-		return color.RGBA{uint8(255 * pulse), 100, 100, 255}
-	case lore.LoreItemBodyArrangement:
-		return color.RGBA{150, 150, uint8(150 * pulse), 255}
-	default:
-		return color.RGBA{150, 150, 150, 255}
-	}
 }
 
 // drawCodex renders the lore codex UI overlay.
