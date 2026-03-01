@@ -30,9 +30,10 @@
    - **Dependencies**: None
    - **Summary**: Created comprehensive FantasyParams struct with FogParams (RGB 120/130/150), PaletteParams (blue primary hue 240°, warm secondary 30°), TextureParams (4-octave Perlin noise), SFXParams (triangle waveform, ADSR envelope), MusicParams (Dorian scale, 3/4 time, 90 BPM, i-vi-IV-V progression). Includes 5 waveform types and 8 musical scales. Tests achieve 100% coverage.
 
-5. **Define Save Data Schema**
+5. **[x] Define Save Data Schema** *(2026-03-01)*
    - **Deliverable**: `pkg/save/schema.go` with `SaveState` struct (LevelSeed, PlayerPosition, Health, Armor, Inventory, DiscoveredTiles, CurrentObjective) with JSON tags
    - **Dependencies**: Step 3 (Player Schema)
+   - **Summary**: Created SaveState schema with 8 fields (LevelSeed, PlayerPosition, Health, Armor, Inventory, DiscoveredTiles, CurrentObjective, CameraDirection), supporting structs (Position, HealthData, InventoryData, CameraData), comprehensive tests covering JSON marshaling/unmarshaling, zero values, negative values, large data sets, and individual component serialization, achieving 72% coverage for save package
 
 6. **Document Gamepad Mapping**
    - **Deliverable**: Update `CONTROLS.md` with gamepad axis/button mappings (LeftStick=Move, RightStick=Look, RT=Fire, LT=AltFire, A=Interact, B=Reload, Start=Pause)
