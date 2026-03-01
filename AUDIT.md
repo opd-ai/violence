@@ -61,5 +61,7 @@ This file tracks the audit status of all Go sub-packages in the repository.
 ## Coverage Target
 Minimum test coverage: 65%
 
+- [x] github.com/opd-ai/violence (root package) — Needs Work — 19 issues (4 high, 7 med, 8 low)
+
 ## Last Updated
-2026-03-01 (cmd/server audit completed)
+2026-03-01 (root package audit completed)
