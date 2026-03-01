@@ -103,13 +103,33 @@ func calculateCoverScore(grid level.TileMap, pos, threatPos Coord) float64 {
 // Uses Bresenham's line algorithm to trace ray through grid.
 // Returns true if LOS is clear (no walls blocking), false otherwise.
 func hasLineOfSight(grid level.TileMap, from, to Coord) bool {
-	// Bresenham's line algorithm
 	x0, y0 := from.X, from.Y
 	x1, y1 := to.X, to.Y
 
 	dx := absInt(x1 - x0)
 	dy := absInt(y1 - y0)
+	sx, sy := calculateLineSteps(x0, y0, x1, y1)
 
+	err := dx - dy
+	x, y := x0, y0
+
+	for {
+		if !checkLinePoint(grid, x, y, from, to) {
+			return false
+		}
+
+		if x == x1 && y == y1 {
+			break
+		}
+
+		x, y, err = stepBresenhamLine(x, y, err, dx, dy, sx, sy)
+	}
+
+	return true
+}
+
+// calculateLineSteps determines the step directions for Bresenham's algorithm.
+func calculateLineSteps(x0, y0, x1, y1 int) (int, int) {
 	sx := 1
 	if x0 > x1 {
 		sx = -1
@@ -118,39 +138,35 @@ func hasLineOfSight(grid level.TileMap, from, to Coord) bool {
 	if y0 > y1 {
 		sy = -1
 	}
+	return sx, sy
+}
 
-	err := dx - dy
-	x, y := x0, y0
-
-	for {
-		// Check current position (skip start and end points)
-		if (x != from.X || y != from.Y) && (x != to.X || y != to.Y) {
-			if !grid.InBounds(x, y) {
-				return false
-			}
-			if grid.Get(x, y) == level.TileWall {
-				return false
-			}
-		}
-
-		// Reached destination
-		if x == x1 && y == y1 {
-			break
-		}
-
-		// Bresenham step
-		e2 := 2 * err
-		if e2 > -dy {
-			err -= dy
-			x += sx
-		}
-		if e2 < dx {
-			err += dx
-			y += sy
-		}
+// checkLinePoint verifies that a point on the line is valid and not blocking.
+func checkLinePoint(grid level.TileMap, x, y int, from, to Coord) bool {
+	if (x == from.X && y == from.Y) || (x == to.X && y == to.Y) {
+		return true
 	}
-
+	if !grid.InBounds(x, y) {
+		return false
+	}
+	if grid.Get(x, y) == level.TileWall {
+		return false
+	}
 	return true
+}
+
+// stepBresenhamLine advances to the next point in Bresenham's line algorithm.
+func stepBresenhamLine(x, y, err, dx, dy, sx, sy int) (int, int, int) {
+	e2 := 2 * err
+	if e2 > -dy {
+		err -= dy
+		x += sx
+	}
+	if e2 < dx {
+		err += dx
+		y += sy
+	}
+	return x, y, err
 }
 
 // maxInt returns the maximum of two integers.

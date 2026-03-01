@@ -70,48 +70,80 @@ func (l *Loader) LoadMod(path string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	// Check if mod already loaded
+	if err := l.checkModAlreadyLoaded(path); err != nil {
+		return err
+	}
+
+	mod, err := l.readAndParseManifest(path)
+	if err != nil {
+		return err
+	}
+
+	if err := validateModFields(&mod); err != nil {
+		return err
+	}
+
+	if err := l.checkModConflicts(&mod); err != nil {
+		return err
+	}
+
+	l.mods = append(l.mods, mod)
+	return nil
+}
+
+// checkModAlreadyLoaded verifies that a mod from the given path is not already loaded.
+func (l *Loader) checkModAlreadyLoaded(path string) error {
 	for _, mod := range l.mods {
 		if mod.Path == path {
 			return fmt.Errorf("mod already loaded from %s", path)
 		}
 	}
+	return nil
+}
 
-	// Read mod.json manifest
+// readAndParseManifest reads and parses the mod.json manifest from the given path.
+func (l *Loader) readAndParseManifest(path string) (Mod, error) {
 	manifestPath := filepath.Join(path, "mod.json")
 	data, err := os.ReadFile(manifestPath)
 	if err != nil {
-		return fmt.Errorf("failed to read mod.json: %w", err)
+		return Mod{}, fmt.Errorf("failed to read mod.json: %w", err)
 	}
 
 	var mod Mod
 	if err := json.Unmarshal(data, &mod); err != nil {
-		return fmt.Errorf("failed to parse mod.json: %w", err)
+		return Mod{}, fmt.Errorf("failed to parse mod.json: %w", err)
 	}
 
 	mod.Path = path
 	mod.Enabled = true
+	return mod, nil
+}
 
-	// Validate required fields
+// validateModFields ensures that required mod fields are present.
+func validateModFields(mod *Mod) error {
 	if mod.Name == "" {
 		return fmt.Errorf("mod.json missing required field: name")
 	}
 	if mod.Version == "" {
 		return fmt.Errorf("mod.json missing required field: version")
 	}
+	return nil
+}
 
-	// Check for conflicts
-	if conflicts, ok := l.conflicts[mod.Name]; ok {
-		for _, conflict := range conflicts {
-			for _, existing := range l.mods {
-				if existing.Name == conflict && existing.Enabled {
-					return fmt.Errorf("mod %s conflicts with %s", mod.Name, conflict)
-				}
+// checkModConflicts verifies that the mod does not conflict with any enabled mods.
+func (l *Loader) checkModConflicts(mod *Mod) error {
+	conflicts, ok := l.conflicts[mod.Name]
+	if !ok {
+		return nil
+	}
+
+	for _, conflict := range conflicts {
+		for _, existing := range l.mods {
+			if existing.Name == conflict && existing.Enabled {
+				return fmt.Errorf("mod %s conflicts with %s", mod.Name, conflict)
 			}
 		}
 	}
-
-	l.mods = append(l.mods, mod)
 	return nil
 }
 

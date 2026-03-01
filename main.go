@@ -3154,67 +3154,84 @@ func (g *Game) drawHackGame(screen *ebiten.Image, centerX, centerY float32) {
 		return
 	}
 
-	// Draw title
+	drawHackGameHeader(screen, centerX, centerY, hackGame)
+	drawHackGameNodeGrid(screen, centerX, centerY, hackGame)
+	drawHackGameSequenceIndicators(screen, centerX, centerY, hackGame)
+}
+
+// drawHackGameHeader renders the title, instructions, and sequence status for the hack game.
+func drawHackGameHeader(screen *ebiten.Image, centerX, centerY float32, hackGame *minigame.HackGame) {
 	titleText := "NETWORK BREACH"
 	titleBounds := text.BoundString(basicfont.Face7x13, titleText)
 	titleX := int(centerX) - titleBounds.Dx()/2
 	titleY := int(centerY) - 90
 	text.Draw(screen, titleText, basicfont.Face7x13, titleX, titleY, color.RGBA{0, 255, 255, 255})
 
-	// Draw instructions
 	instrText := "Use number keys (1-6) to match sequence"
 	instrBounds := text.BoundString(basicfont.Face7x13, instrText)
 	instrX := int(centerX) - instrBounds.Dx()/2
 	instrY := int(centerY) - 75
 	text.Draw(screen, instrText, basicfont.Face7x13, instrX, instrY, color.RGBA{200, 200, 200, 255})
 
-	// Draw sequence status
 	seqText := fmt.Sprintf("Sequence: %d/%d", len(hackGame.PlayerInput), len(hackGame.Sequence))
 	seqBounds := text.BoundString(basicfont.Face7x13, seqText)
 	seqX := int(centerX) - seqBounds.Dx()/2
 	seqY := int(centerY) - 110
 	text.Draw(screen, seqText, basicfont.Face7x13, seqX, seqY, color.RGBA{255, 255, 255, 255})
+}
 
-	// Draw node grid (6 nodes in a circle)
+// drawHackGameNodeGrid renders the circular node grid for the hack game.
+func drawHackGameNodeGrid(screen *ebiten.Image, centerX, centerY float32, hackGame *minigame.HackGame) {
 	nodeRadius := float32(80)
 	for i := 0; i < 6; i++ {
 		angle := float32(i) * 3.14159 * 2.0 / 6.0
 		nodeX := centerX + nodeRadius*float32(cosf(angle))
 		nodeY := centerY + nodeRadius*float32(sinf(angle))
 
-		nodeColor := color.RGBA{100, 100, 200, 255}
-		// Highlight nodes in sequence
-		for j, node := range hackGame.Sequence {
-			if j < len(hackGame.PlayerInput) && node == i {
-				nodeColor = color.RGBA{0, 255, 0, 255}
-			}
-		}
-
-		// Check if this is the next required node
-		nextNode := false
-		if len(hackGame.PlayerInput) < len(hackGame.Sequence) {
-			if hackGame.Sequence[len(hackGame.PlayerInput)] == i {
-				nodeColor = color.RGBA{255, 255, 0, 255}
-				nextNode = true
-			}
-		}
-
+		nodeColor, nextNode := getHackNodeColor(hackGame, i)
 		vector.DrawFilledCircle(screen, nodeX, nodeY, 15, nodeColor, false)
 		vector.StrokeCircle(screen, nodeX, nodeY, 15, 2, color.RGBA{255, 255, 255, 255}, false)
 
-		// Draw node number
-		nodeNumText := fmt.Sprintf("%d", i+1)
-		numBounds := text.BoundString(basicfont.Face7x13, nodeNumText)
-		numX := int(nodeX) - numBounds.Dx()/2
-		numY := int(nodeY) + 4
-		numColor := color.RGBA{255, 255, 255, 255}
-		if nextNode {
-			numColor = color.RGBA{0, 0, 0, 255}
+		drawHackNodeNumber(screen, nodeX, nodeY, i, nextNode)
+	}
+}
+
+// getHackNodeColor determines the color and next node status for a hack node.
+func getHackNodeColor(hackGame *minigame.HackGame, nodeIndex int) (color.RGBA, bool) {
+	nodeColor := color.RGBA{100, 100, 200, 255}
+
+	for j, node := range hackGame.Sequence {
+		if j < len(hackGame.PlayerInput) && node == nodeIndex {
+			nodeColor = color.RGBA{0, 255, 0, 255}
 		}
-		text.Draw(screen, nodeNumText, basicfont.Face7x13, numX, numY, numColor)
 	}
 
-	// Draw sequence indicators at top
+	nextNode := false
+	if len(hackGame.PlayerInput) < len(hackGame.Sequence) {
+		if hackGame.Sequence[len(hackGame.PlayerInput)] == nodeIndex {
+			nodeColor = color.RGBA{255, 255, 0, 255}
+			nextNode = true
+		}
+	}
+
+	return nodeColor, nextNode
+}
+
+// drawHackNodeNumber renders the number label on a hack node.
+func drawHackNodeNumber(screen *ebiten.Image, nodeX, nodeY float32, nodeIndex int, nextNode bool) {
+	nodeNumText := fmt.Sprintf("%d", nodeIndex+1)
+	numBounds := text.BoundString(basicfont.Face7x13, nodeNumText)
+	numX := int(nodeX) - numBounds.Dx()/2
+	numY := int(nodeY) + 4
+	numColor := color.RGBA{255, 255, 255, 255}
+	if nextNode {
+		numColor = color.RGBA{0, 0, 0, 255}
+	}
+	text.Draw(screen, nodeNumText, basicfont.Face7x13, numX, numY, numColor)
+}
+
+// drawHackGameSequenceIndicators renders the sequence progress indicators at the top.
+func drawHackGameSequenceIndicators(screen *ebiten.Image, centerX, centerY float32, hackGame *minigame.HackGame) {
 	for i := range hackGame.Sequence {
 		boxX := centerX - float32(len(hackGame.Sequence)*10) + float32(i*20)
 		boxY := centerY - 50
@@ -3225,7 +3242,6 @@ func (g *Game) drawHackGame(screen *ebiten.Image, centerX, centerY float32) {
 		vector.DrawFilledRect(screen, boxX, boxY, 15, 15, boxColor, false)
 		vector.StrokeRect(screen, boxX, boxY, 15, 15, 1, color.RGBA{200, 200, 200, 255}, false)
 
-		// Show target node number in box
 		targetNodeText := fmt.Sprintf("%d", hackGame.Sequence[i]+1)
 		targetBounds := text.BoundString(basicfont.Face7x13, targetNodeText)
 		targetX := int(boxX) + 8 - targetBounds.Dx()/2
@@ -3554,43 +3570,9 @@ func main() {
 	if err := config.Load(); err != nil {
 		log.Fatal(err)
 	}
-	ebiten.SetWindowSize(config.C.WindowWidth, config.C.WindowHeight)
-	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
-	ebiten.SetVsyncEnabled(config.C.VSync)
-	ebiten.SetFullscreen(config.C.FullScreen)
-	ebiten.SetWindowTitle("VIOLENCE")
-	ebiten.SetCursorMode(ebiten.CursorModeVisible) // Start visible for menu
 
-	// Set TPS cap (0 = unlimited, 60 = default)
-	if config.C.MaxTPS > 0 {
-		ebiten.SetTPS(config.C.MaxTPS)
-	}
-
-	// Enable config hot-reload
-	stopWatch, err := config.Watch(func(old, new config.Config) {
-		// Apply runtime-changeable settings
-		if new.VSync != old.VSync {
-			ebiten.SetVsyncEnabled(new.VSync)
-		}
-		if new.FullScreen != old.FullScreen {
-			ebiten.SetFullscreen(new.FullScreen)
-		}
-		if new.WindowWidth != old.WindowWidth || new.WindowHeight != old.WindowHeight {
-			ebiten.SetWindowSize(new.WindowWidth, new.WindowHeight)
-		}
-		if new.MaxTPS != old.MaxTPS {
-			if new.MaxTPS > 0 {
-				ebiten.SetTPS(new.MaxTPS)
-			} else {
-				ebiten.SetTPS(60) // Reset to default
-			}
-		}
-		// Note: MouseSensitivity, Volume settings, FOV are read directly from config.C
-		// so they don't need explicit callbacks - they'll be picked up on next use
-	})
-	if err != nil {
-		log.Printf("Warning: config hot-reload failed to start: %v", err)
-	}
+	initializeEbitenWindow()
+	stopWatch := setupConfigHotReload()
 	defer func() {
 		if stopWatch != nil {
 			stopWatch()
@@ -3600,5 +3582,49 @@ func main() {
 	game := NewGame()
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
+	}
+}
+
+// initializeEbitenWindow configures the initial Ebiten window settings.
+func initializeEbitenWindow() {
+	ebiten.SetWindowSize(config.C.WindowWidth, config.C.WindowHeight)
+	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
+	ebiten.SetVsyncEnabled(config.C.VSync)
+	ebiten.SetFullscreen(config.C.FullScreen)
+	ebiten.SetWindowTitle("VIOLENCE")
+	ebiten.SetCursorMode(ebiten.CursorModeVisible)
+
+	if config.C.MaxTPS > 0 {
+		ebiten.SetTPS(config.C.MaxTPS)
+	}
+}
+
+// setupConfigHotReload enables configuration hot-reloading and returns a stop function.
+func setupConfigHotReload() func() {
+	stopWatch, err := config.Watch(applyConfigChanges)
+	if err != nil {
+		log.Printf("Warning: config hot-reload failed to start: %v", err)
+		return nil
+	}
+	return stopWatch
+}
+
+// applyConfigChanges handles runtime-changeable configuration settings.
+func applyConfigChanges(old, new config.Config) {
+	if new.VSync != old.VSync {
+		ebiten.SetVsyncEnabled(new.VSync)
+	}
+	if new.FullScreen != old.FullScreen {
+		ebiten.SetFullscreen(new.FullScreen)
+	}
+	if new.WindowWidth != old.WindowWidth || new.WindowHeight != old.WindowHeight {
+		ebiten.SetWindowSize(new.WindowWidth, new.WindowHeight)
+	}
+	if new.MaxTPS != old.MaxTPS {
+		if new.MaxTPS > 0 {
+			ebiten.SetTPS(new.MaxTPS)
+		} else {
+			ebiten.SetTPS(60)
+		}
 	}
 }

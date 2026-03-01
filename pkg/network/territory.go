@@ -322,7 +322,19 @@ func (m *TerritoryMatch) Start() error {
 
 // ProcessCapture updates capture progress for all control points.
 func (m *TerritoryMatch) ProcessCapture() {
+	controlPoints, players := m.getMatchSnapshot()
+
+	for _, cp := range controlPoints {
+		redCount, blueCount := m.countPlayersNearPoint(cp, players)
+		cp.UpdateCapture(redCount, blueCount)
+	}
+}
+
+// getMatchSnapshot creates a snapshot of control points and players for processing.
+func (m *TerritoryMatch) getMatchSnapshot() ([]*ControlPoint, []*TeamPlayerState) {
 	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	controlPoints := make([]*ControlPoint, 0, len(m.ControlPoints))
 	for _, cp := range m.ControlPoints {
 		controlPoints = append(controlPoints, cp)
@@ -331,36 +343,37 @@ func (m *TerritoryMatch) ProcessCapture() {
 	for _, p := range m.Players {
 		players = append(players, p)
 	}
-	m.mu.RUnlock()
 
-	// For each control point, count nearby players by team
-	for _, cp := range controlPoints {
-		redCount := 0
-		blueCount := 0
+	return controlPoints, players
+}
 
-		for _, p := range players {
-			p.mu.RLock()
-			active := p.Active && !p.Dead
-			team := p.Team
-			posX := p.PosX
-			posY := p.PosY
-			p.mu.RUnlock()
+// countPlayersNearPoint counts active players from each team near a control point.
+func (m *TerritoryMatch) countPlayersNearPoint(cp *ControlPoint, players []*TeamPlayerState) (int, int) {
+	redCount := 0
+	blueCount := 0
 
-			if !active {
-				continue
-			}
+	for _, p := range players {
+		p.mu.RLock()
+		active := p.Active && !p.Dead
+		team := p.Team
+		posX := p.PosX
+		posY := p.PosY
+		p.mu.RUnlock()
 
-			if cp.IsPlayerInRange(posX, posY) {
-				if team == TeamRed {
-					redCount++
-				} else if team == TeamBlue {
-					blueCount++
-				}
-			}
+		if !active {
+			continue
 		}
 
-		cp.UpdateCapture(redCount, blueCount)
+		if cp.IsPlayerInRange(posX, posY) {
+			if team == TeamRed {
+				redCount++
+			} else if team == TeamBlue {
+				blueCount++
+			}
+		}
 	}
+
+	return redCount, blueCount
 }
 
 // ProcessScoring awards points to teams based on controlled points.

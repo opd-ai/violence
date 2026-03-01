@@ -1144,74 +1144,83 @@ func DrawCrafting(screen *ebiten.Image, state *CraftingState) {
 	screenWidth := float32(bounds.Dx())
 	screenHeight := float32(bounds.Dy())
 
-	// Draw semi-transparent overlay
 	overlay := color.RGBA{0, 0, 0, 200}
 	vector.DrawFilledRect(screen, 0, 0, screenWidth, screenHeight, overlay, false)
 
 	centerX := screenWidth / 2
-	theme := currentTheme.Load()
-
-	// Draw crafting title
 	titleY := float32(30)
 	drawCenteredLabel(screen, centerX, titleY, "CRAFTING", color.RGBA{100, 220, 255, 255})
 
-	// Draw scrap inventory
-	scrapY := titleY + 25
+	scrapY := drawCraftingScrapInventory(screen, state, centerX, titleY+25)
+	drawCraftingRecipesList(screen, state, centerX, scrapY+15)
+	drawCraftingFooter(screen, state, centerX, screenHeight)
+}
+
+// drawCraftingScrapInventory renders the scrap inventory and returns the ending Y position.
+func drawCraftingScrapInventory(screen *ebiten.Image, state *CraftingState, centerX, startY float32) float32 {
+	scrapY := startY
 	for scrapType, amount := range state.ScrapAmts {
 		scrapText := fmt.Sprintf("%s: %d", scrapType, amount)
 		drawCenteredLabel(screen, centerX, scrapY, scrapText, color.RGBA{180, 180, 100, 255})
 		scrapY += 18
 	}
+	return scrapY
+}
 
-	// Draw recipes list
+// drawCraftingRecipesList renders the list of available recipes with highlighting.
+func drawCraftingRecipesList(screen *ebiten.Image, state *CraftingState, centerX, startY float32) {
 	itemHeight := float32(25)
-	startY := scrapY + 15
 
 	if len(state.Recipes) == 0 {
 		drawCenteredLabel(screen, centerX, startY+20, "No recipes available", color.RGBA{150, 150, 150, 255})
+		return
 	}
 
+	theme := currentTheme.Load()
 	for i, recipe := range state.Recipes {
 		itemY := startY + float32(i)*itemHeight
 
-		// Highlight selected recipe
 		if i == state.Selected {
 			highlightX := centerX - 180
 			vector.DrawFilledRect(screen, highlightX, itemY-5, 360, itemHeight-2, color.RGBA{60, 90, 120, 200}, false)
 		}
 
-		// Recipe name and output quantity
-		nameColor := theme.TextColor
-		if !recipe.CanCraft {
-			nameColor = color.RGBA{120, 120, 120, 255} // Dim if can't craft
-		} else if i == state.Selected {
-			nameColor = color.RGBA{255, 255, 255, 255}
-		}
+		drawCraftingRecipeItem(screen, recipe, i == state.Selected, theme, centerX, itemY)
+	}
+}
 
-		recipeText := fmt.Sprintf("%s (x%d)", recipe.Name, recipe.OutputQty)
-		nameX := centerX - 170
-		drawLabel(screen, nameX, itemY+10, recipeText, nameColor)
-
-		// Input cost
-		costX := centerX + 60
-		for mat, qty := range recipe.Inputs {
-			costText := fmt.Sprintf("%s: %d", mat, qty)
-			costColor := color.RGBA{180, 180, 100, 255}
-			if !recipe.CanCraft {
-				costColor = color.RGBA{200, 80, 80, 255}
-			}
-			drawLabel(screen, costX, itemY+10, costText, costColor)
-			break // Only show first material (recipes typically have one input)
-		}
+// drawCraftingRecipeItem renders a single recipe item with name and cost.
+func drawCraftingRecipeItem(screen *ebiten.Image, recipe CraftingRecipe, isSelected bool, theme *Theme, centerX, itemY float32) {
+	nameColor := theme.TextColor
+	if !recipe.CanCraft {
+		nameColor = color.RGBA{120, 120, 120, 255}
+	} else if isSelected {
+		nameColor = color.RGBA{255, 255, 255, 255}
 	}
 
-	// Draw last result message
+	recipeText := fmt.Sprintf("%s (x%d)", recipe.Name, recipe.OutputQty)
+	nameX := centerX - 170
+	drawLabel(screen, nameX, itemY+10, recipeText, nameColor)
+
+	costX := centerX + 60
+	for mat, qty := range recipe.Inputs {
+		costText := fmt.Sprintf("%s: %d", mat, qty)
+		costColor := color.RGBA{180, 180, 100, 255}
+		if !recipe.CanCraft {
+			costColor = color.RGBA{200, 80, 80, 255}
+		}
+		drawLabel(screen, costX, itemY+10, costText, costColor)
+		break
+	}
+}
+
+// drawCraftingFooter renders the result message and controls hint at the bottom.
+func drawCraftingFooter(screen *ebiten.Image, state *CraftingState, centerX, screenHeight float32) {
 	if state.LastResult != "" {
 		resultY := screenHeight - 65
 		drawCenteredLabel(screen, centerX, resultY, state.LastResult, color.RGBA{100, 255, 100, 255})
 	}
 
-	// Draw controls hint
 	hintY := screenHeight - 40
 	drawCenteredLabel(screen, centerX, hintY, "Up/Down: Select | Enter: Craft | ESC: Back", color.RGBA{150, 150, 150, 255})
 }
@@ -1594,24 +1603,27 @@ func DrawSkills(screen *ebiten.Image, state *SkillsState) {
 	screenWidth := float32(bounds.Dx())
 	screenHeight := float32(bounds.Dy())
 
-	// Draw semi-transparent overlay
 	overlay := color.RGBA{0, 0, 0, 200}
 	vector.DrawFilledRect(screen, 0, 0, screenWidth, screenHeight, overlay, false)
 
 	centerX := screenWidth / 2
-
-	// Draw title
 	titleY := float32(25)
 	drawCenteredLabel(screen, centerX, titleY, "SKILL TREES", color.RGBA{255, 220, 100, 255})
 
-	// Draw available points
 	pointsY := titleY + 22
 	pointsText := fmt.Sprintf("Available Points: %d", state.TotalPoints)
 	drawCenteredLabel(screen, centerX, pointsY, pointsText, color.RGBA{180, 255, 180, 255})
 
-	// Draw tree tabs
+	tabY := drawSkillTreeTabs(screen, state, screenWidth, pointsY+25)
+	drawSkillTreeNodes(screen, state, screenWidth, tabY+30)
+
+	hintY := screenHeight - 40
+	drawCenteredLabel(screen, centerX, hintY, "←/→ tree, ↑/↓ node, Enter allocate, ESC back", color.RGBA{150, 150, 150, 255})
+}
+
+// drawSkillTreeTabs renders the tree selection tabs and returns the tab Y position.
+func drawSkillTreeTabs(screen *ebiten.Image, state *SkillsState, screenWidth, tabY float32) float32 {
 	tabNames := []string{"COMBAT", "SURVIVAL", "TECH"}
-	tabY := pointsY + 25
 	tabWidth := screenWidth / float32(len(tabNames))
 	for i, name := range tabNames {
 		tabX := float32(i)*tabWidth + tabWidth/2
@@ -1621,50 +1633,45 @@ func DrawSkills(screen *ebiten.Image, state *SkillsState) {
 		}
 		drawCenteredLabel(screen, tabX, tabY, name, tabColor)
 	}
+	return tabY
+}
 
-	// Draw nodes for active tree
-	if state.ActiveTree >= 0 && state.ActiveTree < len(state.Trees) {
-		tree := state.Trees[state.ActiveTree]
-		startY := tabY + 30
-		nodeHeight := float32(28)
-
-		for i, node := range tree.Nodes {
-			y := startY + float32(i)*nodeHeight
-
-			// Determine colors
-			nameColor := color.RGBA{180, 180, 180, 255}
-			statusText := ""
-			if node.Allocated {
-				nameColor = color.RGBA{100, 255, 100, 255}
-				statusText = " [UNLOCKED]"
-			} else if node.Available {
-				nameColor = color.RGBA{255, 255, 200, 255}
-				statusText = fmt.Sprintf(" [Cost: %d]", node.Cost)
-			} else {
-				nameColor = color.RGBA{100, 100, 100, 255}
-				statusText = " [LOCKED]"
-			}
-
-			// Highlight selected
-			if i == state.Selected {
-				vector.DrawFilledRect(screen, 20, y-2, screenWidth-40, nodeHeight-4, color.RGBA{80, 80, 120, 150}, false)
-			}
-
-			// Draw node name and status
-			nodeText := node.Name + statusText
-			drawLabel(screen, 30, y+12, nodeText, nameColor)
-
-			// Draw description for selected node
-			if i == state.Selected {
-				descY := y + 14
-				drawLabel(screen, 30, descY+12, node.Description, color.RGBA{150, 150, 200, 255})
-			}
-		}
+// drawSkillTreeNodes renders the nodes for the active skill tree.
+func drawSkillTreeNodes(screen *ebiten.Image, state *SkillsState, screenWidth, startY float32) {
+	if state.ActiveTree < 0 || state.ActiveTree >= len(state.Trees) {
+		return
 	}
 
-	// Draw controls hint
-	hintY := screenHeight - 40
-	drawCenteredLabel(screen, centerX, hintY, "←/→ tree, ↑/↓ node, Enter allocate, ESC back", color.RGBA{150, 150, 150, 255})
+	tree := state.Trees[state.ActiveTree]
+	nodeHeight := float32(28)
+
+	for i, node := range tree.Nodes {
+		y := startY + float32(i)*nodeHeight
+		nameColor, statusText := getSkillNodeStatus(&node)
+
+		if i == state.Selected {
+			vector.DrawFilledRect(screen, 20, y-2, screenWidth-40, nodeHeight-4, color.RGBA{80, 80, 120, 150}, false)
+		}
+
+		nodeText := node.Name + statusText
+		drawLabel(screen, 30, y+12, nodeText, nameColor)
+
+		if i == state.Selected {
+			descY := y + 14
+			drawLabel(screen, 30, descY+12, node.Description, color.RGBA{150, 150, 200, 255})
+		}
+	}
+}
+
+// getSkillNodeStatus determines the color and status text for a skill node.
+func getSkillNodeStatus(node *SkillNode) (color.RGBA, string) {
+	if node.Allocated {
+		return color.RGBA{100, 255, 100, 255}, " [UNLOCKED]"
+	}
+	if node.Available {
+		return color.RGBA{255, 255, 200, 255}, fmt.Sprintf(" [Cost: %d]", node.Cost)
+	}
+	return color.RGBA{100, 100, 100, 255}, " [LOCKED]"
 }
 
 // ModInfo represents a mod displayed in the mods UI.

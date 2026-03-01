@@ -232,14 +232,12 @@ func (s *GameServer) handleClient(client *playerClient) {
 
 	decoder := json.NewDecoder(client.conn)
 	for {
-		select {
-		case <-s.ctx.Done():
+		if s.shouldStopHandling() {
 			return
-		default:
 		}
 
-		var cmd PlayerCommand
-		if err := decoder.Decode(&cmd); err != nil {
+		cmd, err := s.readPlayerCommand(decoder, client.id)
+		if err != nil {
 			if err == io.EOF {
 				return
 			}
@@ -247,14 +245,38 @@ func (s *GameServer) handleClient(client *playerClient) {
 			return
 		}
 
-		cmd.PlayerID = client.id
-		cmd.Timestamp = time.Now()
+		s.enqueuePlayerCommand(client, cmd)
+	}
+}
 
-		select {
-		case client.cmdQueue <- &cmd:
-		default:
-			logrus.WithField("player_id", client.id).Warn("Command queue full, dropping command")
-		}
+// shouldStopHandling checks if the client handler should stop.
+func (s *GameServer) shouldStopHandling() bool {
+	select {
+	case <-s.ctx.Done():
+		return true
+	default:
+		return false
+	}
+}
+
+// readPlayerCommand reads and validates a player command from the decoder.
+func (s *GameServer) readPlayerCommand(decoder *json.Decoder, clientID uint64) (*PlayerCommand, error) {
+	var cmd PlayerCommand
+	if err := decoder.Decode(&cmd); err != nil {
+		return nil, err
+	}
+
+	cmd.PlayerID = clientID
+	cmd.Timestamp = time.Now()
+	return &cmd, nil
+}
+
+// enqueuePlayerCommand attempts to enqueue a command for processing.
+func (s *GameServer) enqueuePlayerCommand(client *playerClient, cmd *PlayerCommand) {
+	select {
+	case client.cmdQueue <- cmd:
+	default:
+		logrus.WithField("player_id", client.id).Warn("Command queue full, dropping command")
 	}
 }
 

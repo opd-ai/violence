@@ -160,22 +160,36 @@ func (rs *RelayServer) relayMessages() {
 		case <-rs.done:
 			return
 		case msg := <-rs.messages:
-			rs.mu.RLock()
-			if msg.To == "all" {
-				// Broadcast to all clients except sender
-				for playerID, conn := range rs.clients {
-					if playerID != msg.From {
-						rs.sendMessage(conn, msg)
-					}
-				}
-			} else {
-				// Send to specific recipient
-				if conn, ok := rs.clients[msg.To]; ok {
-					rs.sendMessage(conn, msg)
-				}
-			}
-			rs.mu.RUnlock()
+			rs.routeMessage(msg)
 		}
+	}
+}
+
+// routeMessage routes an encrypted message to its destination(s).
+func (rs *RelayServer) routeMessage(msg EncryptedMessage) {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+
+	if msg.To == "all" {
+		rs.broadcastMessage(msg)
+	} else {
+		rs.sendDirectMessage(msg)
+	}
+}
+
+// broadcastMessage sends a message to all clients except the sender.
+func (rs *RelayServer) broadcastMessage(msg EncryptedMessage) {
+	for playerID, conn := range rs.clients {
+		if playerID != msg.From {
+			rs.sendMessage(conn, msg)
+		}
+	}
+}
+
+// sendDirectMessage sends a message to a specific recipient.
+func (rs *RelayServer) sendDirectMessage(msg EncryptedMessage) {
+	if conn, ok := rs.clients[msg.To]; ok {
+		rs.sendMessage(conn, msg)
 	}
 }
 

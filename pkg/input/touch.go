@@ -233,49 +233,56 @@ func NewTouchInputManager() *TouchInputManager {
 func (tim *TouchInputManager) Update() {
 	touches := ebiten.AppendTouchIDs(nil)
 
-	// If no touches, release all controls
 	if len(touches) == 0 {
-		tim.Joystick.Release()
-		tim.LookControl.Release()
-		tim.FireButton.Release()
-		tim.AltButton.Release()
-		for _, btn := range tim.ActionBar {
-			btn.Release()
-		}
+		tim.releaseAllControls()
 		return
 	}
 
-	// Process each touch
 	for _, id := range touches {
-		x, y := ebiten.TouchPosition(id)
-		screenW, screenH := ebiten.WindowSize()
-
-		// Route touch to appropriate control
-		if tim.Joystick.HandleTouch(id, x, y) {
-			continue
-		}
-		if tim.FireButton.HandleTouch(id, x, y, screenW, screenH) {
-			continue
-		}
-		if tim.AltButton.HandleTouch(id, x, y, screenW, screenH) {
-			continue
-		}
-
-		// Check action bar
-		handled := false
-		for _, btn := range tim.ActionBar {
-			if btn.HandleTouch(id, x, y, screenW, screenH) {
-				handled = true
-				break
-			}
-		}
-		if handled {
-			continue
-		}
-
-		// Default: look control (center area)
-		tim.LookControl.HandleTouch(id, x, y)
+		tim.processTouch(id)
 	}
+}
+
+// releaseAllControls releases all touch controls when no touches are active.
+func (tim *TouchInputManager) releaseAllControls() {
+	tim.Joystick.Release()
+	tim.LookControl.Release()
+	tim.FireButton.Release()
+	tim.AltButton.Release()
+	for _, btn := range tim.ActionBar {
+		btn.Release()
+	}
+}
+
+// processTouch routes a single touch to the appropriate control.
+func (tim *TouchInputManager) processTouch(id ebiten.TouchID) {
+	x, y := ebiten.TouchPosition(id)
+	screenW, screenH := ebiten.WindowSize()
+
+	if tim.Joystick.HandleTouch(id, x, y) {
+		return
+	}
+	if tim.FireButton.HandleTouch(id, x, y, screenW, screenH) {
+		return
+	}
+	if tim.AltButton.HandleTouch(id, x, y, screenW, screenH) {
+		return
+	}
+	if tim.handleActionBarTouch(id, x, y, screenW, screenH) {
+		return
+	}
+
+	tim.LookControl.HandleTouch(id, x, y)
+}
+
+// handleActionBarTouch checks if the touch activates any action bar button.
+func (tim *TouchInputManager) handleActionBarTouch(id ebiten.TouchID, x, y, screenW, screenH int) bool {
+	for _, btn := range tim.ActionBar {
+		if btn.HandleTouch(id, x, y, screenW, screenH) {
+			return true
+		}
+	}
+	return false
 }
 
 // HapticEvent represents different types of haptic feedback events
