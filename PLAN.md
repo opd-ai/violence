@@ -25,7 +25,7 @@
    - **Dependencies**: Existing `pkg/mod/` plugin API and WASM sandbox
 
    **Sub-tasks**:
-   2.1. Design mod manifest schema (name, version, author, genre overrides, dependencies)
+   2.1. [x] Design mod manifest schema (name, version, author, genre overrides, dependencies) — COMPLETE (2026-03-01): Implemented comprehensive `Manifest` struct in `pkg/mod/manifest.go` with validation. Schema includes: name (lowercase alphanumeric+hyphens), semver version, author, license, homepage, tags, genre overrides, dependencies (with version constraints and optional flag), conflicts, game version constraints, WASM entry point, permissions, and config. Test coverage: 92.3% (exceeds 82% target). Example manifest in `docs/MOD_MANIFEST_EXAMPLE.json`.
    2.2. Implement mod upload API with WASM validation and virus scanning stub
    2.3. Create mod search/browse API with filtering by genre, downloads, rating
    2.4. Add mod versioning and dependency resolution logic

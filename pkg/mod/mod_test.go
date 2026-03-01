@@ -36,7 +36,7 @@ func TestLoader_LoadMod(t *testing.T) {
 
 	// Write mod.json
 	modJSON := `{
-		"name": "TestMod",
+		"name": "test-mod",
 		"version": "1.0.0",
 		"description": "A test mod",
 		"author": "Test Author",
@@ -62,8 +62,8 @@ func TestLoader_LoadMod(t *testing.T) {
 	}
 
 	mod := mods[0]
-	if mod.Name != "TestMod" {
-		t.Fatalf("wrong name: got %q, want %q", mod.Name, "TestMod")
+	if mod.Name != "test-mod" {
+		t.Fatalf("wrong name: got %q, want %q", mod.Name, "test-mod")
 	}
 	if mod.Version != "1.0.0" {
 		t.Fatalf("wrong version: got %q, want %q", mod.Version, "1.0.0")
@@ -111,7 +111,7 @@ func TestLoader_LoadModInvalidJSON(t *testing.T) {
 func TestLoader_LoadModMissingName(t *testing.T) {
 	tmpDir := t.TempDir()
 	manifestPath := filepath.Join(tmpDir, "mod.json")
-	modJSON := `{"version": "1.0.0"}`
+	modJSON := `{"version": "1.0.0", "author": "Test"}`
 	if err := os.WriteFile(manifestPath, []byte(modJSON), 0o644); err != nil {
 		t.Fatalf("failed to write mod.json: %v", err)
 	}
@@ -126,7 +126,7 @@ func TestLoader_LoadModMissingName(t *testing.T) {
 func TestLoader_LoadModMissingVersion(t *testing.T) {
 	tmpDir := t.TempDir()
 	manifestPath := filepath.Join(tmpDir, "mod.json")
-	modJSON := `{"name": "TestMod"}`
+	modJSON := `{"name": "test-mod", "author": "Test"}`
 	if err := os.WriteFile(manifestPath, []byte(modJSON), 0o644); err != nil {
 		t.Fatalf("failed to write mod.json: %v", err)
 	}
@@ -146,7 +146,7 @@ func TestLoader_LoadModAlreadyLoaded(t *testing.T) {
 	}
 
 	manifestPath := filepath.Join(modDir, "mod.json")
-	modJSON := `{"name": "TestMod", "version": "1.0.0"}`
+	modJSON := `{"name": "test-mod", "version": "1.0.0", "author": "Test"}`
 	if err := os.WriteFile(manifestPath, []byte(modJSON), 0o644); err != nil {
 		t.Fatalf("failed to write mod.json: %v", err)
 	}
@@ -171,7 +171,7 @@ func TestLoader_UnloadMod(t *testing.T) {
 	}
 
 	manifestPath := filepath.Join(modDir, "mod.json")
-	modJSON := `{"name": "TestMod", "version": "1.0.0"}`
+	modJSON := `{"name": "test-mod", "version": "1.0.0", "author": "Test"}`
 	if err := os.WriteFile(manifestPath, []byte(modJSON), 0o644); err != nil {
 		t.Fatalf("failed to write mod.json: %v", err)
 	}
@@ -182,7 +182,7 @@ func TestLoader_UnloadMod(t *testing.T) {
 	}
 
 	// Unload mod
-	if err := loader.UnloadMod("TestMod"); err != nil {
+	if err := loader.UnloadMod("test-mod"); err != nil {
 		t.Fatalf("UnloadMod failed: %v", err)
 	}
 
@@ -208,7 +208,7 @@ func TestLoader_GetMod(t *testing.T) {
 	}
 
 	manifestPath := filepath.Join(modDir, "mod.json")
-	modJSON := `{"name": "TestMod", "version": "1.0.0"}`
+	modJSON := `{"name": "test-mod", "version": "1.0.0", "author": "Test"}`
 	if err := os.WriteFile(manifestPath, []byte(modJSON), 0o644); err != nil {
 		t.Fatalf("failed to write mod.json: %v", err)
 	}
@@ -218,12 +218,12 @@ func TestLoader_GetMod(t *testing.T) {
 		t.Fatalf("LoadMod failed: %v", err)
 	}
 
-	mod, err := loader.GetMod("TestMod")
+	mod, err := loader.GetMod("test-mod")
 	if err != nil {
 		t.Fatalf("GetMod failed: %v", err)
 	}
-	if mod.Name != "TestMod" {
-		t.Fatalf("wrong mod name: got %q, want %q", mod.Name, "TestMod")
+	if mod.Name != "test-mod" {
+		t.Fatalf("wrong mod name: got %q, want %q", mod.Name, "test-mod")
 	}
 }
 
@@ -243,7 +243,7 @@ func TestLoader_EnableDisableMod(t *testing.T) {
 	}
 
 	manifestPath := filepath.Join(modDir, "mod.json")
-	modJSON := `{"name": "TestMod", "version": "1.0.0"}`
+	modJSON := `{"name": "test-mod", "version": "1.0.0", "author": "Test"}`
 	if err := os.WriteFile(manifestPath, []byte(modJSON), 0o644); err != nil {
 		t.Fatalf("failed to write mod.json: %v", err)
 	}
@@ -254,21 +254,21 @@ func TestLoader_EnableDisableMod(t *testing.T) {
 	}
 
 	// Disable mod
-	if err := loader.DisableMod("TestMod"); err != nil {
+	if err := loader.DisableMod("test-mod"); err != nil {
 		t.Fatalf("DisableMod failed: %v", err)
 	}
 
-	mod, _ := loader.GetMod("TestMod")
+	mod, _ := loader.GetMod("test-mod")
 	if mod.Enabled {
 		t.Fatal("mod should be disabled")
 	}
 
 	// Enable mod
-	if err := loader.EnableMod("TestMod"); err != nil {
+	if err := loader.EnableMod("test-mod"); err != nil {
 		t.Fatalf("EnableMod failed: %v", err)
 	}
 
-	mod, _ = loader.GetMod("TestMod")
+	mod, _ = loader.GetMod("test-mod")
 	if !mod.Enabled {
 		t.Fatal("mod should be enabled")
 	}
@@ -303,8 +303,8 @@ func TestLoader_AddConflict(t *testing.T) {
 		t.Fatalf("failed to create mod2 dir: %v", err)
 	}
 
-	mod1JSON := `{"name": "Mod1", "version": "1.0.0"}`
-	mod2JSON := `{"name": "Mod2", "version": "1.0.0"}`
+	mod1JSON := `{"name": "mod-1", "version": "1.0.0", "author": "Test"}`
+	mod2JSON := `{"name": "mod-2", "version": "1.0.0", "author": "Test"}`
 	if err := os.WriteFile(filepath.Join(mod1Dir, "mod.json"), []byte(mod1JSON), 0o644); err != nil {
 		t.Fatalf("failed to write mod1.json: %v", err)
 	}
@@ -313,7 +313,7 @@ func TestLoader_AddConflict(t *testing.T) {
 	}
 
 	loader := NewLoader()
-	loader.AddConflict("Mod1", "Mod2")
+	loader.AddConflict("mod-1", "mod-2")
 
 	// Load Mod1
 	if err := loader.LoadMod(mod1Dir); err != nil {

@@ -504,12 +504,12 @@ func TestLoaderLoadAllMods(t *testing.T) {
 		// Create mod A
 		modADir := filepath.Join(modsDir, "amod")
 		os.Mkdir(modADir, 0o755)
-		os.WriteFile(filepath.Join(modADir, "mod.json"), []byte(`{"name": "AMod", "version": "1.0.0"}`), 0o644)
+		os.WriteFile(filepath.Join(modADir, "mod.json"), []byte(`{"name": "amod", "version": "1.0.0", "author": "Test"}`), 0o644)
 
 		// Create mod B
 		modBDir := filepath.Join(modsDir, "bmod")
 		os.Mkdir(modBDir, 0o755)
-		os.WriteFile(filepath.Join(modBDir, "mod.json"), []byte(`{"name": "BMod", "version": "2.0.0"}`), 0o644)
+		os.WriteFile(filepath.Join(modBDir, "mod.json"), []byte(`{"name": "bmod", "version": "2.0.0", "author": "Test"}`), 0o644)
 
 		loader := NewLoaderWithDir(modsDir)
 		count, err := loader.LoadAllMods()
@@ -526,10 +526,10 @@ func TestLoaderLoadAllMods(t *testing.T) {
 		}
 
 		// Should be loaded in alphabetical order
-		if mods[0].Name != "AMod" {
+		if mods[0].Name != "amod" {
 			t.Fatalf("first mod should be AMod, got %s", mods[0].Name)
 		}
-		if mods[1].Name != "BMod" {
+		if mods[1].Name != "bmod" {
 			t.Fatalf("second mod should be BMod, got %s", mods[1].Name)
 		}
 	})
@@ -542,7 +542,7 @@ func TestLoaderLoadAllMods(t *testing.T) {
 		// Valid mod
 		validDir := filepath.Join(modsDir, "amod")
 		os.Mkdir(validDir, 0o755)
-		os.WriteFile(filepath.Join(validDir, "mod.json"), []byte(`{"name": "ValidMod", "version": "1.0.0"}`), 0o644)
+		os.WriteFile(filepath.Join(validDir, "mod.json"), []byte(`{"name": "valid-mod", "version": "1.0.0", "author": "Test"}`), 0o644)
 
 		// Invalid mod (bad JSON)
 		invalidDir := filepath.Join(modsDir, "bmod")
@@ -577,7 +577,7 @@ func TestLoaderLoadAllMods(t *testing.T) {
 		// Dir with mod.json
 		modDir := filepath.Join(modsDir, "validmod")
 		os.Mkdir(modDir, 0o755)
-		os.WriteFile(filepath.Join(modDir, "mod.json"), []byte(`{"name": "ValidMod", "version": "1.0.0"}`), 0o644)
+		os.WriteFile(filepath.Join(modDir, "mod.json"), []byte(`{"name": "valid-mod", "version": "1.0.0", "author": "Test"}`), 0o644)
 
 		loader := NewLoaderWithDir(modsDir)
 		count, _ := loader.LoadAllMods()
@@ -597,7 +597,7 @@ func TestLoaderLoadAllMods(t *testing.T) {
 		// Valid mod dir
 		modDir := filepath.Join(modsDir, "validmod")
 		os.Mkdir(modDir, 0o755)
-		os.WriteFile(filepath.Join(modDir, "mod.json"), []byte(`{"name": "ValidMod", "version": "1.0.0"}`), 0o644)
+		os.WriteFile(filepath.Join(modDir, "mod.json"), []byte(`{"name": "valid-mod", "version": "1.0.0", "author": "Test"}`), 0o644)
 
 		loader := NewLoaderWithDir(modsDir)
 		count, _ := loader.LoadAllMods()
@@ -614,15 +614,15 @@ func TestLoaderLoadAllMods(t *testing.T) {
 		// Mod A
 		modADir := filepath.Join(modsDir, "amod")
 		os.Mkdir(modADir, 0o755)
-		os.WriteFile(filepath.Join(modADir, "mod.json"), []byte(`{"name": "ModA", "version": "1.0.0"}`), 0o644)
+		os.WriteFile(filepath.Join(modADir, "mod.json"), []byte(`{"name": "mod-a", "version": "1.0.0", "author": "Test"}`), 0o644)
 
 		// Mod B (conflicts with A)
 		modBDir := filepath.Join(modsDir, "bmod")
 		os.Mkdir(modBDir, 0o755)
-		os.WriteFile(filepath.Join(modBDir, "mod.json"), []byte(`{"name": "ModB", "version": "1.0.0"}`), 0o644)
+		os.WriteFile(filepath.Join(modBDir, "mod.json"), []byte(`{"name": "mod-b", "version": "1.0.0", "author": "Test"}`), 0o644)
 
 		loader := NewLoaderWithDir(modsDir)
-		loader.AddConflict("ModA", "ModB")
+		loader.AddConflict("mod-a", "mod-b")
 
 		count, _ := loader.LoadAllMods()
 		if count != 1 {

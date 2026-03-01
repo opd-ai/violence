@@ -2,7 +2,6 @@
 package mod
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,12 +13,20 @@ import (
 
 // Mod represents a loaded game modification.
 type Mod struct {
-	Name        string            `json:"name"`
-	Version     string            `json:"version"`
-	Description string            `json:"description"`
-	Author      string            `json:"author"`
-	Path        string            `json:"-"`
-	Enabled     bool              `json:"-"`
+	// Manifest contains the mod's metadata
+	Manifest *Manifest `json:"manifest"`
+
+	// Path is the filesystem location of the mod
+	Path string `json:"-"`
+
+	// Enabled indicates if the mod is active
+	Enabled bool `json:"-"`
+
+	// Legacy fields for backward compatibility (deprecated)
+	Name        string            `json:"name,omitempty"`
+	Version     string            `json:"version,omitempty"`
+	Description string            `json:"description,omitempty"`
+	Author      string            `json:"author,omitempty"`
 	Config      map[string]string `json:"config,omitempty"`
 }
 
@@ -103,24 +110,42 @@ func (l *Loader) checkModAlreadyLoaded(path string) error {
 
 // readAndParseManifest reads and parses the mod.json manifest from the given path.
 func (l *Loader) readAndParseManifest(path string) (Mod, error) {
-	manifestPath := filepath.Join(path, "mod.json")
-	data, err := os.ReadFile(manifestPath)
+	manifest, err := LoadManifestFromDir(path)
 	if err != nil {
-		return Mod{}, fmt.Errorf("failed to read mod.json: %w", err)
+		return Mod{}, fmt.Errorf("failed to load manifest: %w", err)
 	}
 
-	var mod Mod
-	if err := json.Unmarshal(data, &mod); err != nil {
-		return Mod{}, fmt.Errorf("failed to parse mod.json: %w", err)
+	mod := Mod{
+		Manifest: manifest,
+		Path:     path,
+		Enabled:  true,
+		// Populate legacy fields for backward compatibility
+		Name:        manifest.Name,
+		Version:     manifest.Version,
+		Description: manifest.Description,
+		Author:      manifest.Author,
 	}
 
-	mod.Path = path
-	mod.Enabled = true
+	// Convert manifest config to legacy format if present
+	if manifest.Config != nil {
+		mod.Config = make(map[string]string)
+		for k, v := range manifest.Config {
+			mod.Config[k] = fmt.Sprintf("%v", v)
+		}
+	}
+
 	return mod, nil
 }
 
 // validateModFields ensures that required mod fields are present.
 func validateModFields(mod *Mod) error {
+	// Validation is now handled by Manifest.Validate()
+	// This function remains for backward compatibility
+	if mod.Manifest != nil {
+		return mod.Manifest.Validate()
+	}
+
+	// Fallback to legacy validation
 	if mod.Name == "" {
 		return fmt.Errorf("mod.json missing required field: name")
 	}
@@ -132,18 +157,42 @@ func validateModFields(mod *Mod) error {
 
 // checkModConflicts verifies that the mod does not conflict with any enabled mods.
 func (l *Loader) checkModConflicts(mod *Mod) error {
-	conflicts, ok := l.conflicts[mod.Name]
-	if !ok {
-		return nil
+	modName := mod.Name
+	if mod.Manifest != nil {
+		modName = mod.Manifest.Name
 	}
 
-	for _, conflict := range conflicts {
-		for _, existing := range l.mods {
-			if existing.Name == conflict && existing.Enabled {
-				return fmt.Errorf("mod %s conflicts with %s", mod.Name, conflict)
+	// Check legacy conflicts registry
+	conflicts, ok := l.conflicts[modName]
+	if ok {
+		for _, conflict := range conflicts {
+			for _, existing := range l.mods {
+				existingName := existing.Name
+				if existing.Manifest != nil {
+					existingName = existing.Manifest.Name
+				}
+				if existingName == conflict && existing.Enabled {
+					return fmt.Errorf("mod %s conflicts with %s", modName, conflict)
+				}
 			}
 		}
 	}
+
+	// Check manifest-declared conflicts
+	if mod.Manifest != nil {
+		for _, conflict := range mod.Manifest.Conflicts {
+			for _, existing := range l.mods {
+				existingName := existing.Name
+				if existing.Manifest != nil {
+					existingName = existing.Manifest.Name
+				}
+				if existingName == conflict && existing.Enabled {
+					return fmt.Errorf("mod %s conflicts with %s (declared in manifest)", modName, conflict)
+				}
+			}
+		}
+	}
+
 	return nil
 }
 
