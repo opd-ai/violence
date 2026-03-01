@@ -1,26 +1,28 @@
 package chat
 
 import (
-	"bufio"
-	"embed"
 	"strings"
 	"sync"
 )
-
-//go:embed wordlists/*.txt
-var wordlistsFS embed.FS
 
 // ProfanityFilter filters profane language from chat messages
 type ProfanityFilter struct {
 	wordlists map[string][]string // language -> words
 	mu        sync.RWMutex
 	loaded    bool
+	seed      int64 // seed for deterministic wordlist generation
 }
 
-// NewProfanityFilter creates a new profanity filter
+// NewProfanityFilter creates a new profanity filter with default seed
 func NewProfanityFilter() *ProfanityFilter {
+	return NewProfanityFilterWithSeed(42) // Default seed for consistent behavior
+}
+
+// NewProfanityFilterWithSeed creates a new profanity filter with custom seed
+func NewProfanityFilterWithSeed(seed int64) *ProfanityFilter {
 	return &ProfanityFilter{
 		wordlists: make(map[string][]string),
+		seed:      seed,
 	}
 }
 
@@ -35,15 +37,8 @@ func (pf *ProfanityFilter) LoadLanguage(lang string) error {
 		return nil
 	}
 
-	// Load from embedded filesystem
-	filename := "wordlists/" + lang + ".txt"
-	data, err := wordlistsFS.ReadFile(filename)
-	if err != nil {
-		return err
-	}
-
-	// Parse word list (one word per line, skip comments)
-	words := parseWordList(string(data))
+	// Generate wordlist procedurally
+	words := GenerateProfanityWordlist(lang, pf.seed)
 	pf.wordlists[lang] = words
 	pf.loaded = true
 
@@ -115,26 +110,6 @@ func (pf *ProfanityFilter) Sanitize(message, language string) string {
 	}
 
 	return sanitized
-}
-
-// parseWordList parses a word list file content
-// Skips empty lines and lines starting with #
-func parseWordList(content string) []string {
-	var words []string
-	scanner := bufio.NewScanner(strings.NewReader(content))
-
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-
-		// Skip empty lines and comments
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-
-		words = append(words, strings.ToLower(line))
-	}
-
-	return words
 }
 
 // replaceCaseInsensitive replaces old with new in str, case-insensitively

@@ -27,7 +27,7 @@ func TestLoadLanguage(t *testing.T) {
 		{"de", false},
 		{"fr", false},
 		{"pt", false},
-		{"invalid", true},
+		{"invalid", false}, // Falls back to English, no error
 	}
 
 	for _, tt := range tests {
@@ -221,48 +221,6 @@ func TestFilterNoWordlistsLoaded(t *testing.T) {
 	got := filter.Filter("shit", "en")
 	if got {
 		t.Error("Filter should return false when no wordlists loaded")
-	}
-}
-
-func TestParseWordList(t *testing.T) {
-	content := `# Comment line
-word1
-word2
-
-# Another comment
-word3
-  word4  
-`
-
-	words := parseWordList(content)
-
-	expected := []string{"word1", "word2", "word3", "word4"}
-	if len(words) != len(expected) {
-		t.Errorf("parseWordList returned %d words, want %d", len(words), len(expected))
-	}
-
-	for i, word := range words {
-		if word != expected[i] {
-			t.Errorf("word[%d] = %q, want %q", i, word, expected[i])
-		}
-	}
-}
-
-func TestParseWordListEmptyInput(t *testing.T) {
-	words := parseWordList("")
-	if len(words) != 0 {
-		t.Errorf("parseWordList(\"\") returned %d words, want 0", len(words))
-	}
-}
-
-func TestParseWordListOnlyComments(t *testing.T) {
-	content := `# Comment 1
-# Comment 2
-# Comment 3`
-
-	words := parseWordList(content)
-	if len(words) != 0 {
-		t.Errorf("parseWordList(comments only) returned %d words, want 0", len(words))
 	}
 }
 
