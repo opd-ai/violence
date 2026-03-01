@@ -196,6 +196,9 @@ type Game struct {
 
 	// Animation system for state-based sprite animation
 	animationSystem *animation.AnimationSystem
+
+	// Combo system for weapon attack chains
+	comboSystem *combat.ComboSystem
 }
 
 // NewGame creates and initializes a new game instance.
@@ -268,6 +271,7 @@ func NewGame() *Game {
 		roleBasedAISystem:  ai.NewRoleBasedAISystem(),
 		spatialSystem:      spatial.NewSystem(64.0), // 64-unit cells for typical 10-50 unit queries
 		animationSystem:    animation.NewAnimationSystem("fantasy"),
+		comboSystem:        combat.NewComboSystem("fantasy", int64(seed)),
 	}
 
 	// Initialize status system with the registry
@@ -285,6 +289,9 @@ func NewGame() *Game {
 
 	// Register status effect system with the World
 	g.world.AddSystem(g.statusSystem)
+
+	// Register combo system with the World
+	g.world.AddSystem(g.comboSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
