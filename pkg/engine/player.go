@@ -46,6 +46,14 @@ type Input struct {
 	AltFire   bool
 	Interact  bool
 	Reload    bool
+	Dodge     bool
+	Parry     bool
+	Block     bool
+}
+
+// Velocity component represents movement speed.
+type Velocity struct {
+	DX, DY float64
 }
 
 // NewPlayerEntity creates a player entity with canonical component set.
@@ -88,6 +96,9 @@ func (w *World) NewPlayerEntity(x, y float64) Entity {
 	// Input
 	w.AddComponent(e, &Input{})
 	w.AddArchetypeComponent(e, ComponentIDInput)
+
+	// Velocity
+	w.AddComponent(e, &Velocity{DX: 0, DY: 0})
 
 	return e
 }

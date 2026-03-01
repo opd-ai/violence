@@ -62,6 +62,9 @@ const (
 	ActionMultiplayer  Action = "multiplayer"
 	ActionUseItem      Action = "use_item"
 	ActionCodex        Action = "codex"
+	ActionDodge        Action = "dodge"
+	ActionParry        Action = "parry"
+	ActionBlock        Action = "block"
 )
 
 // Manager tracks input state and key bindings.
@@ -114,6 +117,9 @@ func (m *Manager) setDefaultBindings() {
 	m.bindings[ActionMultiplayer] = ebiten.KeyN
 	m.bindings[ActionUseItem] = ebiten.KeyF
 	m.bindings[ActionCodex] = ebiten.KeyL
+	m.bindings[ActionDodge] = ebiten.KeyShift
+	m.bindings[ActionParry] = ebiten.KeyR
+	m.bindings[ActionBlock] = ebiten.KeyControl
 
 	// Gamepad button bindings
 	m.gamepadButtons[ActionFire] = ebiten.GamepadButton0       // A/Cross
@@ -122,6 +128,9 @@ func (m *Manager) setDefaultBindings() {
 	m.gamepadButtons[ActionPause] = ebiten.GamepadButton7      // Start
 	m.gamepadButtons[ActionNextWeapon] = ebiten.GamepadButton4 // L1/LB
 	m.gamepadButtons[ActionPrevWeapon] = ebiten.GamepadButton5 // R1/RB
+	m.gamepadButtons[ActionDodge] = ebiten.GamepadButton1      // B/Circle
+	m.gamepadButtons[ActionParry] = ebiten.GamepadButton3      // Y/Triangle
+	m.gamepadButtons[ActionBlock] = ebiten.GamepadButton6      // L2/LT (as button)
 }
 
 // loadBindingsFromConfig loads key bindings from config file.

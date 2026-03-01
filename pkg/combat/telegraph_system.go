@@ -114,8 +114,10 @@ func (s *TelegraphSystem) executeDamage(w *engine.World, attacker engine.Entity,
 
 	posType := reflect.TypeOf(&engine.Position{})
 	healthType := reflect.TypeOf(&engine.Health{})
+	defenseType := reflect.TypeOf(&DefenseComponent{})
 
 	hitCount := 0
+	parryStunned := false
 
 	for it.Next() {
 		target := it.Entity()
@@ -145,13 +147,43 @@ func (s *TelegraphSystem) executeDamage(w *engine.World, attacker engine.Entity,
 		dy := targetPos.Y - attackerPos.Y
 		dist := math.Sqrt(dx*dx + dy*dy)
 
+		attackAngle := math.Atan2(dy, dx)
+		defenderFacing := 0.0
+
+		baseDamage := telegraph.Pattern.Damage
+
+		// Check for defensive actions
+		defComp, hasDefense := w.GetComponent(target, defenseType)
+		if hasDefense {
+			defense := defComp.(*DefenseComponent)
+			modifiedDamage, negated := ProcessIncomingDamage(defense, baseDamage, attackAngle, defenderFacing)
+			baseDamage = modifiedDamage
+
+			if negated {
+				s.logger.WithFields(logrus.Fields{
+					"target":  target,
+					"defense": defense.Type,
+				}).Debug("attack negated by defense")
+
+				// Perfect parry stuns the attacker
+				if defense.IsPerfectParryWindow() {
+					parryStunned = true
+					if tComp, ok := w.GetComponent(attacker, reflect.TypeOf(&TelegraphComponent{})); ok {
+						attackerTelegraph := tComp.(*TelegraphComponent)
+						attackerTelegraph.Phase = PhaseInactive
+						attackerTelegraph.PhaseTimer = defense.ParryStunDuration
+					}
+				}
+				continue
+			}
+		}
+
 		if dist > 0.001 {
 			_ = dx / dist // dirX for future knockback
 			_ = dy / dist // dirY for future knockback
 		}
 
-		// Apply damage (simplified - in full system would use combat.System)
-		health.Current -= int(telegraph.Pattern.Damage)
+		health.Current -= int(baseDamage)
 		if health.Current < 0 {
 			health.Current = 0
 		}
@@ -161,13 +193,9 @@ func (s *TelegraphSystem) executeDamage(w *engine.World, attacker engine.Entity,
 		s.logger.WithFields(logrus.Fields{
 			"attacker": attacker,
 			"target":   target,
-			"damage":   telegraph.Pattern.Damage,
+			"damage":   baseDamage,
 			"pattern":  telegraph.Pattern.Name,
 		}).Debug("telegraph hit")
-
-		// TODO: Apply knockback based on telegraph.Pattern.KnockbackMul
-		// TODO: Spawn hit particles
-		// TODO: Play hit sound
 	}
 
 	if hitCount > 0 {
@@ -176,6 +204,12 @@ func (s *TelegraphSystem) executeDamage(w *engine.World, attacker engine.Entity,
 			"hits":     hitCount,
 			"pattern":  telegraph.Pattern.Name,
 		}).Info("telegraph executed")
+	}
+
+	if parryStunned {
+		s.logger.WithFields(logrus.Fields{
+			"attacker": attacker,
+		}).Info("attacker stunned by perfect parry")
 	}
 }
 
@@ -228,16 +262,6 @@ func (s *TelegraphSystem) isInAttackArea(attackerPos, targetPos *engine.Position
 	}
 
 	return collision.TestCollision(attackCollider, targetCollider)
-}
-
-func normalizeAngle(angle float64) float64 {
-	for angle > math.Pi {
-		angle -= 2 * math.Pi
-	}
-	for angle < -math.Pi {
-		angle += 2 * math.Pi
-	}
-	return angle
 }
 
 // InitiateAttack starts an attack telegraph for an entity.

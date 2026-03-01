@@ -210,6 +210,9 @@ type Game struct {
 
 	// Procedural sprite generation system
 	spriteGenerator *sprite.Generator
+
+	// Defense system for dodge/parry/block mechanics
+	defenseSystem *combat.DefenseSystem
 }
 
 // NewGame creates and initializes a new game instance.
@@ -286,6 +289,7 @@ func NewGame() *Game {
 		lootDropSystem:     loot.NewLootDropSystem(int64(seed)),
 		feedbackSystem:     feedback.NewFeedbackSystem(int64(seed)),
 		spriteGenerator:    sprite.NewGenerator(100),
+		defenseSystem:      combat.NewDefenseSystem("fantasy"),
 	}
 
 	// Initialize status system with the registry
@@ -315,6 +319,9 @@ func NewGame() *Game {
 
 	// Register feedback system with the World
 	g.world.AddSystem(g.feedbackSystem)
+
+	// Register defense system with the World
+	g.world.AddSystem(g.defenseSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
@@ -659,6 +666,10 @@ func (g *Game) initializePlayer() {
 
 	// Create ECS player entity for status effects and other systems
 	g.playerEntity = g.world.NewPlayerEntity(spawnX, spawnY)
+
+	// Add defense component to player
+	defenseComp := combat.NewDefenseComponent(g.genreID)
+	g.world.AddComponent(g.playerEntity, defenseComp)
 }
 
 // findSpawnPosition finds a safe starting position for the player.
@@ -903,6 +914,9 @@ func (g *Game) updatePlaying() error {
 	g.handleCollisionAndMovement(deltaX, deltaY, deltaPitch)
 	g.checkTutorialCompletion(deltaX, deltaY)
 
+	// Handle defensive actions
+	g.processDefensiveActions()
+
 	// Sync player entity health with HUD
 	g.syncPlayerEntityHealth()
 
@@ -937,6 +951,67 @@ func (g *Game) syncPlayerEntityHealth() {
 		if health.Current > health.Max {
 			health.Current = health.Max
 		}
+	}
+}
+
+// processDefensiveActions handles dodge, parry, and block input.
+func (g *Game) processDefensiveActions() {
+	if g.playerEntity == 0 || g.defenseSystem == nil {
+		return
+	}
+
+	defenseType := reflect.TypeOf(&combat.DefenseComponent{})
+	comp, ok := g.world.GetComponent(g.playerEntity, defenseType)
+	if !ok {
+		return
+	}
+
+	defense := comp.(*combat.DefenseComponent)
+
+	// Handle dodge (Shift + movement direction)
+	if g.input.IsJustPressed(input.ActionDodge) {
+		dirX := 0.0
+		dirY := 0.0
+
+		if g.input.IsPressed(input.ActionMoveForward) {
+			dirX += g.camera.DirX
+			dirY += g.camera.DirY
+		}
+		if g.input.IsPressed(input.ActionMoveBackward) {
+			dirX -= g.camera.DirX
+			dirY -= g.camera.DirY
+		}
+		if g.input.IsPressed(input.ActionStrafeLeft) {
+			dirX += g.camera.DirY
+			dirY -= g.camera.DirX
+		}
+		if g.input.IsPressed(input.ActionStrafeRight) {
+			dirX -= g.camera.DirY
+			dirY += g.camera.DirX
+		}
+
+		if g.defenseSystem.InitiateDodge(defense, dirX, dirY, g.genreID) {
+			g.audioEngine.PlaySFX("dodge", g.camera.X, g.camera.Y)
+			if g.feedbackSystem != nil {
+				g.feedbackSystem.AddScreenShake(1.0)
+			}
+		}
+	}
+
+	// Handle parry (R key)
+	if g.input.IsJustPressed(input.ActionParry) {
+		if g.defenseSystem.InitiateParry(defense, g.genreID) {
+			g.audioEngine.PlaySFX("parry", g.camera.X, g.camera.Y)
+		}
+	}
+
+	// Handle block (hold Ctrl)
+	if g.input.IsPressed(input.ActionBlock) && defense.Type != combat.DefenseBlock {
+		if g.defenseSystem.InitiateBlock(defense, g.genreID) {
+			g.audioEngine.PlaySFX("block", g.camera.X, g.camera.Y)
+		}
+	} else if !g.input.IsPressed(input.ActionBlock) && defense.Type == combat.DefenseBlock {
+		g.defenseSystem.CancelBlock(defense)
 	}
 }
 

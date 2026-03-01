@@ -8,10 +8,6 @@ import (
 )
 
 // Test components
-type Velocity struct {
-	DX, DY float64
-}
-
 type Name struct {
 	Value string
 }

@@ -137,3 +137,14 @@ func SetGenre(genreID string) {
 func SetDifficulty(scale float64) {
 	globalSystem.SetDifficulty(scale)
 }
+
+// normalizeAngle wraps an angle to the range [-π, π].
+func normalizeAngle(a float64) float64 {
+	for a > math.Pi {
+		a -= 2 * math.Pi
+	}
+	for a < -math.Pi {
+		a += 2 * math.Pi
+	}
+	return a
+}
