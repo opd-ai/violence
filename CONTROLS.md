@@ -56,27 +56,41 @@ Camera pitch is clamped to ±30 degrees.
 
 ## Gamepad
 
+### Analog Sticks
+
+| Input          | Xbox Controller | PlayStation Controller | Function                  |
+| -------------- | --------------- | ---------------------- | ------------------------- |
+| Left Stick X   | Left Stick      | Left Stick             | Strafe left/right         |
+| Left Stick Y   | Left Stick      | Left Stick             | Move forward/backward     |
+| Right Stick X  | Right Stick     | Right Stick            | Turn left/right (look)    |
+| Right Stick Y  | Right Stick     | Right Stick            | Look up/down (pitch)      |
+
+Analog stick values range from -1.0 to 1.0. The first connected gamepad is used automatically.
+
+### Triggers
+
+| Action         | Xbox Controller | PlayStation Controller | Description              |
+| -------------- | --------------- | ---------------------- | ------------------------ |
+| Fire           | RT              | R2                     | Fire current weapon      |
+| Alt Fire       | LT              | L2                     | Alternate fire mode      |
+
+Trigger values range from 0.0 (released) to 1.0 (fully pressed).
+
 ### Buttons
 
 | Action         | Xbox Controller | PlayStation Controller | Description              |
 | -------------- | --------------- | ---------------------- | ------------------------ |
-| Fire           | A               | Cross (×)              | Fire current weapon      |
-| Interact       | B               | Circle (○)             | Use doors, pick up items |
+| Interact       | A               | Cross (×)              | Use doors, pick up items |
+| Reload         | B               | Circle (○)             | Reload current weapon    |
 | Automap        | X               | Square (□)             | Toggle automap           |
+| Jump           | Y               | Triangle (△)           | Jump (if enabled)        |
 | Pause          | Start           | Options                | Pause game / open menu   |
-| Next Weapon    | LB              | L1                     | Cycle to next weapon     |
-| Previous Weapon| RB              | R1                     | Cycle to previous weapon |
-
-### Analog Sticks
-
-| Input          | Function                                |
-| -------------- | --------------------------------------- |
-| Left Stick X   | Strafe left/right                       |
-| Left Stick Y   | Move forward/backward                   |
-| Right Stick X  | Turn left/right (look horizontal)       |
-| Right Stick Y  | Look up/down (pitch)                    |
-
-Analog stick values range from -1.0 to 1.0. The first connected gamepad is used automatically.
+| Next Weapon    | RB              | R1                     | Cycle to next weapon     |
+| Previous Weapon| LB              | L1                     | Cycle to previous weapon |
+| D-Pad Up       | D-Pad Up        | D-Pad Up               | Quick slot 1             |
+| D-Pad Right    | D-Pad Right     | D-Pad Right            | Quick slot 2             |
+| D-Pad Down     | D-Pad Down      | D-Pad Down             | Quick slot 3             |
+| D-Pad Left     | D-Pad Left      | D-Pad Left             | Quick slot 4             |
 
 ## Chat Controls
 

@@ -3,6 +3,8 @@ package engine
 import (
 	"reflect"
 	"testing"
+
+	"github.com/opd-ai/violence/pkg/testutil"
 )
 
 // Test components
@@ -475,5 +477,65 @@ func BenchmarkWorld_Query(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		w.Query(posType, velType)
+	}
+}
+
+// Example test using testutil package for mocking and assertions
+func TestWorld_WithTestUtil(t *testing.T) {
+	tests := []struct {
+		name           string
+		setupEntity    func(*World) Entity
+		expectedHealth float64
+		expectedX      float64
+		expectedY      float64
+	}{
+		{
+			name: "player entity with full health",
+			setupEntity: func(w *World) Entity {
+				e := w.AddEntity()
+				w.AddComponent(e, &Position{X: 10.0, Y: 20.0})
+				w.AddComponent(e, &Health{Current: 100, Max: 100})
+				return e
+			},
+			expectedHealth: 100.0,
+			expectedX:      10.0,
+			expectedY:      20.0,
+		},
+		{
+			name: "damaged player entity",
+			setupEntity: func(w *World) Entity {
+				e := w.AddEntity()
+				w.AddComponent(e, &Position{X: 5.5, Y: 15.5})
+				w.AddComponent(e, &Health{Current: 50, Max: 100})
+				return e
+			},
+			expectedHealth: 50.0,
+			expectedX:      5.5,
+			expectedY:      15.5,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := NewWorld()
+			e := tt.setupEntity(w)
+
+			// Use testutil assertions for cleaner test code
+			pos, found := w.GetComponent(e, reflect.TypeOf(&Position{}))
+			testutil.AssertTrue(t, found, "Position component should exist")
+			testutil.AssertNotNil(t, pos, "Position component should not be nil")
+
+			health, found := w.GetComponent(e, reflect.TypeOf(&Health{}))
+			testutil.AssertTrue(t, found, "Health component should exist")
+			testutil.AssertNotNil(t, health, "Health component should not be nil")
+
+			// Verify component values
+			posComp := pos.(*Position)
+			testutil.AssertFloatEqual(t, posComp.X, tt.expectedX, 0.001, "Position X")
+			testutil.AssertFloatEqual(t, posComp.Y, tt.expectedY, 0.001, "Position Y")
+
+			healthComp := health.(*Health)
+			testutil.AssertFloatEqual(t, float64(healthComp.Current), tt.expectedHealth, 0.001, "Health Current")
+		})
 	}
 }

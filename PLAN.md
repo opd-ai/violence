@@ -35,13 +35,15 @@
    - **Dependencies**: Step 3 (Player Schema)
    - **Summary**: Created SaveState schema with 8 fields (LevelSeed, PlayerPosition, Health, Armor, Inventory, DiscoveredTiles, CurrentObjective, CameraDirection), supporting structs (Position, HealthData, InventoryData, CameraData), comprehensive tests covering JSON marshaling/unmarshaling, zero values, negative values, large data sets, and individual component serialization, achieving 72% coverage for save package
 
-6. **Document Gamepad Mapping**
+6. **[x] Document Gamepad Mapping** *(2026-03-01)*
    - **Deliverable**: Update `CONTROLS.md` with gamepad axis/button mappings (LeftStick=Move, RightStick=Look, RT=Fire, LT=AltFire, A=Interact, B=Reload, Start=Pause)
    - **Dependencies**: None
+   - **Summary**: Updated CONTROLS.md with comprehensive gamepad mappings including analog sticks (Left=Move, Right=Look), triggers (RT=Fire, LT=AltFire), buttons (A=Interact, B=Reload, X=Automap, Y=Jump, Start=Pause, LB/RB=Weapon cycling), and D-Pad quick slots
 
-7. **Establish Test Infrastructure**
+7. **[x] Establish Test Infrastructure** *(2026-03-01)*
    - **Deliverable**: `pkg/testutil/` with mock interfaces for Ebitengine screen/input, test helpers, and example test in `pkg/engine/world_test.go`
    - **Dependencies**: None
+   - **Summary**: Created comprehensive test infrastructure with MockScreen, MockInput, MockTextureAtlas, MockLightMap for Ebitengine testing; implemented assertion helpers (AssertFloatEqual, AssertIntEqual, AssertStringEqual, AssertTrue/False, AssertNil/NotNil, AssertPanic/NoPanic, AssertColorEqual); added image creation utilities (CreateSolidImage, CreateCheckerboardImage); comprehensive tests achieving 100% coverage; added example test in engine_test.go demonstrating testutil usage
 
 ### Priority 2: AI and Combat Gaps (v2.0 blockers)
 
