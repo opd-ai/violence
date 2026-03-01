@@ -481,7 +481,7 @@ func DiscoverServers(hubURL string, query *ServerQuery, timeout time.Duration) (
 }
 
 // LookupPlayer queries a remote federation hub for player presence.
-func LookupPlayer(hubURL string, playerID string, timeout time.Duration) (*PlayerLookupResponse, error) {
+func LookupPlayer(hubURL, playerID string, timeout time.Duration) (*PlayerLookupResponse, error) {
 	if timeout == 0 {
 		timeout = 5 * time.Second
 	}

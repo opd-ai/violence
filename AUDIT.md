@@ -11,13 +11,14 @@
 
 ````
 Total Issues Found: 7
-Completed: 4
-Remaining: 3
+Completed: 5
+Remaining: 2
 - CRITICAL BUG: 0
 - FUNCTIONAL MISMATCH: 2 (2 completed, 0 remaining)
 - MISSING FEATURE: 2 (2 completed, 0 remaining)
-- EDGE CASE BUG: 1
+- EDGE CASE BUG: 1 (1 completed, 0 remaining)
 - PERFORMANCE ISSUE: 1
+- FUNCTIONAL MISMATCH (Config): 1
 
 Overall Assessment: GOOD
 Build Status: ✓ PASSING
@@ -198,40 +199,26 @@ The door/lockpicking system mentioned in the README is now visually complete and
 
 ---
 
-### EDGE CASE BUG: Weapon Mastery XP Awarded Before Damage Validation
+### [x] EDGE CASE BUG: Weapon Mastery XP Awarded Before Damage Validation - COMPLETED 2026-03-01
 
 **File:** main.go:797-803  
 **Severity:** Low  
-**Description:** When a weapon hits an enemy, mastery XP is awarded immediately (line 798) before checking if the enemy is actually alive and can take damage (line 795 checks `agent.Health > 0` but XP is awarded inside that block before damage is applied). If the damage calculation or application fails, the player still receives mastery XP for a hit that didn't actually count.
+**Status:** ✅ FIXED - Mastery XP now awarded only after damage is successfully applied
 
-**Expected Behavior:** Mastery XP should only be awarded after confirming damage was successfully applied to a living enemy.
+**Original Description:** When a weapon hits an enemy, mastery XP was awarded immediately (line 798) before checking if the enemy is actually alive and can take damage (line 795 checks `agent.Health > 0` but XP was awarded inside that block before damage is applied). If the damage calculation or application failed, the player still received mastery XP for a hit that didn't actually count.
 
-**Actual Behavior:** XP is awarded as soon as `hitResult.Hit && hitResult.EntityID > 0` and the agent exists, regardless of whether damage is applied.
+**Solution Implemented:**
+- Reordered code in main.go:805-814 to apply damage BEFORE awarding mastery XP
+- Line 813-814 now applies damage first: `upgradedDamage := g.getUpgradedWeaponDamage(currentWeapon)` then `agent.Health -= upgradedDamage`
+- Line 816-819 now awards XP only AFTER damage is applied to the agent's health
+- Created comprehensive test suite in `mastery_xp_timing_test.go` with 3 test functions:
+  - `TestMasteryXPAwardedAfterDamageApplication`: 5 test cases covering living enemies, kill shots, overkill, dead enemies, and negative health
+  - `TestMasteryXPNotAwardedBeforeDamage`: Edge case testing for 0-damage scenarios
+  - `TestMasteryXPProgressionAccuracy`: Multi-enemy test verifying accurate XP accumulation
+- All tests pass, verifying XP is awarded only when damage is successfully applied
+- Code passes `go fmt` and `go vet` validation
 
-**Impact:** Minor progression inflation. Players can gain slightly more mastery XP than deserved if there are edge cases in damage application.
-
-**Reproduction:**
-1. Modify damage application to fail under specific conditions (e.g., invulnerable enemy state)
-2. Shoot that enemy
-3. Observe mastery XP increases despite no damage dealt
-
-**Code Reference:**
-```go
-// main.go:791-806
-for _, hitResult := range hitResults {
-    if hitResult.Hit && hitResult.EntityID > 0 {
-        agentIdx := int(hitResult.EntityID - 1)
-        if agentIdx >= 0 && agentIdx < len(g.aiAgents) {
-            agent := g.aiAgents[agentIdx]
-            if agent.Health > 0 {
-                // Award mastery XP for successful hit
-                if g.masteryManager != nil {
-                    g.masteryManager.AddMasteryXP(g.arsenal.CurrentSlot, 10) // BUG: Awarded before damage applied
-                }
-                // Apply damage with upgrades and mastery bonuses
-                upgradedDamage := g.getUpgradedWeaponDamage(currentWeapon)
-                agent.Health -= upgradedDamage // Damage applied AFTER XP awarded
-```
+**Impact:** Fixed progression inflation bug. Players now only gain mastery XP when damage is actually dealt to living enemies. Dead or invalid enemies no longer award XP. The timing guarantee ensures damage application happens before reward distribution.
 
 ---
 
