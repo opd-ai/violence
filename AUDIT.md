@@ -29,6 +29,7 @@ This file tracks the audit status of all Go sub-packages in the repository.
 - [x] pkg/raycaster — Complete — 6 issues (0 high, 1 med, 5 low)
 - [x] pkg/minigame — Needs Work — 11 issues (2 high, 3 med, 6 low)
 - [x] pkg/audio — Complete — 6 issues (0 high, 1 med, 5 low)
+- [x] pkg/crafting — Complete — 8 issues (0 high, 2 med, 6 low)
 
 ## Audit Legend
 - [ ] Package not yet audited
@@ -38,4 +39,4 @@ This file tracks the audit status of all Go sub-packages in the repository.
 Minimum test coverage: 65%
 
 ## Last Updated
-2026-03-01 (pkg/audio audit completed)
+2026-03-01 (pkg/crafting audit completed)
