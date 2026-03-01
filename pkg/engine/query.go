@@ -23,6 +23,7 @@ const (
 	ComponentIDSound
 	ComponentIDAnimation
 	ComponentIDParticle
+	ComponentIDLootDrop
 )
 
 // EntityIterator provides iteration over query results.

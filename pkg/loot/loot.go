@@ -24,6 +24,7 @@ type Drop struct {
 // LootTable defines a set of possible drops.
 type LootTable struct {
 	Drops []Drop
+	rng   *rng.RNG
 }
 
 // SecretLootTable holds weighted rare items for secret rewards.
@@ -39,9 +40,59 @@ func NewLootTable() *LootTable {
 	return &LootTable{Drops: []Drop{}}
 }
 
-// Roll selects drops from the loot table.
+// NewLootTableWithRNG creates a loot table with deterministic RNG.
+func NewLootTableWithRNG(r *rng.RNG) *LootTable {
+	return &LootTable{
+		Drops: []Drop{},
+		rng:   r,
+	}
+}
+
+// Roll selects drops from the loot table using deterministic RNG.
+// Each drop has an independent chance to be included in the result.
+// Returns a slice of item IDs that were successfully rolled.
 func (lt *LootTable) Roll() []string {
-	return nil
+	if len(lt.Drops) == 0 {
+		return nil
+	}
+
+	// Use internal RNG if available, otherwise create one
+	var localRNG *rng.RNG
+	if lt.rng != nil {
+		localRNG = lt.rng
+	} else {
+		localRNG = rng.NewRNG(0)
+	}
+
+	var result []string
+	for _, drop := range lt.Drops {
+		// Roll independently for each drop
+		roll := localRNG.Float64()
+		if roll < drop.Chance {
+			result = append(result, drop.ItemID)
+		}
+	}
+
+	return result
+}
+
+// RollWithSeed selects drops using a specific seed for deterministic results.
+func (lt *LootTable) RollWithSeed(seed uint64) []string {
+	if len(lt.Drops) == 0 {
+		return nil
+	}
+
+	localRNG := rng.NewRNG(seed)
+
+	var result []string
+	for _, drop := range lt.Drops {
+		roll := localRNG.Float64()
+		if roll < drop.Chance {
+			result = append(result, drop.ItemID)
+		}
+	}
+
+	return result
 }
 
 // NewSecretLootTable creates a secret loot table with default rare items.

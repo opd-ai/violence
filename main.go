@@ -199,6 +199,9 @@ type Game struct {
 
 	// Combo system for weapon attack chains
 	comboSystem *combat.ComboSystem
+
+	// Loot drop system
+	lootDropSystem *loot.LootDropSystem
 }
 
 // NewGame creates and initializes a new game instance.
@@ -272,6 +275,7 @@ func NewGame() *Game {
 		spatialSystem:      spatial.NewSystem(64.0), // 64-unit cells for typical 10-50 unit queries
 		animationSystem:    animation.NewAnimationSystem("fantasy"),
 		comboSystem:        combat.NewComboSystem("fantasy", int64(seed)),
+		lootDropSystem:     loot.NewLootDropSystem(int64(seed)),
 	}
 
 	// Initialize status system with the registry
@@ -280,6 +284,9 @@ func NewGame() *Game {
 	// Initialize BSP generator
 	g.bspGenerator = bsp.NewGenerator(64, 64, g.rng)
 	g.bspGenerator.SetGenre(g.genreID)
+
+	// Set loot drop system genre
+	g.lootDropSystem.SetGenre(g.genreID)
 
 	// Register spatial system with the World
 	g.world.AddSystem(g.spatialSystem)
@@ -292,6 +299,9 @@ func NewGame() *Game {
 
 	// Register combo system with the World
 	g.world.AddSystem(g.comboSystem)
+
+	// Register loot drop system with the World
+	g.world.AddSystem(g.lootDropSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
