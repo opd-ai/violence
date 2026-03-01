@@ -168,8 +168,9 @@ func TestRaycaster_CastRay_Diagonal(t *testing.T) {
 }
 
 func TestRaycaster_CastRay_DifferentWallTypes(t *testing.T) {
+	// Use only actual wall tile values (not floor=2 which is non-solid)
 	testMap := [][]int{
-		{2, 2, 2, 2, 2},
+		{10, 10, 10, 10, 10},
 		{3, 0, 0, 0, 4},
 		{3, 0, 0, 0, 4},
 		{3, 0, 0, 0, 4},
@@ -182,7 +183,7 @@ func TestRaycaster_CastRay_DifferentWallTypes(t *testing.T) {
 		dirY     float64
 		wantWall int
 	}{
-		{"north wall type 2", 0.0, -1.0, 2},
+		{"north wall type 10", 0.0, -1.0, 10},
 		{"south wall type 5", 0.0, 1.0, 5},
 		{"east wall type 4", 1.0, 0.0, 4},
 		{"west wall type 3", -1.0, 0.0, 3},

@@ -155,12 +155,25 @@ func performDDA(mapX, mapY *int, sideDistX, sideDistY *float64, deltaDistX, delt
 			return side, false
 		}
 
-		if tileMap[*mapY][*mapX] > 0 {
+		if IsWallTile(tileMap[*mapY][*mapX]) {
 			return side, true
 		}
 	}
 
 	return side, false
+}
+
+// IsWallTile returns true if a tile value represents a solid wall that should
+// stop rays and block line of sight. Floor tiles (0, 2, 20-29) are not walls.
+// Wall tiles (1, 3=door, 4=secret, 10-14=genre walls) are solid.
+func IsWallTile(tile int) bool {
+	if tile == 0 || tile == 2 {
+		return false
+	}
+	if tile >= 20 && tile <= 29 {
+		return false
+	}
+	return tile > 0
 }
 
 // calculateWallDistance computes the perpendicular distance to the wall and hit coordinates.

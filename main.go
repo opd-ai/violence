@@ -1345,7 +1345,7 @@ func isWalkableTile(tile int) bool {
 	case tile == bsp.TileFloor:
 		return true
 	case tile == bsp.TileDoor:
-		return true // Doors are passable (opened on contact / interaction)
+		return false // Doors block movement until opened via interaction
 	case tile >= 20 && tile <= 29: // Genre-specific floor tiles (TileFloorStone..TileFloorDirt)
 		return true
 	default:
@@ -1406,7 +1406,7 @@ func (g *Game) tryInteractDoor() {
 
 // getInteractionTileCoords calculates the tile coordinates the player is facing.
 func (g *Game) getInteractionTileCoords() (int, int, bool) {
-	checkDist := 1.5
+	checkDist := 1.0
 	checkX := g.camera.X + g.camera.DirX*checkDist
 	checkY := g.camera.Y + g.camera.DirY*checkDist
 	mapX := int(checkX)
