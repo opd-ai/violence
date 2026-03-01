@@ -200,7 +200,10 @@ func (g *Generator) createLeafRoom(n *Node, tiles [][]int) {
 	maxW := min(n.W-2, g.MaxSize)
 	maxH := min(n.H-2, g.MaxSize)
 
-	if maxW < g.MinSize || maxH < g.MinSize {
+	// Use absolute minimum of 3 so that tight BSP leaves still get rooms,
+	// preserving corridor connectivity across the entire tree.
+	const absMin = 3
+	if maxW < absMin || maxH < absMin {
 		return
 	}
 
@@ -213,11 +216,21 @@ func (g *Generator) createLeafRoom(n *Node, tiles [][]int) {
 
 // calculateRoomDimensions determines random room dimensions within constraints.
 func (g *Generator) calculateRoomDimensions(maxW, maxH int) (int, int) {
-	wRange := maxW - g.MinSize + 1
-	hRange := maxH - g.MinSize + 1
+	// Clamp effective minimum so small BSP leaves still produce rooms.
+	effMinW := g.MinSize
+	if effMinW > maxW {
+		effMinW = maxW
+	}
+	effMinH := g.MinSize
+	if effMinH > maxH {
+		effMinH = maxH
+	}
 
-	w := g.MinSize
-	h := g.MinSize
+	wRange := maxW - effMinW + 1
+	hRange := maxH - effMinH + 1
+
+	w := effMinW
+	h := effMinH
 	if wRange > 1 {
 		w += g.rng.Intn(wRange)
 	}

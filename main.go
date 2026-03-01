@@ -577,8 +577,8 @@ func (g *Game) initializePlayer() {
 func (g *Game) findSpawnPosition(rooms []*bsp.Room) (float64, float64) {
 	spawnX, spawnY := 5.0, 5.0
 	if len(rooms) > 0 {
-		spawnX = float64(rooms[0].X + rooms[0].W/2)
-		spawnY = float64(rooms[0].Y + rooms[0].H/2)
+		spawnX = float64(rooms[0].X+rooms[0].W/2) + 0.5
+		spawnY = float64(rooms[0].Y+rooms[0].H/2) + 0.5
 	} else {
 		tiles := g.currentMap
 		for dy := 0; dy < len(tiles); dy++ {
@@ -1342,8 +1342,10 @@ func (g *Game) checkTutorialCompletion(deltaX, deltaY float64) {
 // isWalkableTile returns true if the tile type permits player movement.
 func isWalkableTile(tile int) bool {
 	switch {
-	case tile == bsp.TileFloor || tile == bsp.TileEmpty:
+	case tile == bsp.TileFloor:
 		return true
+	case tile == bsp.TileDoor:
+		return true // Doors are passable (opened on contact / interaction)
 	case tile >= 20 && tile <= 29: // Genre-specific floor tiles (TileFloorStone..TileFloorDirt)
 		return true
 	default:
@@ -1423,6 +1425,9 @@ func (g *Game) getInteractionTileCoords() (int, int, bool) {
 // handleSecretWall triggers a secret wall and updates quest progress.
 func (g *Game) handleSecretWall(mapX, mapY int) {
 	if g.secretManager != nil && g.secretManager.TriggerAt(mapX, mapY, "player") {
+		// Convert the secret wall tile to floor so the player can walk through
+		g.currentMap[mapY][mapX] = bsp.TileFloor
+		g.raycaster.SetMap(g.currentMap)
 		g.audioEngine.PlaySFX("secret_open", float64(mapX), float64(mapY))
 		g.hud.ShowMessage("Secret discovered!")
 		if g.questTracker != nil {
