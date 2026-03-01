@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"image/color"
 	"log"
 	"math"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"github.com/hajimehoshi/ebiten/v2/text"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/opd-ai/violence/pkg/ai"
 	"github.com/opd-ai/violence/pkg/ammo"
@@ -52,6 +54,7 @@ import (
 	"github.com/opd-ai/violence/pkg/ui"
 	"github.com/opd-ai/violence/pkg/upgrade"
 	"github.com/opd-ai/violence/pkg/weapon"
+	"golang.org/x/image/font/basicfont"
 )
 
 // GameState represents the current game state.
@@ -2929,6 +2932,20 @@ func (g *Game) drawLockpickGame(screen *ebiten.Image, centerX, centerY float32) 
 		return
 	}
 
+	// Draw title
+	titleText := "LOCKPICKING"
+	titleBounds := text.BoundString(basicfont.Face7x13, titleText)
+	titleX := int(centerX) - titleBounds.Dx()/2
+	titleY := int(centerY) - 90
+	text.Draw(screen, titleText, basicfont.Face7x13, titleX, titleY, color.RGBA{255, 255, 255, 255})
+
+	// Draw instructions
+	instrText := "Press SPACE when pick is in GREEN zone"
+	instrBounds := text.BoundString(basicfont.Face7x13, instrText)
+	instrX := int(centerX) - instrBounds.Dx()/2
+	instrY := int(centerY) - 75
+	text.Draw(screen, instrText, basicfont.Face7x13, instrX, instrY, color.RGBA{200, 200, 200, 255})
+
 	// Draw lock cylinder
 	cylinderWidth := float32(200)
 	cylinderHeight := float32(30)
@@ -2938,20 +2955,39 @@ func (g *Game) drawLockpickGame(screen *ebiten.Image, centerX, centerY float32) 
 	vector.DrawFilledRect(screen, cylinderX, cylinderY, cylinderWidth, cylinderHeight, color.RGBA{100, 100, 100, 255}, false)
 	vector.StrokeRect(screen, cylinderX, cylinderY, cylinderWidth, cylinderHeight, 2, color.RGBA{200, 200, 200, 255}, false)
 
-	// Draw target zone
+	// Draw target zone with label
 	targetX := cylinderX + cylinderWidth*float32(lpGame.Target)
 	targetWidth := cylinderWidth * float32(lpGame.Tolerance*2)
 	vector.DrawFilledRect(screen, targetX-targetWidth/2, cylinderY, targetWidth, cylinderHeight, color.RGBA{0, 200, 0, 100}, false)
 
-	// Draw lockpick position
+	// Draw lockpick position indicator
 	pickX := cylinderX + cylinderWidth*float32(lpGame.Position)
 	vector.DrawFilledRect(screen, pickX-2, cylinderY-10, 4, cylinderHeight+20, color.RGBA{255, 255, 0, 255}, false)
 
-	// Draw unlocked pins
-	for i := 0; i < lpGame.UnlockedPins; i++ {
-		pinX := centerX - 50 + float32(i*25)
-		pinY := centerY - 60
-		vector.DrawFilledCircle(screen, pinX, pinY, 8, color.RGBA{0, 255, 0, 255}, false)
+	// Draw pins status
+	pinsText := fmt.Sprintf("Pins: %d/%d", lpGame.UnlockedPins, lpGame.Pins)
+	pinsBounds := text.BoundString(basicfont.Face7x13, pinsText)
+	pinsX := int(centerX) - pinsBounds.Dx()/2
+	pinsY := int(centerY) - 50
+	text.Draw(screen, pinsText, basicfont.Face7x13, pinsX, pinsY, color.RGBA{255, 255, 255, 255})
+
+	// Draw unlocked pins visualization
+	for i := 0; i < lpGame.Pins; i++ {
+		pinX := centerX - float32(lpGame.Pins*12)/2 + float32(i*25)
+		pinY := centerY - 30
+		pinColor := color.RGBA{80, 80, 80, 255}
+		if i < lpGame.UnlockedPins {
+			pinColor = color.RGBA{0, 255, 0, 255}
+		}
+		vector.DrawFilledCircle(screen, pinX, pinY, 8, pinColor, false)
+		vector.StrokeCircle(screen, pinX, pinY, 8, 2, color.RGBA{200, 200, 200, 255}, false)
+
+		// Draw pin number
+		pinNumText := fmt.Sprintf("%d", i+1)
+		numBounds := text.BoundString(basicfont.Face7x13, pinNumText)
+		numX := int(pinX) - numBounds.Dx()/2
+		numY := int(pinY) + 4
+		text.Draw(screen, pinNumText, basicfont.Face7x13, numX, numY, color.RGBA{255, 255, 255, 255})
 	}
 }
 
@@ -2961,6 +2997,27 @@ func (g *Game) drawHackGame(screen *ebiten.Image, centerX, centerY float32) {
 	if !ok {
 		return
 	}
+
+	// Draw title
+	titleText := "NETWORK BREACH"
+	titleBounds := text.BoundString(basicfont.Face7x13, titleText)
+	titleX := int(centerX) - titleBounds.Dx()/2
+	titleY := int(centerY) - 90
+	text.Draw(screen, titleText, basicfont.Face7x13, titleX, titleY, color.RGBA{0, 255, 255, 255})
+
+	// Draw instructions
+	instrText := "Use number keys (1-6) to match sequence"
+	instrBounds := text.BoundString(basicfont.Face7x13, instrText)
+	instrX := int(centerX) - instrBounds.Dx()/2
+	instrY := int(centerY) - 75
+	text.Draw(screen, instrText, basicfont.Face7x13, instrX, instrY, color.RGBA{200, 200, 200, 255})
+
+	// Draw sequence status
+	seqText := fmt.Sprintf("Sequence: %d/%d", len(hackGame.PlayerInput), len(hackGame.Sequence))
+	seqBounds := text.BoundString(basicfont.Face7x13, seqText)
+	seqX := int(centerX) - seqBounds.Dx()/2
+	seqY := int(centerY) - 110
+	text.Draw(screen, seqText, basicfont.Face7x13, seqX, seqY, color.RGBA{255, 255, 255, 255})
 
 	// Draw node grid (6 nodes in a circle)
 	nodeRadius := float32(80)
@@ -2977,20 +3034,51 @@ func (g *Game) drawHackGame(screen *ebiten.Image, centerX, centerY float32) {
 			}
 		}
 
+		// Check if this is the next required node
+		nextNode := false
+		if len(hackGame.PlayerInput) < len(hackGame.Sequence) {
+			if hackGame.Sequence[len(hackGame.PlayerInput)] == i {
+				nodeColor = color.RGBA{255, 255, 0, 255}
+				nextNode = true
+			}
+		}
+
 		vector.DrawFilledCircle(screen, nodeX, nodeY, 15, nodeColor, false)
 		vector.StrokeCircle(screen, nodeX, nodeY, 15, 2, color.RGBA{255, 255, 255, 255}, false)
+
+		// Draw node number
+		nodeNumText := fmt.Sprintf("%d", i+1)
+		numBounds := text.BoundString(basicfont.Face7x13, nodeNumText)
+		numX := int(nodeX) - numBounds.Dx()/2
+		numY := int(nodeY) + 4
+		numColor := color.RGBA{255, 255, 255, 255}
+		if nextNode {
+			numColor = color.RGBA{0, 0, 0, 255}
+		}
+		text.Draw(screen, nodeNumText, basicfont.Face7x13, numX, numY, numColor)
 	}
 
 	// Draw sequence indicators at top
 	for i := range hackGame.Sequence {
-		boxX := centerX - 60 + float32(i*20)
-		boxY := centerY - 100
+		boxX := centerX - float32(len(hackGame.Sequence)*10) + float32(i*20)
+		boxY := centerY - 50
 		boxColor := color.RGBA{50, 50, 50, 255}
 		if i < len(hackGame.PlayerInput) {
 			boxColor = color.RGBA{0, 200, 0, 255}
 		}
 		vector.DrawFilledRect(screen, boxX, boxY, 15, 15, boxColor, false)
 		vector.StrokeRect(screen, boxX, boxY, 15, 15, 1, color.RGBA{200, 200, 200, 255}, false)
+
+		// Show target node number in box
+		targetNodeText := fmt.Sprintf("%d", hackGame.Sequence[i]+1)
+		targetBounds := text.BoundString(basicfont.Face7x13, targetNodeText)
+		targetX := int(boxX) + 8 - targetBounds.Dx()/2
+		targetY := int(boxY) + 11
+		targetColor := color.RGBA{150, 150, 150, 255}
+		if i < len(hackGame.PlayerInput) {
+			targetColor = color.RGBA{255, 255, 255, 255}
+		}
+		text.Draw(screen, targetNodeText, basicfont.Face7x13, targetX, targetY, targetColor)
 	}
 }
 
@@ -3000,6 +3088,27 @@ func (g *Game) drawCircuitGame(screen *ebiten.Image, centerX, centerY float32) {
 	if !ok {
 		return
 	}
+
+	// Draw title
+	titleText := "CIRCUIT TRACE"
+	titleBounds := text.BoundString(basicfont.Face7x13, titleText)
+	titleX := int(centerX) - titleBounds.Dx()/2
+	titleY := int(centerY) - 110
+	text.Draw(screen, titleText, basicfont.Face7x13, titleX, titleY, color.RGBA{0, 255, 200, 255})
+
+	// Draw instructions
+	instrText := "Arrow keys to navigate. Reach BLUE target!"
+	instrBounds := text.BoundString(basicfont.Face7x13, instrText)
+	instrX := int(centerX) - instrBounds.Dx()/2
+	instrY := int(centerY) - 95
+	text.Draw(screen, instrText, basicfont.Face7x13, instrX, instrY, color.RGBA{200, 200, 200, 255})
+
+	// Draw move counter
+	movesText := fmt.Sprintf("Moves: %d/%d", circuitGame.Moves, circuitGame.MaxMoves)
+	movesBounds := text.BoundString(basicfont.Face7x13, movesText)
+	movesX := int(centerX) - movesBounds.Dx()/2
+	movesY := int(centerY) - 80
+	text.Draw(screen, movesText, basicfont.Face7x13, movesX, movesY, color.RGBA{255, 255, 255, 255})
 
 	gridSize := len(circuitGame.Grid)
 	cellSize := float32(30)
@@ -3013,20 +3122,45 @@ func (g *Game) drawCircuitGame(screen *ebiten.Image, centerX, centerY float32) {
 			cellY := startY + float32(y)*cellSize
 
 			cellColor := color.RGBA{50, 50, 50, 255}
+			cellLabel := ""
+			labelColor := color.RGBA{150, 150, 150, 255}
+
 			if circuitGame.Grid[y][x] == 2 {
-				cellColor = color.RGBA{200, 0, 0, 255} // blocked
+				cellColor = color.RGBA{200, 0, 0, 255}
+				cellLabel = "X"
+				labelColor = color.RGBA{255, 255, 255, 255}
 			}
 			if x == circuitGame.CurrentX && y == circuitGame.CurrentY {
-				cellColor = color.RGBA{0, 255, 0, 255} // current
+				cellColor = color.RGBA{0, 255, 0, 255}
+				cellLabel = "P"
+				labelColor = color.RGBA{0, 0, 0, 255}
 			}
 			if x == circuitGame.TargetX && y == circuitGame.TargetY {
-				cellColor = color.RGBA{0, 200, 255, 255} // target
+				cellColor = color.RGBA{0, 200, 255, 255}
+				cellLabel = "T"
+				labelColor = color.RGBA{0, 0, 0, 255}
 			}
 
 			vector.DrawFilledRect(screen, cellX, cellY, cellSize-2, cellSize-2, cellColor, false)
 			vector.StrokeRect(screen, cellX, cellY, cellSize-2, cellSize-2, 1, color.RGBA{100, 100, 100, 255}, false)
+
+			// Draw cell label
+			if cellLabel != "" {
+				labelBounds := text.BoundString(basicfont.Face7x13, cellLabel)
+				labelX := int(cellX) + int(cellSize-2)/2 - labelBounds.Dx()/2
+				labelY := int(cellY) + int(cellSize-2)/2 + 4
+				text.Draw(screen, cellLabel, basicfont.Face7x13, labelX, labelY, labelColor)
+			}
 		}
 	}
+
+	// Draw legend
+	legendY := int(startY + float32(gridSize)*cellSize + 15)
+	legendX := int(startX)
+
+	text.Draw(screen, "P=You", basicfont.Face7x13, legendX, legendY, color.RGBA{0, 255, 0, 255})
+	text.Draw(screen, "T=Target", basicfont.Face7x13, legendX+60, legendY, color.RGBA{0, 200, 255, 255})
+	text.Draw(screen, "X=Blocked", basicfont.Face7x13, legendX+140, legendY, color.RGBA{200, 0, 0, 255})
 }
 
 // drawCodeGame renders bypass code interface.
@@ -3035,6 +3169,27 @@ func (g *Game) drawCodeGame(screen *ebiten.Image, centerX, centerY float32) {
 	if !ok {
 		return
 	}
+
+	// Draw title
+	titleText := "ACCESS CODE BYPASS"
+	titleBounds := text.BoundString(basicfont.Face7x13, titleText)
+	titleX := int(centerX) - titleBounds.Dx()/2
+	titleY := int(centerY) - 80
+	text.Draw(screen, titleText, basicfont.Face7x13, titleX, titleY, color.RGBA{255, 255, 0, 255})
+
+	// Draw instructions
+	instrText := "Enter code using number keys (0-9)"
+	instrBounds := text.BoundString(basicfont.Face7x13, instrText)
+	instrX := int(centerX) - instrBounds.Dx()/2
+	instrY := int(centerY) - 65
+	text.Draw(screen, instrText, basicfont.Face7x13, instrX, instrY, color.RGBA{200, 200, 200, 255})
+
+	// Draw code length hint
+	hintText := fmt.Sprintf("Code Length: %d digits", len(codeGame.Code))
+	hintBounds := text.BoundString(basicfont.Face7x13, hintText)
+	hintX := int(centerX) - hintBounds.Dx()/2
+	hintY := int(centerY) - 50
+	text.Draw(screen, hintText, basicfont.Face7x13, hintX, hintY, color.RGBA{255, 255, 255, 255})
 
 	codeLength := len(codeGame.Code)
 	digitWidth := float32(30)
@@ -3048,13 +3203,38 @@ func (g *Game) drawCodeGame(screen *ebiten.Image, centerX, centerY float32) {
 		boxY := centerY - digitHeight/2
 
 		boxColor := color.RGBA{30, 30, 30, 255}
+		borderColor := color.RGBA{200, 200, 200, 255}
 		if i < len(codeGame.PlayerInput) {
 			boxColor = color.RGBA{0, 150, 0, 255}
+			borderColor = color.RGBA{0, 255, 0, 255}
 		}
 
 		vector.DrawFilledRect(screen, boxX, boxY, digitWidth, digitHeight, boxColor, false)
-		vector.StrokeRect(screen, boxX, boxY, digitWidth, digitHeight, 2, color.RGBA{200, 200, 200, 255}, false)
+		vector.StrokeRect(screen, boxX, boxY, digitWidth, digitHeight, 2, borderColor, false)
+
+		// Draw entered digit
+		if i < len(codeGame.PlayerInput) {
+			digitText := fmt.Sprintf("%d", codeGame.PlayerInput[i])
+			digitBounds := text.BoundString(basicfont.Face7x13, digitText)
+			digitX := int(boxX) + int(digitWidth)/2 - digitBounds.Dx()/2
+			digitY := int(boxY) + int(digitHeight)/2 + 4
+			text.Draw(screen, digitText, basicfont.Face7x13, digitX, digitY, color.RGBA{255, 255, 255, 255})
+		} else if i == len(codeGame.PlayerInput) {
+			// Show cursor in next empty box
+			cursorText := "_"
+			cursorBounds := text.BoundString(basicfont.Face7x13, cursorText)
+			cursorX := int(boxX) + int(digitWidth)/2 - cursorBounds.Dx()/2
+			cursorY := int(boxY) + int(digitHeight)/2 + 4
+			text.Draw(screen, cursorText, basicfont.Face7x13, cursorX, cursorY, color.RGBA{255, 255, 0, 255})
+		}
 	}
+
+	// Draw backspace hint
+	backspaceText := "Press BACKSPACE to clear"
+	backspaceBounds := text.BoundString(basicfont.Face7x13, backspaceText)
+	backspaceX := int(centerX) - backspaceBounds.Dx()/2
+	backspaceY := int(centerY) + 40
+	text.Draw(screen, backspaceText, basicfont.Face7x13, backspaceX, backspaceY, color.RGBA{150, 150, 150, 255})
 }
 
 // cosf is a helper for float32 cosine.
