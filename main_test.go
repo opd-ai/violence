@@ -8,6 +8,7 @@ import (
 	"github.com/opd-ai/violence/pkg/config"
 	"github.com/opd-ai/violence/pkg/federation"
 	"github.com/opd-ai/violence/pkg/inventory"
+	"github.com/opd-ai/violence/pkg/lore"
 	"github.com/opd-ai/violence/pkg/minigame"
 	"github.com/opd-ai/violence/pkg/quest"
 	"github.com/opd-ai/violence/pkg/ui"
@@ -3570,5 +3571,76 @@ func TestFindExitPosition(t *testing.T) {
 					tt.expected.X, tt.expected.Y, pos.X, pos.Y)
 			}
 		})
+	}
+}
+
+// TestDrawCodex verifies codex rendering with and without entries.
+
+// TestDrawCodex_EmptyCodex verifies codex rendering with no entries.
+func TestDrawCodex_EmptyCodex(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	g := NewGame()
+	screen := ebiten.NewImage(config.C.InternalWidth, config.C.InternalHeight)
+	g.drawCodex(screen)
+}
+
+// TestDrawCodex_WithEntries verifies codex rendering with lore entries.
+func TestDrawCodex_WithEntries(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	g := NewGame()
+	screen := ebiten.NewImage(config.C.InternalWidth, config.C.InternalHeight)
+
+	// Add lore entry
+	entry := lore.Entry{ID: "test1", Title: "Test", Text: "Test entry", Category: "test"}
+	g.loreCodex.AddEntry(entry)
+	g.codexScrollIdx = 0
+
+	g.drawCodex(screen)
+}
+
+// TestHandleChatInput_NoManager verifies chat handling without manager.
+func TestHandleChatInput_NoManager(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	g := NewGame()
+	g.chatManager = nil
+	g.handleChatInput()
+}
+
+// TestHandleChatInput_WithManager verifies chat handling with manager.
+func TestHandleChatInput_WithManager(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	g := NewGame()
+	g.initializeEncryptedChat()
+	g.handleChatInput()
+}
+
+// TestAddChatMessageHistory verifies message history limits.
+func TestAddChatMessageHistory(t *testing.T) {
+	if err := config.Load(); err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	g := NewGame()
+	g.chatMessages = []string{}
+
+	// Add 60 messages (exceeds 50 limit)
+	for i := 0; i < 60; i++ {
+		g.addChatMessage("message " + string(rune('0'+i%10)))
+	}
+
+	if len(g.chatMessages) != 50 {
+		t.Errorf("chat message count = %d, want 50", len(g.chatMessages))
 	}
 }

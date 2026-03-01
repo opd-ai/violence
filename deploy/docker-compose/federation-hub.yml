@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  federation-hub:
+    image: ghcr.io/opd-ai/violence-federation-hub:latest
+    container_name: federation-hub
+    ports:
+      - "8080:8080"
+    environment:
+      - LOG_LEVEL=info
+    command: 
+      - "-addr=:8080"
+      - "-log-level=info"
+      - "-rate-limit=60"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - federation
+
+  # Optional: Add a second hub for redundancy
+  federation-hub-2:
+    image: ghcr.io/opd-ai/violence-federation-hub:latest
+    container_name: federation-hub-2
+    ports:
+      - "8081:8080"
+    environment:
+      - LOG_LEVEL=info
+    command:
+      - "-addr=:8080"
+      - "-log-level=info"
+      - "-rate-limit=60"
+      - "-peers=http://federation-hub:8080"
+    restart: unless-stopped
+    depends_on:
+      - federation-hub
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - federation
+
+networks:
+  federation:
+    driver: bridge

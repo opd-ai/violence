@@ -1,0 +1,37 @@
+# Build stage
+FROM golang:1.24-alpine AS builder
+
+WORKDIR /build
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build federation hub binary
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o federation-hub ./cmd/federation-hub
+
+# Runtime stage
+FROM alpine:3.19
+
+RUN apk --no-cache add ca-certificates tzdata
+
+WORKDIR /app
+
+# Copy binary from builder
+COPY --from=builder /build/federation-hub .
+
+# Expose default port
+EXPOSE 8080
+
+# Run as non-root user
+RUN addgroup -g 1000 federation && \
+    adduser -D -u 1000 -G federation federation && \
+    chown -R federation:federation /app
+
+USER federation
+
+ENTRYPOINT ["./federation-hub"]
+CMD ["-addr=:8080", "-log-level=info"]
