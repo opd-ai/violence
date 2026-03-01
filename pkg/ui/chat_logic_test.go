@@ -378,3 +378,77 @@ func TestChatOverlayConcurrency(t *testing.T) {
 		t.Errorf("Message count = %d, want %d", len(co.Messages), expectedCount)
 	}
 }
+
+// TestChatOverlayRaceConditions verifies that all ChatOverlay methods are race-free.
+// Run with: go test -race
+func TestChatOverlayRaceConditions(t *testing.T) {
+	co := NewChatOverlay(10, 10, 400, 300)
+
+	// Seed with some messages
+	for i := 0; i < 15; i++ {
+		co.AddMessage("Player", "Message", int64(i))
+	}
+
+	done := make(chan bool)
+
+	// Goroutine 1: Add messages
+	go func() {
+		for i := 0; i < 50; i++ {
+			co.AddMessage("Player1", "Concurrent message", int64(i))
+		}
+		done <- true
+	}()
+
+	// Goroutine 2: Toggle visibility
+	go func() {
+		for i := 0; i < 50; i++ {
+			co.Show()
+			co.Hide()
+			co.Toggle()
+		}
+		done <- true
+	}()
+
+	// Goroutine 3: Input operations
+	go func() {
+		for i := 0; i < 50; i++ {
+			co.AppendToInput('a')
+			_ = co.GetInput()
+			co.Backspace()
+			co.ClearInput()
+		}
+		done <- true
+	}()
+
+	// Goroutine 4: Scroll operations
+	go func() {
+		for i := 0; i < 50; i++ {
+			co.ScrollUp()
+			co.ScrollDown()
+		}
+		done <- true
+	}()
+
+	// Goroutine 5: Read operations
+	go func() {
+		for i := 0; i < 50; i++ {
+			_ = co.IsVisible()
+			_ = co.GetVisibleMessages()
+			_ = co.GetInput()
+		}
+		done <- true
+	}()
+
+	// Wait for all goroutines
+	for i := 0; i < 5; i++ {
+		<-done
+	}
+
+	// Verify state is valid after concurrent access
+	if co.ScrollOffset < 0 {
+		t.Error("ScrollOffset became negative after concurrent access")
+	}
+	if co.CursorPosition < 0 {
+		t.Error("CursorPosition became negative after concurrent access")
+	}
+}

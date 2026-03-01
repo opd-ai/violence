@@ -55,11 +55,15 @@ func NewChatOverlay(x, y, width, height int) *ChatOverlay {
 
 // Show makes the chat overlay visible.
 func (co *ChatOverlay) Show() {
+	co.mu.Lock()
+	defer co.mu.Unlock()
 	co.Visible = true
 }
 
 // Hide makes the chat overlay invisible.
 func (co *ChatOverlay) Hide() {
+	co.mu.Lock()
+	defer co.mu.Unlock()
 	co.Visible = false
 	co.InputBuffer = ""
 	co.CursorPosition = 0
@@ -67,6 +71,8 @@ func (co *ChatOverlay) Hide() {
 
 // Toggle toggles chat overlay visibility.
 func (co *ChatOverlay) Toggle() {
+	co.mu.Lock()
+	defer co.mu.Unlock()
 	co.Visible = !co.Visible
 	if !co.Visible {
 		co.InputBuffer = ""
@@ -76,6 +82,8 @@ func (co *ChatOverlay) Toggle() {
 
 // IsVisible returns whether the chat overlay is currently visible.
 func (co *ChatOverlay) IsVisible() bool {
+	co.mu.Lock()
+	defer co.mu.Unlock()
 	return co.Visible
 }
 
@@ -105,17 +113,23 @@ func (co *ChatOverlay) AddMessage(sender, content string, timestamp int64) {
 
 // GetInput returns the current input buffer.
 func (co *ChatOverlay) GetInput() string {
+	co.mu.Lock()
+	defer co.mu.Unlock()
 	return co.InputBuffer
 }
 
 // ClearInput clears the input buffer.
 func (co *ChatOverlay) ClearInput() {
+	co.mu.Lock()
+	defer co.mu.Unlock()
 	co.InputBuffer = ""
 	co.CursorPosition = 0
 }
 
 // AppendToInput appends a character to the input buffer.
 func (co *ChatOverlay) AppendToInput(char rune) {
+	co.mu.Lock()
+	defer co.mu.Unlock()
 	if len(co.InputBuffer) < ChatInputMaxLength {
 		co.InputBuffer += string(char)
 		co.CursorPosition = len(co.InputBuffer)
@@ -124,6 +138,8 @@ func (co *ChatOverlay) AppendToInput(char rune) {
 
 // Backspace removes the last character from the input buffer.
 func (co *ChatOverlay) Backspace() {
+	co.mu.Lock()
+	defer co.mu.Unlock()
 	if len(co.InputBuffer) > 0 {
 		co.InputBuffer = co.InputBuffer[:len(co.InputBuffer)-1]
 		co.CursorPosition = len(co.InputBuffer)
@@ -132,6 +148,8 @@ func (co *ChatOverlay) Backspace() {
 
 // ScrollUp scrolls the message history up.
 func (co *ChatOverlay) ScrollUp() {
+	co.mu.Lock()
+	defer co.mu.Unlock()
 	if co.ScrollOffset > 0 {
 		co.ScrollOffset--
 	}
@@ -139,6 +157,8 @@ func (co *ChatOverlay) ScrollUp() {
 
 // ScrollDown scrolls the message history down.
 func (co *ChatOverlay) ScrollDown() {
+	co.mu.Lock()
+	defer co.mu.Unlock()
 	maxScroll := len(co.Messages) - ChatMaxVisibleMessages
 	if maxScroll < 0 {
 		maxScroll = 0
@@ -150,6 +170,8 @@ func (co *ChatOverlay) ScrollDown() {
 
 // GetVisibleMessages returns the messages currently visible based on scroll offset.
 func (co *ChatOverlay) GetVisibleMessages() []ChatMessage {
+	co.mu.Lock()
+	defer co.mu.Unlock()
 	totalMessages := len(co.Messages)
 	if totalMessages == 0 {
 		return []ChatMessage{}
@@ -173,7 +195,14 @@ func (co *ChatOverlay) GetVisibleMessages() []ChatMessage {
 
 // Draw renders the chat overlay to the screen.
 func (co *ChatOverlay) Draw(screen *ebiten.Image) {
-	if !co.Visible {
+	co.mu.Lock()
+	visible := co.Visible
+	inputBuffer := co.InputBuffer
+	messages := co.Messages
+	scrollOffset := co.ScrollOffset
+	co.mu.Unlock()
+
+	if !visible {
 		return
 	}
 
@@ -199,7 +228,25 @@ func (co *ChatOverlay) Draw(screen *ebiten.Image) {
 	messageColor := color.RGBA{R: 255, G: 255, B: 255, A: 255}
 	senderColor := color.RGBA{R: 100, G: 200, B: 255, A: 255}
 
-	visibleMessages := co.GetVisibleMessages()
+	// Calculate visible messages inline to avoid recursive locking
+	var visibleMessages []ChatMessage
+	totalMessages := len(messages)
+	if totalMessages > 0 {
+		startIdx := scrollOffset
+		endIdx := scrollOffset + ChatMaxVisibleMessages
+
+		if endIdx > totalMessages {
+			endIdx = totalMessages
+		}
+		if startIdx >= totalMessages {
+			startIdx = totalMessages - 1
+			if startIdx < 0 {
+				startIdx = 0
+			}
+		}
+		visibleMessages = messages[startIdx:endIdx]
+	}
+
 	for _, msg := range visibleMessages {
 		// Draw sender name
 		senderText := fmt.Sprintf("%s:", msg.Sender)
@@ -223,18 +270,18 @@ func (co *ChatOverlay) Draw(screen *ebiten.Image) {
 
 	// Input buffer
 	inputColor := color.RGBA{R: 255, G: 255, B: 255, A: 255}
-	text.Draw(screen, co.InputBuffer, basicfont.Face7x13, co.X+25, inputY+10, inputColor)
+	text.Draw(screen, inputBuffer, basicfont.Face7x13, co.X+25, inputY+10, inputColor)
 
 	// Cursor (blinking effect using frame counter)
-	if co.Visible && ebiten.TPS() > 0 {
-		cursorX := co.X + 25 + len(co.InputBuffer)*7
+	if visible && ebiten.TPS() > 0 {
+		cursorX := co.X + 25 + len(inputBuffer)*7
 		cursorColor := color.RGBA{R: 255, G: 255, B: 255, A: 255}
 		vector.StrokeLine(screen, float32(cursorX), float32(inputY), float32(cursorX), float32(inputY+12), 2, cursorColor, false)
 	}
 
 	// Scroll indicator
-	if len(co.Messages) > ChatMaxVisibleMessages {
-		scrollText := fmt.Sprintf("%d/%d", co.ScrollOffset+1, len(co.Messages)-ChatMaxVisibleMessages+1)
+	if len(messages) > ChatMaxVisibleMessages {
+		scrollText := fmt.Sprintf("%d/%d", scrollOffset+1, len(messages)-ChatMaxVisibleMessages+1)
 		scrollColor := color.RGBA{R: 150, G: 150, B: 150, A: 255}
 		scrollX := co.X + co.Width - len(scrollText)*7 - 10
 		text.Draw(screen, scrollText, basicfont.Face7x13, scrollX, co.Y+20, scrollColor)

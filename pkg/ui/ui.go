@@ -4,6 +4,7 @@ package ui
 import (
 	"fmt"
 	"image/color"
+	"sync/atomic"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text"
@@ -98,7 +99,12 @@ type Theme struct {
 	KeycardColors [3]color.RGBA // Red, Blue, Yellow
 }
 
-var currentTheme = getDefaultTheme()
+// currentTheme stores the active theme atomically for safe concurrent access.
+var currentTheme atomic.Pointer[Theme]
+
+func init() {
+	currentTheme.Store(getDefaultTheme())
+}
 
 // NewHUD creates a HUD with default values.
 func NewHUD() *HUD {
@@ -112,7 +118,7 @@ func NewHUD() *HUD {
 		MaxArmor:    100,
 		MaxAmmo:     200,
 		WeaponName:  "Pistol",
-		theme:       currentTheme,
+		theme:       currentTheme.Load(),
 		Message:     "",
 		MessageTime: 0,
 	}
@@ -141,7 +147,7 @@ func DrawHUD(screen *ebiten.Image, h *HUD) {
 		return
 	}
 	if h.theme == nil {
-		h.theme = currentTheme
+		h.theme = currentTheme.Load()
 	}
 
 	bounds := screen.Bounds()
@@ -455,7 +461,8 @@ func DrawMenu(screen *ebiten.Image, mm *MenuManager) {
 
 	// Draw title
 	titleX := screenWidth / 2
-	drawCenteredLabel(screen, titleX, menuY, title, currentTheme.TextColor)
+	theme := currentTheme.Load()
+	drawCenteredLabel(screen, titleX, menuY, title, theme.TextColor)
 
 	// Highlight width adapts to screen (max 80% of screen)
 	highlightW := screenWidth * 0.8
@@ -476,7 +483,7 @@ func DrawMenu(screen *ebiten.Image, mm *MenuManager) {
 		}
 
 		// Draw item text
-		itemColor := currentTheme.TextColor
+		itemColor := theme.TextColor
 		if i == mm.selectedIndex {
 			itemColor = color.RGBA{255, 255, 255, 255}
 		}
@@ -539,7 +546,7 @@ func drawCenteredLabel(screen *ebiten.Image, x, y float32, label string, c color
 
 // SetGenre configures UI theme for a genre.
 func SetGenre(genreID string) {
-	currentTheme = getThemeForGenre(genreID)
+	currentTheme.Store(getThemeForGenre(genreID))
 }
 
 // getDefaultTheme returns the default UI theme.
@@ -618,8 +625,9 @@ func drawSettingsScreen(screen *ebiten.Image, mm *MenuManager, screenWidth, scre
 	titleX := screenWidth / 2
 	titleY := float32(20)
 
+	theme := currentTheme.Load()
 	// Draw main title
-	drawCenteredLabel(screen, titleX, titleY, "SETTINGS", currentTheme.TextColor)
+	drawCenteredLabel(screen, titleX, titleY, "SETTINGS", theme.TextColor)
 
 	// Determine if we're in a category or main settings
 	items := mm.menuItems[MenuTypeSettings]
@@ -677,7 +685,7 @@ func drawSettingsScreen(screen *ebiten.Image, mm *MenuManager, screenWidth, scre
 		}
 
 		// Draw item label
-		itemColor := currentTheme.TextColor
+		itemColor := theme.TextColor
 		if i == mm.selectedIndex {
 			itemColor = color.RGBA{255, 255, 255, 255}
 		}
@@ -942,9 +950,10 @@ func DrawLoadingScreen(screen *ebiten.Image, ls *LoadingScreen) {
 	centerX := screenWidth / 2
 	centerY := screenHeight / 2
 
+	theme := currentTheme.Load()
 	// Draw title
 	titleY := centerY - 60
-	drawCenteredLabel(screen, centerX, titleY, "VIOLENCE", currentTheme.TextColor)
+	drawCenteredLabel(screen, centerX, titleY, "VIOLENCE", theme.TextColor)
 
 	// Draw loading message
 	messageY := centerY
@@ -1009,6 +1018,7 @@ func DrawShop(screen *ebiten.Image, state *ShopState) {
 	vector.DrawFilledRect(screen, 0, 0, screenWidth, screenHeight, overlay, false)
 
 	centerX := screenWidth / 2
+	theme := currentTheme.Load()
 
 	// Draw shop title
 	titleY := float32(30)
@@ -1037,7 +1047,7 @@ func DrawShop(screen *ebiten.Image, state *ShopState) {
 		}
 
 		// Item name
-		nameColor := currentTheme.TextColor
+		nameColor := theme.TextColor
 		if i == state.Selected {
 			nameColor = color.RGBA{255, 255, 255, 255}
 		}
@@ -1104,6 +1114,7 @@ func DrawCrafting(screen *ebiten.Image, state *CraftingState) {
 	vector.DrawFilledRect(screen, 0, 0, screenWidth, screenHeight, overlay, false)
 
 	centerX := screenWidth / 2
+	theme := currentTheme.Load()
 
 	// Draw crafting title
 	titleY := float32(30)
@@ -1135,7 +1146,7 @@ func DrawCrafting(screen *ebiten.Image, state *CraftingState) {
 		}
 
 		// Recipe name and output quantity
-		nameColor := currentTheme.TextColor
+		nameColor := theme.TextColor
 		if !recipe.CanCraft {
 			nameColor = color.RGBA{120, 120, 120, 255} // Dim if can't craft
 		} else if i == state.Selected {
@@ -1369,6 +1380,7 @@ func DrawCommandWheel(screen *ebiten.Image, cw *CommandWheel) {
 	// Calculate center position
 	centerX := screenWidth / 2
 	centerY := screenHeight / 2
+	theme := currentTheme.Load()
 
 	// Draw command title
 	titleY := centerY - 120
@@ -1401,7 +1413,7 @@ func DrawCommandWheel(screen *ebiten.Image, cw *CommandWheel) {
 		}
 
 		// Draw player name
-		nameColor := currentTheme.TextColor
+		nameColor := theme.TextColor
 		if !player.Active {
 			nameColor = color.RGBA{100, 100, 100, 255}
 		} else if i == cw.selectedIndex {
@@ -1433,7 +1445,7 @@ func DrawCommandWheel(screen *ebiten.Image, cw *CommandWheel) {
 
 			// Draw health bar fill
 			fillWidth := barWidth * float32(healthPercent)
-			healthColor := currentTheme.HealthColor
+			healthColor := theme.HealthColor
 			if healthPercent < 0.3 {
 				healthColor = color.RGBA{200, 50, 50, 255}
 			} else if healthPercent < 0.6 {

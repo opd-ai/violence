@@ -145,18 +145,19 @@ func TestSetGenre(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			SetGenre(tt.genreID)
-			if currentTheme == nil {
+			theme := currentTheme.Load()
+			if theme == nil {
 				t.Error("expected SetGenre to set currentTheme")
 			}
 
 			// Verify theme has valid colors
-			if currentTheme.HealthColor.A == 0 {
+			if theme.HealthColor.A == 0 {
 				t.Error("expected HealthColor to have alpha > 0")
 			}
-			if currentTheme.ArmorColor.A == 0 {
+			if theme.ArmorColor.A == 0 {
 				t.Error("expected ArmorColor to have alpha > 0")
 			}
-			if currentTheme.AmmoColor.A == 0 {
+			if theme.AmmoColor.A == 0 {
 				t.Error("expected AmmoColor to have alpha > 0")
 			}
 		})
