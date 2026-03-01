@@ -1831,14 +1831,24 @@ func (g *Game) openSkills() {
 
 // updateSkills handles skills screen input.
 func (g *Game) updateSkills() error {
-	// Back to playing
 	if g.input.IsJustPressed(input.ActionPause) || g.input.IsJustPressed(input.ActionSkills) {
 		g.state = StatePlaying
 		g.menuManager.Hide()
 		return nil
 	}
 
-	// Switch tree tabs with strafe keys (left/right)
+	handleSkillTreeNavigation(g)
+	handleSkillNodeNavigation(g)
+
+	if g.input.IsJustPressed(input.ActionFire) || g.input.IsJustPressed(input.ActionInteract) {
+		g.handleSkillAllocate()
+	}
+
+	return nil
+}
+
+// handleSkillTreeNavigation switches between skill tree tabs using strafe keys.
+func handleSkillTreeNavigation(g *Game) {
 	if g.input.IsJustPressed(input.ActionStrafeLeft) {
 		if g.skillsTreeIdx > 0 {
 			g.skillsTreeIdx--
@@ -1846,13 +1856,15 @@ func (g *Game) updateSkills() error {
 		}
 	}
 	if g.input.IsJustPressed(input.ActionStrafeRight) {
-		if g.skillsTreeIdx < 2 { // 3 trees: combat, survival, tech
+		if g.skillsTreeIdx < 2 {
 			g.skillsTreeIdx++
 			g.skillsNodeIdx = 0
 		}
 	}
+}
 
-	// Navigate nodes
+// handleSkillNodeNavigation moves cursor between skill nodes within the active tree.
+func handleSkillNodeNavigation(g *Game) {
 	if g.input.IsJustPressed(input.ActionMoveForward) {
 		if g.skillsNodeIdx > 0 {
 			g.skillsNodeIdx--
@@ -1861,13 +1873,6 @@ func (g *Game) updateSkills() error {
 	if g.input.IsJustPressed(input.ActionMoveBackward) {
 		g.skillsNodeIdx++
 	}
-
-	// Allocate skill point
-	if g.input.IsJustPressed(input.ActionFire) || g.input.IsJustPressed(input.ActionInteract) {
-		g.handleSkillAllocate()
-	}
-
-	return nil
 }
 
 // handleSkillAllocate attempts to allocate a skill point.
