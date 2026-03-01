@@ -111,6 +111,7 @@ type Game struct {
 	// v3.0 systems
 	textureAtlas    *texture.Atlas
 	lightMap        *lighting.SectorLightMap
+	shadowSystem    *lighting.ShadowSystem
 	particleSystem  *particle.ParticleSystem
 	weatherEmitter  *particle.WeatherEmitter
 	postProcessor   *render.PostProcessor
@@ -224,6 +225,7 @@ func NewGame() *Game {
 		// v3.0 systems
 		textureAtlas:    texture.NewAtlas(seed),
 		lightMap:        lighting.NewSectorLightMap(64, 64, 0.3),
+		shadowSystem:    lighting.NewShadowSystem(config.C.InternalWidth, config.C.InternalHeight, "fantasy"),
 		particleSystem:  particle.NewParticleSystem(1024, int64(seed)),
 		postProcessor:   render.NewPostProcessor(config.C.InternalWidth, config.C.InternalHeight, int64(seed)),
 		animationTicker: 0,
@@ -644,6 +646,7 @@ func (g *Game) setGenre(genreID string) {
 	// v3.0 systems
 	g.textureAtlas.SetGenre(genreID)
 	g.lightMap.SetGenre(genreID)
+	g.shadowSystem.SetGenre(genreID)
 	g.postProcessor.SetGenre(genreID)
 	g.renderer.SetGenre(genreID)
 	// WeatherEmitter doesn't have SetGenre - recreate it on genre change
@@ -2801,6 +2804,11 @@ func (g *Game) drawPlaying(screen *ebiten.Image) {
 		g.renderLoreItems(screen)
 	}
 
+	// Render dynamic shadows for entities/props
+	if g.shadowSystem != nil && g.lightMap != nil {
+		g.renderShadows(screen)
+	}
+
 	// Render particles on top of 3D world (simple sprite overlay for now)
 	// TODO: Add particle rendering to renderer or as separate overlay
 	if g.particleSystem != nil {
@@ -2940,6 +2948,142 @@ func (g *Game) renderProps(screen *ebiten.Image) {
 			float32(drawEndX-drawStartX), float32(drawEndY-drawStartY),
 			propColor, false)
 	}
+}
+
+// renderShadows draws dynamic shadows for props and entities based on active lights.
+func (g *Game) renderShadows(screen *ebiten.Image) {
+	// Collect shadow casters from props
+	var casters []lighting.ShadowCaster
+
+	if g.propsManager != nil {
+		allProps := g.propsManager.GetProps()
+		for _, prop := range allProps {
+			// Calculate distance to camera for culling
+			dx := prop.X - g.camera.X
+			dy := prop.Y - g.camera.Y
+			distSq := dx*dx + dy*dy
+
+			// Only cast shadows for nearby props (within visible range)
+			if distSq > 400 {
+				continue
+			}
+
+			// Determine shadow parameters based on prop type
+			radius := 0.5
+			height := 1.0
+			opacity := 0.7
+
+			switch prop.SpriteType {
+			case props.PropPillar:
+				radius = 0.6
+				height = 2.0
+				opacity = 0.8
+			case props.PropBarrel, props.PropCrate, props.PropContainer:
+				radius = 0.5
+				height = 1.2
+				opacity = 0.7
+			case props.PropTable:
+				radius = 0.7
+				height = 0.8
+				opacity = 0.6
+			case props.PropTorch:
+				// Torches are light sources - smaller shadow
+				radius = 0.2
+				height = 0.5
+				opacity = 0.4
+			case props.PropTerminal:
+				radius = 0.4
+				height = 1.5
+				opacity = 0.7
+			case props.PropBones, props.PropDebris:
+				// Small debris - subtle shadows
+				radius = 0.3
+				height = 0.3
+				opacity = 0.5
+			case props.PropPlant:
+				radius = 0.4
+				height = 0.8
+				opacity = 0.6
+			}
+
+			casters = append(casters, lighting.ShadowCaster{
+				X:          prop.X,
+				Y:          prop.Y,
+				Radius:     radius,
+				Height:     height,
+				Opacity:    opacity,
+				CastShadow: true,
+			})
+		}
+	}
+
+	// Add player shadow
+	casters = append(casters, lighting.ShadowCaster{
+		X:          g.camera.X,
+		Y:          g.camera.Y,
+		Radius:     0.4,
+		Height:     1.8,
+		Opacity:    0.75,
+		CastShadow: true,
+	})
+
+	// Add lore item shadows
+	for _, item := range g.loreItems {
+		dx := item.PosX - g.camera.X
+		dy := item.PosY - g.camera.Y
+		distSq := dx*dx + dy*dy
+		if distSq <= 400 {
+			casters = append(casters, lighting.ShadowCaster{
+				X:          item.PosX,
+				Y:          item.PosY,
+				Radius:     0.3,
+				Height:     0.5,
+				Opacity:    0.6,
+				CastShadow: true,
+			})
+		}
+	}
+
+	// Collect lights from lightMap
+	// For now, we'll use a simple approach: add point lights based on torches and ambient sources
+	var lights []lighting.Light
+	var coneLights []lighting.ConeLight
+
+	// Add torch props as light sources
+	if g.propsManager != nil {
+		allProps := g.propsManager.GetProps()
+		for _, prop := range allProps {
+			if prop.SpriteType == props.PropTorch {
+				lights = append(lights, lighting.Light{
+					X:         prop.X,
+					Y:         prop.Y,
+					Radius:    8.0,
+					Intensity: 0.9,
+					R:         1.0,
+					G:         0.8,
+					B:         0.4,
+				})
+			}
+		}
+	}
+
+	// Add player flashlight as cone light (always present for gameplay visibility)
+	coneLights = append(coneLights, lighting.ConeLight{
+		X:         g.camera.X,
+		Y:         g.camera.Y,
+		DirX:      g.camera.DirX,
+		DirY:      g.camera.DirY,
+		Radius:    12.0,
+		Angle:     0.5,
+		Intensity: 0.8,
+		R:         1.0,
+		G:         1.0,
+		B:         1.0,
+		IsActive:  true,
+	})
+
+	// Render shadows
+	g.shadowSystem.RenderShadows(screen, casters, lights, coneLights, g.camera.X, g.camera.Y)
 }
 
 // drawAutomap renders the automap overlay.
