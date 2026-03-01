@@ -367,6 +367,38 @@ func TestLargeReplay(t *testing.T) {
 	}
 }
 
+func TestSaveInvalidPath(t *testing.T) {
+	recorder := NewReplayRecorder(123, 1)
+	recorder.RecordInput(0, InputMoveUp, 0, 0)
+
+	// Try to save to invalid path (directory that doesn't exist)
+	err := recorder.Save("/nonexistent/directory/replay.vrep")
+	if err == nil {
+		t.Error("Save() should error on invalid path")
+	}
+}
+
+func TestSaveToReadOnlyDirectory(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("skipping test when running as root")
+	}
+
+	tmpDir := t.TempDir()
+	readOnlyDir := filepath.Join(tmpDir, "readonly")
+	if err := os.Mkdir(readOnlyDir, 0o555); err != nil {
+		t.Fatalf("failed to create read-only dir: %v", err)
+	}
+	defer os.Chmod(readOnlyDir, 0o755) // cleanup
+
+	recorder := NewReplayRecorder(456, 1)
+	recorder.RecordInput(0, InputFire, 0, 0)
+
+	err := recorder.Save(filepath.Join(readOnlyDir, "test.vrep"))
+	if err == nil {
+		t.Error("Save() should error when writing to read-only directory")
+	}
+}
+
 // BenchmarkRecordInput measures input recording performance
 func BenchmarkRecordInput(b *testing.B) {
 	recorder := NewReplayRecorder(123, 4)
