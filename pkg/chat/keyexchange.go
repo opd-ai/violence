@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 
@@ -64,7 +65,10 @@ func PerformKeyExchange(conn net.Conn) ([]byte, error) {
 	}
 
 	// Derive AES-256 key from shared secret using HKDF
-	aesKey := deriveKey(sharedSecret, 32)
+	aesKey, err := deriveKey(sharedSecret, 32)
+	if err != nil {
+		return nil, fmt.Errorf("failed to derive key: %w", err)
+	}
 
 	return aesKey, nil
 }
@@ -109,7 +113,7 @@ func receivePublicKey(conn net.Conn) ([]byte, error) {
 }
 
 // deriveKey derives an encryption key from shared secret using HKDF-SHA3-256
-func deriveKey(sharedSecret []byte, keyLen int) []byte {
+func deriveKey(sharedSecret []byte, keyLen int) ([]byte, error) {
 	// HKDF with SHA3-256
 	// Salt: nil (not required for ECDH as shared secret is already random)
 	// Info: context string to bind key to application
@@ -118,10 +122,10 @@ func deriveKey(sharedSecret []byte, keyLen int) []byte {
 
 	key := make([]byte, keyLen)
 	if _, err := io.ReadFull(hkdf, key); err != nil {
-		panic(err) // Should never fail with valid inputs
+		return nil, err
 	}
 
-	return key
+	return key, nil
 }
 
 // EncryptMessage encrypts a plaintext message using AES-256-GCM

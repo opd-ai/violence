@@ -10,6 +10,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Message represents a chat message.
@@ -63,7 +64,7 @@ func (c *Chat) Send(message string) error {
 
 	c.messages = append(c.messages, Message{
 		Content: message,
-		Time:    0, // Would use time.Now().Unix() in real impl
+		Time:    time.Now().Unix(),
 	})
 	return nil
 }
@@ -165,6 +166,7 @@ var profanityWords = []string{
 	"crap", "piss", "cock", "dick", "pussy", "cunt",
 	"fag", "retard", "nigger", "nigga", "kike", "spic",
 }
+var profanityMu sync.RWMutex
 
 // FilterProfanity applies profanity masking to a message if enabled.
 // Flagged words are replaced with asterisks of equal length.
@@ -176,7 +178,12 @@ func FilterProfanity(message string, filterEnabled bool) string {
 	result := message
 	lower := strings.ToLower(message)
 
-	for _, word := range profanityWords {
+	profanityMu.RLock()
+	words := make([]string, len(profanityWords))
+	copy(words, profanityWords)
+	profanityMu.RUnlock()
+
+	for _, word := range words {
 		// Find all occurrences (case-insensitive)
 		for {
 			idx := strings.Index(lower, word)
@@ -202,18 +209,24 @@ func AddProfanityWord(word string) {
 	if word == "" {
 		return
 	}
+	profanityMu.Lock()
 	profanityWords = append(profanityWords, strings.ToLower(word))
+	profanityMu.Unlock()
 }
 
 // ClearProfanityWords clears all profanity words (useful for testing).
 func ClearProfanityWords() {
+	profanityMu.Lock()
 	profanityWords = []string{}
+	profanityMu.Unlock()
 }
 
 // SetProfanityWords replaces the profanity word list.
 func SetProfanityWords(words []string) {
+	profanityMu.Lock()
 	profanityWords = make([]string, len(words))
 	for i, word := range words {
 		profanityWords[i] = strings.ToLower(word)
 	}
+	profanityMu.Unlock()
 }

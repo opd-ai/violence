@@ -207,7 +207,10 @@ func TestDeriveKey(t *testing.T) {
 	io.ReadFull(rand.Reader, secret)
 
 	// Derive key
-	key := deriveKey(secret, 32)
+	key, err := deriveKey(secret, 32)
+	if err != nil {
+		t.Fatalf("deriveKey failed: %v", err)
+	}
 
 	// Verify key length
 	if len(key) != 32 {
@@ -215,7 +218,10 @@ func TestDeriveKey(t *testing.T) {
 	}
 
 	// Verify determinism (same secret produces same key)
-	key2 := deriveKey(secret, 32)
+	key2, err := deriveKey(secret, 32)
+	if err != nil {
+		t.Fatalf("deriveKey failed: %v", err)
+	}
 	if !bytes.Equal(key, key2) {
 		t.Error("deriveKey is not deterministic")
 	}
@@ -223,7 +229,10 @@ func TestDeriveKey(t *testing.T) {
 	// Verify different secrets produce different keys
 	secret2 := make([]byte, 32)
 	io.ReadFull(rand.Reader, secret2)
-	key3 := deriveKey(secret2, 32)
+	key3, err := deriveKey(secret2, 32)
+	if err != nil {
+		t.Fatalf("deriveKey failed: %v", err)
+	}
 	if bytes.Equal(key, key3) {
 		t.Error("different secrets produced same key")
 	}

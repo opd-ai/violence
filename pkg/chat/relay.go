@@ -23,12 +23,14 @@ type EncryptedMessage struct {
 // RelayServer relays encrypted chat messages without plaintext storage.
 // Messages are encrypted client-side; server has no decryption keys.
 type RelayServer struct {
-	listener net.Listener
-	clients  map[string]net.Conn // playerID -> connection
-	messages chan EncryptedMessage
-	done     chan struct{}
-	mu       sync.RWMutex
-	logger   *logrus.Entry
+	listener       net.Listener
+	clients        map[string]net.Conn // playerID -> connection
+	messages       chan EncryptedMessage
+	done           chan struct{}
+	mu             sync.RWMutex
+	logger         *logrus.Entry
+	readTimeout    time.Duration
+	messageTimeout time.Duration
 }
 
 // NewRelayServer creates a chat relay server.
@@ -39,10 +41,12 @@ func NewRelayServer(addr string) (*RelayServer, error) {
 	}
 
 	return &RelayServer{
-		listener: listener,
-		clients:  make(map[string]net.Conn),
-		messages: make(chan EncryptedMessage, 100),
-		done:     make(chan struct{}),
+		listener:       listener,
+		clients:        make(map[string]net.Conn),
+		messages:       make(chan EncryptedMessage, 100),
+		done:           make(chan struct{}),
+		readTimeout:    30 * time.Second,
+		messageTimeout: 100 * time.Millisecond,
 		logger: logrus.WithFields(logrus.Fields{
 			"system": "chat_relay",
 		}),
@@ -116,7 +120,7 @@ func (rs *RelayServer) handleClient(conn net.Conn) {
 		}
 
 		// Set read deadline to detect disconnects
-		conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+		conn.SetReadDeadline(time.Now().Add(rs.readTimeout))
 
 		line, err := reader.ReadString('\n')
 		if err != nil {
@@ -213,15 +217,30 @@ func (rs *RelayServer) GetAddr() string {
 	return rs.listener.Addr().String()
 }
 
+// SetReadTimeout sets the timeout for client read operations.
+func (rs *RelayServer) SetReadTimeout(timeout time.Duration) {
+	rs.mu.Lock()
+	rs.readTimeout = timeout
+	rs.mu.Unlock()
+}
+
+// SetMessageTimeout sets the timeout for message receive operations.
+func (rs *RelayServer) SetMessageTimeout(timeout time.Duration) {
+	rs.mu.Lock()
+	rs.messageTimeout = timeout
+	rs.mu.Unlock()
+}
+
 // RelayClient connects to a chat relay server.
 type RelayClient struct {
-	conn     net.Conn
-	playerID string
-	incoming chan EncryptedMessage
-	done     chan struct{}
-	closed   bool
-	mu       sync.Mutex
-	logger   *logrus.Entry
+	conn           net.Conn
+	playerID       string
+	incoming       chan EncryptedMessage
+	done           chan struct{}
+	closed         bool
+	mu             sync.Mutex
+	logger         *logrus.Entry
+	messageTimeout time.Duration
 }
 
 // NewRelayClient creates a chat relay client.
@@ -238,10 +257,11 @@ func NewRelayClient(addr, playerID string) (*RelayClient, error) {
 	}
 
 	client := &RelayClient{
-		conn:     conn,
-		playerID: playerID,
-		incoming: make(chan EncryptedMessage, 50),
-		done:     make(chan struct{}),
+		conn:           conn,
+		playerID:       playerID,
+		incoming:       make(chan EncryptedMessage, 50),
+		done:           make(chan struct{}),
+		messageTimeout: 100 * time.Millisecond,
 		logger: logrus.WithFields(logrus.Fields{
 			"system":    "chat_relay_client",
 			"player_id": playerID,
@@ -306,9 +326,16 @@ func (rc *RelayClient) ReceiveEncrypted() (*EncryptedMessage, error) {
 		return &msg, nil
 	case <-rc.done:
 		return nil, fmt.Errorf("client stopped")
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(rc.messageTimeout):
 		return nil, nil // No message available
 	}
+}
+
+// SetMessageTimeout sets the timeout for message receive operations.
+func (rc *RelayClient) SetMessageTimeout(timeout time.Duration) {
+	rc.mu.Lock()
+	rc.messageTimeout = timeout
+	rc.mu.Unlock()
 }
 
 // Close disconnects from the relay server.

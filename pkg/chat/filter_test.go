@@ -27,7 +27,7 @@ func TestLoadLanguage(t *testing.T) {
 		{"de", false},
 		{"fr", false},
 		{"pt", false},
-		{"invalid", false}, // Falls back to English, no error
+		{"invalid", true}, // Now returns error instead of fallback
 	}
 
 	for _, tt := range tests {

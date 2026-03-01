@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 )
@@ -31,6 +32,14 @@ func NewProfanityFilterWithSeed(seed int64) *ProfanityFilter {
 func (pf *ProfanityFilter) LoadLanguage(lang string) error {
 	pf.mu.Lock()
 	defer pf.mu.Unlock()
+
+	// Validate language code
+	validLangs := map[string]bool{
+		"en": true, "es": true, "de": true, "fr": true, "pt": true,
+	}
+	if !validLangs[lang] {
+		return fmt.Errorf("unsupported language code: %s", lang)
+	}
 
 	// Check if already loaded
 	if _, exists := pf.wordlists[lang]; exists {
