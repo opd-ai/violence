@@ -36,6 +36,7 @@ This file tracks the audit status of all Go sub-packages in the repository.
 - [x] pkg/input — Complete — 5 issues (0 high, 1 med, 4 low)
 - [x] pkg/rng — Needs Work — 8 issues (2 high, 2 med, 4 low)
 - [x] pkg/class — Needs Work — 8 issues (2 high, 3 med, 3 low)
+- [x] pkg/lighting — Complete — 6 issues (2 high, 2 med, 2 low)
 
 ## Audit Legend
 - [ ] Package not yet audited
@@ -45,4 +46,4 @@ This file tracks the audit status of all Go sub-packages in the repository.
 Minimum test coverage: 65%
 
 ## Last Updated
-2026-03-01 (pkg/class audit completed)
+2026-03-01 (pkg/lighting audit completed)
