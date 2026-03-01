@@ -172,59 +172,71 @@ func (m *Matchmaker) processMatches() {
 	defer m.mu.Unlock()
 
 	for mode, queue := range m.queues {
-		minPlayers := m.minPlayersPerMode[mode]
-		maxPlayers := m.maxPlayersPerMode[mode]
+		m.processModeQueue(mode, queue)
+	}
+}
 
-		if len(queue) < minPlayers {
-			continue
-		}
+// processModeQueue processes matches for a specific game mode.
+func (m *Matchmaker) processModeQueue(mode GameMode, queue []*QueueEntry) {
+	minPlayers := m.minPlayersPerMode[mode]
+	maxPlayers := m.maxPlayersPerMode[mode]
 
-		// Group players by genre and region
-		groups := m.groupPlayers(queue)
+	if len(queue) < minPlayers {
+		return
+	}
 
-		for key, group := range groups {
-			if len(group) < minPlayers {
-				continue
-			}
+	groups := m.groupPlayers(queue)
 
-			// Limit to max players per match
-			matchSize := len(group)
-			if matchSize > maxPlayers {
-				matchSize = maxPlayers
-			}
+	for key, group := range groups {
+		m.processPlayerGroup(mode, key, group, minPlayers, maxPlayers)
+	}
+}
 
-			// Select players for match
-			matchPlayers := group[:matchSize]
+// processPlayerGroup attempts to create a match from a player group.
+func (m *Matchmaker) processPlayerGroup(mode GameMode, key groupKey, group []*QueueEntry, minPlayers, maxPlayers int) {
+	if len(group) < minPlayers {
+		return
+	}
 
-			// Find available server
-			server := m.findServer(mode, key.genre, key.region, matchSize)
-			if server == nil {
-				logrus.WithFields(logrus.Fields{
-					"mode":   mode,
-					"genre":  key.genre,
-					"region": key.region,
-					"size":   matchSize,
-				}).Debug("no available server for match")
-				continue
-			}
+	matchSize := len(group)
+	if matchSize > maxPlayers {
+		matchSize = maxPlayers
+	}
 
-			// Create match
-			result := m.createMatch(matchPlayers, server, mode)
-			if result != nil {
-				// Remove matched players from queue
-				m.removeMatchedPlayers(mode, result.PlayerIDs)
+	matchPlayers := group[:matchSize]
 
-				logrus.WithFields(logrus.Fields{
-					"mode":        mode,
-					"players":     len(result.PlayerIDs),
-					"server":      result.ServerName,
-					"server_addr": result.ServerAddress,
-					"genre":       result.Genre,
-				}).Info("match created")
+	server := m.findServer(mode, key.genre, key.region, matchSize)
+	if server == nil {
+		m.logNoServerAvailable(mode, key, matchSize)
+		return
+	}
 
-				// TODO: Notify players of match (would need callback mechanism)
-			}
-		}
+	m.finalizeMatch(mode, matchPlayers, server)
+}
+
+// logNoServerAvailable logs when no server is available for a match.
+func (m *Matchmaker) logNoServerAvailable(mode GameMode, key groupKey, matchSize int) {
+	logrus.WithFields(logrus.Fields{
+		"mode":   mode,
+		"genre":  key.genre,
+		"region": key.region,
+		"size":   matchSize,
+	}).Debug("no available server for match")
+}
+
+// finalizeMatch creates a match and logs the result.
+func (m *Matchmaker) finalizeMatch(mode GameMode, matchPlayers []*QueueEntry, server *ServerAnnouncement) {
+	result := m.createMatch(matchPlayers, server, mode)
+	if result != nil {
+		m.removeMatchedPlayers(mode, result.PlayerIDs)
+
+		logrus.WithFields(logrus.Fields{
+			"mode":        mode,
+			"players":     len(result.PlayerIDs),
+			"server":      result.ServerName,
+			"server_addr": result.ServerAddress,
+			"genre":       result.Genre,
+		}).Info("match created")
 	}
 }
 

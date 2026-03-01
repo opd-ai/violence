@@ -215,29 +215,40 @@ func (s *Squad) Update(leaderX, leaderY float64, tileMap [][]int, playerX, playe
 
 // updateFollow makes the squad member follow the leader with formation offset.
 func (s *Squad) updateFollow(member *SquadMember, tileMap [][]int) {
-	// Check if following a specific human player
+	followX, followY := s.getFollowTarget(member)
+	targetX := followX + member.FormationOffsetX
+	targetY := followY + member.FormationOffsetY
+
+	dx, dy, dist := s.calculatePathToTarget(member, targetX, targetY, tileMap)
+	s.moveTowardTarget(member, dx, dy, dist, tileMap)
+
+	member.Agent.X = member.X
+	member.Agent.Y = member.Y
+}
+
+// getFollowTarget determines which position the member should follow.
+func (s *Squad) getFollowTarget(member *SquadMember) (float64, float64) {
 	followX := s.LeaderX
 	followY := s.LeaderY
 
 	if member.TargetPlayerID != 0 {
 		for _, p := range s.HumanPlayers {
 			if p.PlayerID == member.TargetPlayerID && p.Active {
-				followX = p.X
-				followY = p.Y
-				break
+				return p.X, p.Y
 			}
 		}
 	}
 
-	targetX := followX + member.FormationOffsetX
-	targetY := followY + member.FormationOffsetY
+	return followX, followY
+}
 
+// calculatePathToTarget computes direction and distance to target using pathfinding if needed.
+func (s *Squad) calculatePathToTarget(member *SquadMember, targetX, targetY float64, tileMap [][]int) (float64, float64, float64) {
 	dx := targetX - member.X
 	dy := targetY - member.Y
 	dist := math.Sqrt(dx*dx + dy*dy)
 
 	if dist > 1.5 {
-		// Use A* pathfinding to navigate toward formation position
 		path := ai.FindPath(member.X, member.Y, targetX, targetY, tileMap)
 		if len(path) > 1 {
 			nextX := path[1].X
@@ -248,6 +259,11 @@ func (s *Squad) updateFollow(member *SquadMember, tileMap [][]int) {
 		}
 	}
 
+	return dx, dy, dist
+}
+
+// moveTowardTarget moves the member toward the target if distance threshold is met.
+func (s *Squad) moveTowardTarget(member *SquadMember, dx, dy, dist float64, tileMap [][]int) {
 	if dist > 0.5 && dist > 0.01 {
 		moveX := member.X + (dx/dist)*member.Speed
 		moveY := member.Y + (dy/dist)*member.Speed
@@ -258,10 +274,6 @@ func (s *Squad) updateFollow(member *SquadMember, tileMap [][]int) {
 		member.DirX = dx / dist
 		member.DirY = dy / dist
 	}
-
-	// Update agent position
-	member.Agent.X = member.X
-	member.Agent.Y = member.Y
 }
 
 // updateHold makes the squad member hold their position.

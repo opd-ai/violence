@@ -117,19 +117,32 @@ func (e *DeltaEncoder) EncodeDelta(world *engine.World, tickNum uint64) (*DeltaP
 	currentSnapshot := e.captureSnapshotInternal(world, tickNum)
 
 	if e.baseline == nil {
-		// No baseline yet, entire snapshot is the delta
-		e.baseline = currentSnapshot
-		e.lastSnapshot = currentSnapshot
-
-		return &DeltaPacket{
-			BaseTick:   0,
-			TargetTick: tickNum,
-			Added:      currentSnapshot.Entities,
-			Modified:   make(map[engine.Entity]*EntitySnapshot),
-			Removed:    []engine.Entity{},
-		}, nil
+		return e.createInitialDelta(currentSnapshot, tickNum), nil
 	}
 
+	delta := e.computeDelta(currentSnapshot, tickNum)
+	e.updateEncoderState(currentSnapshot)
+	e.logDelta(delta, tickNum)
+
+	return delta, nil
+}
+
+// createInitialDelta creates the first delta packet when no baseline exists.
+func (e *DeltaEncoder) createInitialDelta(snapshot *WorldSnapshot, tickNum uint64) *DeltaPacket {
+	e.baseline = snapshot
+	e.lastSnapshot = snapshot
+
+	return &DeltaPacket{
+		BaseTick:   0,
+		TargetTick: tickNum,
+		Added:      snapshot.Entities,
+		Modified:   make(map[engine.Entity]*EntitySnapshot),
+		Removed:    []engine.Entity{},
+	}
+}
+
+// computeDelta calculates the difference between baseline and current snapshot.
+func (e *DeltaEncoder) computeDelta(currentSnapshot *WorldSnapshot, tickNum uint64) *DeltaPacket {
 	delta := &DeltaPacket{
 		BaseTick:   e.baseline.TickNumber,
 		TargetTick: tickNum,
@@ -138,38 +151,49 @@ func (e *DeltaEncoder) EncodeDelta(world *engine.World, tickNum uint64) (*DeltaP
 		Removed:    []engine.Entity{},
 	}
 
-	// Find added and modified entities
+	e.findAddedAndModifiedEntities(delta, currentSnapshot)
+	e.findRemovedEntities(delta, currentSnapshot)
+
+	return delta
+}
+
+// findAddedAndModifiedEntities identifies new and changed entities.
+func (e *DeltaEncoder) findAddedAndModifiedEntities(delta *DeltaPacket, currentSnapshot *WorldSnapshot) {
 	for entityID, currentEntity := range currentSnapshot.Entities {
 		baselineEntity, existed := e.baseline.Entities[entityID]
 
 		if !existed {
-			// New entity
 			delta.Added[entityID] = currentEntity
 		} else {
-			// Check for modifications
 			modifiedEntity := e.computeEntityDiff(baselineEntity, currentEntity)
 			if modifiedEntity != nil {
 				delta.Modified[entityID] = modifiedEntity
 			}
 		}
 	}
+}
 
-	// Find removed entities
+// findRemovedEntities identifies entities removed since baseline.
+func (e *DeltaEncoder) findRemovedEntities(delta *DeltaPacket, currentSnapshot *WorldSnapshot) {
 	for entityID := range e.baseline.Entities {
 		if _, exists := currentSnapshot.Entities[entityID]; !exists {
 			delta.Removed = append(delta.Removed, entityID)
 		}
 	}
+}
 
-	// Update baseline and last snapshot
+// updateEncoderState updates snapshot buffer and last snapshot.
+func (e *DeltaEncoder) updateEncoderState(currentSnapshot *WorldSnapshot) {
 	e.lastSnapshot = currentSnapshot
 
-	// Store in circular buffer
 	if len(e.snapshotBuffer) >= e.bufferSize {
 		e.snapshotBuffer = e.snapshotBuffer[1:]
 	}
 	e.snapshotBuffer = append(e.snapshotBuffer, currentSnapshot)
+}
 
+// logDelta logs delta encoding statistics.
+func (e *DeltaEncoder) logDelta(delta *DeltaPacket, tickNum uint64) {
 	logrus.WithFields(logrus.Fields{
 		"system_name": "delta_encoder",
 		"tick":        tickNum,
@@ -177,8 +201,6 @@ func (e *DeltaEncoder) EncodeDelta(world *engine.World, tickNum uint64) (*DeltaP
 		"modified":    len(delta.Modified),
 		"removed":     len(delta.Removed),
 	}).Debug("Delta encoded")
-
-	return delta, nil
 }
 
 // captureSnapshotInternal creates a snapshot without locking (caller must hold lock).
