@@ -126,9 +126,10 @@
     - **Dependencies**: None
     - **Summary**: Created standalone formation algorithm with 5 formation types (Line, Wedge, Column, Circle, Staggered), GetFormationOffset function calculating position offsets in world coordinates with leader direction rotation, FormationType enum, DefaultSpacing constant (1.5), helper functions (GetFormationPositionCount, GetFormationSpacing), comprehensive tests covering all formation types, rotation consistency, multiple members, edge cases, benchmarks, achieving 100% coverage
 
-23. **Implement Procedural Text Grammar**
+23. **[x] Implement Procedural Text Grammar** *(2026-03-01)*
     - **Deliverable**: `pkg/lore/grammar.go` with Markov chain or template-based generator and genre-specific word banks
     - **Dependencies**: None
+    - **Summary**: Implemented MarkovChain bigram-based text generator with train/Generate/GenerateSentence methods, GenreWordBank with 5 genre-specific word banks (fantasy, scifi, horror, cyberpunk, postapoc) containing 20+ words each in 5 categories (nouns, adjectives, verbs, places, subjects), BuildGenreCorpus function creating 50 training sentences, MarkovGenerator wrapper with GenerateText/GenerateLoreEntry methods, comprehensive tests achieving 96.1% coverage including determinism, variety, and edge cases
 
 24. **Document Credit Economy Balance**
     - **Deliverable**: `docs/ECONOMY.md` with credit reward table, item price table, and tuning guidelines for ~3 purchases/level target
