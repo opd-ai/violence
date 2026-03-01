@@ -348,6 +348,7 @@ func TestLoader_PluginIntegration(t *testing.T) {
 
 	t.Run("RegisterPlugin", func(t *testing.T) {
 		loader := NewLoader()
+		loader.EnableUnsafePlugins = true // Enable unsafe plugins for testing
 		plugin := NewMockPlugin("TestPlugin", "1.0.0")
 
 		if err := loader.RegisterPlugin(plugin); err != nil {
@@ -366,6 +367,7 @@ func TestLoader_PluginIntegration(t *testing.T) {
 
 	t.Run("UnloadPluginViaLoader", func(t *testing.T) {
 		loader := NewLoader()
+		loader.EnableUnsafePlugins = true // Enable unsafe plugins for testing
 		plugin := NewMockPlugin("TestPlugin", "1.0.0")
 
 		loader.RegisterPlugin(plugin)

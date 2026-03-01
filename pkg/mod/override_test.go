@@ -640,6 +640,7 @@ func TestLoaderLoadAllMods(t *testing.T) {
 func TestLoaderWarnings(t *testing.T) {
 	t.Run("CombinesWarnings", func(t *testing.T) {
 		loader := NewLoader()
+		loader.EnableUnsafePlugins = true // Enable unsafe plugins for testing
 
 		// Add a plugin manager warning
 		plugin1 := NewMockPlugin("P1", "1.0.0")
@@ -658,6 +659,7 @@ func TestLoaderWarnings(t *testing.T) {
 
 	t.Run("ClearWarnings", func(t *testing.T) {
 		loader := NewLoader()
+		loader.EnableUnsafePlugins = true // Enable unsafe plugins for testing
 		plugin1 := NewMockPlugin("P1", "1.0.0")
 		plugin1.SetGenerators([]Generator{NewMockGenerator("weapon")})
 		plugin2 := NewMockPlugin("P2", "1.0.0")
@@ -707,6 +709,7 @@ func TestLoaderOverrides(t *testing.T) {
 
 	t.Run("OverrideAppliedToGeneration", func(t *testing.T) {
 		loader := NewLoader()
+		loader.EnableUnsafePlugins = true // Enable unsafe plugins for testing
 
 		// Register a generator
 		gen := NewMockGenerator("weapon")

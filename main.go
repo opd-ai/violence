@@ -2587,23 +2587,26 @@ func (g *Game) drawPlaying(screen *ebiten.Image) {
 
 // renderParticles draws particles as simple colored pixels (placeholder implementation).
 func (g *Game) renderParticles(screen *ebiten.Image) {
-	// Simplified particle rendering - just draw colored points
-	// A full implementation would project 3D particles to screen space
-	particles := g.particleSystem.GetActiveParticles()
+	// Use optimized visible particles query with frustum culling
+	const maxDistSq = 400.0
+	particles := g.particleSystem.GetVisibleParticles(
+		g.camera.X, g.camera.Y,
+		g.camera.DirX, g.camera.DirY,
+		maxDistSq,
+	)
+
 	for _, p := range particles {
-		// Simple 2D projection (would need proper 3D-to-2D projection)
 		dx := p.X - g.camera.X
 		dy := p.Y - g.camera.Y
-		dist := dx*dx + dy*dy
-		if dist < 400 { // Only render nearby particles
-			// Very simplified screen position calculation
-			screenX := config.C.InternalWidth/2 + int(dx*10)
-			screenY := config.C.InternalHeight/2 + int(dy*10)
-			if screenX >= 0 && screenX < config.C.InternalWidth && screenY >= 0 && screenY < config.C.InternalHeight {
-				// Draw a small colored rectangle
-				particleColor := color.RGBA{R: p.R, G: p.G, B: p.B, A: p.A}
-				vector.DrawFilledRect(screen, float32(screenX), float32(screenY), 2, 2, particleColor, false)
-			}
+
+		// Project to screen space
+		screenX := config.C.InternalWidth/2 + int(dx*10)
+		screenY := config.C.InternalHeight/2 + int(dy*10)
+
+		// Screen bounds check
+		if screenX >= 0 && screenX < config.C.InternalWidth && screenY >= 0 && screenY < config.C.InternalHeight {
+			particleColor := color.RGBA{R: p.R, G: p.G, B: p.B, A: p.A}
+			vector.DrawFilledRect(screen, float32(screenX), float32(screenY), 2, 2, particleColor, false)
 		}
 	}
 }
@@ -3417,6 +3420,37 @@ func main() {
 	if config.C.MaxTPS > 0 {
 		ebiten.SetTPS(config.C.MaxTPS)
 	}
+
+	// Enable config hot-reload
+	stopWatch, err := config.Watch(func(old, new config.Config) {
+		// Apply runtime-changeable settings
+		if new.VSync != old.VSync {
+			ebiten.SetVsyncEnabled(new.VSync)
+		}
+		if new.FullScreen != old.FullScreen {
+			ebiten.SetFullscreen(new.FullScreen)
+		}
+		if new.WindowWidth != old.WindowWidth || new.WindowHeight != old.WindowHeight {
+			ebiten.SetWindowSize(new.WindowWidth, new.WindowHeight)
+		}
+		if new.MaxTPS != old.MaxTPS {
+			if new.MaxTPS > 0 {
+				ebiten.SetTPS(new.MaxTPS)
+			} else {
+				ebiten.SetTPS(60) // Reset to default
+			}
+		}
+		// Note: MouseSensitivity, Volume settings, FOV are read directly from config.C
+		// so they don't need explicit callbacks - they'll be picked up on next use
+	})
+	if err != nil {
+		log.Printf("Warning: config hot-reload failed to start: %v", err)
+	}
+	defer func() {
+		if stopWatch != nil {
+			stopWatch()
+		}
+	}()
 
 	game := NewGame()
 	if err := ebiten.RunGame(game); err != nil {

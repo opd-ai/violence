@@ -31,27 +31,36 @@ type Loader struct {
 	conflicts     map[string][]string // mod name -> conflicting mods
 	warnings      []string
 	pluginManager *PluginManager
+	wasmLoader    *WASMLoader
+
+	// EnableUnsafePlugins allows loading Go plugins (DEPRECATED).
+	// This is unsafe for untrusted mods. Use WASM mods instead.
+	EnableUnsafePlugins bool
 }
 
 // NewLoader creates a new mod loader.
 func NewLoader() *Loader {
 	return &Loader{
-		mods:          make([]Mod, 0),
-		modsDir:       "mods",
-		conflicts:     make(map[string][]string),
-		warnings:      make([]string, 0),
-		pluginManager: NewPluginManager(),
+		mods:                make([]Mod, 0),
+		modsDir:             "mods",
+		conflicts:           make(map[string][]string),
+		warnings:            make([]string, 0),
+		pluginManager:       NewPluginManager(),
+		wasmLoader:          NewWASMLoader(),
+		EnableUnsafePlugins: false,
 	}
 }
 
 // NewLoaderWithDir creates a mod loader with a custom directory.
 func NewLoaderWithDir(dir string) *Loader {
 	return &Loader{
-		mods:          make([]Mod, 0),
-		modsDir:       dir,
-		conflicts:     make(map[string][]string),
-		warnings:      make([]string, 0),
-		pluginManager: NewPluginManager(),
+		mods:                make([]Mod, 0),
+		modsDir:             dir,
+		conflicts:           make(map[string][]string),
+		warnings:            make([]string, 0),
+		pluginManager:       NewPluginManager(),
+		wasmLoader:          NewWASMLoader(),
+		EnableUnsafePlugins: false,
 	}
 }
 
@@ -196,17 +205,38 @@ func (l *Loader) GetModsDir() string {
 
 // PluginManager returns the plugin manager for this loader.
 // This provides access to hooks and generators registered by plugins.
+// DEPRECATED: Use WASMLoader() for safe mod execution.
 func (l *Loader) PluginManager() *PluginManager {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.pluginManager
 }
 
+// WASMLoader returns the WASM loader for this loader.
+// This is the recommended way to load untrusted mods safely.
+func (l *Loader) WASMLoader() *WASMLoader {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.wasmLoader
+}
+
 // RegisterPlugin registers a plugin with the loader's plugin manager.
 // The plugin is loaded immediately and its lifecycle managed by the loader.
+// DEPRECATED: This is unsafe for untrusted mods. Use WASM mods instead.
+// Requires EnableUnsafePlugins flag to be set.
 func (l *Loader) RegisterPlugin(p Plugin) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
+	if !l.EnableUnsafePlugins {
+		return fmt.Errorf("unsafe plugins are disabled; set EnableUnsafePlugins=true or use WASM mods")
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"system_name": "mod_loader",
+		"plugin_name": p.Name(),
+	}).Warn("Loading unsafe plugin - this is not recommended for untrusted mods")
+
 	return l.pluginManager.LoadPlugin(p)
 }
 
