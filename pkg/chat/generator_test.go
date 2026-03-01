@@ -304,3 +304,189 @@ func BenchmarkGenerateProfanityWordlistAllLanguages(b *testing.B) {
 		}
 	}
 }
+
+func TestGenerateLeetSpeakVariants(t *testing.T) {
+	tests := []struct {
+		name     string
+		word     string
+		expected []string // Some expected variants (not exhaustive)
+	}{
+		{
+			name: "simple word with a and e",
+			word: "bad",
+			expected: []string{
+				"bad", // original
+				"b4d", // a->4
+				"b@d", // a->@
+			},
+		},
+		{
+			name: "word with multiple substitutable chars",
+			word: "test",
+			expected: []string{
+				"test", // original
+				"t3st", // e->3
+				"7est", // t->7
+			},
+		},
+		{
+			name: "word with i and o",
+			word: "shit",
+			expected: []string{
+				"shit", // original
+				"sh1t", // i->1
+				"sh!t", // i->!
+				"5hit", // s->5
+			},
+		},
+		{
+			name: "word with no substitutable chars",
+			word: "xyz",
+			expected: []string{
+				"xyz", // original only
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			variants := generateLeetSpeakVariants(tt.word)
+
+			// Check that original word is included
+			found := false
+			for _, v := range variants {
+				if v == tt.word {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("generateLeetSpeakVariants(%q) missing original word", tt.word)
+			}
+
+			// Check that expected variants are included
+			for _, expected := range tt.expected {
+				found := false
+				for _, v := range variants {
+					if v == expected {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("generateLeetSpeakVariants(%q) missing expected variant %q, got: %v", tt.word, expected, variants)
+				}
+			}
+
+			// Verify all variants are non-empty
+			for i, v := range variants {
+				if v == "" {
+					t.Errorf("variant[%d] is empty", i)
+				}
+			}
+		})
+	}
+}
+
+func TestLeetSpeakDetection(t *testing.T) {
+	// Test that profanity filter detects l33t speak variants
+	pf := NewProfanityFilter()
+	if err := pf.LoadLanguage("en"); err != nil {
+		t.Fatalf("failed to load English: %v", err)
+	}
+
+	tests := []struct {
+		name    string
+		message string
+		want    bool // true if profanity should be detected
+	}{
+		{
+			name:    "normal profanity",
+			message: "this is shit",
+			want:    true,
+		},
+		{
+			name:    "l33t speak a->4 in ass",
+			message: "you're an 4ss",
+			want:    true,
+		},
+		{
+			name:    "l33t speak i->1 in shit",
+			message: "sh1t happens",
+			want:    true,
+		},
+		{
+			name:    "l33t speak f->f, u->u, c->c, k->k in fuck variant",
+			message: "what the fuk",
+			want:    false, // "fuk" is a typo, not a l33t variant
+		},
+		{
+			name:    "clean message",
+			message: "hello there world",
+			want:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := pf.Filter(tt.message, "en")
+			if got != tt.want {
+				t.Errorf("Filter(%q) = %v, want %v", tt.message, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestLeetSpeakSanitization(t *testing.T) {
+	pf := NewProfanityFilter()
+	if err := pf.LoadLanguage("en"); err != nil {
+		t.Fatalf("failed to load English: %v", err)
+	}
+
+	tests := []struct {
+		name     string
+		message  string
+		contains string // string that should be replaced with asterisks
+	}{
+		{
+			name:     "normal profanity sanitized",
+			message:  "this is shit",
+			contains: "****",
+		},
+		{
+			name:     "l33t speak sanitized",
+			message:  "you're an 4ss",
+			contains: "***",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sanitized := pf.Sanitize(tt.message, "en")
+			if !strings.Contains(sanitized, tt.contains) {
+				t.Errorf("Sanitize(%q) = %q, expected to contain %q", tt.message, sanitized, tt.contains)
+			}
+		})
+	}
+}
+
+func TestWordlistSizeIncrease(t *testing.T) {
+	// Test that l33t speak variants significantly increase wordlist size
+	languages := []string{"en", "es", "de", "fr", "pt"}
+
+	for _, lang := range languages {
+		t.Run(lang, func(t *testing.T) {
+			words := GenerateProfanityWordlist(lang, 42)
+
+			// With l33t speak variants, each language should have significantly more patterns
+			// Expect at least 50 patterns per language (conservative estimate)
+			minExpected := 50
+			if len(words) < minExpected {
+				t.Errorf("GenerateProfanityWordlist(%q) returned only %d words, expected at least %d",
+					lang, len(words), minExpected)
+			}
+
+			t.Logf("Language %s: %d patterns", lang, len(words))
+		})
+	}
+}
