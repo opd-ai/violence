@@ -8,14 +8,3 @@ type Light struct {
 	Intensity float64
 	R, G, B   float64
 }
-
-// Sector represents a lit area of the level.
-type Sector struct {
-	Lights []Light
-}
-
-// Calculate computes lighting for a sector.
-func (s *Sector) Calculate() {}
-
-// SetGenre configures lighting presets for a genre.
-func SetGenre(genreID string) {}

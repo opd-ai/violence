@@ -580,6 +580,241 @@ func TestSetGenre_IntegrationWithLighting(t *testing.T) {
 	}
 }
 
+func TestAddFlashlight(t *testing.T) {
+	slm := NewSectorLightMap(20, 20, 0.0)
+
+	// Add flashlight pointing right
+	idx := slm.AddFlashlight(5, 5, 1, 0, math.Pi/4, 8, 1.0)
+	if idx != 0 {
+		t.Errorf("First flashlight index = %d, want 0", idx)
+	}
+	if slm.ConeLightCount() != 1 {
+		t.Errorf("ConeLightCount = %d, want 1", slm.ConeLightCount())
+	}
+	if !slm.dirty {
+		t.Error("dirty = false, want true after AddFlashlight")
+	}
+
+	// Add second flashlight
+	idx2 := slm.AddFlashlight(10, 10, 0, 1, math.Pi/6, 10, 0.8)
+	if idx2 != 1 {
+		t.Errorf("Second flashlight index = %d, want 1", idx2)
+	}
+	if slm.ConeLightCount() != 2 {
+		t.Errorf("ConeLightCount = %d, want 2", slm.ConeLightCount())
+	}
+}
+
+func TestAddFlashlight_NormalizesDirection(t *testing.T) {
+	slm := NewSectorLightMap(10, 10, 0.0)
+
+	// Add with unnormalized direction
+	slm.AddFlashlight(5, 5, 3, 4, math.Pi/4, 8, 1.0)
+	slm.Calculate()
+
+	// Should normalize (3,4) to (0.6, 0.8)
+	cone := slm.coneLights[0]
+	expectedX := 3.0 / 5.0
+	expectedY := 4.0 / 5.0
+	if math.Abs(cone.DirX-expectedX) > 0.001 || math.Abs(cone.DirY-expectedY) > 0.001 {
+		t.Errorf("Direction = (%f, %f), want (~%f, ~%f)", cone.DirX, cone.DirY, expectedX, expectedY)
+	}
+}
+
+func TestAddFlashlight_ZeroDirectionDefaultsToRight(t *testing.T) {
+	slm := NewSectorLightMap(10, 10, 0.0)
+	slm.AddFlashlight(5, 5, 0, 0, math.Pi/4, 8, 1.0)
+
+	cone := slm.coneLights[0]
+	if math.Abs(cone.DirX-1.0) > 0.001 || math.Abs(cone.DirY-0.0) > 0.001 {
+		t.Errorf("Zero direction should default to (1, 0), got (%f, %f)", cone.DirX, cone.DirY)
+	}
+}
+
+func TestAddFlashlight_ClampsIntensity(t *testing.T) {
+	tests := []struct {
+		name      string
+		intensity float64
+		want      float64
+	}{
+		{"valid intensity", 0.7, 0.7},
+		{"clamped high", 2.0, 1.0},
+		{"clamped low", -0.5, 0.0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			slm := NewSectorLightMap(10, 10, 0.0)
+			slm.AddFlashlight(5, 5, 1, 0, math.Pi/4, 8, tt.intensity)
+			got := slm.coneLights[0].Intensity
+			if math.Abs(got-tt.want) > 0.001 {
+				t.Errorf("Intensity = %f, want %f", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCalculate_WithFlashlight(t *testing.T) {
+	slm := NewSectorLightMap(20, 20, 0.0)
+	// Flashlight at (5,5) pointing right
+	slm.AddFlashlight(5, 5, 1, 0, math.Pi/4, 8, 1.0)
+	slm.Calculate()
+
+	// Tile directly in front should be lit
+	frontLight := slm.GetLight(8, 5)
+	if frontLight < 0.05 {
+		t.Errorf("Front light = %f, expected > 0.05", frontLight)
+	}
+
+	// Tile to the side should be dimmer or dark
+	sideLight := slm.GetLight(5, 8)
+	if sideLight > frontLight {
+		t.Errorf("Side light %f should be <= front light %f", sideLight, frontLight)
+	}
+
+	// Tile behind should have no light
+	behindLight := slm.GetLight(2, 5)
+	if behindLight > 0.01 {
+		t.Errorf("Behind light = %f, expected ~0.0", behindLight)
+	}
+}
+
+func TestCalculate_FlashlightConeAngle(t *testing.T) {
+	slm := NewSectorLightMap(20, 20, 0.0)
+	// Narrow cone pointing right
+	slm.AddFlashlight(10, 10, 1, 0, math.Pi/8, 8, 1.0)
+	slm.Calculate()
+
+	// Center of cone should be brightest
+	centerLight := slm.GetLight(14, 10)
+
+	// Just inside cone edge
+	insideLight := slm.GetLight(14, 11)
+
+	// Outside cone should be dark
+	outsideLight := slm.GetLight(14, 13)
+
+	if centerLight < 0.03 {
+		t.Errorf("Center light = %f, expected > 0.03", centerLight)
+	}
+	if insideLight >= centerLight {
+		t.Errorf("Inside light %f should be < center light %f", insideLight, centerLight)
+	}
+	if outsideLight > 0.01 {
+		t.Errorf("Outside light = %f, expected ~0.0", outsideLight)
+	}
+}
+
+func TestCalculate_FlashlightAndPointLight(t *testing.T) {
+	slm := NewSectorLightMap(20, 20, 0.1)
+	// Point light
+	slm.AddLight(Light{X: 5, Y: 5, Radius: 3, Intensity: 1.0})
+	// Flashlight
+	slm.AddFlashlight(15, 15, -1, 0, math.Pi/4, 8, 1.0)
+	slm.Calculate()
+
+	// Near point light
+	pointLit := slm.GetLight(5, 5)
+	if pointLit < 0.3 {
+		t.Errorf("Point lit area = %f, expected > 0.3", pointLit)
+	}
+
+	// In flashlight cone
+	flashlightLit := slm.GetLight(10, 15)
+	if flashlightLit < 0.14 {
+		t.Errorf("Flashlight lit area = %f, expected > 0.14", flashlightLit)
+	}
+
+	// Both lights off
+	darkArea := slm.GetLight(10, 5)
+	if math.Abs(darkArea-0.1) > 0.05 {
+		t.Errorf("Dark area = %f, expected ~0.1 (ambient)", darkArea)
+	}
+}
+
+func TestConeLightCount(t *testing.T) {
+	slm := NewSectorLightMap(10, 10, 0.2)
+	if slm.ConeLightCount() != 0 {
+		t.Errorf("Initial ConeLightCount = %d, want 0", slm.ConeLightCount())
+	}
+
+	slm.AddFlashlight(5, 5, 1, 0, math.Pi/4, 8, 1.0)
+	if slm.ConeLightCount() != 1 {
+		t.Errorf("ConeLightCount after add = %d, want 1", slm.ConeLightCount())
+	}
+
+	slm.AddFlashlight(7, 7, 0, 1, math.Pi/6, 10, 0.8)
+	if slm.ConeLightCount() != 2 {
+		t.Errorf("ConeLightCount after second add = %d, want 2", slm.ConeLightCount())
+	}
+}
+
+func TestClear_RemovesConeLights(t *testing.T) {
+	slm := NewSectorLightMap(10, 10, 0.2)
+	slm.AddLight(Light{X: 5, Y: 5, Radius: 3, Intensity: 1.0})
+	slm.AddFlashlight(5, 5, 1, 0, math.Pi/4, 8, 1.0)
+
+	if slm.LightCount() != 1 || slm.ConeLightCount() != 1 {
+		t.Errorf("Before Clear: LightCount=%d, ConeLightCount=%d, want 1, 1",
+			slm.LightCount(), slm.ConeLightCount())
+	}
+
+	slm.Clear()
+
+	if slm.LightCount() != 0 || slm.ConeLightCount() != 0 {
+		t.Errorf("After Clear: LightCount=%d, ConeLightCount=%d, want 0, 0",
+			slm.LightCount(), slm.ConeLightCount())
+	}
+	if !slm.dirty {
+		t.Error("dirty = false, want true after Clear")
+	}
+}
+
+func TestFlashlightDotProductAngleTest(t *testing.T) {
+	slm := NewSectorLightMap(30, 30, 0.0)
+	// Flashlight at center pointing up (0, -1)
+	halfAngle := math.Pi / 6 // 30 degree cone
+	slm.AddFlashlight(15, 15, 0, -1, halfAngle, 10, 1.0)
+	slm.Calculate()
+
+	// Directly in front (up)
+	directFront := slm.GetLight(15, 10)
+
+	// Angled within cone (~25 degrees)
+	withinCone := slm.GetLight(17, 10)
+
+	// Outside cone (~45 degrees)
+	outsideCone := slm.GetLight(19, 10)
+
+	if directFront < 0.03 {
+		t.Errorf("Direct front light = %f, expected > 0.03", directFront)
+	}
+	if withinCone >= directFront {
+		t.Errorf("Within cone light %f should be < direct front %f", withinCone, directFront)
+	}
+	if outsideCone > 0.01 {
+		t.Errorf("Outside cone light = %f, expected ~0.0", outsideCone)
+	}
+}
+
+func TestFlashlightInactiveDoesNotContribute(t *testing.T) {
+	slm := NewSectorLightMap(20, 20, 0.0)
+	slm.AddFlashlight(10, 10, 1, 0, math.Pi/4, 8, 1.0)
+	// Manually deactivate the cone light
+	slm.coneLights[0].IsActive = false
+	slm.Calculate()
+
+	// Should have no light anywhere (ambient is 0)
+	for y := 0; y < 20; y++ {
+		for x := 0; x < 20; x++ {
+			light := slm.GetLight(x, y)
+			if light > 0.01 {
+				t.Errorf("GetLight(%d, %d) = %f, expected ~0.0 (inactive flashlight)", x, y, light)
+			}
+		}
+	}
+}
+
 // BenchmarkCalculate measures lighting calculation performance
 func BenchmarkCalculate(b *testing.B) {
 	slm := NewSectorLightMap(100, 100, 0.2)
