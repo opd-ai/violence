@@ -5,6 +5,7 @@ import (
 	"reflect"
 
 	"github.com/opd-ai/violence/pkg/engine"
+	"github.com/opd-ai/violence/pkg/spatial"
 	"github.com/sirupsen/logrus"
 )
 
@@ -125,4 +126,44 @@ func GetEntityCollider(w *engine.World, e engine.Entity) *Collider {
 // AddColliderToEntity adds a collider component to an entity.
 func AddColliderToEntity(w *engine.World, e engine.Entity, collider *Collider) {
 	w.AddComponent(e, &ColliderComponent{Collider: collider})
+}
+
+// QueryCollisionsInRadiusSpatial returns all colliders within a circular area.
+// Uses spatial indexing for O(1) broadphase when a spatial system is available.
+// Falls back to linear search if no spatial system is registered.
+func QueryCollisionsInRadiusSpatial(w *engine.World, spatialSys *spatial.System, x, y, radius float64, layer Layer) []engine.Entity {
+	var results []engine.Entity
+
+	// Create query circle
+	queryCollider := NewCircleCollider(x, y, radius, layer, LayerAll)
+	colliderType := reflect.TypeOf(&ColliderComponent{})
+
+	var candidates []engine.Entity
+
+	// Use spatial index if available for fast broadphase
+	if spatialSys != nil {
+		candidates = spatialSys.QueryRadius(x, y, radius)
+	} else {
+		// Fallback to linear search
+		candidates = w.Query(colliderType)
+	}
+
+	// Narrow phase: precise collision testing
+	for _, e := range candidates {
+		comp, ok := w.GetComponent(e, colliderType)
+		if !ok {
+			continue
+		}
+
+		cc, ok := comp.(*ColliderComponent)
+		if !ok || cc.Collider == nil {
+			continue
+		}
+
+		if TestCollision(queryCollider, cc.Collider) {
+			results = append(results, e)
+		}
+	}
+
+	return results
 }

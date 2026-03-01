@@ -49,6 +49,7 @@ import (
 	"github.com/opd-ai/violence/pkg/secret"
 	"github.com/opd-ai/violence/pkg/shop"
 	"github.com/opd-ai/violence/pkg/skills"
+	"github.com/opd-ai/violence/pkg/spatial"
 	"github.com/opd-ai/violence/pkg/squad"
 	"github.com/opd-ai/violence/pkg/status"
 	"github.com/opd-ai/violence/pkg/texture"
@@ -185,6 +186,9 @@ type Game struct {
 
 	// Enemy role and squad tactics system
 	roleBasedAISystem *ai.RoleBasedAISystem
+
+	// Spatial partitioning system for fast proximity queries
+	spatialSystem *spatial.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -255,11 +259,15 @@ func NewGame() *Game {
 		useFederation:      false,
 		hazardSystem:       hazard.NewSystem(int64(seed)),
 		roleBasedAISystem:  ai.NewRoleBasedAISystem(),
+		spatialSystem:      spatial.NewSystem(64.0), // 64-unit cells for typical 10-50 unit queries
 	}
 
 	// Initialize BSP generator
 	g.bspGenerator = bsp.NewGenerator(64, 64, g.rng)
 	g.bspGenerator.SetGenre(g.genreID)
+
+	// Register spatial system with the World
+	g.world.AddSystem(g.spatialSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
