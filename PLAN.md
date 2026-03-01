@@ -47,9 +47,10 @@
 
 ### Priority 2: AI and Combat Gaps (v2.0 blockers)
 
-8. **Implement A* Pathfinding**
-   - **Deliverable**: `pkg/ai/pathfinding.go` with `FindPath(grid TileMap, start, goal Coord) []Coord` using A* algorithm with tile traversability checks
+8. **[x] Implement A* Pathfinding** *(2026-03-01)*
+   - **Deliverable**: `pkg/ai/pathfinding.go` with `FindPathCoord(grid TileMap, start, goal Coord) []Coord` using A* algorithm with tile traversability checks
    - **Dependencies**: Step 2 (TileMap)
+   - **Summary**: Implemented A* pathfinding with Manhattan distance heuristic, 4-directional movement (no diagonals), TileMap integration, proper boundary/walkability validation. Comprehensive tests covering straight paths, obstacle navigation, blocked paths, edge cases (same position, out of bounds, non-walkable tiles), door/secret traversal, and diagonal-free movement. Achieved 94.3% test coverage.
 
 9. **Implement Cover Detection**
    - **Deliverable**: `pkg/ai/cover.go` with `FindCoverTiles(grid TileMap, threatPos Coord) []CoverTile` scoring adjacent-to-wall positions by threat visibility
