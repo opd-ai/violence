@@ -391,6 +391,9 @@ func NewGame() *Game {
 	g.bspGenerator = bsp.NewGenerator(64, 64, g.rng)
 	g.bspGenerator.SetGenre(g.genreID)
 
+	// Set sprite generator genre
+	g.spriteGenerator.SetGenre(g.genreID)
+
 	// Set loot drop system genre
 	g.lootDropSystem.SetGenre(g.genreID)
 
@@ -586,6 +589,7 @@ func (g *Game) startNewGame() {
 // generateLevel generates the BSP level and initializes core map systems.
 func (g *Game) generateLevel() {
 	g.bspGenerator.SetGenre(g.genreID)
+	g.spriteGenerator.SetGenre(g.genreID)
 	bspTree, tiles := g.bspGenerator.Generate()
 	g.currentMap = tiles
 	g.currentBSPTree = bspTree

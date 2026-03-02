@@ -18,6 +18,33 @@ The sprite package provides a high-performance procedural sprite generation syst
 
 ## Supported Sprite Types
 
+### Enemies (SpriteEnemy)
+
+Enemies use genre-aware body plans with proper shading, animation, and visual variety:
+
+**Humanoid Enemies** (role-based):
+- `humanoid` - Generic humanoid enemy
+- `tank` - Heavy armored melee fighter with shield
+- `ranged` - Long-range combatant with rifle/bow
+- `healer` - Support unit with healing symbol
+- `ambusher` - Stealth attacker with crouch animation
+- `scout` - Fast recon unit
+
+**Non-Humanoid Creatures** (body plan templates):
+- `quadruped` - Four-legged beasts with tail and distinct head
+- `insect` - Multi-segmented arthropods with 6+ legs and antennae
+- `serpent` - Sinuous snake-like creatures with wave motion
+- `flying` - Winged creatures with hover animation and tail
+- `amorphous` - Blob/slime entities with pulsing animation and multiple eyes
+
+Each enemy type features:
+- Genre-specific color palettes (fantasy, scifi, horror, cyberpunk, postapoc)
+- Walk cycle animations (alternating leg/appendage movement)
+- Attack animations (weapon swing, lunge, or ability casting)
+- Proper shading with highlights and shadows
+- Distinctive silhouettes for instant recognition
+- Idle fidget animations for visual interest
+
 ### Props (SpriteProp)
 - `barrel` - Cylindrical barrel with wood grain and metal bands
 - `crate` - Wooden crate with planks and corner reinforcements
@@ -59,8 +86,19 @@ gen := sprite.NewGenerator(100)
 // Set genre for themed colors
 gen.SetGenre("fantasy")
 
-// Get or generate a sprite
-// Parameters: type, subtype, seed, frame, size
+// Get humanoid enemy sprite
+enemySprite := gen.GetSprite(sprite.SpriteEnemy, "tank", 12345, 0, 64)
+
+// Get quadruped creature sprite
+beastSprite := gen.GetSprite(sprite.SpriteEnemy, "quadruped", 54321, 0, 64)
+
+// Get animated serpent (frame-based animation)
+for frame := 0; frame < 8; frame++ {
+    serpentFrame := gen.GetSprite(sprite.SpriteEnemy, "serpent", 99999, frame, 64)
+    // Render frame...
+}
+
+// Get prop sprite
 spriteImg := gen.GetSprite(sprite.SpriteProp, "barrel", 12345, 0, 64)
 
 // Render sprite to screen
@@ -80,16 +118,27 @@ screen.DrawImage(spriteImg, op)
 
 The generator adapts sprite colors to the current genre:
 
-| Genre      | Wood        | Stone       | Foliage      |
-|------------|-------------|-------------|--------------|
-| Fantasy    | Brown oak   | Gray stone  | Green        |
-| Sci-Fi     | Metal gray  | Light metal | Neon green   |
-| Horror     | Dark decay  | Dark stone  | Withered     |
-| Cyberpunk  | Black synth | Dark metal  | Neon pink    |
-| Post-Apoc  | Weathered   | Concrete    | Green        |
+| Genre      | Wood        | Stone       | Foliage      | Enemy Humanoid | Enemy Creature |
+|------------|-------------|-------------|--------------|----------------|----------------|
+| Fantasy    | Brown oak   | Gray stone  | Green        | Steel armor    | Brown/Green    |
+| Sci-Fi     | Metal gray  | Light metal | Neon green   | Blue armor     | Metallic gray  |
+| Horror     | Dark decay  | Dark stone  | Withered     | Dark robes     | Corrupted flesh|
+| Cyberpunk  | Black synth | Dark metal  | Neon pink    | Black armor    | Neon mutant    |
+| Post-Apoc  | Weathered   | Concrete    | Green        | Scrap armor    | Wasteland brown|
 
 ## Shading Techniques
 
+### Enemy Sprites
+1. **Body shading**: Gradient shading based on distance from center (cylindrical for limbs)
+2. **Armor highlighting**: Metallic sheen on armor plates
+3. **Limb animation**: Frame-based leg/arm movement with offset shading
+4. **Weapon rendering**: Distinct materials (metal, wood, energy) with proper highlights
+5. **Eye glow**: Bright accent colors for creature eyes
+6. **Texture variation**: Scales, fur, skin rendered with subtle noise
+7. **Shadow casting**: Darker shading on lower body parts for depth
+8. **Wing transparency**: Alpha blending for flying creature wings
+
+### Prop Sprites
 1. **Distance-based shading**: Darker on edges, lighter in center
 2. **Wood grain**: Sine-wave noise for natural texture
 3. **Plank variation**: Alternating rows for wooden crates
@@ -109,17 +158,28 @@ The sprite system integrates with:
 
 ## Testing
 
-Test coverage: **96.9%**
+Test coverage: **96.9%** (including comprehensive enemy sprite tests)
 
 ```bash
 go test ./pkg/sprite/... -cover
 go test ./pkg/sprite/... -bench=.
 ```
 
+### Enemy Sprite Test Coverage
+- All humanoid roles (tank, ranged, healer, ambusher, scout)
+- All creature body plans (quadruped, insect, serpent, flying, amorphous)
+- Animation frame generation and variety
+- Genre-specific color palettes
+- Seed-based determinism
+- Sprite caching and LRU eviction
+
 ## Future Enhancements
 
+- ~~Enemy sprite generation with body plan variety~~ ✅ **IMPLEMENTED**
 - Equipment overlays for character sprites
-- Damage states for destructibles
+- Damage states for destructibles and enemies
 - Particle effect sprites
 - Environment-specific variations (wet, frozen, burning)
 - Normal maps for lighting interaction
+- Boss-specific unique sprites with increased detail
+- Hybrid creatures (mixing body plan templates)

@@ -119,6 +119,8 @@ func (g *Generator) generateSprite(spriteType SpriteType, subtype string, seed i
 	rng := rand.New(rand.NewSource(seed))
 
 	switch spriteType {
+	case SpriteEnemy:
+		g.generateEnemySprite(rgba, subtype, rng, frame)
 	case SpriteProp:
 		g.generatePropSprite(rgba, subtype, rng, frame)
 	case SpriteLoreItem:
@@ -626,6 +628,715 @@ func (g *Generator) generateProjectileSprite(img *image.RGBA, subtype string, rn
 
 	bulletColor := color.RGBA{R: 255, G: 220, B: 100, A: 255}
 	fillCircle(img, cx, cy, size/4, bulletColor)
+}
+
+// generateEnemySprite creates enemy sprites with body plan variety.
+func (g *Generator) generateEnemySprite(img *image.RGBA, subtype string, rng *rand.Rand, frame int) {
+	switch subtype {
+	case "humanoid", "tank", "ranged", "healer", "ambusher", "scout":
+		g.generateHumanoidEnemy(img, subtype, rng, frame)
+	case "quadruped":
+		g.generateQuadrupedEnemy(img, rng, frame)
+	case "insect":
+		g.generateInsectEnemy(img, rng, frame)
+	case "serpent":
+		g.generateSerpentEnemy(img, rng, frame)
+	case "flying":
+		g.generateFlyingEnemy(img, rng, frame)
+	case "amorphous":
+		g.generateAmorphousEnemy(img, rng, frame)
+	default:
+		g.generateHumanoidEnemy(img, subtype, rng, frame)
+	}
+}
+
+// generateHumanoidEnemy creates genre-aware humanoid enemy sprites.
+func (g *Generator) generateHumanoidEnemy(img *image.RGBA, role string, rng *rand.Rand, frame int) {
+	size := img.Bounds().Dx()
+	cx, cy := size/2, size/2
+
+	var armorColor, accentColor, skinColor color.RGBA
+	var weaponType int
+
+	switch g.genreID {
+	case "scifi":
+		armorColor = color.RGBA{R: 40, G: 60, B: 80, A: 255}
+		accentColor = color.RGBA{R: 80, G: 200, B: 240, A: 255}
+		skinColor = color.RGBA{R: 100, G: 180, B: 255, A: 255}
+		weaponType = 2
+	case "horror":
+		armorColor = color.RGBA{R: 60, G: 20, B: 20, A: 255}
+		accentColor = color.RGBA{R: 255, G: 50, B: 50, A: 255}
+		skinColor = color.RGBA{R: 180, G: 170, B: 160, A: 255}
+		weaponType = 3
+	case "cyberpunk":
+		armorColor = color.RGBA{R: 30, G: 30, B: 35, A: 255}
+		accentColor = color.RGBA{R: 255, G: 0, B: 128, A: 255}
+		skinColor = color.RGBA{R: 0, G: 200, B: 255, A: 255}
+		weaponType = 2
+	case "postapoc":
+		armorColor = color.RGBA{R: 100, G: 80, B: 60, A: 255}
+		accentColor = color.RGBA{R: 110, G: 90, B: 70, A: 255}
+		skinColor = color.RGBA{R: 190, G: 160, B: 140, A: 255}
+		weaponType = 3
+	default:
+		armorColor = color.RGBA{R: 120, G: 120, B: 130, A: 255}
+		accentColor = color.RGBA{R: 140, G: 140, B: 150, A: 255}
+		skinColor = color.RGBA{R: 210, G: 180, B: 160, A: 255}
+		weaponType = 1
+	}
+
+	leftLegY := cy + size/6
+	rightLegY := cy + size/6
+	leftArmY := cy - size/10
+	rightArmY := cy - size/10
+	bodyY := cy - size/8
+
+	if frame%3 == 1 {
+		leftLegY += 2
+		rightLegY -= 2
+	} else if frame%3 == 2 {
+		leftLegY -= 2
+		rightLegY += 2
+	}
+
+	if role == "ambusher" && frame == 0 {
+		bodyY += 2
+		leftArmY += 2
+		rightArmY += 2
+	}
+
+	legW := size / 12
+	legH := size / 4
+
+	for y := leftLegY; y < leftLegY+legH; y++ {
+		for x := cx - size/8 - legW/2; x < cx-size/8+legW/2; x++ {
+			if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
+				shade := 0.7 + 0.3*float64(y-leftLegY)/float64(legH)
+				r := uint8(float64(armorColor.R) * shade)
+				g := uint8(float64(armorColor.G) * shade)
+				b := uint8(float64(armorColor.B) * shade)
+				img.Set(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
+			}
+		}
+	}
+
+	for y := rightLegY; y < rightLegY+legH; y++ {
+		for x := cx + size/8 - legW/2; x < cx+size/8+legW/2; x++ {
+			if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
+				shade := 0.7 + 0.3*float64(y-rightLegY)/float64(legH)
+				r := uint8(float64(armorColor.R) * shade)
+				g := uint8(float64(armorColor.G) * shade)
+				b := uint8(float64(armorColor.B) * shade)
+				img.Set(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
+			}
+		}
+	}
+
+	torsoW := size / 3
+	torsoH := size / 3
+	for y := bodyY; y < bodyY+torsoH; y++ {
+		for x := cx - torsoW/2; x < cx+torsoW/2; x++ {
+			if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
+				dx := float64(x - cx)
+				shade := 1.0 - math.Abs(dx)/float64(torsoW)*0.4
+				r := uint8(float64(armorColor.R) * shade)
+				g := uint8(float64(armorColor.G) * shade)
+				b := uint8(float64(armorColor.B) * shade)
+				img.Set(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
+			}
+		}
+	}
+
+	if role == "tank" || role == "healer" {
+		accentY := bodyY + torsoH/3
+		accentH := 2
+		fillRect(img, cx-torsoW/3, accentY, cx+torsoW/3, accentY+accentH, accentColor)
+	}
+
+	armW := legW - 1
+	armH := size / 4
+	for y := leftArmY; y < leftArmY+armH; y++ {
+		for x := cx - torsoW/2 - armW; x < cx-torsoW/2; x++ {
+			if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
+				shade := 0.8 + 0.2*float64(y-leftArmY)/float64(armH)
+				r := uint8(float64(armorColor.R) * shade)
+				g := uint8(float64(armorColor.G) * shade)
+				b := uint8(float64(armorColor.B) * shade)
+				img.Set(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
+			}
+		}
+	}
+
+	attackOffset := 0
+	if frame%4 == 3 {
+		attackOffset = -3
+	}
+
+	for y := rightArmY + attackOffset; y < rightArmY+armH+attackOffset; y++ {
+		for x := cx + torsoW/2; x < cx+torsoW/2+armW; x++ {
+			if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
+				shade := 0.8 + 0.2*float64(y-rightArmY-attackOffset)/float64(armH)
+				r := uint8(float64(armorColor.R) * shade)
+				g := uint8(float64(armorColor.G) * shade)
+				b := uint8(float64(armorColor.B) * shade)
+				img.Set(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
+			}
+		}
+	}
+
+	headRadius := size / 10
+	for y := -headRadius; y <= headRadius; y++ {
+		for x := -headRadius; x <= headRadius; x++ {
+			if x*x+y*y <= headRadius*headRadius {
+				px := cx + x
+				py := bodyY - size/16 + y
+				if px >= 0 && px < img.Bounds().Dx() && py >= 0 && py < img.Bounds().Dy() {
+					dist := math.Sqrt(float64(x*x + y*y))
+					shade := 1.0 - (dist / float64(headRadius) * 0.3)
+					r := uint8(math.Min(255, float64(skinColor.R)*shade))
+					g := uint8(math.Min(255, float64(skinColor.G)*shade))
+					b := uint8(math.Min(255, float64(skinColor.B)*shade))
+					img.Set(px, py, color.RGBA{R: r, G: g, B: b, A: 255})
+				}
+			}
+		}
+	}
+
+	weaponColor := color.RGBA{R: 200, G: 200, B: 220, A: 255}
+	if weaponType == 2 {
+		weaponColor = color.RGBA{R: 60, G: 60, B: 70, A: 255}
+	} else if weaponType == 3 {
+		weaponColor = color.RGBA{R: 120, G: 100, B: 80, A: 255}
+	}
+
+	weaponX := cx + torsoW/2 + armW
+	weaponY := rightArmY + armH/2 + attackOffset
+	weaponLen := size / 5
+	if weaponType == 2 {
+		fillRect(img, weaponX, weaponY-1, weaponX+weaponLen, weaponY+1, weaponColor)
+		fillCircle(img, weaponX+weaponLen, weaponY, 2, color.RGBA{R: 100, G: 100, B: 110, A: 255})
+	} else {
+		fillRect(img, weaponX, weaponY-1, weaponX+weaponLen, weaponY+1, weaponColor)
+		if weaponType == 1 {
+			fillCircle(img, weaponX+weaponLen, weaponY, 3, color.RGBA{R: 180, G: 180, B: 200, A: 255})
+		}
+	}
+
+	if role == "tank" {
+		shieldX := cx - torsoW/2 - armW - 2
+		shieldY := leftArmY + armH/4
+		shieldH := armH / 2
+		for y := shieldY; y < shieldY+shieldH; y++ {
+			for x := shieldX - 4; x < shieldX; x++ {
+				if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
+					img.Set(x, y, color.RGBA{R: 160, G: 140, B: 100, A: 255})
+				}
+			}
+		}
+	}
+
+	if role == "healer" {
+		symbolX := cx - 2
+		symbolY := bodyY + torsoH/2 - 2
+		fillRect(img, symbolX, symbolY-4, symbolX+4, symbolY+4, accentColor)
+		fillRect(img, symbolX-4, symbolY, symbolX+8, symbolY+4, accentColor)
+	}
+}
+
+// generateQuadrupedEnemy creates four-legged creature sprites.
+func (g *Generator) generateQuadrupedEnemy(img *image.RGBA, rng *rand.Rand, frame int) {
+	size := img.Bounds().Dx()
+	cx, cy := size/2, size/2
+
+	bodyColor := g.getCreatureColor("quadruped", rng)
+	darkColor := color.RGBA{
+		R: bodyColor.R / 2,
+		G: bodyColor.G / 2,
+		B: bodyColor.B / 2,
+		A: 255,
+	}
+
+	bodyW := size / 2
+	bodyH := size / 5
+	bodyY := cy - size/10
+
+	for y := bodyY; y < bodyY+bodyH; y++ {
+		for x := cx - bodyW/2; x < cx+bodyW/2; x++ {
+			if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
+				dy := float64(y - bodyY)
+				shade := 0.7 + 0.3*(1.0-dy/float64(bodyH))
+				r := uint8(float64(bodyColor.R) * shade)
+				g := uint8(float64(bodyColor.G) * shade)
+				b := uint8(float64(bodyColor.B) * shade)
+				img.Set(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
+			}
+		}
+	}
+
+	legOffsets := []int{0, 0, 0, 0}
+	if frame%3 == 1 {
+		legOffsets = []int{2, -2, -2, 2}
+	} else if frame%3 == 2 {
+		legOffsets = []int{-2, 2, 2, -2}
+	}
+
+	legPositions := [][2]int{
+		{cx - bodyW/3, bodyY + bodyH},
+		{cx - bodyW/6, bodyY + bodyH},
+		{cx + bodyW/6, bodyY + bodyH},
+		{cx + bodyW/3, bodyY + bodyH},
+	}
+
+	for i, pos := range legPositions {
+		legX := pos[0]
+		legY := pos[1] + legOffsets[i]
+		legW := size / 16
+		legH := size / 4
+
+		for y := legY; y < legY+legH; y++ {
+			for x := legX - legW/2; x < legX+legW/2; x++ {
+				if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
+					img.Set(x, y, darkColor)
+				}
+			}
+		}
+	}
+
+	headW := bodyW / 3
+	headH := size / 5
+	headX := cx + bodyW/2
+	headY := bodyY - headH/2
+
+	for y := headY; y < headY+headH; y++ {
+		for x := headX; x < headX+headW; x++ {
+			if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
+				dx := float64(x - headX)
+				shade := 1.0 - dx/float64(headW)*0.3
+				r := uint8(float64(bodyColor.R) * shade)
+				g := uint8(float64(bodyColor.G) * shade)
+				b := uint8(float64(bodyColor.B) * shade)
+				img.Set(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
+			}
+		}
+	}
+
+	eyeColor := color.RGBA{R: 255, G: 200, B: 50, A: 255}
+	fillCircle(img, headX+headW-3, headY+headH/3, 2, eyeColor)
+
+	tailX := cx - bodyW/2
+	tailY := bodyY + bodyH/2
+	tailAngle := float64(frame%8) * math.Pi / 16
+	tailLen := size / 4
+	tailEndX := tailX - int(float64(tailLen)*math.Cos(tailAngle))
+	tailEndY := tailY + int(float64(tailLen)*math.Sin(tailAngle))
+	drawThickLine(img, tailX, tailY, tailEndX, tailEndY, 2, darkColor)
+}
+
+// generateInsectEnemy creates multi-legged insect sprites.
+func (g *Generator) generateInsectEnemy(img *image.RGBA, rng *rand.Rand, frame int) {
+	size := img.Bounds().Dx()
+	cx, cy := size/2, size/2
+
+	bodyColor := g.getCreatureColor("insect", rng)
+	darkColor := color.RGBA{
+		R: bodyColor.R / 3,
+		G: bodyColor.G / 3,
+		B: bodyColor.B / 3,
+		A: 255,
+	}
+
+	segmentCount := 3
+	segmentW := size / 4
+	segmentH := size / 6
+
+	for i := 0; i < segmentCount; i++ {
+		segY := cy - size/6 + i*segmentH
+		segW := segmentW - i*2
+		if segW < segmentW/2 {
+			segW = segmentW / 2
+		}
+
+		for y := segY; y < segY+segmentH-2; y++ {
+			for x := cx - segW/2; x < cx+segW/2; x++ {
+				if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
+					dx := float64(x - cx)
+					shade := 1.0 - math.Abs(dx)/float64(segW)*0.5
+					r := uint8(float64(bodyColor.R) * shade)
+					g := uint8(float64(bodyColor.G) * shade)
+					b := uint8(float64(bodyColor.B) * shade)
+					img.Set(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
+				}
+			}
+		}
+	}
+
+	legCount := 6
+	for i := 0; i < legCount; i++ {
+		side := 1
+		if i%2 == 0 {
+			side = -1
+		}
+		segIdx := i / 2
+		legY := cy - size/6 + segIdx*segmentH + segmentH/2
+
+		legOffset := 0
+		if frame%3 == 1 && i%2 == 0 {
+			legOffset = 2
+		} else if frame%3 == 2 && i%2 == 1 {
+			legOffset = 2
+		}
+
+		legStartX := cx + side*segmentW/2
+		legMidX := legStartX + side*(size/6+legOffset)
+		legMidY := legY - size/12
+		legEndX := legMidX + side*size/12
+		legEndY := legY + size/8
+
+		drawThickLine(img, legStartX, legY, legMidX, legMidY, 1, darkColor)
+		drawThickLine(img, legMidX, legMidY, legEndX, legEndY, 1, darkColor)
+	}
+
+	headRadius := size / 8
+	headY := cy - size/6 - 2
+	fillCircle(img, cx, headY, headRadius, bodyColor)
+
+	eyeColor := color.RGBA{R: 255, G: 50, B: 50, A: 255}
+	fillCircle(img, cx-headRadius/2, headY, 2, eyeColor)
+	fillCircle(img, cx+headRadius/2, headY, 2, eyeColor)
+
+	antennaLen := size / 5
+	antennaAngle := float64(frame%8) * math.Pi / 32
+	leftAntennaX := cx - headRadius/2 - int(float64(antennaLen)*math.Sin(antennaAngle))
+	leftAntennaY := headY - headRadius - int(float64(antennaLen)*math.Cos(antennaAngle))
+	rightAntennaX := cx + headRadius/2 + int(float64(antennaLen)*math.Sin(antennaAngle))
+	rightAntennaY := headY - headRadius - int(float64(antennaLen)*math.Cos(antennaAngle))
+
+	drawThickLine(img, cx-headRadius/2, headY-headRadius, leftAntennaX, leftAntennaY, 1, darkColor)
+	drawThickLine(img, cx+headRadius/2, headY-headRadius, rightAntennaX, rightAntennaY, 1, darkColor)
+}
+
+// generateSerpentEnemy creates snake-like creature sprites.
+func (g *Generator) generateSerpentEnemy(img *image.RGBA, rng *rand.Rand, frame int) {
+	size := img.Bounds().Dx()
+	cx, cy := size/2, size/2
+
+	bodyColor := g.getCreatureColor("serpent", rng)
+	scaleColor := color.RGBA{
+		R: uint8(math.Min(255, float64(bodyColor.R)*1.2)),
+		G: uint8(math.Min(255, float64(bodyColor.G)*1.2)),
+		B: uint8(math.Min(255, float64(bodyColor.B)*1.2)),
+		A: 255,
+	}
+
+	segments := 8
+	baseRadius := size / 8
+	wavePhase := float64(frame) * 0.3
+
+	for i := 0; i < segments; i++ {
+		t := float64(i) / float64(segments)
+		segY := cy - size/4 + int(t*float64(size)*0.8)
+		waveOffset := int(math.Sin(t*math.Pi*2+wavePhase) * float64(size) / 6)
+		segX := cx + waveOffset
+
+		radius := baseRadius - i
+		if radius < 2 {
+			radius = 2
+		}
+
+		for y := -radius; y <= radius; y++ {
+			for x := -radius; x <= radius; x++ {
+				if x*x+y*y <= radius*radius {
+					px := segX + x
+					py := segY + y
+					if px >= 0 && px < img.Bounds().Dx() && py >= 0 && py < img.Bounds().Dy() {
+						dist := math.Sqrt(float64(x*x + y*y))
+						shade := 1.0 - (dist / float64(radius) * 0.4)
+						r := uint8(math.Min(255, float64(bodyColor.R)*shade))
+						g := uint8(math.Min(255, float64(bodyColor.G)*shade))
+						b := uint8(math.Min(255, float64(bodyColor.B)*shade))
+						img.Set(px, py, color.RGBA{R: r, G: g, B: b, A: 255})
+					}
+				}
+			}
+		}
+
+		if i%2 == 0 && i < segments-1 {
+			fillCircle(img, segX-radius/2, segY, 1, scaleColor)
+			fillCircle(img, segX+radius/2, segY, 1, scaleColor)
+		}
+	}
+
+	headRadius := baseRadius + 2
+	headY := cy - size/4
+	waveOffset := int(math.Sin(wavePhase) * float64(size) / 6)
+	headX := cx + waveOffset
+
+	for y := -headRadius; y <= headRadius; y++ {
+		for x := -headRadius; x <= headRadius; x++ {
+			if x*x+y*y <= headRadius*headRadius {
+				px := headX + x
+				py := headY + y
+				if px >= 0 && px < img.Bounds().Dx() && py >= 0 && py < img.Bounds().Dy() {
+					dist := math.Sqrt(float64(x*x + y*y))
+					shade := 1.2 - (dist / float64(headRadius) * 0.5)
+					r := uint8(math.Min(255, float64(bodyColor.R)*shade))
+					g := uint8(math.Min(255, float64(bodyColor.G)*shade))
+					b := uint8(math.Min(255, float64(bodyColor.B)*shade))
+					img.Set(px, py, color.RGBA{R: r, G: g, B: b, A: 255})
+				}
+			}
+		}
+	}
+
+	eyeColor := color.RGBA{R: 255, G: 200, B: 0, A: 255}
+	fillCircle(img, headX-headRadius/2, headY, 2, eyeColor)
+	fillCircle(img, headX+headRadius/2, headY, 2, eyeColor)
+
+	tongueLen := size / 8
+	if frame%4 < 2 {
+		tongueLen = size / 12
+	}
+	tongueColor := color.RGBA{R: 200, G: 50, B: 50, A: 255}
+	tongueEndY := headY - headRadius - tongueLen
+	drawThickLine(img, headX, headY-headRadius, headX-2, tongueEndY, 1, tongueColor)
+	drawThickLine(img, headX, headY-headRadius, headX+2, tongueEndY, 1, tongueColor)
+}
+
+// generateFlyingEnemy creates winged creature sprites.
+func (g *Generator) generateFlyingEnemy(img *image.RGBA, rng *rand.Rand, frame int) {
+	size := img.Bounds().Dx()
+	cx, cy := size/2, size/2
+
+	bodyColor := g.getCreatureColor("flying", rng)
+	wingColor := color.RGBA{
+		R: bodyColor.R / 2,
+		G: bodyColor.G / 2,
+		B: bodyColor.B / 2,
+		A: 200,
+	}
+
+	hoverOffset := 0
+	if frame%4 < 2 {
+		hoverOffset = -2
+	} else {
+		hoverOffset = 2
+	}
+
+	wingSpan := size / 2
+	wingH := size / 4
+	wingY := cy + hoverOffset - wingH/2
+
+	wingAngle := 0.0
+	if frame%4 < 2 {
+		wingAngle = math.Pi / 6
+	} else {
+		wingAngle = -math.Pi / 6
+	}
+
+	for side := -1; side <= 1; side += 2 {
+		wingCenterX := cx + side*size/8
+		for y := 0; y < wingH; y++ {
+			yOffset := float64(y) - float64(wingH)/2
+			rotatedY := int(yOffset*math.Cos(wingAngle)) + wingY + wingH/2
+			wingWidth := int(float64(wingSpan) * (1.0 - float64(y)/float64(wingH)))
+
+			for x := 0; x < wingWidth; x++ {
+				px := wingCenterX + side*x
+				py := rotatedY
+				if px >= 0 && px < img.Bounds().Dx() && py >= 0 && py < img.Bounds().Dy() {
+					alpha := uint8(200 - uint8(float64(x)/float64(wingWidth)*150))
+					img.Set(px, py, color.RGBA{R: wingColor.R, G: wingColor.G, B: wingColor.B, A: alpha})
+				}
+			}
+		}
+	}
+
+	bodyW := size / 5
+	bodyH := size / 3
+	bodyY := cy + hoverOffset - bodyH/2
+
+	for y := bodyY; y < bodyY+bodyH; y++ {
+		for x := cx - bodyW/2; x < cx+bodyW/2; x++ {
+			if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
+				dy := float64(y - bodyY)
+				shade := 0.8 + 0.4*(1.0-math.Abs(dy-float64(bodyH)/2)/float64(bodyH))
+				r := uint8(float64(bodyColor.R) * shade)
+				g := uint8(float64(bodyColor.G) * shade)
+				b := uint8(float64(bodyColor.B) * shade)
+				img.Set(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
+			}
+		}
+	}
+
+	headRadius := size / 9
+	headY := bodyY - 2
+	fillCircle(img, cx, headY, headRadius, bodyColor)
+
+	eyeColor := color.RGBA{R: 255, G: 100, B: 0, A: 255}
+	fillCircle(img, cx-headRadius/2, headY, 2, eyeColor)
+	fillCircle(img, cx+headRadius/2, headY, 2, eyeColor)
+
+	tailY := bodyY + bodyH
+	tailLen := size / 5
+	tailEndY := tailY + tailLen
+	tailSway := int(math.Sin(float64(frame)*0.4) * 3)
+	drawThickLine(img, cx, tailY, cx+tailSway, tailEndY, 2, bodyColor)
+}
+
+// generateAmorphousEnemy creates blob/slime creature sprites.
+func (g *Generator) generateAmorphousEnemy(img *image.RGBA, rng *rand.Rand, frame int) {
+	size := img.Bounds().Dx()
+	cx, cy := size/2, size/2
+
+	bodyColor := g.getCreatureColor("amorphous", rng)
+	innerColor := color.RGBA{
+		R: uint8(math.Min(255, float64(bodyColor.R)*1.3)),
+		G: uint8(math.Min(255, float64(bodyColor.G)*1.3)),
+		B: uint8(math.Min(255, float64(bodyColor.B)*1.3)),
+		A: 255,
+	}
+
+	pulsePhase := float64(frame) * 0.2
+	pulseAmount := 1.0 + math.Sin(pulsePhase)*0.15
+
+	baseRadius := int(float64(size) / 3 * pulseAmount)
+
+	blobPoints := 12
+	radiusVariation := make([]float64, blobPoints)
+	for i := 0; i < blobPoints; i++ {
+		radiusVariation[i] = 0.8 + rng.Float64()*0.4
+	}
+
+	for y := -baseRadius; y <= baseRadius; y++ {
+		for x := -baseRadius; x <= baseRadius; x++ {
+			angle := math.Atan2(float64(y), float64(x))
+			if angle < 0 {
+				angle += 2 * math.Pi
+			}
+			pointIdx := int(angle / (2 * math.Pi / float64(blobPoints)))
+			if pointIdx >= blobPoints {
+				pointIdx = blobPoints - 1
+			}
+
+			maxDist := float64(baseRadius) * radiusVariation[pointIdx]
+			dist := math.Sqrt(float64(x*x + y*y))
+
+			if dist <= maxDist {
+				px := cx + x
+				py := cy + y
+				if px >= 0 && px < img.Bounds().Dx() && py >= 0 && py < img.Bounds().Dy() {
+					distRatio := dist / maxDist
+					shade := 1.0 - distRatio*0.6
+
+					c := bodyColor
+					if distRatio < 0.3 {
+						blend := distRatio / 0.3
+						c.R = uint8(float64(innerColor.R)*(1-blend) + float64(bodyColor.R)*blend)
+						c.G = uint8(float64(innerColor.G)*(1-blend) + float64(bodyColor.G)*blend)
+						c.B = uint8(float64(innerColor.B)*(1-blend) + float64(bodyColor.B)*blend)
+					}
+
+					r := uint8(math.Min(255, float64(c.R)*shade))
+					g := uint8(math.Min(255, float64(c.G)*shade))
+					b := uint8(math.Min(255, float64(c.B)*shade))
+					img.Set(px, py, color.RGBA{R: r, G: g, B: b, A: 255})
+				}
+			}
+		}
+	}
+
+	eyeCount := 2 + rng.Intn(3)
+	eyeColor := color.RGBA{R: 255, G: 255, B: 255, A: 255}
+	pupilColor := color.RGBA{R: 0, G: 0, B: 0, A: 255}
+
+	for i := 0; i < eyeCount; i++ {
+		eyeAngle := float64(i) * 2 * math.Pi / float64(eyeCount)
+		eyeDist := float64(baseRadius) / 3
+		eyeX := cx + int(math.Cos(eyeAngle)*eyeDist)
+		eyeY := cy + int(math.Sin(eyeAngle)*eyeDist) - baseRadius/4
+
+		fillCircle(img, eyeX, eyeY, 4, eyeColor)
+		fillCircle(img, eyeX, eyeY, 2, pupilColor)
+	}
+
+	if frame%8 < 4 {
+		highlight1X := cx - baseRadius/3
+		highlight1Y := cy - baseRadius/3
+		fillCircle(img, highlight1X, highlight1Y, 3, color.RGBA{R: 255, G: 255, B: 255, A: 100})
+	}
+}
+
+// getCreatureColor returns genre and creature-type specific colors.
+func (g *Generator) getCreatureColor(creatureType string, rng *rand.Rand) color.RGBA {
+	switch g.genreID {
+	case "scifi":
+		switch creatureType {
+		case "quadruped":
+			return color.RGBA{R: 100, G: 120, B: 140, A: 255}
+		case "insect":
+			return color.RGBA{R: 80, G: 100, B: 120, A: 255}
+		case "serpent":
+			return color.RGBA{R: 60, G: 140, B: 160, A: 255}
+		case "flying":
+			return color.RGBA{R: 140, G: 120, B: 180, A: 255}
+		case "amorphous":
+			return color.RGBA{R: 0, G: 200, B: 150, A: 255}
+		}
+	case "horror":
+		switch creatureType {
+		case "quadruped":
+			return color.RGBA{R: 80, G: 60, B: 60, A: 255}
+		case "insect":
+			return color.RGBA{R: 60, G: 40, B: 40, A: 255}
+		case "serpent":
+			return color.RGBA{R: 90, G: 80, B: 70, A: 255}
+		case "flying":
+			return color.RGBA{R: 70, G: 50, B: 80, A: 255}
+		case "amorphous":
+			return color.RGBA{R: 100, G: 50, B: 80, A: 255}
+		}
+	case "cyberpunk":
+		switch creatureType {
+		case "quadruped":
+			return color.RGBA{R: 40, G: 40, B: 50, A: 255}
+		case "insect":
+			return color.RGBA{R: 255, G: 0, B: 128, A: 255}
+		case "serpent":
+			return color.RGBA{R: 0, G: 255, B: 200, A: 255}
+		case "flying":
+			return color.RGBA{R: 255, G: 100, B: 200, A: 255}
+		case "amorphous":
+			return color.RGBA{R: 128, G: 0, B: 255, A: 255}
+		}
+	case "postapoc":
+		switch creatureType {
+		case "quadruped":
+			return color.RGBA{R: 120, G: 100, B: 80, A: 255}
+		case "insect":
+			return color.RGBA{R: 100, G: 80, B: 60, A: 255}
+		case "serpent":
+			return color.RGBA{R: 110, G: 90, B: 70, A: 255}
+		case "flying":
+			return color.RGBA{R: 90, G: 80, B: 70, A: 255}
+		case "amorphous":
+			return color.RGBA{R: 140, G: 100, B: 60, A: 255}
+		}
+	default:
+		switch creatureType {
+		case "quadruped":
+			return color.RGBA{R: 140, G: 100, B: 60, A: 255}
+		case "insect":
+			return color.RGBA{R: 80, G: 120, B: 80, A: 255}
+		case "serpent":
+			return color.RGBA{R: 100, G: 140, B: 100, A: 255}
+		case "flying":
+			return color.RGBA{R: 120, G: 100, B: 140, A: 255}
+		case "amorphous":
+			return color.RGBA{R: 100, G: 200, B: 150, A: 255}
+		}
+	}
+	return color.RGBA{R: 128, G: 128, B: 128, A: 255}
 }
 
 // generateDefaultSprite creates a fallback sprite.
