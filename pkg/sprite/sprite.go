@@ -842,6 +842,14 @@ func (g *Generator) generateHumanoidEnemy(img *image.RGBA, role string, rng *ran
 		fillRect(img, symbolX, symbolY-4, symbolX+4, symbolY+4, accentColor)
 		fillRect(img, symbolX-4, symbolY, symbolX+8, symbolY+4, accentColor)
 	}
+
+	// Apply material detail for visual richness
+	armorBounds := image.Rect(cx-torsoW/2, bodyY, cx+torsoW/2, bodyY+torsoH)
+	g.applyMaterialDetail(img, armorBounds, MaterialMetal, rng.Int63(), 1.0, armorColor)
+
+	// Add skin texture to head
+	headBounds := image.Rect(cx-headRadius, bodyY-size/8-headRadius, cx+headRadius, bodyY-size/8+headRadius)
+	g.applyMaterialDetail(img, headBounds, MaterialLeather, rng.Int63(), 0.5, skinColor)
 }
 
 // generateQuadrupedEnemy creates four-legged creature sprites.
@@ -931,6 +939,10 @@ func (g *Generator) generateQuadrupedEnemy(img *image.RGBA, rng *rand.Rand, fram
 	tailEndX := tailX - int(float64(tailLen)*math.Cos(tailAngle))
 	tailEndY := tailY + int(float64(tailLen)*math.Sin(tailAngle))
 	drawThickLine(img, tailX, tailY, tailEndX, tailEndY, 2, darkColor)
+
+	// Apply fur texture to body
+	bodyBounds := image.Rect(cx-bodyW/2, bodyY, cx+bodyW/2, bodyY+bodyH)
+	g.applyMaterialDetail(img, bodyBounds, MaterialFur, rng.Int63(), 0.8, bodyColor)
 }
 
 // generateInsectEnemy creates multi-legged insect sprites.
@@ -1014,6 +1026,17 @@ func (g *Generator) generateInsectEnemy(img *image.RGBA, rng *rand.Rand, frame i
 
 	drawThickLine(img, cx-headRadius/2, headY-headRadius, leftAntennaX, leftAntennaY, 1, darkColor)
 	drawThickLine(img, cx+headRadius/2, headY-headRadius, rightAntennaX, rightAntennaY, 1, darkColor)
+
+	// Apply chitin texture to all segments
+	for i := 0; i < segmentCount; i++ {
+		segY := cy - size/6 + i*segmentH
+		segW := segmentW - i*2
+		if segW < segmentW/2 {
+			segW = segmentW / 2
+		}
+		segBounds := image.Rect(cx-segW/2, segY, cx+segW/2, segY+segmentH-2)
+		g.applyMaterialDetail(img, segBounds, MaterialChitin, rng.Int63()+int64(i), 0.9, bodyColor)
+	}
 }
 
 // generateSerpentEnemy creates snake-like creature sprites.
@@ -1098,6 +1121,12 @@ func (g *Generator) generateSerpentEnemy(img *image.RGBA, rng *rand.Rand, frame 
 		tongueLen = size / 12
 	}
 	tongueColor := color.RGBA{R: 200, G: 50, B: 50, A: 255}
+	drawThickLine(img, headX, headY+headRadius/2, headX, headY+headRadius/2+tongueLen, 1, tongueColor)
+
+	// Apply scale texture to body segments
+	fullBounds := image.Rect(cx-size/4, cy-size/4, cx+size/4, cy+size/2)
+	g.applyMaterialDetail(img, fullBounds, MaterialScales, rng.Int63(), 1.0, bodyColor)
+}
 	tongueEndY := headY - headRadius - tongueLen
 	drawThickLine(img, headX, headY-headRadius, headX-2, tongueEndY, 1, tongueColor)
 	drawThickLine(img, headX, headY-headRadius, headX+2, tongueEndY, 1, tongueColor)
@@ -1182,6 +1211,10 @@ func (g *Generator) generateFlyingEnemy(img *image.RGBA, rng *rand.Rand, frame i
 	tailEndY := tailY + tailLen
 	tailSway := int(math.Sin(float64(frame)*0.4) * 3)
 	drawThickLine(img, cx, tailY, cx+tailSway, tailEndY, 2, bodyColor)
+
+	// Apply membrane texture to wings
+	wingBounds := image.Rect(cx-size/2, wingY, cx+size/2, wingY+wingH)
+	g.applyMaterialDetail(img, wingBounds, MaterialMembrane, rng.Int63(), 0.6, wingColor)
 }
 
 // generateAmorphousEnemy creates blob/slime creature sprites.
