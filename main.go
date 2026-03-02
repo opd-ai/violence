@@ -20,6 +20,7 @@ import (
 	"github.com/opd-ai/violence/pkg/animation"
 	"github.com/opd-ai/violence/pkg/audio"
 	"github.com/opd-ai/violence/pkg/automap"
+	"github.com/opd-ai/violence/pkg/biome"
 	"github.com/opd-ai/violence/pkg/bsp"
 	"github.com/opd-ai/violence/pkg/camera"
 	"github.com/opd-ai/violence/pkg/chat"
@@ -261,6 +262,9 @@ type Game struct {
 
 	// Projectile system for spell/ranged combat with damage types and resistances
 	projectileSystem *projectile.System
+
+	// Biome material system for dungeon-specific crafting material drops
+	biomeMaterialSystem *biome.BiomeMaterialSystem
 }
 
 // NewGame creates and initializes a new game instance.
@@ -313,44 +317,45 @@ func NewGame() *Game {
 		postProcessor:   render.NewPostProcessor(config.C.InternalWidth, config.C.InternalHeight, int64(seed)),
 		animationTicker: 0,
 		// v4.0 systems
-		destructibleSystem: destruct.NewSystem(),
-		squadCompanions:    squad.NewSquad(3), // Max 3 squad members
-		questTracker:       quest.NewTracker(),
-		playerInventory:    inventory.NewInventory(),
-		propsManager:       props.NewManager(),
-		loreCodex:          lore.NewCodex(),
-		loreGenerator:      lore.NewGenerator(int64(seed)),
-		loreItems:          make([]*lore.LoreItem, 0),
-		codexScrollIdx:     0,
-		secretManager:      secret.NewManager(64), // Map width for secret key calculation
-		upgradeManager:     upgrade.NewManager(),
-		masteryManager:     weapon.NewMasteryManager(),
-		federationHub:      federation.NewFederationHub(),
-		serverBrowser:      make([]*federation.ServerAnnouncement, 0),
-		browserIdx:         0,
-		useFederation:      false,
-		hazardECSSystem:    hazard.NewECSSystem(int64(seed)),
-		roleBasedAISystem:  ai.NewRoleBasedAISystem(),
-		spatialSystem:      spatial.NewSystem(64.0), // 64-unit cells for typical 10-50 unit queries
-		animationSystem:    animation.NewAnimationSystem("fantasy"),
-		comboSystem:        combat.NewComboSystem("fantasy", int64(seed)),
-		lootDropSystem:     loot.NewLootDropSystem(int64(seed)),
-		feedbackSystem:     feedback.NewFeedbackSystem(int64(seed)),
-		spriteGenerator:    sprite.NewGenerator(100),
-		defenseSystem:      combat.NewDefenseSystem("fantasy"),
-		decorationSystem:   decoration.NewSystem(),
-		roomDecorations:    make(map[int]*decoration.RoomDecor),
-		collisionGeometry:  collision.NewCollisionGeometrySystem(),
-		lightingSystem:     lighting.NewLightingSystem("fantasy"),
-		bossPhaseSystem:    combat.NewBossPhaseSystem(),
-		factionSystem:      faction.NewReputationSystem(),
-		statSystem:         stats.NewSystem(),
-		weatherSystem:      weather.NewSystem(2000, int64(seed), "fantasy"),
-		equipmentSystem:    equipment.NewEquipmentSystem("fantasy"),
-		positionalSystem:   combat.NewPositionalSystem("fantasy"),
-		adaptiveAISystem:   ai.NewAdaptiveAISystem("fantasy"),
-		aoSystem:           lighting.NewAOSystem("fantasy"),
-		projectileSystem:   projectile.NewSystem(),
+		destructibleSystem:  destruct.NewSystem(),
+		squadCompanions:     squad.NewSquad(3), // Max 3 squad members
+		questTracker:        quest.NewTracker(),
+		playerInventory:     inventory.NewInventory(),
+		propsManager:        props.NewManager(),
+		loreCodex:           lore.NewCodex(),
+		loreGenerator:       lore.NewGenerator(int64(seed)),
+		loreItems:           make([]*lore.LoreItem, 0),
+		codexScrollIdx:      0,
+		secretManager:       secret.NewManager(64), // Map width for secret key calculation
+		upgradeManager:      upgrade.NewManager(),
+		masteryManager:      weapon.NewMasteryManager(),
+		federationHub:       federation.NewFederationHub(),
+		serverBrowser:       make([]*federation.ServerAnnouncement, 0),
+		browserIdx:          0,
+		useFederation:       false,
+		hazardECSSystem:     hazard.NewECSSystem(int64(seed)),
+		roleBasedAISystem:   ai.NewRoleBasedAISystem(),
+		spatialSystem:       spatial.NewSystem(64.0), // 64-unit cells for typical 10-50 unit queries
+		animationSystem:     animation.NewAnimationSystem("fantasy"),
+		comboSystem:         combat.NewComboSystem("fantasy", int64(seed)),
+		lootDropSystem:      loot.NewLootDropSystem(int64(seed)),
+		feedbackSystem:      feedback.NewFeedbackSystem(int64(seed)),
+		spriteGenerator:     sprite.NewGenerator(100),
+		defenseSystem:       combat.NewDefenseSystem("fantasy"),
+		decorationSystem:    decoration.NewSystem(),
+		roomDecorations:     make(map[int]*decoration.RoomDecor),
+		collisionGeometry:   collision.NewCollisionGeometrySystem(),
+		lightingSystem:      lighting.NewLightingSystem("fantasy"),
+		bossPhaseSystem:     combat.NewBossPhaseSystem(),
+		factionSystem:       faction.NewReputationSystem(),
+		statSystem:          stats.NewSystem(),
+		weatherSystem:       weather.NewSystem(2000, int64(seed), "fantasy"),
+		equipmentSystem:     equipment.NewEquipmentSystem("fantasy"),
+		positionalSystem:    combat.NewPositionalSystem("fantasy"),
+		adaptiveAISystem:    ai.NewAdaptiveAISystem("fantasy"),
+		aoSystem:            lighting.NewAOSystem("fantasy"),
+		projectileSystem:    projectile.NewSystem(),
+		biomeMaterialSystem: biome.NewBiomeMaterialSystem("fantasy"),
 	}
 
 	// Initialize sliding system with spatial index (will be set properly after spatial system init)
@@ -434,6 +439,9 @@ func NewGame() *Game {
 	g.projectileSystem.SetSpatialGrid(g.spatialSystem.GetGrid())
 	g.projectileSystem.SetParticleSpawner(g.particleSystem)
 	g.projectileSystem.SetFeedbackProvider(g.feedbackSystem)
+
+	// Register biome material system with the World
+	g.world.AddSystem(g.biomeMaterialSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
@@ -558,6 +566,7 @@ func (g *Game) generateLevel() {
 // populateLevel populates the generated level with content and entities.
 func (g *Game) populateLevel() {
 	rooms := bsp.GetRooms(g.currentBSPTree)
+	g.assignBiomesToRooms(rooms)
 	g.placeDecorativeProps(rooms)
 	g.placeLoreItems(rooms)
 	g.scanSecretWalls()
@@ -776,6 +785,60 @@ func (g *Game) initializeSquad() {
 	squad.SetGenre(g.genreID)
 	g.squadCompanions.AddMember("companion_1", "grunt", "assault_rifle", g.camera.X-2, g.camera.Y+1, g.seed)
 	g.squadCompanions.AddMember("companion_2", "medic", "pistol", g.camera.X-2, g.camera.Y-1, g.seed)
+}
+
+// assignBiomesToRooms assigns biome types to dungeon rooms for material generation.
+func (g *Game) assignBiomesToRooms(rooms []*bsp.Room) {
+	if len(rooms) == 0 {
+		return
+	}
+
+	// Create deterministic RNG for biome selection
+	biomeRNG := rand.New(rand.NewSource(int64(g.seed)))
+
+	for roomIdx, room := range rooms {
+		// Select biome based on genre
+		biomeType := biome.SelectBiomeForGenre(g.genreID, biomeRNG)
+
+		// Determine tier based on room position in dungeon (deeper = higher tier)
+		tier := 1
+		if roomIdx > len(rooms)/2 {
+			tier = 2
+		}
+		if roomIdx >= len(rooms)-2 {
+			tier = 3
+		}
+
+		// Create biome entity for this room
+		biomeEntity := g.world.AddEntity()
+		g.world.AddComponent(biomeEntity, &biome.BiomeComponent{
+			Biome:        biomeType,
+			Tier:         tier,
+			MaterialSeed: g.seed + uint64(roomIdx*1000),
+		})
+
+		// Add position component at room center
+		g.world.AddComponent(biomeEntity, &biome.PositionComponent{
+			X: float64(room.X + room.W/2),
+			Y: float64(room.Y + room.H/2),
+		})
+
+		logrus.WithFields(logrus.Fields{
+			"room_index": roomIdx,
+			"biome":      biomeType.String(),
+			"tier":       tier,
+			"x":          room.X + room.W/2,
+			"y":          room.Y + room.H/2,
+		}).Debug("Assigned biome to room")
+	}
+
+	// Set genre for biome material system
+	g.biomeMaterialSystem.SetGenre(g.genreID)
+
+	logrus.WithFields(logrus.Fields{
+		"genre":      g.genreID,
+		"room_count": len(rooms),
+	}).Info("Biomes assigned to dungeon rooms")
 }
 
 // setupQuests initializes the quest tracker with level objectives.
@@ -1512,13 +1575,13 @@ func (g *Game) processWeaponHits(hitResults []weapon.HitResult, currentWeapon we
 		}
 
 		if agent.Health <= 0 {
-			g.handleEnemyDeath()
+			g.handleEnemyDeath(agent.X, agent.Y)
 		}
 	}
 }
 
 // handleEnemyDeath processes enemy death rewards and progression.
-func (g *Game) handleEnemyDeath() {
+func (g *Game) handleEnemyDeath(enemyX, enemyY float64) {
 	oldLevel := g.progression.GetLevel()
 	if err := g.progression.AddXP(50); err != nil {
 		logrus.WithError(err).Warn("Failed to add XP")
@@ -1556,6 +1619,58 @@ func (g *Game) handleEnemyDeath() {
 
 	if g.questTracker != nil {
 		g.questTracker.UpdateProgress("bonus_kills", 1)
+	}
+
+	// Spawn biome-specific crafting materials based on location
+	g.spawnBiomeMaterialsAtDeath(enemyX, enemyY)
+}
+
+// spawnBiomeMaterialsAtDeath spawns biome materials when an enemy dies.
+func (g *Game) spawnBiomeMaterialsAtDeath(x, y float64) {
+	if g.biomeMaterialSystem == nil {
+		return
+	}
+
+	// Find the biome entity closest to this position
+	biomeType := reflect.TypeOf((*biome.BiomeComponent)(nil))
+	posType := reflect.TypeOf((*biome.PositionComponent)(nil))
+	biomeEntities := g.world.Query(biomeType, posType)
+
+	var closestBiome biome.BiomeType
+	var closestTier int = 1
+	var closestSeed uint64
+	minDist := math.MaxFloat64
+
+	for _, e := range biomeEntities {
+		biomeComp, _ := g.world.GetComponent(e, biomeType)
+		posComp, _ := g.world.GetComponent(e, posType)
+
+		bc := biomeComp.(*biome.BiomeComponent)
+		pc := posComp.(*biome.PositionComponent)
+
+		// Calculate distance to biome center
+		dx := pc.X - x
+		dy := pc.Y - y
+		dist := math.Sqrt(dx*dx + dy*dy)
+
+		if dist < minDist {
+			minDist = dist
+			closestBiome = bc.Biome
+			closestTier = bc.Tier
+			closestSeed = bc.MaterialSeed + uint64(x*100+y*10)
+		}
+	}
+
+	// If no biome found, use default underground biome
+	if minDist == math.MaxFloat64 {
+		closestBiome = biome.BiomeUnderground
+		closestTier = 1
+		closestSeed = g.seed + uint64(x*100+y*10)
+	}
+
+	// 30% chance to spawn materials on enemy death
+	if g.rng.Float64() < 0.3 {
+		g.biomeMaterialSystem.SpawnMaterialsAtPosition(g.world, closestBiome, closestTier, x, y, closestSeed)
 	}
 }
 
