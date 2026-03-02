@@ -102,6 +102,7 @@ type Shop struct {
 	Inventory ShopInventory
 	genreID   string
 	shopName  string
+	FactionID string // Faction that owns this shop (empty string = neutral)
 
 	// Legacy items for backward compatibility
 	Items []Item
@@ -307,6 +308,11 @@ func (s *Shop) Sell(id string, currency *int) bool {
 
 // Purchase buys an item using Credits. Returns true if successful.
 func (s *Shop) Purchase(itemID string, credits *Credit) bool {
+	return s.PurchaseWithModifier(itemID, credits, 1.0)
+}
+
+// PurchaseWithModifier buys an item with a price modifier (for faction discounts/markups).
+func (s *Shop) PurchaseWithModifier(itemID string, credits *Credit, priceModifier float64) bool {
 	if credits == nil {
 		return false
 	}
@@ -327,8 +333,14 @@ func (s *Shop) Purchase(itemID string, credits *Credit) bool {
 		return false
 	}
 
+	// Apply faction price modifier
+	finalPrice := int(float64(item.Price) * priceModifier)
+	if finalPrice < 1 {
+		finalPrice = 1
+	}
+
 	// Deduct credits
-	if !credits.Deduct(item.Price) {
+	if !credits.Deduct(finalPrice) {
 		return false
 	}
 
@@ -385,4 +397,14 @@ func (s *Shop) SetGenre(genreID string) {
 	s.shopName = s.getShopName()
 	s.Inventory = s.getShopInventory()
 	s.Items = s.Inventory.GetAllItems() // Update legacy items
+}
+
+// SetFaction assigns faction ownership to the shop.
+func (s *Shop) SetFaction(factionID string) {
+	s.FactionID = factionID
+}
+
+// GetFaction returns the faction ID owning this shop.
+func (s *Shop) GetFaction() string {
+	return s.FactionID
 }

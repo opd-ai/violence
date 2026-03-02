@@ -4,6 +4,72 @@ import (
 	"testing"
 )
 
+func TestShopFactionIntegration(t *testing.T) {
+	shop := NewArmory("fantasy")
+	shop.SetFaction("mercenaries")
+
+	if shop.GetFaction() != "mercenaries" {
+		t.Errorf("Expected faction 'mercenaries', got '%s'", shop.GetFaction())
+	}
+}
+
+func TestPurchaseWithModifier(t *testing.T) {
+	shop := NewArmory("fantasy")
+	credits := NewCredit(1000)
+
+	baseItem := shop.Inventory.FindItem("weapon_sword")
+	if baseItem == nil {
+		t.Fatal("Expected weapon_sword in inventory")
+	}
+	basePrice := baseItem.Price
+
+	initialCredits := credits.Get()
+	if !shop.PurchaseWithModifier("weapon_sword", credits, 0.8) {
+		t.Error("Purchase with 20% discount should succeed")
+	}
+
+	expectedCost := int(float64(basePrice) * 0.8)
+	actualCost := initialCredits - credits.Get()
+	if actualCost != expectedCost {
+		t.Errorf("Expected cost %d, got %d", expectedCost, actualCost)
+	}
+}
+
+func TestPurchaseWithModifierMarkup(t *testing.T) {
+	shop := NewArmory("cyberpunk")
+	credits := NewCredit(2000)
+
+	baseItem := shop.Inventory.FindItem("weapon_smg")
+	if baseItem == nil {
+		t.Fatal("Expected weapon_smg in inventory")
+	}
+	basePrice := baseItem.Price
+
+	initialCredits := credits.Get()
+	if !shop.PurchaseWithModifier("weapon_smg", credits, 1.5) {
+		t.Error("Purchase with 50% markup should succeed if credits sufficient")
+	}
+
+	expectedCost := int(float64(basePrice) * 1.5)
+	actualCost := initialCredits - credits.Get()
+	if actualCost != expectedCost {
+		t.Errorf("Expected cost %d, got %d", expectedCost, actualCost)
+	}
+}
+
+func TestPurchaseWithModifierInsufficientFunds(t *testing.T) {
+	shop := NewArmory("horror")
+	credits := NewCredit(100)
+
+	if shop.PurchaseWithModifier("weapon_shotgun", credits, 2.0) {
+		t.Error("Purchase should fail with insufficient credits")
+	}
+
+	if credits.Get() != 100 {
+		t.Error("Credits should not be deducted on failed purchase")
+	}
+}
+
 func TestNewShop(t *testing.T) {
 	items := []Item{
 		{ID: "item1", Name: "Test Item", Price: 100},

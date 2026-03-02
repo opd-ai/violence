@@ -33,6 +33,7 @@ import (
 	"github.com/opd-ai/violence/pkg/door"
 	"github.com/opd-ai/violence/pkg/engine"
 	"github.com/opd-ai/violence/pkg/event"
+	"github.com/opd-ai/violence/pkg/faction"
 	"github.com/opd-ai/violence/pkg/federation"
 	"github.com/opd-ai/violence/pkg/feedback"
 	"github.com/opd-ai/violence/pkg/hazard"
@@ -229,6 +230,9 @@ type Game struct {
 
 	// Boss phase transition system for multi-phase boss encounters
 	bossPhaseSystem *combat.BossPhaseSystem
+
+	// Faction reputation system for economy and NPC relationship management
+	factionSystem *faction.ReputationSystem
 }
 
 // NewGame creates and initializes a new game instance.
@@ -311,6 +315,7 @@ func NewGame() *Game {
 		collisionGeometry:  collision.NewCollisionGeometrySystem(),
 		lightingSystem:     lighting.NewLightingSystem("fantasy"),
 		bossPhaseSystem:    combat.NewBossPhaseSystem(),
+		factionSystem:      faction.NewReputationSystem(),
 	}
 
 	// Initialize status system with the registry
@@ -352,6 +357,9 @@ func NewGame() *Game {
 
 	// Register hazard ECS system with the World
 	g.world.AddSystem(g.hazardECSSystem)
+
+	// Register faction reputation system with the World
+	g.world.AddSystem(g.factionSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
@@ -839,6 +847,10 @@ func (g *Game) initializePlayer() {
 	// Add defense component to player
 	defenseComp := combat.NewDefenseComponent(g.genreID)
 	g.world.AddComponent(g.playerEntity, defenseComp)
+
+	// Add faction reputation component to player
+	repComp := faction.InitializePlayerReputation(g.genreID)
+	g.world.AddComponent(g.playerEntity, repComp)
 }
 
 // findSpawnPosition finds a safe starting position for the player.
@@ -2111,7 +2123,19 @@ func (g *Game) handleShopPurchase() {
 	}
 
 	item := allItems[idx]
-	if g.shopArmory.Purchase(item.ID, g.shopCredits) {
+
+	priceModifier := 1.0
+	if g.shopArmory.FactionID != "" && g.playerEntity != 0 {
+		repType := reflect.TypeOf((*faction.ReputationComponent)(nil))
+		repComp, ok := g.world.GetComponent(g.playerEntity, repType)
+		if ok {
+			if rep, ok := repComp.(*faction.ReputationComponent); ok {
+				priceModifier = faction.GetFactionShopPriceModifier(rep, faction.FactionID(g.shopArmory.FactionID))
+			}
+		}
+	}
+
+	if g.shopArmory.PurchaseWithModifier(item.ID, g.shopCredits, priceModifier) {
 		// Apply purchased item effects
 		g.applyShopItem(item.ID)
 		g.hud.ShowMessage("Purchased: " + item.Name)
