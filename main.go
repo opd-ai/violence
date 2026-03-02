@@ -453,7 +453,11 @@ func NewGame() *Game {
 	g.statusSystem = status.NewSystem(g.statusReg)
 
 	// Initialize BSP generator
-	g.bspGenerator = bsp.NewGenerator(64, 64, g.rng)
+	var err error
+	g.bspGenerator, err = bsp.NewGenerator(64, 64, g.rng)
+	if err != nil {
+		panic(fmt.Sprintf("failed to create BSP generator: %v", err))
+	}
 	g.bspGenerator.SetGenre(g.genreID)
 
 	// Set sprite generator genre

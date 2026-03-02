@@ -21,7 +21,10 @@ func TestNewGenerator(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := rng.NewRNG(12345)
-			g := NewGenerator(tt.width, tt.height, r)
+			g, err := NewGenerator(tt.width, tt.height, r)
+			if err != nil {
+				t.Fatalf("NewGenerator failed: %v", err)
+			}
 			if g.Width != tt.width {
 				t.Errorf("Width = %d, want %d", g.Width, tt.width)
 			}
@@ -33,6 +36,47 @@ func TestNewGenerator(t *testing.T) {
 			}
 			if g.MaxSize != 12 {
 				t.Errorf("MaxSize = %d, want 12", g.MaxSize)
+			}
+		})
+	}
+}
+
+func TestNewGenerator_Validation(t *testing.T) {
+	tests := []struct {
+		name    string
+		width   int
+		height  int
+		rng     *rng.RNG
+		wantErr error
+	}{
+		{"zero_width", 0, 64, rng.NewRNG(123), ErrInvalidWidth},
+		{"negative_width", -10, 64, rng.NewRNG(123), ErrInvalidWidth},
+		{"width_too_large", 2000, 64, rng.NewRNG(123), ErrInvalidWidth},
+		{"zero_height", 64, 0, rng.NewRNG(123), ErrInvalidHeight},
+		{"negative_height", 64, -10, rng.NewRNG(123), ErrInvalidHeight},
+		{"height_too_large", 64, 2000, rng.NewRNG(123), ErrInvalidHeight},
+		{"nil_rng", 64, 64, nil, ErrNilRNG},
+		{"max_valid_size", 1024, 1024, rng.NewRNG(123), nil},
+		{"min_valid_size", 1, 1, rng.NewRNG(123), nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g, err := NewGenerator(tt.width, tt.height, tt.rng)
+			if tt.wantErr != nil {
+				if err != tt.wantErr {
+					t.Errorf("NewGenerator() error = %v, want %v", err, tt.wantErr)
+				}
+				if g != nil {
+					t.Errorf("NewGenerator() returned non-nil generator on error")
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("NewGenerator() unexpected error: %v", err)
+				}
+				if g == nil {
+					t.Errorf("NewGenerator() returned nil generator")
+				}
 			}
 		})
 	}
@@ -51,11 +95,17 @@ func TestGenerateDeterministic(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r1 := rng.NewRNG(tt.seed)
-			g1 := NewGenerator(64, 64, r1)
+			g1, err := NewGenerator(64, 64, r1)
+			if err != nil {
+				t.Fatalf("NewGenerator failed: %v", err)
+			}
 			_, tiles1 := g1.Generate()
 
 			r2 := rng.NewRNG(tt.seed)
-			g2 := NewGenerator(64, 64, r2)
+			g2, err := NewGenerator(64, 64, r2)
+			if err != nil {
+				t.Fatalf("NewGenerator failed: %v", err)
+			}
 			_, tiles2 := g2.Generate()
 
 			if !tilesEqual(tiles1, tiles2) {
@@ -67,11 +117,17 @@ func TestGenerateDeterministic(t *testing.T) {
 
 func TestGenerateDifferentSeeds(t *testing.T) {
 	r1 := rng.NewRNG(12345)
-	g1 := NewGenerator(64, 64, r1)
+	g1, err := NewGenerator(64, 64, r1)
+	if err != nil {
+		t.Fatalf("NewGenerator failed: %v", err)
+	}
 	_, tiles1 := g1.Generate()
 
 	r2 := rng.NewRNG(67890)
-	g2 := NewGenerator(64, 64, r2)
+	g2, err := NewGenerator(64, 64, r2)
+	if err != nil {
+		t.Fatalf("NewGenerator failed: %v", err)
+	}
 	_, tiles2 := g2.Generate()
 
 	if tilesEqual(tiles1, tiles2) {
@@ -94,7 +150,10 @@ func TestGenerateRoomCount(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := rng.NewRNG(tt.seed)
-			g := NewGenerator(tt.width, tt.height, r)
+			g, err := NewGenerator(tt.width, tt.height, r)
+			if err != nil {
+				t.Fatalf("NewGenerator failed: %v", err)
+			}
 			root, _ := g.Generate()
 
 			rooms := countRooms(root)
@@ -110,7 +169,10 @@ func TestGenerateRoomCount(t *testing.T) {
 
 func TestGenerateConnectivity(t *testing.T) {
 	r := rng.NewRNG(12345)
-	g := NewGenerator(64, 64, r)
+	g, err := NewGenerator(64, 64, r)
+	if err != nil {
+		t.Fatalf("NewGenerator failed: %v", err)
+	}
 	_, tiles := g.Generate()
 
 	// Find first floor tile
@@ -146,7 +208,10 @@ func TestGenerateConnectivity(t *testing.T) {
 
 func TestGenerateDoorPlacement(t *testing.T) {
 	r := rng.NewRNG(12345)
-	g := NewGenerator(64, 64, r)
+	g, err := NewGenerator(64, 64, r)
+	if err != nil {
+		t.Fatalf("NewGenerator failed: %v", err)
+	}
 	_, tiles := g.Generate()
 
 	doorCount := 0
@@ -168,7 +233,10 @@ func TestGenerateDoorPlacement(t *testing.T) {
 
 func TestGenerateSecretPlacement(t *testing.T) {
 	r := rng.NewRNG(12345)
-	g := NewGenerator(64, 64, r)
+	g, err := NewGenerator(64, 64, r)
+	if err != nil {
+		t.Fatalf("NewGenerator failed: %v", err)
+	}
 	_, tiles := g.Generate()
 
 	secretCount := 0
@@ -204,7 +272,10 @@ func TestSetGenre(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := rng.NewRNG(12345)
-			g := NewGenerator(64, 64, r)
+			g, err := NewGenerator(64, 64, r)
+			if err != nil {
+				t.Fatalf("NewGenerator failed: %v", err)
+			}
 			g.SetGenre(tt.genreID)
 			if g.genre != tt.genreID {
 				t.Errorf("genre = %s, want %s", g.genre, tt.genreID)
@@ -235,7 +306,10 @@ func TestGenreTileGeneration(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := rng.NewRNG(54321)
-			g := NewGenerator(32, 32, r)
+			g, err := NewGenerator(32, 32, r)
+			if err != nil {
+				t.Fatalf("NewGenerator failed: %v", err)
+			}
 			g.SetGenre(tt.genreID)
 			_, tiles := g.Generate()
 
@@ -266,7 +340,10 @@ func TestGenreTileGeneration(t *testing.T) {
 
 func TestSplitSmallNode(t *testing.T) {
 	r := rng.NewRNG(12345)
-	g := NewGenerator(64, 64, r)
+	g, err := NewGenerator(64, 64, r)
+	if err != nil {
+		t.Fatalf("NewGenerator failed: %v", err)
+	}
 
 	// Too small to split
 	node := &Node{X: 0, Y: 0, W: 8, H: 8}
@@ -282,7 +359,10 @@ func TestSplitSmallNode(t *testing.T) {
 
 func TestSplitLargeNode(t *testing.T) {
 	r := rng.NewRNG(12345)
-	g := NewGenerator(64, 64, r)
+	g, err := NewGenerator(64, 64, r)
+	if err != nil {
+		t.Fatalf("NewGenerator failed: %v", err)
+	}
 
 	node := &Node{X: 0, Y: 0, W: 64, H: 64}
 	result := g.split(node, 0)
@@ -297,7 +377,10 @@ func TestSplitLargeNode(t *testing.T) {
 
 func TestSplitMaxDepth(t *testing.T) {
 	r := rng.NewRNG(12345)
-	g := NewGenerator(1024, 1024, r)
+	g, err := NewGenerator(1024, 1024, r)
+	if err != nil {
+		t.Fatalf("NewGenerator failed: %v", err)
+	}
 
 	node := &Node{X: 0, Y: 0, W: 1024, H: 1024}
 	result := g.split(node, 11) // Beyond max depth
@@ -309,7 +392,10 @@ func TestSplitMaxDepth(t *testing.T) {
 
 func TestCorridorCarving(t *testing.T) {
 	r := rng.NewRNG(12345)
-	g := NewGenerator(64, 64, r)
+	g, err := NewGenerator(64, 64, r)
+	if err != nil {
+		t.Fatalf("NewGenerator failed: %v", err)
+	}
 
 	tiles := make([][]int, 64)
 	for y := range tiles {
@@ -429,7 +515,10 @@ func countFloorTiles(tiles [][]int) int {
 
 func BenchmarkGenerate(b *testing.B) {
 	r := rng.NewRNG(12345)
-	g := NewGenerator(64, 64, r)
+	g, err := NewGenerator(64, 64, r)
+	if err != nil {
+		b.Fatalf("NewGenerator failed: %v", err)
+	}
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
@@ -440,7 +529,10 @@ func BenchmarkGenerate(b *testing.B) {
 
 func BenchmarkGenerateLarge(b *testing.B) {
 	r := rng.NewRNG(12345)
-	g := NewGenerator(128, 128, r)
+	g, err := NewGenerator(128, 128, r)
+	if err != nil {
+		b.Fatalf("NewGenerator failed: %v", err)
+	}
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
@@ -451,7 +543,10 @@ func BenchmarkGenerateLarge(b *testing.B) {
 
 func TestPlaceSecretsWithNilTiles(t *testing.T) {
 	r := rng.NewRNG(12345)
-	g := NewGenerator(64, 64, r)
+	g, err := NewGenerator(64, 64, r)
+	if err != nil {
+		t.Fatalf("NewGenerator failed: %v", err)
+	}
 
 	// placeSecrets should handle nil tiles gracefully
 	g.placeSecrets(nil, nil)
@@ -469,7 +564,10 @@ func TestPlaceSecretsWithNilTiles(t *testing.T) {
 
 func TestPlaceSecretsWithValidTiles(t *testing.T) {
 	r := rng.NewRNG(12345)
-	g := NewGenerator(64, 64, r)
+	g, err := NewGenerator(64, 64, r)
+	if err != nil {
+		t.Fatalf("NewGenerator failed: %v", err)
+	}
 
 	// Create a valid tile map
 	tiles := make([][]int, g.Height)
@@ -494,7 +592,10 @@ func TestPlaceSecretsWithValidTiles(t *testing.T) {
 // TestGetRooms tests that GetRooms correctly extracts all rooms from a BSP tree.
 func TestGetRooms(t *testing.T) {
 	r := rng.NewRNG(12345)
-	g := NewGenerator(64, 64, r)
+	g, err := NewGenerator(64, 64, r)
+	if err != nil {
+		t.Fatalf("NewGenerator failed: %v", err)
+	}
 
 	root, _ := g.Generate()
 

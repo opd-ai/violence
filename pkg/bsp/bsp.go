@@ -2,6 +2,8 @@
 package bsp
 
 import (
+	"errors"
+
 	"github.com/opd-ai/violence/pkg/procgen/genre"
 	"github.com/opd-ai/violence/pkg/rng"
 )
@@ -26,6 +28,16 @@ const (
 	TileFloorWood     = 22 // Horror - wooden floor
 	TileFloorConcrete = 23 // Cyberpunk - polished concrete
 	TileFloorDirt     = 24 // PostApoc - dirt/debris
+
+	// Input validation bounds
+	MinLevelSize = 16   // Minimum level dimension (must fit at least 2-3 rooms)
+	MaxLevelSize = 1024 // Maximum level dimension (performance limit)
+)
+
+var (
+	ErrInvalidWidth  = errors.New("width must be > 0 and <= 1024")
+	ErrInvalidHeight = errors.New("height must be > 0 and <= 1024")
+	ErrNilRNG        = errors.New("rng cannot be nil")
 )
 
 // Node represents a BSP tree node used during level generation.
@@ -61,7 +73,18 @@ type GeneratorConfig struct {
 }
 
 // NewGenerator creates a BSP generator for the given dimensions.
-func NewGenerator(width, height int, r *rng.RNG) *Generator {
+// Returns an error if width/height are invalid or rng is nil.
+func NewGenerator(width, height int, r *rng.RNG) (*Generator, error) {
+	if width <= 0 || width > MaxLevelSize {
+		return nil, ErrInvalidWidth
+	}
+	if height <= 0 || height > MaxLevelSize {
+		return nil, ErrInvalidHeight
+	}
+	if r == nil {
+		return nil, ErrNilRNG
+	}
+
 	return &Generator{
 		Width:     width,
 		Height:    height,
@@ -71,7 +94,7 @@ func NewGenerator(width, height int, r *rng.RNG) *Generator {
 		genre:     genre.Fantasy,
 		wallTile:  TileWall,
 		floorTile: TileFloor,
-	}
+	}, nil
 }
 
 // SetGenre configures level generation parameters for a genre.

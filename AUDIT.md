@@ -19,14 +19,14 @@
 - **CRITICAL BUG:** 0 remaining — 4 FIXED (state broadcast ✅, dialogue policy violation ✅, save error handling ✅, lag compensation panic ✅)
 - **FUNCTIONAL MISMATCH:** 0 remaining — 3 FIXED (replay system integration ✅, mod API stubs ✅, positional audio panning ✅)
 - **MISSING FEATURE:** 0 remaining — 2 FIXED (rate limiter cleanup ✅, matchmaking player notification ✅)
-- **EDGE CASE BUG:** 2 remaining (BSP input validation, concurrency in ModAPI) — 1 FIXED (lag compensation panic ✅)
+- **EDGE CASE BUG:** 1 remaining (concurrency in ModAPI) — 2 FIXED (lag compensation panic ✅, BSP input validation ✅)
 - **PERFORMANCE ISSUE:** 1 remaining (missing atomic writes) — 1 FIXED (unbounded rate limiter map ✅)
 
 ### Completion Status
 - **HIGH PRIORITY:** 5 of 5 complete (100%)
 - **MEDIUM PRIORITY:** 5 of 5 complete (100%)
-- **LOW PRIORITY:** 0 of 5 complete (0%)
-- **OVERALL:** 10 of 14 issues resolved (71%)
+- **LOW PRIORITY:** 1 of 5 complete (20%)
+- **OVERALL:** 11 of 14 issues resolved (79%)
 
 ---
 
@@ -1079,10 +1079,15 @@ func SetGenre(genreID string) {}  // No implementation
 
 ### LOW PRIORITY (Nice to Have)
 
-10. **Add BSP Input Validation** (bsp.go:64)
-    - Validate width/height > 0
-    - Add reasonable min/max bounds
-    - Return errors instead of allowing panics
+10. **[x] Add BSP Input Validation** (bsp.go:64) — COMPLETE (2026-03-02)
+    - Added validation for width/height > 0 and <= 1024 (MaxLevelSize constant)
+    - Added validation for nil RNG
+    - Changed NewGenerator to return (*Generator, error) instead of *Generator
+    - Added error types: ErrInvalidWidth, ErrInvalidHeight, ErrNilRNG
+    - Updated main.go caller to handle error (panic on invalid input)
+    - Added comprehensive validation test suite (TestNewGenerator_Validation) with 9 test cases
+    - All tests pass, code passes go fmt and go vet
+    - Build successful
 
 11. **Add Mutex to ModAPI** (api.go:38)
     - Add sync.RWMutex field to ModAPI struct
