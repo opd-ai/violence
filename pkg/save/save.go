@@ -241,3 +241,15 @@ func DeleteSlot(slot int) error {
 
 	return nil
 }
+
+// GetReplayPath returns the file path for a replay file associated with a slot.
+func GetReplayPath(slot int) (string, error) {
+	if slot < 0 || slot >= MaxSlots {
+		return "", ErrInvalidSlot
+	}
+	savePath, err := getSavePath()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(savePath, fmt.Sprintf("slot_%d.vrep", slot)), nil
+}
