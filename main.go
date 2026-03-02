@@ -48,6 +48,7 @@ import (
 	"github.com/opd-ai/violence/pkg/minigame"
 	"github.com/opd-ai/violence/pkg/mod"
 	"github.com/opd-ai/violence/pkg/network"
+	"github.com/opd-ai/violence/pkg/outline"
 	"github.com/opd-ai/violence/pkg/particle"
 	"github.com/opd-ai/violence/pkg/progression"
 	"github.com/opd-ai/violence/pkg/projectile"
@@ -280,6 +281,9 @@ type Game struct {
 
 	// Territory control system for faction warfare and dynamic territory ownership
 	territorySystem *territory.ControlSystem
+
+	// Sprite outline system for visual clarity and entity distinction
+	outlineSystem *outline.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -373,6 +377,7 @@ func NewGame() *Game {
 		trapSystem:          trap.NewSystem(int64(seed)),
 		questLootSystem:     loot.NewQuestLootSystem("fantasy", seed),
 		dmgfxSystem:         dmgfx.NewSystem(),
+		outlineSystem:       outline.NewSystem("fantasy"),
 	}
 
 	// Initialize faction system first
@@ -488,6 +493,9 @@ func NewGame() *Game {
 	// Register territory control system with the World
 	g.world.AddSystem(g.territorySystem)
 
+	// Register sprite outline system with the World
+	g.world.AddSystem(g.outlineSystem)
+
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
 
@@ -590,6 +598,7 @@ func (g *Game) startNewGame() {
 func (g *Game) generateLevel() {
 	g.bspGenerator.SetGenre(g.genreID)
 	g.spriteGenerator.SetGenre(g.genreID)
+	g.outlineSystem.SetGenre(g.genreID)
 	bspTree, tiles := g.bspGenerator.Generate()
 	g.currentMap = tiles
 	g.currentBSPTree = bspTree
