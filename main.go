@@ -29,6 +29,7 @@ import (
 	"github.com/opd-ai/violence/pkg/collision"
 	"github.com/opd-ai/violence/pkg/combat"
 	"github.com/opd-ai/violence/pkg/config"
+	"github.com/opd-ai/violence/pkg/corpse"
 	"github.com/opd-ai/violence/pkg/crafting"
 	"github.com/opd-ai/violence/pkg/decal"
 	"github.com/opd-ai/violence/pkg/decoration"
@@ -305,6 +306,10 @@ type Game struct {
 
 	// Attack telegraph system for enemy attack visual indicators
 	telegraphSystem *telegraph.System
+
+	// Corpse system for persistent death visuals and looting
+	corpseSystem *corpse.System
+	corpses      []corpse.Corpse
 }
 
 // NewGame creates and initializes a new game instance.
@@ -437,6 +442,10 @@ func NewGame() *Game {
 
 	// Initialize attack telegraph system for enemy attack indicators
 	g.telegraphSystem = telegraph.NewSystem(g.genreID, int64(seed))
+
+	// Initialize corpse system for persistent death visuals
+	g.corpseSystem = corpse.NewSystem(200, g.genreID, int64(seed))
+	g.corpses = make([]corpse.Corpse, 0, 200)
 
 	// Connect sliding system to spatial index
 	g.slidingSystem.SetSpatialIndex(g.spatialSystem.GetGrid())
@@ -1318,6 +1327,9 @@ func (g *Game) setGenre(genreID string) {
 	if g.decalSystem != nil {
 		g.decalSystem.SetGenre(genreID)
 	}
+	if g.corpseSystem != nil {
+		g.corpseSystem.SetGenre(genreID)
+	}
 
 	// Generate genre-specific textures
 	g.textureAtlas.GenerateWallSet(genreID)
@@ -1775,6 +1787,36 @@ func (g *Game) handleEnemyDeath(enemyX, enemyY float64) {
 		g.decalSystem.SpawnBloodSplatter(&g.combatDecals, enemyX, enemyY, dirX*0.8, dirY*0.8)
 	}
 
+	// Spawn corpse with death visual
+	if g.corpseSystem != nil {
+		deathType := corpse.DeathNormal
+		if g.arsenal.CurrentSlot >= 0 && g.arsenal.CurrentSlot < len(g.arsenal.Weapons) {
+			wpn := g.arsenal.Weapons[g.arsenal.CurrentSlot]
+			switch wpn.Name {
+			case "Plasma Rifle", "Flamethrower":
+				deathType = corpse.DeathBurn
+			case "Railgun", "Lightning Gun":
+				deathType = corpse.DeathElectric
+			case "Rocket Launcher", "Grenade":
+				deathType = corpse.DeathExplosion
+			case "Sword", "Katana", "Blade":
+				deathType = corpse.DeathSlash
+			case "Hammer", "Mace":
+				deathType = corpse.DeathCrush
+			default:
+				if wpn.Type == weapon.TypeMelee {
+					deathType = corpse.DeathSlash
+				} else {
+					deathType = corpse.DeathNormal
+				}
+			}
+		}
+		corpseSize := 64
+		hasLoot := g.rng.Float64() < 0.3
+		corpseSeed := int64(enemyX*1000 + enemyY*1000 + float64(time.Now().UnixNano()%10000))
+		g.corpseSystem.SpawnCorpse(&g.corpses, enemyX, enemyY, corpseSeed, "enemy", "humanoid", deathType, corpseSize, hasLoot)
+	}
+
 	oldLevel := g.progression.GetLevel()
 	if err := g.progression.AddXP(50); err != nil {
 		logrus.WithError(err).Warn("Failed to add XP")
@@ -2133,6 +2175,11 @@ func (g *Game) updateV3Systems() {
 	// Update combat decals (fade over time)
 	if g.decalSystem != nil {
 		g.decalSystem.UpdateDecals(&g.combatDecals, deltaTime)
+	}
+
+	// Update corpses (fade over time)
+	if g.corpseSystem != nil {
+		g.corpseSystem.UpdateCorpses(&g.corpses, deltaTime)
 	}
 
 	if g.weatherEmitter != nil {
@@ -3894,6 +3941,11 @@ func (g *Game) drawPlaying(screen *ebiten.Image) {
 	// Render combat decals (blood, scorch marks, etc.)
 	if g.decalSystem != nil && len(g.combatDecals) > 0 {
 		g.decalSystem.RenderDecals(screen, g.combatDecals, camX, camY)
+	}
+
+	// Render corpses on top of decals
+	if g.corpseSystem != nil && len(g.corpses) > 0 {
+		g.corpseSystem.RenderAllCorpses(screen, g.corpses, camX, camY)
 	}
 
 	// Render props as sprites in world space
