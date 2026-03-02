@@ -254,6 +254,9 @@ type Game struct {
 
 	// Adaptive AI system for learning player behavior
 	adaptiveAISystem *ai.AdaptiveAISystem
+
+	// Ambient occlusion system for depth cues and atmospheric shading
+	aoSystem *lighting.AOSystem
 }
 
 // NewGame creates and initializes a new game instance.
@@ -342,6 +345,7 @@ func NewGame() *Game {
 		equipmentSystem:    equipment.NewEquipmentSystem("fantasy"),
 		positionalSystem:   combat.NewPositionalSystem("fantasy"),
 		adaptiveAISystem:   ai.NewAdaptiveAISystem("fantasy"),
+		aoSystem:           lighting.NewAOSystem("fantasy"),
 	}
 
 	// Initialize sliding system with spatial index (will be set properly after spatial system init)
@@ -411,6 +415,12 @@ func NewGame() *Game {
 
 	// Register adaptive AI system with the World
 	g.world.AddSystem(g.adaptiveAISystem)
+
+	// Register ambient occlusion system with the World
+	g.world.AddSystem(g.aoSystem)
+
+	// Connect AO system to spatial index for fast proximity queries
+	g.aoSystem.SetSpatialGrid(g.spatialSystem.GetGrid())
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
