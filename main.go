@@ -288,6 +288,9 @@ type Game struct {
 
 	// Attack trail system for weapon swing/slash visual effects
 	attackTrailSystem *attacktrail.System
+
+	// Impact effect emitter for combat hit feedback particles
+	impactEmitter *particle.ImpactEffectEmitter
 }
 
 // NewGame creates and initializes a new game instance.
@@ -406,6 +409,9 @@ func NewGame() *Game {
 
 	// Set loot drop system genre
 	g.lootDropSystem.SetGenre(g.genreID)
+
+	// Initialize impact effect emitter
+	g.impactEmitter = particle.NewImpactEffectEmitter(g.particleSystem, g.genreID)
 
 	// Connect sliding system to spatial index
 	g.slidingSystem.SetSpatialIndex(g.spatialSystem.GetGrid())
@@ -1210,6 +1216,10 @@ func (g *Game) setGenre(genreID string) {
 	if g.particleSystem != nil && len(g.currentMap) > 0 && len(g.currentMap[0]) > 0 {
 		g.weatherEmitter = particle.NewWeatherEmitter(g.particleSystem, genreID, 0, 0, float64(len(g.currentMap[0])), float64(len(g.currentMap)))
 	}
+	// ImpactEffectEmitter doesn't have SetGenre - recreate it on genre change
+	if g.particleSystem != nil {
+		g.impactEmitter = particle.NewImpactEffectEmitter(g.particleSystem, genreID)
+	}
 
 	// v4.0 systems
 	destruct.SetGenre(genreID)
@@ -1648,6 +1658,9 @@ func (g *Game) processWeaponHits(hitResults []weapon.HitResult, currentWeapon we
 		finalDamage := upgradedDamage * posMultiplier
 		agent.Health -= finalDamage
 
+		// Determine if hit is critical
+		isCritical := g.rng.Float64() < 0.15 || posMultiplier >= 2.0 // Backstabs are always critical
+
 		// Add screen feedback for hit
 		if g.feedbackSystem != nil {
 			shakeIntensity := finalDamage / 10.0
@@ -1656,7 +1669,6 @@ func (g *Game) processWeaponHits(hitResults []weapon.HitResult, currentWeapon we
 			}
 			g.feedbackSystem.AddScreenShake(shakeIntensity)
 
-			isCritical := g.rng.Float64() < 0.15 || posMultiplier >= 2.0 // Backstabs are always critical
 			g.feedbackSystem.SpawnDamageNumber(agent.X, agent.Y, int(finalDamage), isCritical)
 
 			impactType := feedback.ImpactHit
@@ -1666,10 +1678,14 @@ func (g *Game) processWeaponHits(hitResults []weapon.HitResult, currentWeapon we
 			g.feedbackSystem.SpawnImpactEffect(agent.X, agent.Y, impactType)
 		}
 
-		// Add blood particle burst
-		if g.particleSystem != nil {
-			bloodColor := color.RGBA{R: 180, G: 0, B: 0, A: 255}
-			g.particleSystem.SpawnBurst(agent.X, agent.Y, 0, 15, 8.0, 0.5, 1.0, 1.2, bloodColor)
+		// Add impact particles (blood splatter for flesh hits)
+		if g.impactEmitter != nil {
+			impactAngle := math.Atan2(agent.Y-g.camera.Y, agent.X-g.camera.X)
+			impactTypeParticle := particle.ImpactMelee
+			if isCritical {
+				impactTypeParticle = particle.ImpactCritical
+			}
+			g.impactEmitter.EmitImpact(agent.X, agent.Y, impactTypeParticle, particle.MaterialFlesh, impactAngle)
 		}
 
 		if g.masteryManager != nil {
@@ -1684,6 +1700,12 @@ func (g *Game) processWeaponHits(hitResults []weapon.HitResult, currentWeapon we
 
 // handleEnemyDeath processes enemy death rewards and progression.
 func (g *Game) handleEnemyDeath(enemyX, enemyY float64) {
+	// Spawn death impact particles
+	if g.impactEmitter != nil {
+		impactAngle := math.Atan2(enemyY-g.camera.Y, enemyX-g.camera.X)
+		g.impactEmitter.EmitImpact(enemyX, enemyY, particle.ImpactDeath, particle.MaterialFlesh, impactAngle)
+	}
+
 	oldLevel := g.progression.GetLevel()
 	if err := g.progression.AddXP(50); err != nil {
 		logrus.WithError(err).Warn("Failed to add XP")
@@ -1896,6 +1918,12 @@ func (g *Game) handleAgentAttack(agent *ai.Agent) {
 	agent.Cooldown = 60
 	g.audioEngine.PlaySFX("enemy_attack", agent.X, agent.Y)
 	g.hud.ShowMessage("Taking damage!")
+
+	// Add impact particles for player damage
+	if g.impactEmitter != nil {
+		impactAngle := math.Atan2(g.camera.Y-agent.Y, g.camera.X-agent.X)
+		g.impactEmitter.EmitImpact(g.camera.X, g.camera.Y, particle.ImpactMelee, particle.MaterialFlesh, impactAngle)
+	}
 
 	// Add screen feedback for player damage
 	if g.feedbackSystem != nil {
