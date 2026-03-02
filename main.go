@@ -43,6 +43,7 @@ import (
 	"github.com/opd-ai/violence/pkg/federation"
 	"github.com/opd-ai/violence/pkg/feedback"
 	"github.com/opd-ai/violence/pkg/floor"
+	"github.com/opd-ai/violence/pkg/fog"
 	"github.com/opd-ai/violence/pkg/hazard"
 	"github.com/opd-ai/violence/pkg/healthbar"
 	"github.com/opd-ai/violence/pkg/input"
@@ -317,6 +318,9 @@ type Game struct {
 
 	// Health bar system for overhead entity health bars and status icons
 	healthBarSystem *healthbar.System
+
+	// Atmospheric fog system for distance-based depth cueing
+	fogSystem *fog.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -460,6 +464,9 @@ func NewGame() *Game {
 	// Initialize health bar system for overhead entity health bars and status icons
 	g.healthBarSystem = healthbar.NewSystem(g.genreID)
 
+	// Initialize atmospheric fog system for distance-based depth cueing
+	g.fogSystem = fog.NewSystem(g.genreID)
+
 	// Connect sliding system to spatial index
 	g.slidingSystem.SetSpatialIndex(g.spatialSystem.GetGrid())
 
@@ -565,6 +572,9 @@ func NewGame() *Game {
 
 	// Register health bar system with the World
 	g.world.AddSystem(g.healthBarSystem)
+
+	// Register atmospheric fog system with the World
+	g.world.AddSystem(g.fogSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
@@ -1380,6 +1390,9 @@ func (g *Game) setGenre(genreID string) {
 	}
 	if g.healthBarSystem != nil {
 		g.healthBarSystem.SetGenre(genreID)
+	}
+	if g.fogSystem != nil {
+		g.fogSystem.SetGenre(genreID)
 	}
 
 	// Generate genre-specific textures
@@ -2239,6 +2252,11 @@ func (g *Game) updateV3Systems() {
 
 	if g.secretManager != nil {
 		g.secretManager.Update(deltaTime)
+	}
+
+	// Update atmospheric fog system camera position
+	if g.fogSystem != nil {
+		g.fogSystem.SetCamera(g.camera.X, g.camera.Y)
 	}
 
 	// Check for hazard collisions and apply damage/effects
