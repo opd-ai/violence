@@ -44,6 +44,7 @@ import (
 	"github.com/opd-ai/violence/pkg/feedback"
 	"github.com/opd-ai/violence/pkg/floor"
 	"github.com/opd-ai/violence/pkg/hazard"
+	"github.com/opd-ai/violence/pkg/healthbar"
 	"github.com/opd-ai/violence/pkg/input"
 	"github.com/opd-ai/violence/pkg/inventory"
 	"github.com/opd-ai/violence/pkg/lighting"
@@ -313,6 +314,9 @@ type Game struct {
 
 	// Loot visual system for rendering dropped items with rarity-based effects
 	lootVisualSystem *loot.VisualSystem
+
+	// Health bar system for overhead entity health bars and status icons
+	healthBarSystem *healthbar.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -453,6 +457,9 @@ func NewGame() *Game {
 	// Initialize loot visual system for item rendering
 	g.lootVisualSystem = loot.NewVisualSystem(g.genreID)
 
+	// Initialize health bar system for overhead entity health bars and status icons
+	g.healthBarSystem = healthbar.NewSystem(g.genreID)
+
 	// Connect sliding system to spatial index
 	g.slidingSystem.SetSpatialIndex(g.spatialSystem.GetGrid())
 
@@ -555,6 +562,9 @@ func NewGame() *Game {
 
 	// Register loot visual system with the World
 	g.world.AddSystem(g.lootVisualSystem)
+
+	// Register health bar system with the World
+	g.world.AddSystem(g.healthBarSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
@@ -823,6 +833,19 @@ func (g *Game) spawnEnemies() {
 		}
 		agent := ai.NewAgent("enemy_"+string(rune(i+'0')), spawnX, spawnY)
 		g.aiAgents = append(g.aiAgents, agent)
+
+		// Create ECS entity for the enemy with health bar
+		enemyEntity := g.world.AddEntity()
+		g.world.AddComponent(enemyEntity, &engine.Position{X: spawnX, Y: spawnY})
+		g.world.AddComponent(enemyEntity, &engine.Health{Current: 100, Max: 100})
+		g.world.AddComponent(enemyEntity, &healthbar.Component{
+			Visible:      true,
+			Width:        40,
+			Height:       4,
+			OffsetY:      20,
+			ShowWhenFull: false,
+			ThreatLevel:  1,
+		})
 	}
 
 	// Spawn a boss enemy in the last room (1 in 3 chance)
@@ -839,7 +862,23 @@ func (g *Game) spawnBoss(room *bsp.Room) {
 	// Create boss entity
 	bossEntity := g.world.AddEntity()
 
-	// Add health component
+	// Add position component
+	g.world.AddComponent(bossEntity, &engine.Position{X: spawnX, Y: spawnY})
+
+	// Add health component for health bar rendering
+	g.world.AddComponent(bossEntity, &engine.Health{Current: 1000, Max: 1000})
+
+	// Add health bar display component
+	g.world.AddComponent(bossEntity, &healthbar.Component{
+		Visible:      true,
+		Width:        60,
+		Height:       6,
+		OffsetY:      30,
+		ShowWhenFull: true,
+		ThreatLevel:  3,
+	})
+
+	// Add health component (combat system)
 	healthComp := &combat.HealthComponent{
 		Current: 1000.0,
 		Max:     1000.0,
@@ -1338,6 +1377,9 @@ func (g *Game) setGenre(genreID string) {
 	}
 	if g.corpseSystem != nil {
 		g.corpseSystem.SetGenre(genreID)
+	}
+	if g.healthBarSystem != nil {
+		g.healthBarSystem.SetGenre(genreID)
 	}
 
 	// Generate genre-specific textures
@@ -4006,6 +4048,11 @@ func (g *Game) drawPlaying(screen *ebiten.Image) {
 	// Render attack telegraph indicators
 	if g.telegraphSystem != nil {
 		g.telegraphSystem.Render(screen, g.world, camX, camY)
+	}
+
+	// Render entity health bars and status icons
+	if g.healthBarSystem != nil {
+		g.healthBarSystem.RenderHealthBars(screen, g.world, camX, camY, g.camera.DirX, g.camera.DirY, config.C.InternalWidth, config.C.InternalHeight)
 	}
 
 	// Apply hit flash overlay
