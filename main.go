@@ -30,6 +30,7 @@ import (
 	"github.com/opd-ai/violence/pkg/combat"
 	"github.com/opd-ai/violence/pkg/config"
 	"github.com/opd-ai/violence/pkg/crafting"
+	"github.com/opd-ai/violence/pkg/decal"
 	"github.com/opd-ai/violence/pkg/decoration"
 	"github.com/opd-ai/violence/pkg/destruct"
 	"github.com/opd-ai/violence/pkg/dmgfx"
@@ -296,6 +297,10 @@ type Game struct {
 	// Floor detail system for procedural floor tile variation and environmental detail
 	floorDetailSystem *floor.System
 	floorDetails      []*floor.FloorDetailComponent
+
+	// Combat decal system for persistent visual marks from combat
+	decalSystem  *decal.System
+	combatDecals []decal.Decal
 }
 
 // NewGame creates and initializes a new game instance.
@@ -421,6 +426,10 @@ func NewGame() *Game {
 	// Initialize floor detail system for procedural floor variation
 	g.floorDetailSystem = floor.NewSystem(g.genreID, 64)
 	g.floorDetails = make([]*floor.FloorDetailComponent, 0)
+
+	// Initialize combat decal system for persistent visual marks
+	g.decalSystem = decal.NewSystem(500, g.genreID, int64(seed))
+	g.combatDecals = make([]decal.Decal, 0, 500)
 
 	// Connect sliding system to spatial index
 	g.slidingSystem.SetSpatialIndex(g.spatialSystem.GetGrid())
@@ -1296,6 +1305,9 @@ func (g *Game) setGenre(genreID string) {
 	if g.floorDetailSystem != nil {
 		g.floorDetailSystem.SetGenre(genreID)
 	}
+	if g.decalSystem != nil {
+		g.decalSystem.SetGenre(genreID)
+	}
 
 	// Generate genre-specific textures
 	g.textureAtlas.GenerateWallSet(genreID)
@@ -1719,6 +1731,13 @@ func (g *Game) processWeaponHits(hitResults []weapon.HitResult, currentWeapon we
 			g.impactEmitter.EmitImpact(agent.X, agent.Y, impactTypeParticle, particle.MaterialFlesh, impactAngle)
 		}
 
+		// Add persistent combat decal on hit
+		if g.decalSystem != nil {
+			dirX := agent.X - g.camera.X
+			dirY := agent.Y - g.camera.Y
+			g.decalSystem.SpawnBloodSplatter(&g.combatDecals, agent.X, agent.Y, dirX, dirY)
+		}
+
 		if g.masteryManager != nil {
 			g.masteryManager.AddMasteryXP(g.arsenal.CurrentSlot, 10)
 		}
@@ -1735,6 +1754,15 @@ func (g *Game) handleEnemyDeath(enemyX, enemyY float64) {
 	if g.impactEmitter != nil {
 		impactAngle := math.Atan2(enemyY-g.camera.Y, enemyX-g.camera.X)
 		g.impactEmitter.EmitImpact(enemyX, enemyY, particle.ImpactDeath, particle.MaterialFlesh, impactAngle)
+	}
+
+	// Add larger blood decal on death
+	if g.decalSystem != nil {
+		dirX := enemyX - g.camera.X
+		dirY := enemyY - g.camera.Y
+		// Spawn extra blood splatters for dramatic effect
+		g.decalSystem.SpawnBloodSplatter(&g.combatDecals, enemyX, enemyY, dirX, dirY)
+		g.decalSystem.SpawnBloodSplatter(&g.combatDecals, enemyX, enemyY, dirX*0.8, dirY*0.8)
 	}
 
 	oldLevel := g.progression.GetLevel()
@@ -2090,6 +2118,11 @@ func (g *Game) updateV3Systems() {
 
 	if g.particleSystem != nil {
 		g.particleSystem.Update(deltaTime)
+	}
+
+	// Update combat decals (fade over time)
+	if g.decalSystem != nil {
+		g.decalSystem.UpdateDecals(&g.combatDecals, deltaTime)
 	}
 
 	if g.weatherEmitter != nil {
@@ -3846,6 +3879,11 @@ func (g *Game) drawPlaying(screen *ebiten.Image) {
 	// Render floor detail overlays for visual variety
 	if g.floorDetailSystem != nil && len(g.floorDetails) > 0 {
 		g.renderFloorDetails(screen)
+	}
+
+	// Render combat decals (blood, scorch marks, etc.)
+	if g.decalSystem != nil && len(g.combatDecals) > 0 {
+		g.decalSystem.RenderDecals(screen, g.combatDecals, camX, camY)
 	}
 
 	// Render props as sprites in world space
