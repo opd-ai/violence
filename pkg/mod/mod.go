@@ -2,6 +2,8 @@
 package mod
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -410,4 +412,21 @@ func (l *Loader) RegisterOverride(override ParamOverride) {
 // GetOverrides returns the effective parameter overrides for a generator type.
 func (l *Loader) GetOverrides(generatorType string) map[string]interface{} {
 	return l.pluginManager.Overrides().GetAll(generatorType)
+}
+
+// ComputeSHA256 computes the SHA256 checksum of data and returns it as hex string.
+func ComputeSHA256(data []byte) string {
+	hash := sha256.Sum256(data)
+	return hex.EncodeToString(hash[:])
+}
+
+// LoadWASMModule loads a WASM module from raw bytes.
+func LoadWASMModule(data []byte) error {
+	// Global WASM loader instance for convenience
+	// In production, use loader.WASMLoader() for better control
+	loader := NewWASMLoader()
+	// Generate a unique name based on data hash
+	name := ComputeSHA256(data)[:16] // Use first 16 chars of hash as name
+	_, err := loader.LoadWASMFromBytes(name, data)
+	return err
 }

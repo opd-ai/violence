@@ -144,6 +144,60 @@ func (wl *WASMLoader) LoadWASM(path string) (*WASMModule, error) {
 	return wasmMod, nil
 }
 
+// LoadWASMFromBytes loads a WASM module from raw bytes with a given name.
+func (wl *WASMLoader) LoadWASMFromBytes(name string, wasmBytes []byte) (*WASMModule, error) {
+	wl.mu.Lock()
+	defer wl.mu.Unlock()
+
+	// Check if already loaded
+	if _, exists := wl.modules[name]; exists {
+		return nil, fmt.Errorf("module %s already loaded", name)
+	}
+
+	// Create engine and store
+	engine := wasmer.NewEngine()
+	store := wasmer.NewStore(engine)
+
+	// Compile module
+	module, err := wasmer.NewModule(store, wasmBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compile WASM module: %w", err)
+	}
+
+	// Create import object with host functions
+	importObject := wl.createImportObject(store, name)
+
+	// Instantiate module
+	instance, err := wasmer.NewInstance(module, importObject)
+	if err != nil {
+		return nil, fmt.Errorf("failed to instantiate WASM module: %w", err)
+	}
+
+	// Get memory export (if present)
+	var memory *wasmer.Memory
+	if memExport, err := instance.Exports.GetMemory("memory"); err == nil {
+		memory = memExport
+	}
+
+	wasmMod := &WASMModule{
+		Name:     name,
+		Path:     "", // No file path for byte-loaded modules
+		instance: instance,
+		store:    store,
+		memory:   memory,
+	}
+
+	wl.modules[name] = wasmMod
+
+	logrus.WithFields(logrus.Fields{
+		"system_name": "wasm_loader",
+		"mod_name":    name,
+		"size":        len(wasmBytes),
+	}).Info("WASM module loaded from bytes")
+
+	return wasmMod, nil
+}
+
 // UnloadWASM unloads a WASM module by name.
 func (wl *WASMLoader) UnloadWASM(name string) error {
 	wl.mu.Lock()
