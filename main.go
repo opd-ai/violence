@@ -251,6 +251,9 @@ type Game struct {
 
 	// Positional advantage system for backstab/flank/elevation combat
 	positionalSystem *combat.PositionalSystem
+
+	// Adaptive AI system for learning player behavior
+	adaptiveAISystem *ai.AdaptiveAISystem
 }
 
 // NewGame creates and initializes a new game instance.
@@ -338,6 +341,7 @@ func NewGame() *Game {
 		weatherSystem:      weather.NewSystem(2000, int64(seed), "fantasy"),
 		equipmentSystem:    equipment.NewEquipmentSystem("fantasy"),
 		positionalSystem:   combat.NewPositionalSystem("fantasy"),
+		adaptiveAISystem:   ai.NewAdaptiveAISystem("fantasy"),
 	}
 
 	// Initialize sliding system with spatial index (will be set properly after spatial system init)
@@ -404,6 +408,9 @@ func NewGame() *Game {
 
 	// Register positional advantage system with the World
 	g.world.AddSystem(g.positionalSystem)
+
+	// Register adaptive AI system with the World
+	g.world.AddSystem(g.adaptiveAISystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
@@ -909,6 +916,10 @@ func (g *Game) initializePlayer() {
 
 	// Add positional component to player for backstab/flank mechanics
 	g.positionalSystem.AddPositionalComponent(g.world, g.playerEntity, 0, 0)
+
+	// Add player behavior profile for adaptive AI
+	playerProfile := ai.NewPlayerBehaviorProfile()
+	g.world.AddComponent(g.playerEntity, &ai.PlayerProfileComponent{Profile: playerProfile})
 }
 
 // findSpawnPosition finds a safe starting position for the player.
