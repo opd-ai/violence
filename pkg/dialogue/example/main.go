@@ -8,7 +8,7 @@ import (
 
 // Example demonstrating the dialogue system
 func main() {
-	fmt.Println("=== Violence Dialogue System Demo ===\n")
+	fmt.Println("=== Violence Dialogue System Demo ===")
 
 	// Create dialogue generator
 	gen := dialogue.NewGenerator(42)

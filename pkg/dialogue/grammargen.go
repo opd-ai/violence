@@ -56,34 +56,34 @@ func (gg *GrammarGenerator) Generate(genre string, speakerType SpeakerType, dial
 func (gg *GrammarGenerator) expandPattern(pattern []string, genre string, rng *rand.Rand) string {
 	var parts []string
 	for _, token := range pattern {
-		if strings.HasPrefix(token, "{") && strings.HasSuffix(token, "}") {
-			// Expand non-terminal
-			tokenName := strings.Trim(token, "{}")
-			expansion := gg.expandToken(tokenName, genre, rng)
-			parts = append(parts, expansion)
+		// Check if token contains {placeholders}
+		if strings.Contains(token, "{") && strings.Contains(token, "}") {
+			// Expand all placeholders in the token
+			expanded := gg.expandPlaceholders(token, genre, rng)
+			parts = append(parts, expanded)
 		} else {
-			// Terminal symbol
+			// Terminal symbol without placeholders
 			parts = append(parts, token)
 		}
 	}
 	return strings.Join(parts, " ")
 }
 
-// expandToken expands a single grammar token.
-func (gg *GrammarGenerator) expandToken(token, genre string, rng *rand.Rand) string {
-	// Token vocabulary by genre
+// expandPlaceholders replaces all {placeholder} tokens in a string.
+func (gg *GrammarGenerator) expandPlaceholders(text, genre string, rng *rand.Rand) string {
+	result := text
 	vocab := gg.getVocabulary(genre)
 
-	options, ok := vocab[token]
-	if !ok {
-		return token // Return token name if no expansion found
+	// Find and replace all {token} patterns
+	for tokenName, options := range vocab {
+		placeholder := "{" + tokenName + "}"
+		if strings.Contains(result, placeholder) && len(options) > 0 {
+			replacement := options[rng.Intn(len(options))]
+			result = strings.ReplaceAll(result, placeholder, replacement)
+		}
 	}
 
-	if len(options) == 0 {
-		return ""
-	}
-
-	return options[rng.Intn(len(options))]
+	return result
 }
 
 // getVocabulary returns genre-specific vocabulary for token expansion.

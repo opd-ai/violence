@@ -58,7 +58,7 @@ func (ng *NameGenerator) Generate(genre string, speakerType SpeakerType, seed in
 func (ng *NameGenerator) getSyllables(genre string) []string {
 	syllables, ok := ng.syllables[genre]
 	if !ok {
-		return ng.syllables["fantasy"]
+		syllables = ng.syllables["fantasy"]
 	}
 
 	// Flatten syllable patterns

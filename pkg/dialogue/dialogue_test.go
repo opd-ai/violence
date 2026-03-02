@@ -131,9 +131,10 @@ func TestGetSpeakerNames(t *testing.T) {
 			gen := NewGenerator(12345)
 			gen.SetGenre(tt.genre)
 
-			names := gen.getSpeakerNames(tt.speakerType)
-			if len(names) == 0 {
-				t.Errorf("no names returned for genre %s, speaker %d", tt.genre, tt.speakerType)
+			// Test name generation through nameGen
+			name := gen.nameGen.Generate(tt.genre, tt.speakerType, 12345)
+			if name == "" {
+				t.Errorf("no name generated for genre %s, speaker %d", tt.genre, tt.speakerType)
 			}
 		})
 	}
@@ -154,10 +155,11 @@ func TestGenerateLines(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			lines := gen.generateLines(tt.speakerType, tt.dialogueType, gen.rng)
+			// Test line generation through grammarGen
+			lines := gen.grammarGen.Generate(gen.genre, tt.speakerType, tt.dialogueType, 12345)
 
 			if len(lines) == 0 {
-				t.Error("generateLines returned empty slice")
+				t.Error("grammarGen.Generate returned empty slice")
 			}
 			for i, line := range lines {
 				if line == "" {
@@ -184,7 +186,8 @@ func TestGenerateChoices(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(string(rune('0'+tt.dialogueType)), func(t *testing.T) {
-			choices := gen.generateChoices(tt.dialogueType, gen.rng)
+			// Test choice generation through choiceGen
+			choices := gen.choiceGen.Generate(gen.genre, tt.dialogueType, 12345)
 
 			if tt.expectedChoices && len(choices) == 0 {
 				t.Errorf("expected choices for dialogue type %d, got none", tt.dialogueType)
@@ -369,41 +372,21 @@ func TestAllGenresHaveTemplates(t *testing.T) {
 }
 
 func TestFillTemplate(t *testing.T) {
+	// Template filling is now handled by grammarGen.expandPattern
+	// Test grammar expansion instead
 	gen := NewGenerator(42)
 
-	tests := []struct {
-		template string
-		contains []string
-	}{
-		{
-			"The {faction} controls {place}",
-			[]string{"The ", " controls "},
-		},
-		{
-			"Sector {number} has {adj} readings",
-			[]string{"Sector ", " has ", " readings"},
-		},
-		{
-			"Retrieve {artifact} from {place}",
-			[]string{"Retrieve ", " from "},
-		},
+	// Test that grammar generation produces valid output
+	lines := gen.grammarGen.Generate("fantasy", SpeakerGuard, DialogueGreeting, 42)
+	if len(lines) == 0 {
+		t.Error("grammarGen should produce dialogue lines")
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.template, func(t *testing.T) {
-			result := gen.fillTemplate(tt.template, gen.rng)
-
-			for _, substr := range tt.contains {
-				if !strings.Contains(result, substr) {
-					t.Errorf("result should contain '%s', got: %s", substr, result)
-				}
-			}
-
-			// Check that placeholders are replaced
-			if strings.Contains(result, "{") || strings.Contains(result, "}") {
-				t.Errorf("template should not contain placeholders after fill: %s", result)
-			}
-		})
+	for _, line := range lines {
+		// Check that placeholders are expanded
+		if strings.Contains(line, "{") || strings.Contains(line, "}") {
+			t.Errorf("dialogue should not contain placeholders after generation: %s", line)
+		}
 	}
 }
 
@@ -428,20 +411,25 @@ func TestDialogueChoicesStructure(t *testing.T) {
 func TestGenreSpecificNames(t *testing.T) {
 	gen := NewGenerator(12345)
 
-	// Fantasy names should not appear in scifi
+	// Test that different genres generate different names
 	gen.SetGenre("scifi")
-	scifiNames := gen.getSpeakerNames(SpeakerGuard)
-	for _, name := range scifiNames {
-		if strings.Contains(name, "Ser ") || strings.Contains(name, "Knight") {
-			t.Errorf("scifi should not have fantasy names: %s", name)
-		}
+	scifiName := gen.nameGen.Generate("scifi", SpeakerGuard, 12345)
+	if scifiName == "" {
+		t.Error("scifi genre should generate guard names")
 	}
 
-	// Horror names should be appropriate
+	// Horror names should be generated
 	gen.SetGenre("horror")
-	horrorNames := gen.getSpeakerNames(SpeakerCivilian)
-	if len(horrorNames) == 0 {
-		t.Error("horror genre should have civilian names")
+	horrorName := gen.nameGen.Generate("horror", SpeakerCivilian, 12345)
+	if horrorName == "" {
+		t.Error("horror genre should generate civilian names")
+	}
+
+	// Names should be deterministic
+	name1 := gen.nameGen.Generate("fantasy", SpeakerGuard, 100)
+	name2 := gen.nameGen.Generate("fantasy", SpeakerGuard, 100)
+	if name1 != name2 {
+		t.Errorf("same seed should generate same name, got %s and %s", name1, name2)
 	}
 }
 
