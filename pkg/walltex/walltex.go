@@ -96,7 +96,7 @@ func NewGenerator(genre string) *Generator {
 // Generate creates a wall texture with the specified parameters.
 // variant (0-3) determines which material mix to use.
 // seed provides deterministic randomization.
-func (g *Generator) Generate(size int, variant int, seed uint64) *image.RGBA {
+func (g *Generator) Generate(size, variant int, seed uint64) *image.RGBA {
 	img := image.NewRGBA(image.Rect(0, 0, size, size))
 	r := rng.NewRNG(seed)
 
@@ -189,7 +189,7 @@ func (g *Generator) renderStone(x, y, w, h int, r *rng.RNG) color.RGBA {
 	// Multi-octave noise for surface detail
 	noise := g.octaveNoise(float64(x), float64(y), 3, r) * 0.3
 	// Add some larger variation per brick
-	brickSeed := uint64((x/brickW)*1000 + (y/brickH))
+	brickSeed := uint64((x/brickW)*1000 + (y / brickH))
 	brickNoise := float64(hashSeed(brickSeed)%100) / 100.0 * 0.2
 
 	factor := 1.0 + noise + brickNoise
@@ -368,7 +368,7 @@ func (g *Generator) renderTech(x, y, w, h int, r *rng.RNG) color.RGBA {
 	atGridV := (x % panelSize) < gridW
 
 	// Circuit traces (occasional bright lines)
-	circuitSeed := hashSeed(uint64((x/8)*100 + (y/8)))
+	circuitSeed := hashSeed(uint64((x/8)*100 + (y / 8)))
 	hasCircuit := (circuitSeed % 10) < 2
 
 	if (atGridH || atGridV) && hasCircuit {

@@ -15,19 +15,19 @@ func TestVisualOutput(t *testing.T) {
 	}
 
 	genres := []string{"fantasy", "scifi", "horror", "cyberpunk", "postapoc"}
-	
+
 	for _, genre := range genres {
 		g := NewGenerator(genre)
-		
+
 		// Generate both primary and secondary material variants
 		for variant := 0; variant < 2; variant++ {
 			img := g.Generate(128, variant, 42)
-			
+
 			// Skip file writing in automated tests
 			// Uncomment to generate actual PNG files for inspection:
 			// filename := fmt.Sprintf("sample_%s_v%d.png", genre, variant)
 			// saveImage(img, filename)
-			
+
 			if img == nil {
 				t.Errorf("Failed to generate texture for %s variant %d", genre, variant)
 			}
