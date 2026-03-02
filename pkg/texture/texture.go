@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/opd-ai/violence/pkg/rng"
+	"github.com/opd-ai/violence/pkg/walltex"
 )
 
 // Atlas stores procedurally generated textures.
@@ -71,11 +72,19 @@ func (a *Atlas) SetGenre(genreID string) {
 func (a *Atlas) GenerateWallSet(genreID string) {
 	a.SetGenre(genreID)
 
-	// Generate 4 wall texture variants
+	// Use enhanced wall texture generator
+	gen := walltex.NewGenerator(genreID)
+
+	// Generate 4 wall texture variants with material variation
 	for i := 1; i <= 4; i++ {
 		name := "wall_" + string(rune('0'+i))
-		// Use different seed offset for each wall variant
-		a.Generate(name, 64, "wall")
+		variant := i - 1
+		seed := a.seed ^ hashString(name)
+		img := gen.Generate(64, variant, seed)
+
+		a.mu.Lock()
+		a.textures[name] = img
+		a.mu.Unlock()
 	}
 }
 
