@@ -310,6 +310,9 @@ type Game struct {
 	// Corpse system for persistent death visuals and looting
 	corpseSystem *corpse.System
 	corpses      []corpse.Corpse
+
+	// Loot visual system for rendering dropped items with rarity-based effects
+	lootVisualSystem *loot.VisualSystem
 }
 
 // NewGame creates and initializes a new game instance.
@@ -447,6 +450,9 @@ func NewGame() *Game {
 	g.corpseSystem = corpse.NewSystem(200, g.genreID, int64(seed))
 	g.corpses = make([]corpse.Corpse, 0, 200)
 
+	// Initialize loot visual system for item rendering
+	g.lootVisualSystem = loot.NewVisualSystem(g.genreID)
+
 	// Connect sliding system to spatial index
 	g.slidingSystem.SetSpatialIndex(g.spatialSystem.GetGrid())
 
@@ -546,6 +552,9 @@ func NewGame() *Game {
 
 	// Register attack telegraph system with the World
 	g.world.AddSystem(g.telegraphSystem)
+
+	// Register loot visual system with the World
+	g.world.AddSystem(g.lootVisualSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
@@ -3958,6 +3967,11 @@ func (g *Game) drawPlaying(screen *ebiten.Image) {
 		g.renderLoreItems(screen)
 	}
 
+	// Render dropped loot items as sprites in world space
+	if g.lootVisualSystem != nil {
+		g.renderLootItems(screen)
+	}
+
 	// Render dynamic shadows for entities/props
 	if g.shadowSystem != nil && g.lightMap != nil {
 		g.renderShadows(screen)
@@ -4798,6 +4812,99 @@ func (g *Game) drawLoreItemSprite(screen *ebiten.Image, loreItem *lore.LoreItem,
 func calculateSpriteTransform(loreItem *lore.LoreItem, camera *camera.Camera, planeX, planeY float64) (float64, float64) {
 	dx := loreItem.PosX - camera.X
 	dy := loreItem.PosY - camera.Y
+	invDet := 1.0 / (planeX*camera.DirY - camera.DirX*planeY)
+	transformX := invDet * (camera.DirY*dx - camera.DirX*dy)
+	transformY := invDet * (-planeY*dx + planeX*dy)
+	return transformX, transformY
+}
+
+// renderLootItems draws dropped loot items as procedural sprites in world space.
+func (g *Game) renderLootItems(screen *ebiten.Image) {
+	planeX, planeY := calculateCameraPlane(g.camera)
+
+	visualType := reflect.TypeOf((*loot.VisualComponent)(nil))
+	posType := reflect.TypeOf((*loot.PositionComponent)(nil))
+
+	entities := g.world.Query(visualType, posType)
+
+	for _, entity := range entities {
+		comp, found := g.world.GetComponent(entity, visualType)
+		if !found {
+			continue
+		}
+
+		lv, ok := comp.(*loot.VisualComponent)
+		if !ok || lv.Collected {
+			continue
+		}
+
+		posComp, found := g.world.GetComponent(entity, posType)
+		if !found {
+			continue
+		}
+
+		pos, ok := posComp.(*loot.PositionComponent)
+		if !ok {
+			continue
+		}
+
+		posX := pos.X
+		posY := pos.Y
+
+		dx := posX - g.camera.X
+		dy := posY - g.camera.Y
+		dist := dx*dx + dy*dy
+		if dist > 400 {
+			continue
+		}
+
+		transformX, transformY := calculateLootTransform(posX, posY, g.camera, planeX, planeY)
+		if transformY <= 0.1 {
+			continue
+		}
+
+		bobOffset := math.Sin(lv.BobPhase) * 5.0
+
+		spriteScreenX, spriteHeight, spriteWidth := calculateSpriteDimensions(transformX, transformY)
+		drawStartX, _, drawStartY, _ := calculateSpriteDrawBounds(spriteScreenX, spriteHeight, spriteWidth)
+		drawStartY += int(bobOffset)
+
+		if !isWithinScreenBounds(drawStartX, drawStartX+spriteWidth) {
+			continue
+		}
+
+		size := 32
+		spriteImg := g.lootVisualSystem.GenerateItemSprite(lv.ItemID, lv.Category, lv.Rarity, lv.Seed, size)
+
+		if spriteImg != nil {
+			op := &ebiten.DrawImageOptions{}
+			scaleX := float64(spriteWidth) / float64(spriteImg.Bounds().Dx())
+			scaleY := float64(spriteHeight) / float64(spriteImg.Bounds().Dy())
+			op.GeoM.Scale(scaleX, scaleY)
+			op.GeoM.Translate(float64(drawStartX), float64(drawStartY))
+
+			glowIntensity := float32(0.8 + 0.2*math.Sin(lv.GlowPhase))
+			rarityGlow := float32(1.0)
+			switch lv.Rarity {
+			case loot.RarityLegendary:
+				rarityGlow = 1.3
+			case loot.RarityRare:
+				rarityGlow = 1.15
+			case loot.RarityUncommon:
+				rarityGlow = 1.05
+			}
+
+			op.ColorScale.Scale(glowIntensity*rarityGlow, glowIntensity*rarityGlow, glowIntensity*rarityGlow, 1.0)
+
+			screen.DrawImage(spriteImg, op)
+		}
+	}
+}
+
+// calculateLootTransform computes the loot item's transform coordinates.
+func calculateLootTransform(posX, posY float64, camera *camera.Camera, planeX, planeY float64) (float64, float64) {
+	dx := posX - camera.X
+	dy := posY - camera.Y
 	invDet := 1.0 / (planeX*camera.DirY - camera.DirX*planeY)
 	transformX := invDet * (camera.DirY*dx - camera.DirX*dy)
 	transformY := invDet * (-planeY*dx + planeX*dy)
