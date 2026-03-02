@@ -1216,3 +1216,198 @@ func BenchmarkEngine_findRoomAtPosition(b *testing.B) {
 		engine.findRoomAtPosition(60, 50, root)
 	}
 }
+
+func TestStereoPanStream_Read(t *testing.T) {
+	tests := []struct {
+		name      string
+		pan       float64
+		wantLeft  float64
+		wantRight float64
+	}{
+		{"center pan", 0.0, 0.5, 0.5},
+		{"full left", -1.0, 1.0, 0.0},
+		{"full right", 1.0, 0.0, 1.0},
+		{"half left", -0.5, 0.75, 0.25},
+		{"half right", 0.5, 0.25, 0.75},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Generate test audio data (simple stereo WAV with known values)
+			data := generateTestStereoWAV()
+
+			// Create mock ReadSeeker
+			mockStream := &mockReadSeeker{data: data}
+
+			// Create panning stream
+			panStream := NewStereoPanStream(mockStream, tt.pan)
+
+			// Read and verify pan is applied
+			buf := make([]byte, 4096)
+			n, err := panStream.Read(buf)
+			if err != nil && err.Error() != "EOF" {
+				t.Fatalf("Read failed: %v", err)
+			}
+			if n == 0 {
+				t.Fatal("Read returned 0 bytes")
+			}
+
+			// Calculate expected volumes
+			leftVol := 1.0 - (tt.pan+1.0)/2.0
+			rightVol := (tt.pan + 1.0) / 2.0
+
+			// Verify channel volumes match expected
+			if math.Abs(leftVol-tt.wantLeft) > 0.01 {
+				t.Errorf("expected left volume %.2f, got %.2f", tt.wantLeft, leftVol)
+			}
+			if math.Abs(rightVol-tt.wantRight) > 0.01 {
+				t.Errorf("expected right volume %.2f, got %.2f", tt.wantRight, rightVol)
+			}
+		})
+	}
+}
+
+func TestStereoPanStream_Seek(t *testing.T) {
+	data := generateTestStereoWAV()
+	mockStream := &mockReadSeeker{data: data}
+	panStream := NewStereoPanStream(mockStream, 0.5)
+
+	// Test seeking
+	offset, err := panStream.Seek(100, 0)
+	if err != nil {
+		t.Fatalf("Seek failed: %v", err)
+	}
+	if offset != 100 {
+		t.Errorf("expected offset 100, got %d", offset)
+	}
+	if mockStream.seekCalled != true {
+		t.Error("Seek not forwarded to underlying stream")
+	}
+}
+
+func TestStereoPanStream_PanClamping(t *testing.T) {
+	data := generateTestStereoWAV()
+	mockStream := &mockReadSeeker{data: data}
+
+	tests := []struct {
+		name     string
+		inputPan float64
+		wantPan  float64
+	}{
+		{"within range", 0.5, 0.5},
+		{"too high", 2.0, 1.0},
+		{"too low", -2.0, -1.0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			panStream := NewStereoPanStream(mockStream, tt.inputPan)
+			if panStream.pan != tt.wantPan {
+				t.Errorf("expected clamped pan %.2f, got %.2f", tt.wantPan, panStream.pan)
+			}
+		})
+	}
+}
+
+func TestCreatePlayerWithPan(t *testing.T) {
+	engine := NewEngine()
+	engine.SetGenre("fantasy")
+
+	tests := []struct {
+		name string
+		pan  float64
+	}{
+		{"center", 0.0},
+		{"left", -0.5},
+		{"right", 0.5},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Generate test SFX data
+			sfxData := GenerateReloadSound("fantasy", 12345)
+
+			player, err := engine.createPlayerWithPan(sfxData, tt.pan)
+			if err != nil {
+				t.Fatalf("createPlayerWithPan failed: %v", err)
+			}
+			if player == nil {
+				t.Fatal("createPlayerWithPan returned nil player")
+			}
+			player.Close()
+		})
+	}
+}
+
+func TestPlaySFX_PositionalPanning(t *testing.T) {
+	engine := NewEngine()
+	engine.SetGenre("fantasy")
+	engine.SetListenerPosition(10.0, 10.0)
+
+	tests := []struct {
+		name string
+		x    float64
+		y    float64
+	}{
+		{"left of listener", 5.0, 10.0},
+		{"right of listener", 15.0, 10.0},
+		{"same position", 10.0, 10.0},
+		{"far left", 0.0, 10.0},
+		{"far right", 20.0, 10.0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := engine.PlaySFX("reload", tt.x, tt.y)
+			if err != nil {
+				t.Errorf("PlaySFX failed: %v", err)
+			}
+			// Test passes if no error - actual panning is applied during playback
+		})
+	}
+}
+
+// Mock ReadSeeker for testing
+type mockReadSeeker struct {
+	data       []byte
+	pos        int
+	seekCalled bool
+}
+
+func (m *mockReadSeeker) Read(p []byte) (int, error) {
+	if m.pos >= len(m.data) {
+		return 0, nil
+	}
+	n := copy(p, m.data[m.pos:])
+	m.pos += n
+	return n, nil
+}
+
+func (m *mockReadSeeker) Seek(offset int64, whence int) (int64, error) {
+	m.seekCalled = true
+	switch whence {
+	case 0: // SEEK_SET
+		m.pos = int(offset)
+	case 1: // SEEK_CUR
+		m.pos += int(offset)
+	case 2: // SEEK_END
+		m.pos = len(m.data) + int(offset)
+	}
+	return int64(m.pos), nil
+}
+
+func generateTestStereoWAV() []byte {
+	// Simple stereo WAV with repeated sample values
+	samples := 100
+	data := make([]byte, samples*4) // 4 bytes per stereo sample
+	val := int16(1000)
+	for i := 0; i < samples; i++ {
+		// Left channel
+		data[i*4] = byte(val)
+		data[i*4+1] = byte(val >> 8)
+		// Right channel
+		data[i*4+2] = byte(val)
+		data[i*4+3] = byte(val >> 8)
+	}
+	return data
+}

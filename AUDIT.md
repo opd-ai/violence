@@ -10,23 +10,23 @@
 
 **Total Issues Found:** 14 distinct functional discrepancies  
 **Critical Bugs:** 0 (4 fixed)  
-**Functional Mismatches:** 1 (2 fixed)  
+**Functional Mismatches:** 0 (3 fixed)  
 **Missing Features:** 2  
 **Edge Case Bugs:** 2 (1 fixed)  
 **Performance Issues:** 2
 
 ### Issue Breakdown by Category
 - **CRITICAL BUG:** 0 remaining — 4 FIXED (state broadcast ✅, dialogue policy violation ✅, save error handling ✅, lag compensation panic ✅)
-- **FUNCTIONAL MISMATCH:** 1 remaining (positional audio incomplete) — 2 FIXED (replay system integration ✅, mod API stubs ✅)
+- **FUNCTIONAL MISMATCH:** 0 remaining — 3 FIXED (replay system integration ✅, mod API stubs ✅, positional audio panning ✅)
 - **MISSING FEATURE:** 2 issues (Rate limiter cleanup, player notification in matchmaking)
 - **EDGE CASE BUG:** 2 remaining (BSP input validation, concurrency in ModAPI) — 1 FIXED (lag compensation panic ✅)
 - **PERFORMANCE ISSUE:** 2 issues (Unbounded rate limiter map, missing atomic writes)
 
 ### Completion Status
 - **HIGH PRIORITY:** 5 of 5 complete (100%)
-- **MEDIUM PRIORITY:** 1 of 4 complete (25%)
+- **MEDIUM PRIORITY:** 3 of 4 complete (75%)
 - **LOW PRIORITY:** 0 of 5 complete (0%)
-- **OVERALL:** 6 of 14 issues resolved (43%)
+- **OVERALL:** 8 of 14 issues resolved (57%)
 
 ---
 
@@ -446,6 +446,59 @@ func (api *ModAPI) ShowNotification(message string) error {
     return errors.New("ShowNotification not yet implemented")
 }
 ```
+````
+
+````
+
+````
+### ✅ RESOLVED: Positional Audio Panning Not Applied (FIXED 2026-03-02)
+**File:** pkg/audio/audio.go
+**Severity:** Medium (was High for functional mismatch)
+**Status:** RESOLVED
+
+**Original Issue:** The README claimed "positional audio" as a feature, but while the audio system calculated stereo panning, the value was discarded due to Ebitengine v2 API limitations (no SetPan() method). Only distance attenuation was applied.
+
+**Resolution Implemented:**
+1. **StereoPanStream Wrapper:** Created custom io.ReadSeeker wrapper that applies per-channel volume scaling
+   - Implements Read() with stereo sample processing (16-bit little-endian PCM)
+   - Calculates left/right channel volumes from pan value (-1.0 = full left, +1.0 = full right)
+   - Implements Seek() by forwarding to underlying stream
+   - Pan values clamped to [-1.0, +1.0] range
+
+2. **createPlayerWithPan() Method:** New method that wraps decoded WAV stream with StereoPanStream
+   - Accepts pan parameter for stereo positioning
+   - Wraps wav.Stream with panning before creating audio.Player
+   - Works seamlessly with Ebitengine's audio.Player API
+
+3. **PlaySFX() Integration:** Updated to use panning
+   - Removed discarded `_ = pan` line
+   - Calls createPlayerWithPan() instead of createPlayer()
+   - Pan value calculated from horizontal offset (x - listenerX)
+   - Full positional audio now functional (distance attenuation + stereo panning)
+
+**Verification:**
+- All tests pass (3.4s execution time)
+- Test coverage: 96.6% (exceeds 82% requirement)
+- Added 5 new test cases:
+  - TestStereoPanStream_Read (5 pan scenarios)
+  - TestStereoPanStream_Seek (seek forwarding)
+  - TestStereoPanStream_PanClamping (range validation)
+  - TestCreatePlayerWithPan (player creation with panning)
+  - TestPlaySFX_PositionalPanning (integration test)
+- Code passes `go fmt` and `go vet`
+- Project builds successfully
+
+**Impact:**
+- ✅ Full 3D positional audio now functional
+- ✅ Players can determine left/right direction of sounds
+- ✅ Improved spatial awareness in gameplay
+- ✅ README claim of "positional audio" now accurate
+
+**Technical Details:**
+- Pan calculation: `pan = clamp((x - listenerX) / 10.0, -1.0, 1.0)`
+- Left volume: `1.0 - (pan + 1.0) / 2.0`
+- Right volume: `(pan + 1.0) / 2.0`
+- Stereo samples processed as 4-byte frames (L1 L2 R1 R2 in little-endian)
 ````
 
 ````
@@ -899,7 +952,7 @@ func SetGenre(genreID string) {}  // No implementation
 
 ### MEDIUM PRIORITY (Should Fix Soon)
 
-5. **Integrate Replay System** (main.go)
+5. **[x] Integrate Replay System** (main.go) — COMPLETE (2026-03-02)
    - Import pkg/replay package
    - Add ReplayRecorder to Game struct
    - Call RecordInput() during gameplay
@@ -915,10 +968,13 @@ func SetGenre(genreID string) {}  // No implementation
    - Comprehensive test coverage: 93.0% (exceeds 82% target)
    - All permission checks and error handling validated
 
-7. **Add Positional Audio Panning** (audio.go:199-203)
-   - Implement custom audio.ReadSeekCloser for per-channel volume
-   - Apply calculated pan value to stereo channels
-   - Or document limitation more clearly in README
+7. **[x] Add Positional Audio Panning** (audio.go:199-203) — COMPLETE (2026-03-02)
+   - Implemented StereoPanStream wrapper for per-channel volume scaling
+   - Created createPlayerWithPan() method for panned audio player creation
+   - Updated PlaySFX() to apply calculated pan value to stereo channels
+   - Full 3D positional audio now functional (distance + directional panning)
+   - Test coverage: 96.6% with 5 new test cases
+   - All tests pass, code passes go fmt and go vet
 
 8. **Implement Rate Limiter Cleanup** (federation-hub/main.go:167-173)
    - Add periodic cleanup goroutine

@@ -28,6 +28,61 @@ func getAudioContext() *audio.Context {
 	return sharedContext
 }
 
+// StereoPanStream wraps an audio stream to apply stereo panning via per-channel volume scaling.
+// Pan value ranges from -1.0 (full left) to +1.0 (full right).
+type StereoPanStream struct {
+	source io.ReadSeeker
+	pan    float64
+	buffer []byte
+}
+
+// NewStereoPanStream creates a stereo panning stream wrapper.
+func NewStereoPanStream(source io.ReadSeeker, pan float64) *StereoPanStream {
+	return &StereoPanStream{
+		source: source,
+		pan:    clamp(pan, -1.0, 1.0),
+		buffer: make([]byte, 4096),
+	}
+}
+
+// Read applies per-channel volume scaling to implement stereo panning.
+// Assumes 16-bit stereo PCM audio (4 bytes per sample: 2 bytes left, 2 bytes right).
+func (s *StereoPanStream) Read(p []byte) (int, error) {
+	n, err := s.source.Read(p)
+	if n == 0 {
+		return n, err
+	}
+
+	// Calculate channel volumes based on pan (-1.0 = left, +1.0 = right)
+	leftVol := 1.0 - (s.pan+1.0)/2.0 // pan=-1.0 → 1.0, pan=+1.0 → 0.0
+	rightVol := (s.pan + 1.0) / 2.0  // pan=-1.0 → 0.0, pan=+1.0 → 1.0
+
+	// Process 16-bit stereo samples (4 bytes per frame: L1 L2 R1 R2)
+	for i := 0; i+3 < n; i += 4 {
+		// Read left channel sample (little-endian int16)
+		left := int16(p[i]) | int16(p[i+1])<<8
+		// Read right channel sample (little-endian int16)
+		right := int16(p[i+2]) | int16(p[i+3])<<8
+
+		// Apply pan-based volume scaling
+		left = int16(float64(left) * leftVol)
+		right = int16(float64(right) * rightVol)
+
+		// Write back (little-endian)
+		p[i] = byte(left)
+		p[i+1] = byte(left >> 8)
+		p[i+2] = byte(right)
+		p[i+3] = byte(right >> 8)
+	}
+
+	return n, err
+}
+
+// Seek forwards seek requests to the underlying stream.
+func (s *StereoPanStream) Seek(offset int64, whence int) (int64, error) {
+	return s.source.Seek(offset, whence)
+}
+
 // Engine handles audio playback with adaptive music intensity and 3D positioning.
 type Engine struct {
 	musicLayers    []*audio.Player
@@ -185,23 +240,17 @@ func (e *Engine) PlaySFX(name string, x, y float64) error {
 		return nil
 	}
 
-	player, err := e.createPlayer(sfxData)
-	if err != nil {
-		return err
-	}
-
 	// Apply 3D positional audio
 	distance := math.Sqrt((x-listenerX)*(x-listenerX) + (y-listenerY)*(y-listenerY))
 	volume := e.calculateVolume(distance)
 	pan := e.calculatePan(x - listenerX)
 
-	player.SetVolume(volume)
-	// Stereo panning limitation: Ebitengine v2 audio.Player does not expose SetPan().
-	// Pan value is calculated but cannot be applied with current API.
-	// Future enhancement: implement custom audio.ReadSeekCloser that applies
-	// per-channel volume scaling to achieve stereo panning effect.
-	_ = pan
+	player, err := e.createPlayerWithPan(sfxData, pan)
+	if err != nil {
+		return err
+	}
 
+	player.SetVolume(volume)
 	player.Play()
 	return nil
 }
@@ -333,6 +382,26 @@ func (e *Engine) createPlayer(data []byte) (*audio.Player, error) {
 
 	ctx := getAudioContext()
 	player, err := ctx.NewPlayer(stream)
+	if err != nil {
+		return nil, err
+	}
+
+	return player, nil
+}
+
+// createPlayerWithPan creates an audio player with stereo panning applied.
+// pan ranges from -1.0 (full left) to +1.0 (full right).
+func (e *Engine) createPlayerWithPan(data []byte, pan float64) (*audio.Player, error) {
+	stream, err := wav.DecodeWithSampleRate(sampleRate, bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+
+	// Wrap stream with stereo panning
+	pannedStream := NewStereoPanStream(stream, pan)
+
+	ctx := getAudioContext()
+	player, err := ctx.NewPlayer(pannedStream)
 	if err != nil {
 		return nil, err
 	}
