@@ -50,17 +50,18 @@ func (v *DefaultValidator) Validate(cmd *PlayerCommand, w *engine.World) error {
 
 // GameServer is an authoritative game server with tick-based updates.
 type GameServer struct {
-	listener  net.Listener
-	world     *engine.World
-	validator CommandValidator
-	mu        sync.RWMutex
-	clients   map[uint64]*playerClient
-	nextID    uint64
-	running   bool
-	tickNum   uint64
-	ctx       context.Context
-	cancel    context.CancelFunc
-	wg        sync.WaitGroup
+	listener     net.Listener
+	world        *engine.World
+	validator    CommandValidator
+	deltaEncoder *DeltaEncoder
+	mu           sync.RWMutex
+	clients      map[uint64]*playerClient
+	nextID       uint64
+	running      bool
+	tickNum      uint64
+	ctx          context.Context
+	cancel       context.CancelFunc
+	wg           sync.WaitGroup
 }
 
 // playerClient tracks a connected player.
@@ -84,12 +85,13 @@ func NewGameServer(port int, world *engine.World) (*GameServer, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	return &GameServer{
-		listener:  listener,
-		world:     world,
-		validator: &DefaultValidator{},
-		clients:   make(map[uint64]*playerClient),
-		ctx:       ctx,
-		cancel:    cancel,
+		listener:     listener,
+		world:        world,
+		validator:    &DefaultValidator{},
+		deltaEncoder: NewDeltaEncoder(60), // 3 second buffer at 20 ticks/sec
+		clients:      make(map[uint64]*playerClient),
+		ctx:          ctx,
+		cancel:       cancel,
 	}, nil
 }
 
@@ -347,11 +349,52 @@ func (s *GameServer) tick() {
 	// Update game world
 	s.world.Update()
 
+	// Broadcast world state to all clients
+	s.broadcastWorldState(tickNum, clients)
+
 	logrus.WithFields(logrus.Fields{
 		"system_name": "gameserver",
 		"tick":        tickNum,
 		"players":     len(clients),
 	}).Debug("Server tick completed")
+}
+
+// broadcastWorldState sends the current world state to all connected clients.
+func (s *GameServer) broadcastWorldState(tickNum uint64, clients []*playerClient) {
+	delta, err := s.deltaEncoder.EncodeDelta(s.world, tickNum)
+	if err != nil {
+		logrus.WithError(err).Error("Failed to encode world state delta")
+		return
+	}
+
+	data, err := json.Marshal(delta)
+	if err != nil {
+		logrus.WithError(err).Error("Failed to marshal delta packet")
+		return
+	}
+
+	// Add newline delimiter for JSON streaming
+	data = append(data, '\n')
+
+	for _, client := range clients {
+		if err := s.sendToClient(client, data); err != nil {
+			logrus.WithFields(logrus.Fields{
+				"system_name": "gameserver",
+				"player_id":   client.id,
+			}).WithError(err).Debug("Failed to send state to client")
+		}
+	}
+}
+
+// sendToClient writes data to a client connection with error handling.
+func (s *GameServer) sendToClient(client *playerClient, data []byte) error {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+
+	if _, err := client.conn.Write(data); err != nil {
+		return fmt.Errorf("write failed: %w", err)
+	}
+	return nil
 }
 
 // processClientCommands validates and applies all pending commands for a client.

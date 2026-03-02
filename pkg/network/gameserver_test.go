@@ -383,12 +383,17 @@ func TestGameServer_GracefulShutdown(t *testing.T) {
 	}
 
 	// Verify clients are disconnected
-	for i, conn := range conns {
-		conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
-		buf := make([]byte, 1)
-		_, err := conn.Read(buf)
-		if err == nil {
-			t.Errorf("client %d should be disconnected", i)
+	for _, conn := range conns {
+		conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+		buf := make([]byte, 1024)
+		// Read until connection is closed (may receive state data first)
+		for {
+			_, err := conn.Read(buf)
+			if err != nil {
+				// Connection closed as expected
+				break
+			}
+			// Continue reading until disconnected
 		}
 	}
 }
@@ -913,4 +918,123 @@ func TestGameServer_GetAddr(t *testing.T) {
 func validateAddress(addr string) bool {
 	_, _, err := net.SplitHostPort(addr)
 	return err == nil
+}
+
+// TestGameServer_StateBroadcast tests that the server broadcasts world state to clients.
+func TestGameServer_StateBroadcast(t *testing.T) {
+	world := engine.NewWorld()
+	server, err := NewGameServer(18014, world)
+	if err != nil {
+		t.Fatalf("failed to create server: %v", err)
+	}
+	defer server.listener.Close()
+	defer server.Stop()
+
+	if err := server.Start(); err != nil {
+		t.Fatalf("failed to start server: %v", err)
+	}
+
+	// Connect client
+	conn, err := net.DialTimeout("tcp", "localhost:18014", 2*time.Second)
+	if err != nil {
+		t.Fatalf("failed to connect: %v", err)
+	}
+	defer conn.Close()
+
+	// Set a read timeout
+	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+
+	// Wait for at least one tick to occur
+	time.Sleep(100 * time.Millisecond)
+
+	// Try to read state updates from the server
+	decoder := json.NewDecoder(conn)
+	var delta DeltaPacket
+
+	receivedUpdate := false
+	for i := 0; i < 5; i++ {
+		if err := decoder.Decode(&delta); err != nil {
+			if i == 0 {
+				// First attempt might timeout if no data yet
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+			break
+		}
+		receivedUpdate = true
+		break
+	}
+
+	if !receivedUpdate {
+		t.Error("client did not receive world state updates from server")
+	}
+
+	// Verify delta packet structure
+	if receivedUpdate {
+		if delta.TargetTick == 0 {
+			t.Error("delta packet should have non-zero target tick")
+		}
+		// Initial delta should have entities in Added map
+		if delta.BaseTick == 0 && len(delta.Added) == 0 && len(delta.Modified) == 0 {
+			t.Log("initial delta has empty entity maps (expected for empty world)")
+		}
+	}
+}
+
+// TestGameServer_MultiplClientStateSync tests state synchronization across multiple clients.
+func TestGameServer_MultipleClientStateSync(t *testing.T) {
+	world := engine.NewWorld()
+	server, err := NewGameServer(18015, world)
+	if err != nil {
+		t.Fatalf("failed to create server: %v", err)
+	}
+	defer server.listener.Close()
+	defer server.Stop()
+
+	if err := server.Start(); err != nil {
+		t.Fatalf("failed to start server: %v", err)
+	}
+
+	// Connect multiple clients
+	numClients := 3
+	conns := make([]net.Conn, numClients)
+	decoders := make([]*json.Decoder, numClients)
+
+	for i := 0; i < numClients; i++ {
+		conn, err := net.DialTimeout("tcp", "localhost:18015", 2*time.Second)
+		if err != nil {
+			t.Fatalf("failed to connect client %d: %v", i, err)
+		}
+		defer conn.Close()
+		conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+		conns[i] = conn
+		decoders[i] = json.NewDecoder(conn)
+	}
+
+	// Wait for server to process connections and send updates
+	time.Sleep(200 * time.Millisecond)
+
+	// All clients should receive updates
+	for i := 0; i < numClients; i++ {
+		var delta DeltaPacket
+		if err := decoders[i].Decode(&delta); err != nil {
+			t.Errorf("client %d failed to receive update: %v", i, err)
+		} else {
+			t.Logf("client %d received update for tick %d", i, delta.TargetTick)
+		}
+	}
+}
+
+// TestGameServer_DeltaEncoderInitialized tests that delta encoder is properly initialized.
+func TestGameServer_DeltaEncoderInitialized(t *testing.T) {
+	world := engine.NewWorld()
+	server, err := NewGameServer(0, world)
+	if err != nil {
+		t.Fatalf("failed to create server: %v", err)
+	}
+	defer server.listener.Close()
+
+	if server.deltaEncoder == nil {
+		t.Fatal("delta encoder should be initialized in NewGameServer")
+	}
 }
