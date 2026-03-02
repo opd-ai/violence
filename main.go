@@ -18,6 +18,7 @@ import (
 	"github.com/opd-ai/violence/pkg/ai"
 	"github.com/opd-ai/violence/pkg/ammo"
 	"github.com/opd-ai/violence/pkg/animation"
+	"github.com/opd-ai/violence/pkg/attacktrail"
 	"github.com/opd-ai/violence/pkg/audio"
 	"github.com/opd-ai/violence/pkg/automap"
 	"github.com/opd-ai/violence/pkg/biome"
@@ -284,6 +285,9 @@ type Game struct {
 
 	// Sprite outline system for visual clarity and entity distinction
 	outlineSystem *outline.System
+
+	// Attack trail system for weapon swing/slash visual effects
+	attackTrailSystem *attacktrail.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -378,6 +382,7 @@ func NewGame() *Game {
 		questLootSystem:     loot.NewQuestLootSystem("fantasy", seed),
 		dmgfxSystem:         dmgfx.NewSystem(),
 		outlineSystem:       outline.NewSystem("fantasy"),
+		attackTrailSystem:   attacktrail.NewSystem("fantasy"),
 	}
 
 	// Initialize faction system first
@@ -495,6 +500,9 @@ func NewGame() *Game {
 
 	// Register sprite outline system with the World
 	g.world.AddSystem(g.outlineSystem)
+
+	// Register attack trail system with the World
+	g.world.AddSystem(g.attackTrailSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
@@ -3810,6 +3818,11 @@ func (g *Game) drawPlaying(screen *ebiten.Image) {
 	// Render damage numbers and impact effects
 	if g.feedbackSystem != nil {
 		g.renderFeedbackEffects(screen)
+	}
+
+	// Render weapon attack trails
+	if g.attackTrailSystem != nil {
+		g.attackTrailSystem.Render(screen, g.world, camX, camY)
 	}
 
 	// Apply hit flash overlay
