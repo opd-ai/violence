@@ -59,6 +59,7 @@ import (
 	"github.com/opd-ai/violence/pkg/spatial"
 	"github.com/opd-ai/violence/pkg/sprite"
 	"github.com/opd-ai/violence/pkg/squad"
+	"github.com/opd-ai/violence/pkg/stats"
 	"github.com/opd-ai/violence/pkg/status"
 	"github.com/opd-ai/violence/pkg/texture"
 	"github.com/opd-ai/violence/pkg/tutorial"
@@ -233,6 +234,9 @@ type Game struct {
 
 	// Faction reputation system for economy and NPC relationship management
 	factionSystem *faction.ReputationSystem
+
+	// Stat allocation system for character attribute management
+	statSystem *stats.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -316,6 +320,7 @@ func NewGame() *Game {
 		lightingSystem:     lighting.NewLightingSystem("fantasy"),
 		bossPhaseSystem:    combat.NewBossPhaseSystem(),
 		factionSystem:      faction.NewReputationSystem(),
+		statSystem:         stats.NewSystem(),
 	}
 
 	// Initialize status system with the registry
@@ -360,6 +365,9 @@ func NewGame() *Game {
 
 	// Register faction reputation system with the World
 	g.world.AddSystem(g.factionSystem)
+
+	// Register stat allocation system with the World
+	g.world.AddSystem(g.statSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
@@ -851,6 +859,14 @@ func (g *Game) initializePlayer() {
 	// Add faction reputation component to player
 	repComp := faction.InitializePlayerReputation(g.genreID)
 	g.world.AddComponent(g.playerEntity, repComp)
+
+	// Add stat allocation component to player with initial points
+	playerStats := stats.NewAttributes()
+	playerStats.AddPoints(5) // Start with 5 stat points
+	statComp := &stats.StatAllocationComponent{
+		Attributes: playerStats,
+	}
+	g.world.AddComponent(g.playerEntity, statComp)
 }
 
 // findSpawnPosition finds a safe starting position for the player.
@@ -1371,6 +1387,15 @@ func (g *Game) handleEnemyDeath() {
 		if g.skillManager != nil {
 			g.skillManager.AddPoints(1)
 		}
+
+		// Grant stat points on level up
+		statType := reflect.TypeOf((*stats.StatAllocationComponent)(nil))
+		if statComp, ok := g.world.GetComponent(g.playerEntity, statType); ok {
+			if statsData, ok := statComp.(*stats.StatAllocationComponent); ok {
+				statsData.Attributes.AddPoints(3) // 3 stat points per level
+			}
+		}
+
 		g.hud.ShowMessage("Level Up! Skill point earned!")
 	}
 
