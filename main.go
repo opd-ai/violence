@@ -65,6 +65,7 @@ import (
 	"github.com/opd-ai/violence/pkg/squad"
 	"github.com/opd-ai/violence/pkg/stats"
 	"github.com/opd-ai/violence/pkg/status"
+	"github.com/opd-ai/violence/pkg/territory"
 	"github.com/opd-ai/violence/pkg/texture"
 	"github.com/opd-ai/violence/pkg/trap"
 	"github.com/opd-ai/violence/pkg/tutorial"
@@ -276,6 +277,9 @@ type Game struct {
 
 	// Damage visual effects system for damage-type-specific visual feedback
 	dmgfxSystem *dmgfx.System
+
+	// Territory control system for faction warfare and dynamic territory ownership
+	territorySystem *territory.ControlSystem
 }
 
 // NewGame creates and initializes a new game instance.
@@ -358,7 +362,6 @@ func NewGame() *Game {
 		collisionGeometry:   collision.NewCollisionGeometrySystem(),
 		lightingSystem:      lighting.NewLightingSystem("fantasy"),
 		bossPhaseSystem:     combat.NewBossPhaseSystem(),
-		factionSystem:       faction.NewReputationSystem(),
 		statSystem:          stats.NewSystem(),
 		weatherSystem:       weather.NewSystem(2000, int64(seed), "fantasy"),
 		equipmentSystem:     equipment.NewEquipmentSystem("fantasy"),
@@ -371,6 +374,12 @@ func NewGame() *Game {
 		questLootSystem:     loot.NewQuestLootSystem("fantasy", seed),
 		dmgfxSystem:         dmgfx.NewSystem(),
 	}
+
+	// Initialize faction system first
+	g.factionSystem = faction.NewReputationSystem()
+
+	// Initialize territory system with faction system reference
+	g.territorySystem = territory.NewControlSystem(64, 64, g.factionSystem)
 
 	// Initialize sliding system with spatial index (will be set properly after spatial system init)
 	g.slidingSystem = collision.NewSlidingSystem(nil)
@@ -472,6 +481,9 @@ func NewGame() *Game {
 
 	// Connect projectile system to damage visual effects
 	g.projectileSystem.SetDamageVisualProvider(g.dmgfxSystem)
+
+	// Register territory control system with the World
+	g.world.AddSystem(g.territorySystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
@@ -597,6 +609,7 @@ func (g *Game) generateLevel() {
 func (g *Game) populateLevel() {
 	rooms := bsp.GetRooms(g.currentBSPTree)
 	g.assignBiomesToRooms(rooms)
+	g.claimTerritories(rooms)
 	g.placeDecorativeProps(rooms)
 	g.placeLoreItems(rooms)
 	g.scanSecretWalls()
@@ -815,6 +828,38 @@ func (g *Game) initializeSquad() {
 	squad.SetGenre(g.genreID)
 	g.squadCompanions.AddMember("companion_1", "grunt", "assault_rifle", g.camera.X-2, g.camera.Y+1, g.seed)
 	g.squadCompanions.AddMember("companion_2", "medic", "pistol", g.camera.X-2, g.camera.Y-1, g.seed)
+}
+
+// claimTerritories assigns faction control to dungeon rooms for territorial warfare.
+func (g *Game) claimTerritories(rooms []*bsp.Room) {
+	if len(rooms) == 0 || g.territorySystem == nil {
+		return
+	}
+
+	// Get active factions for current genre
+	activeFactions := g.factionSystem.GetActiveFactions(g.genreID)
+	if len(activeFactions) == 0 {
+		return
+	}
+
+	// Skip first room (player spawn)
+	for i := 1; i < len(rooms); i++ {
+		room := rooms[i]
+
+		// Assign faction based on room position and RNG
+		factionIdx := g.rng.Intn(len(activeFactions))
+		factionID := activeFactions[factionIdx].ID
+
+		// Claim the territory
+		g.territorySystem.ClaimRoom(room, factionID)
+
+		logrus.WithFields(logrus.Fields{
+			"room_index": i,
+			"faction":    factionID,
+			"x":          room.X,
+			"y":          room.Y,
+		}).Debug("Territory claimed by faction")
+	}
 }
 
 // assignBiomesToRooms assigns biome types to dungeon rooms for material generation.
