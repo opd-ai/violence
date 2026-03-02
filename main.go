@@ -31,6 +31,7 @@ import (
 	"github.com/opd-ai/violence/pkg/config"
 	"github.com/opd-ai/violence/pkg/corpse"
 	"github.com/opd-ai/violence/pkg/crafting"
+	"github.com/opd-ai/violence/pkg/damagestate"
 	"github.com/opd-ai/violence/pkg/decal"
 	"github.com/opd-ai/violence/pkg/decoration"
 	"github.com/opd-ai/violence/pkg/destruct"
@@ -295,6 +296,9 @@ type Game struct {
 	// Attack trail system for weapon swing/slash visual effects
 	attackTrailSystem *attacktrail.System
 
+	// Damage state visualization system for progressive entity damage visuals
+	damageStateSystem *damagestate.System
+
 	// Impact effect emitter for combat hit feedback particles
 	impactEmitter *particle.ImpactEffectEmitter
 
@@ -416,6 +420,7 @@ func NewGame() *Game {
 		dmgfxSystem:         dmgfx.NewSystem(),
 		outlineSystem:       outline.NewSystem("fantasy"),
 		attackTrailSystem:   attacktrail.NewSystem("fantasy"),
+		damageStateSystem:   damagestate.NewSystem("fantasy"),
 	}
 
 	// Initialize faction system first
@@ -544,6 +549,9 @@ func NewGame() *Game {
 
 	// Register quest-loot integration system with the World
 	g.world.AddSystem(g.questLootSystem)
+
+	// Register damage state visualization system with the World
+	g.world.AddSystem(g.damageStateSystem)
 
 	// Register damage visual effects system with the World
 	g.world.AddSystem(g.dmgfxSystem)
