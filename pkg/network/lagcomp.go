@@ -101,6 +101,9 @@ func (lc *LagCompensator) RewindWorld(targetTick uint64) (*WorldSnapshot, error)
 	}
 
 	if beforeSnap == nil {
+		if len(lc.snapshotHistory) == 0 {
+			return nil, fmt.Errorf("no snapshots available in history buffer")
+		}
 		return nil, fmt.Errorf("target tick %d too old, earliest available: %d",
 			targetTick, lc.snapshotHistory[0].TickNumber)
 	}

@@ -588,18 +588,13 @@ func abs(x float64) float64 {
 func TestLagCompensator_EmptySnapshot(t *testing.T) {
 	lc := NewLagCompensator(10, 20)
 
-	// Try to rewind with no snapshots - this will cause a panic in current implementation
-	// due to bug at lagcomp.go:105 where it accesses [0] without checking length
-	// We'll recover from panic to test the path exists
-	defer func() {
-		if r := recover(); r != nil {
-			t.Logf("Expected panic with empty snapshot history: %v", r)
-		}
-	}()
-
+	// Try to rewind with no snapshots - should return error
 	_, err := lc.RewindWorld(100)
 	if err == nil {
 		t.Error("expected error when rewinding with no snapshots")
+	}
+	if err.Error() != "no snapshots available in history buffer" {
+		t.Errorf("expected 'no snapshots available' error, got: %v", err)
 	}
 }
 
@@ -738,22 +733,18 @@ func TestPerformHitscan_EdgeCases(t *testing.T) {
 	lc := NewLagCompensator(10, 20)
 	world := engine.NewWorld()
 
-	// Test with no snapshots - use defer to catch panic
+	// Test with no snapshots - should return error
 	ray := &HitscanRay{
 		OriginX: 0, OriginY: 0, OriginZ: 0,
 		DirectionX: 1, DirectionY: 0, DirectionZ: 0,
 		MaxDistance: 100,
 	}
 
-	// This will panic due to bug in lagcomp.go:105, catch it
-	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				t.Logf("Expected panic with no snapshots: %v", r)
-			}
-		}()
-		_, _ = lc.PerformHitscan(100, 0, ray, world)
-	}()
+	// This should return error instead of panic
+	_, err := lc.PerformHitscan(100, 0, ray, world)
+	if err == nil {
+		t.Error("expected error when performing hitscan with no snapshots")
+	}
 
 	// Add snapshot so remaining tests work
 	snapshot := &WorldSnapshot{

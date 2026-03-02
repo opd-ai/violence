@@ -4,7 +4,9 @@ import (
 	"testing"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/opd-ai/violence/pkg/ammo"
 	"github.com/opd-ai/violence/pkg/bsp"
+	"github.com/opd-ai/violence/pkg/camera"
 	"github.com/opd-ai/violence/pkg/config"
 	"github.com/opd-ai/violence/pkg/federation"
 	"github.com/opd-ai/violence/pkg/inventory"
@@ -3785,6 +3787,78 @@ func TestEmptyMapHandling(t *testing.T) {
 			// Verify update doesn't panic
 			if g.weatherEmitter != nil {
 				g.weatherEmitter.Update(0.016)
+			}
+		})
+	}
+}
+
+// TestGame_SaveGame_ErrorHandling tests save error handling.
+func TestGame_SaveGame_ErrorHandling(t *testing.T) {
+	tests := []struct {
+		name         string
+		slot         int
+		setupGame    func(*Game)
+		expectError  bool
+		expectHUDMsg bool
+	}{
+		{
+			name: "invalid slot displays error",
+			slot: -1,
+			setupGame: func(g *Game) {
+				g.hud = &ui.HUD{}
+				g.ammoPool = ammo.NewPool()
+				g.progression = &progression.Progression{}
+				g.currentMap = [][]int{{1, 1}, {1, 1}}
+			},
+			expectError:  true,
+			expectHUDMsg: true,
+		},
+		{
+			name: "valid slot succeeds",
+			slot: 0,
+			setupGame: func(g *Game) {
+				g.hud = &ui.HUD{}
+				g.ammoPool = ammo.NewPool()
+				g.progression = &progression.Progression{}
+				g.currentMap = [][]int{{1, 1}, {1, 1}}
+				g.camera.X = 1.5
+				g.camera.Y = 1.5
+			},
+			expectError:  false,
+			expectHUDMsg: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := &Game{
+				camera:   &camera.Camera{},
+				keycards: make(map[string]bool),
+			}
+			tt.setupGame(g)
+
+			// Clear any existing HUD message
+			g.hud.Message = ""
+			g.hud.MessageTime = 0
+
+			// Call saveGame
+			g.saveGame(tt.slot)
+
+			// Check HUD message
+			if tt.expectHUDMsg {
+				if g.hud.Message == "" {
+					t.Error("expected error message in HUD, got empty string")
+				}
+				if g.hud.MessageTime == 0 {
+					t.Error("expected MessageTime to be set, got 0")
+				}
+				if g.hud.MessageTime != 180 {
+					t.Errorf("expected MessageTime = 180, got %d", g.hud.MessageTime)
+				}
+			} else {
+				if g.hud.Message != "" {
+					t.Errorf("expected no HUD message, got: %s", g.hud.Message)
+				}
 			}
 		})
 	}

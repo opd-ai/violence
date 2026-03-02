@@ -3986,7 +3986,15 @@ func (g *Game) saveGame(slot int) {
 		Keycards: g.keycards,
 		AmmoPool: ammoPoolState,
 	}
-	save.Save(slot, state)
+	if err := save.Save(slot, state); err != nil {
+		logrus.WithFields(logrus.Fields{
+			"system_name": "save",
+			"slot":        slot,
+			"error":       err.Error(),
+		}).Error("Failed to save game")
+		g.hud.Message = fmt.Sprintf("Save failed: %v", err)
+		g.hud.MessageTime = 180 // 3 seconds at 60 FPS
+	}
 }
 
 // updateLoading handles loading screen updates.
