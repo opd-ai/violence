@@ -65,6 +65,7 @@ import (
 	"github.com/opd-ai/violence/pkg/stats"
 	"github.com/opd-ai/violence/pkg/status"
 	"github.com/opd-ai/violence/pkg/texture"
+	"github.com/opd-ai/violence/pkg/trap"
 	"github.com/opd-ai/violence/pkg/tutorial"
 	"github.com/opd-ai/violence/pkg/ui"
 	"github.com/opd-ai/violence/pkg/upgrade"
@@ -248,6 +249,9 @@ type Game struct {
 	// Terrain sliding system for smooth wall collision response
 	slidingSystem *collision.SlidingSystem
 
+	// Interactive trap system for dungeon hazards
+	trapSystem *trap.System
+
 	// Equipment rendering system for visible gear on entity sprites
 	equipmentSystem *equipment.EquipmentSystem
 
@@ -356,6 +360,7 @@ func NewGame() *Game {
 		aoSystem:            lighting.NewAOSystem("fantasy"),
 		projectileSystem:    projectile.NewSystem(),
 		biomeMaterialSystem: biome.NewBiomeMaterialSystem("fantasy"),
+		trapSystem:          trap.NewSystem(int64(seed)),
 	}
 
 	// Initialize sliding system with spatial index (will be set properly after spatial system init)
@@ -442,6 +447,9 @@ func NewGame() *Game {
 
 	// Register biome material system with the World
 	g.world.AddSystem(g.biomeMaterialSystem)
+
+	// Register interactive trap system with the World
+	g.world.AddSystem(g.trapSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
@@ -883,6 +891,12 @@ func (g *Game) generateHazards() {
 	if g.hazardECSSystem != nil && g.currentMap != nil {
 		g.hazardECSSystem.SetGenre(g.genreID)
 		g.hazardECSSystem.GenerateHazards(g.world, g.currentMap, int64(g.seed))
+	}
+
+	// Generate interactive traps
+	if g.trapSystem != nil && g.currentMap != nil {
+		g.trapSystem.SetGenre(g.genreID)
+		g.trapSystem.GenerateTraps(g.currentMap, int64(g.seed))
 	}
 }
 
