@@ -40,6 +40,7 @@ import (
 	"github.com/opd-ai/violence/pkg/faction"
 	"github.com/opd-ai/violence/pkg/federation"
 	"github.com/opd-ai/violence/pkg/feedback"
+	"github.com/opd-ai/violence/pkg/floor"
 	"github.com/opd-ai/violence/pkg/hazard"
 	"github.com/opd-ai/violence/pkg/input"
 	"github.com/opd-ai/violence/pkg/inventory"
@@ -291,6 +292,10 @@ type Game struct {
 
 	// Impact effect emitter for combat hit feedback particles
 	impactEmitter *particle.ImpactEffectEmitter
+
+	// Floor detail system for procedural floor tile variation and environmental detail
+	floorDetailSystem *floor.System
+	floorDetails      []*floor.FloorDetailComponent
 }
 
 // NewGame creates and initializes a new game instance.
@@ -412,6 +417,10 @@ func NewGame() *Game {
 
 	// Initialize impact effect emitter
 	g.impactEmitter = particle.NewImpactEffectEmitter(g.particleSystem, g.genreID)
+
+	// Initialize floor detail system for procedural floor variation
+	g.floorDetailSystem = floor.NewSystem(g.genreID, 64)
+	g.floorDetails = make([]*floor.FloorDetailComponent, 0)
 
 	// Connect sliding system to spatial index
 	g.slidingSystem.SetSpatialIndex(g.spatialSystem.GetGrid())
@@ -621,6 +630,9 @@ func (g *Game) generateLevel() {
 	// Decorate rooms based on type and genre
 	g.decorateRooms(bspTree, tiles)
 
+	// Generate floor details for visual variety
+	g.generateFloorDetails(tiles)
+
 	if len(tiles) > 0 && len(tiles[0]) > 0 {
 		g.automap = automap.NewMap(len(tiles[0]), len(tiles))
 		g.lightMap = lighting.NewSectorLightMap(len(tiles[0]), len(tiles), 0.3)
@@ -673,6 +685,22 @@ func (g *Game) decorateRooms(bspTree *bsp.Node, tiles [][]int) {
 			"decos":      len(decor.Decorations),
 		}).Debug("Room decorated")
 	}
+}
+
+// generateFloorDetails creates procedural floor variation overlays for visual variety.
+func (g *Game) generateFloorDetails(tiles [][]int) {
+	if g.floorDetailSystem == nil {
+		return
+	}
+
+	// Generate floor details using level seed
+	g.floorDetails = g.floorDetailSystem.GenerateFloorDetails(tiles, int64(g.seed))
+
+	logrus.WithFields(logrus.Fields{
+		"system":        "floor",
+		"details_count": len(g.floorDetails),
+		"seed":          g.seed,
+	}).Debug("Floor details generated")
 }
 
 // placeDecorativeProps places decorative props in BSP rooms.
@@ -1264,6 +1292,9 @@ func (g *Game) setGenre(genreID string) {
 	}
 	if g.equipmentSystem != nil {
 		g.equipmentSystem.SetGenre(genreID)
+	}
+	if g.floorDetailSystem != nil {
+		g.floorDetailSystem.SetGenre(genreID)
 	}
 
 	// Generate genre-specific textures
@@ -3812,6 +3843,11 @@ func (g *Game) drawPlaying(screen *ebiten.Image) {
 	// Render 3D world
 	g.renderer.Render(screen, camX, camY, g.camera.DirX, g.camera.DirY, g.camera.Pitch)
 
+	// Render floor detail overlays for visual variety
+	if g.floorDetailSystem != nil && len(g.floorDetails) > 0 {
+		g.renderFloorDetails(screen)
+	}
+
 	// Render props as sprites in world space
 	if g.propsManager != nil {
 		g.renderProps(screen)
@@ -4092,6 +4128,52 @@ func (g *Game) renderProps(screen *ebiten.Image) {
 			}
 
 			screen.DrawImage(spriteImg, op)
+		}
+	}
+}
+
+// renderFloorDetails draws procedural floor detail overlays for visual variety.
+func (g *Game) renderFloorDetails(screen *ebiten.Image) {
+	// Tile size for rendering (64x64 pixels per tile in this game)
+	tileSize := 64
+
+	for _, detail := range g.floorDetails {
+		// Calculate screen position for this floor tile
+		// Map coordinates (detail.X, detail.Y) to screen coordinates
+		// For a raycaster/top-down hybrid, floor details are rendered in the renderer
+		// Here we render them as overlays on the already-rendered floor
+
+		// Calculate vector from camera to detail
+		dx := float64(detail.X) + 0.5 - g.camera.X
+		dy := float64(detail.Y) + 0.5 - g.camera.Y
+
+		// Check if detail is within visible range
+		dist := dx*dx + dy*dy
+		if dist > 25 { // Only render nearby details (5 tile radius)
+			continue
+		}
+
+		// For top-down rendering overlay approach:
+		// Calculate screen position relative to camera
+		screenX := int(float64(config.C.InternalWidth)/2 + dx*float64(tileSize))
+		screenY := int(float64(config.C.InternalHeight)/2 + dy*float64(tileSize))
+
+		// Skip if off-screen
+		if screenX < -tileSize || screenX > config.C.InternalWidth+tileSize ||
+			screenY < -tileSize || screenY > config.C.InternalHeight+tileSize {
+			continue
+		}
+
+		// Render the detail sprite
+		detailImg := g.floorDetailSystem.RenderDetail(detail)
+		if detailImg != nil {
+			op := &ebiten.DrawImageOptions{}
+			op.GeoM.Translate(float64(screenX-tileSize/2), float64(screenY-tileSize/2))
+
+			// Use blend mode for overlay effect
+			op.ColorM.Scale(1, 1, 1, detail.Intensity*0.8)
+
+			screen.DrawImage(detailImg, op)
 		}
 	}
 }
