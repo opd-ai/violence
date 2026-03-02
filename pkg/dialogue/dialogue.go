@@ -58,15 +58,21 @@ type DialogueChoice struct {
 
 // Generator procedurally generates dialogue from seeds.
 type Generator struct {
-	genre string
-	rng   *rand.Rand
+	genre      string
+	rng        *rand.Rand
+	nameGen    *NameGenerator
+	grammarGen *GrammarGenerator
+	choiceGen  *ChoiceGenerator
 }
 
 // NewGenerator creates a dialogue generator with a seed.
 func NewGenerator(seed int64) *Generator {
 	return &Generator{
-		genre: "fantasy",
-		rng:   rand.New(rand.NewSource(seed)),
+		genre:      "fantasy",
+		rng:        rand.New(rand.NewSource(seed)),
+		nameGen:    NewNameGenerator(),
+		grammarGen: NewGrammarGenerator(),
+		choiceGen:  NewChoiceGenerator(),
 	}
 }
 
@@ -78,11 +84,11 @@ func (g *Generator) SetGenre(genreID string) {
 // Generate creates a procedural dialogue exchange.
 func (g *Generator) Generate(id string, speakerType SpeakerType, dialogueType DialogueType) Dialogue {
 	hash := hashString(id)
-	localRng := rand.New(rand.NewSource(hash))
 
-	speakerName := g.generateSpeakerName(speakerType, localRng)
-	lines := g.generateLines(speakerType, dialogueType, localRng)
-	choices := g.generateChoices(dialogueType, localRng)
+	// Use hash for deterministic generation
+	speakerName := g.nameGen.Generate(g.genre, speakerType, hash)
+	lines := g.grammarGen.Generate(g.genre, speakerType, dialogueType, hash+1)
+	choices := g.choiceGen.Generate(g.genre, dialogueType, hash+2)
 
 	return Dialogue{
 		ID:          id,
