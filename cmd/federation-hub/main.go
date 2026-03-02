@@ -29,13 +29,19 @@ var (
 	rateLimit = flag.Int("rate-limit", 60, "Rate limit per IP (requests per minute)")
 )
 
+// rateLimiterEntry tracks a rate limiter and its last access time.
+type rateLimiterEntry struct {
+	limiter    *rate.Limiter
+	lastAccess time.Time
+}
+
 // HubServer wraps the federation hub with additional features.
 type HubServer struct {
 	hub        *federation.FederationHub
 	authToken  string
 	peers      []string
 	startTime  time.Time
-	rateLimits map[string]*rate.Limiter
+	rateLimits map[string]*rateLimiterEntry
 	httpServer *http.Server
 	addr       string
 	ctx        context.Context
@@ -64,7 +70,7 @@ func NewHubServer(authToken string, peers []string) *HubServer {
 		authToken:  authToken,
 		peers:      peers,
 		startTime:  time.Now(),
-		rateLimits: make(map[string]*rate.Limiter),
+		rateLimits: make(map[string]*rateLimiterEntry),
 		ctx:        ctx,
 		cancel:     cancel,
 	}
@@ -108,6 +114,9 @@ func (s *HubServer) Start(addr string) error {
 
 	// Start cleanup routine
 	go s.runCleanup()
+
+	// Start rate limiter cleanup routine
+	go s.cleanupRateLimiters()
 
 	logrus.WithFields(logrus.Fields{
 		"addr":    listener.Addr().String(),
@@ -160,17 +169,97 @@ func (s *HubServer) GetAddr() string {
 	return s.addr
 }
 
+// cleanupRateLimiters periodically removes inactive rate limiters.
+// Implements three cleanup strategies:
+// 1. TTL-based: Remove limiters not accessed in 1+ hours
+// 2. Size-based: LRU eviction when map exceeds 10,000 entries
+// 3. Prevents unbounded memory growth in long-running hubs
+func (s *HubServer) cleanupRateLimiters() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	const (
+		maxLimiters   = 10000
+		inactivityTTL = 1 * time.Hour
+	)
+
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-ticker.C:
+			s.mu.Lock()
+			now := time.Now()
+
+			// Strategy 1: Remove inactive limiters (TTL-based cleanup)
+			for ip, entry := range s.rateLimits {
+				if now.Sub(entry.lastAccess) > inactivityTTL {
+					delete(s.rateLimits, ip)
+					logrus.WithFields(logrus.Fields{
+						"ip":       ip,
+						"inactive": now.Sub(entry.lastAccess),
+					}).Debug("removed inactive rate limiter")
+				}
+			}
+
+			// Strategy 2: LRU eviction if map size exceeds limit
+			if len(s.rateLimits) > maxLimiters {
+				// Find oldest entries to evict
+				type entry struct {
+					ip         string
+					lastAccess time.Time
+				}
+				entries := make([]entry, 0, len(s.rateLimits))
+				for ip, e := range s.rateLimits {
+					entries = append(entries, entry{ip: ip, lastAccess: e.lastAccess})
+				}
+
+				// Sort by last access time (oldest first)
+				for i := 0; i < len(entries)-1; i++ {
+					for j := i + 1; j < len(entries); j++ {
+						if entries[i].lastAccess.After(entries[j].lastAccess) {
+							entries[i], entries[j] = entries[j], entries[i]
+						}
+					}
+				}
+
+				// Evict oldest 10% to bring below limit
+				evictCount := len(s.rateLimits) - maxLimiters + (maxLimiters / 10)
+				for i := 0; i < evictCount && i < len(entries); i++ {
+					delete(s.rateLimits, entries[i].ip)
+					logrus.WithFields(logrus.Fields{
+						"ip":     entries[i].ip,
+						"reason": "LRU eviction",
+						"count":  len(s.rateLimits),
+					}).Debug("evicted rate limiter")
+				}
+			}
+
+			s.mu.Unlock()
+
+			logrus.WithField("active_limiters", len(s.rateLimits)).Debug("rate limiter cleanup completed")
+		}
+	}
+}
+
 // withRateLimit wraps a handler with rate limiting.
 func (s *HubServer) withRateLimit(handler http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ip := getClientIP(r)
 
 		s.mu.Lock()
-		limiter, exists := s.rateLimits[ip]
+		entry, exists := s.rateLimits[ip]
 		if !exists {
-			limiter = rate.NewLimiter(rate.Every(time.Minute/time.Duration(*rateLimit)), *rateLimit)
-			s.rateLimits[ip] = limiter
+			entry = &rateLimiterEntry{
+				limiter:    rate.NewLimiter(rate.Every(time.Minute/time.Duration(*rateLimit)), *rateLimit),
+				lastAccess: time.Now(),
+			}
+			s.rateLimits[ip] = entry
+		} else {
+			// Update last access time
+			entry.lastAccess = time.Now()
 		}
+		limiter := entry.limiter
 		s.mu.Unlock()
 
 		if !limiter.Allow() {

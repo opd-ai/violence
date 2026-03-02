@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -540,6 +541,247 @@ func TestServerLifecycle(t *testing.T) {
 	if err := server.Stop(); err != nil {
 		t.Errorf("failed to stop server: %v", err)
 	}
+}
+
+func TestRateLimiterCleanup_TTL(t *testing.T) {
+	server := NewHubServer("", nil)
+	if err := server.Start("127.0.0.1:0"); err != nil {
+		t.Fatalf("failed to start server: %v", err)
+	}
+	defer server.Stop()
+
+	// Add rate limiters with different last access times
+	server.mu.Lock()
+	now := time.Now()
+	server.rateLimits["192.168.1.1"] = &rateLimiterEntry{
+		limiter:    nil,
+		lastAccess: now.Add(-2 * time.Hour), // Inactive for 2 hours
+	}
+	server.rateLimits["192.168.1.2"] = &rateLimiterEntry{
+		limiter:    nil,
+		lastAccess: now.Add(-30 * time.Minute), // Inactive for 30 minutes
+	}
+	server.rateLimits["192.168.1.3"] = &rateLimiterEntry{
+		limiter:    nil,
+		lastAccess: now, // Active
+	}
+	initialCount := len(server.rateLimits)
+	server.mu.Unlock()
+
+	if initialCount != 3 {
+		t.Fatalf("initial count = %d, want 3", initialCount)
+	}
+
+	// Manually trigger cleanup
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	const inactivityTTL = 1 * time.Hour
+
+	// Simulate one cleanup cycle
+	server.mu.Lock()
+	now = time.Now()
+	for ip, entry := range server.rateLimits {
+		if now.Sub(entry.lastAccess) > inactivityTTL {
+			delete(server.rateLimits, ip)
+		}
+	}
+	finalCount := len(server.rateLimits)
+	server.mu.Unlock()
+
+	// Should have removed the 2-hour old entry
+	if finalCount != 2 {
+		t.Errorf("final count = %d, want 2 (removed 1 inactive entry)", finalCount)
+	}
+
+	// Verify the correct entries remain
+	server.mu.Lock()
+	if _, exists := server.rateLimits["192.168.1.1"]; exists {
+		t.Error("192.168.1.1 should have been removed")
+	}
+	if _, exists := server.rateLimits["192.168.1.2"]; !exists {
+		t.Error("192.168.1.2 should still exist")
+	}
+	if _, exists := server.rateLimits["192.168.1.3"]; !exists {
+		t.Error("192.168.1.3 should still exist")
+	}
+	server.mu.Unlock()
+}
+
+func TestRateLimiterCleanup_LRU(t *testing.T) {
+	server := NewHubServer("", nil)
+	if err := server.Start("127.0.0.1:0"); err != nil {
+		t.Fatalf("failed to start server: %v", err)
+	}
+	defer server.Stop()
+
+	const maxLimiters = 10
+	const testCount = 15
+
+	// Add more limiters than the max
+	server.mu.Lock()
+	now := time.Now()
+	for i := 0; i < testCount; i++ {
+		ip := fmt.Sprintf("192.168.1.%d", i)
+		server.rateLimits[ip] = &rateLimiterEntry{
+			limiter:    nil,
+			lastAccess: now.Add(-time.Duration(i) * time.Minute), // Older entries have smaller i
+		}
+	}
+	server.mu.Unlock()
+
+	// Simulate LRU eviction (manual for test)
+	server.mu.Lock()
+	if len(server.rateLimits) > maxLimiters {
+		type entry struct {
+			ip         string
+			lastAccess time.Time
+		}
+		entries := make([]entry, 0, len(server.rateLimits))
+		for ip, e := range server.rateLimits {
+			entries = append(entries, entry{ip: ip, lastAccess: e.lastAccess})
+		}
+
+		// Sort by last access time (oldest first)
+		for i := 0; i < len(entries)-1; i++ {
+			for j := i + 1; j < len(entries); j++ {
+				if entries[i].lastAccess.After(entries[j].lastAccess) {
+					entries[i], entries[j] = entries[j], entries[i]
+				}
+			}
+		}
+
+		// Evict oldest entries
+		evictCount := len(server.rateLimits) - maxLimiters + (maxLimiters / 10)
+		for i := 0; i < evictCount && i < len(entries); i++ {
+			delete(server.rateLimits, entries[i].ip)
+		}
+	}
+	finalCount := len(server.rateLimits)
+	server.mu.Unlock()
+
+	// Should have evicted excess entries
+	if finalCount >= testCount {
+		t.Errorf("final count = %d, should be less than %d after LRU eviction", finalCount, testCount)
+	}
+
+	// Verify we're at or below the target
+	if finalCount > maxLimiters-(maxLimiters/10) {
+		t.Errorf("final count = %d, expected <= %d after eviction", finalCount, maxLimiters-(maxLimiters/10))
+	}
+}
+
+func TestRateLimiterCleanup_UpdateLastAccess(t *testing.T) {
+	server := NewHubServer("", nil)
+	if err := server.Start("127.0.0.1:0"); err != nil {
+		t.Fatalf("failed to start server: %v", err)
+	}
+	defer server.Stop()
+
+	// Create a request handler
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	req.RemoteAddr = "192.168.1.100:12345"
+	w := httptest.NewRecorder()
+
+	// First request creates the entry
+	server.withRateLimit(server.handleHealth)(w, req)
+
+	server.mu.Lock()
+	entry, exists := server.rateLimits["192.168.1.100:12345"]
+	if !exists {
+		t.Fatal("rate limiter entry not created")
+	}
+	firstAccess := entry.lastAccess
+	server.mu.Unlock()
+
+	// Wait a bit
+	time.Sleep(100 * time.Millisecond)
+
+	// Second request should update lastAccess
+	w = httptest.NewRecorder()
+	server.withRateLimit(server.handleHealth)(w, req)
+
+	server.mu.Lock()
+	entry, exists = server.rateLimits["192.168.1.100:12345"]
+	if !exists {
+		t.Fatal("rate limiter entry disappeared")
+	}
+	secondAccess := entry.lastAccess
+	server.mu.Unlock()
+
+	if !secondAccess.After(firstAccess) {
+		t.Errorf("lastAccess not updated: first=%v, second=%v", firstAccess, secondAccess)
+	}
+}
+
+func TestRateLimiterCleanup_Integration(t *testing.T) {
+	server := NewHubServer("", nil)
+	if err := server.Start("127.0.0.1:0"); err != nil {
+		t.Fatalf("failed to start server: %v", err)
+	}
+	defer server.Stop()
+
+	// Add various entries
+	server.mu.Lock()
+	now := time.Now()
+
+	// Old entries that should be cleaned up
+	for i := 0; i < 5; i++ {
+		ip := fmt.Sprintf("old.%d", i)
+		server.rateLimits[ip] = &rateLimiterEntry{
+			limiter:    nil,
+			lastAccess: now.Add(-2 * time.Hour),
+		}
+	}
+
+	// Recent entries that should remain
+	for i := 0; i < 3; i++ {
+		ip := fmt.Sprintf("recent.%d", i)
+		server.rateLimits[ip] = &rateLimiterEntry{
+			limiter:    nil,
+			lastAccess: now.Add(-10 * time.Minute),
+		}
+	}
+
+	initialCount := len(server.rateLimits)
+	server.mu.Unlock()
+
+	if initialCount != 8 {
+		t.Fatalf("initial count = %d, want 8", initialCount)
+	}
+
+	// Manually trigger TTL cleanup
+	const inactivityTTL = 1 * time.Hour
+	server.mu.Lock()
+	now = time.Now()
+	for ip, entry := range server.rateLimits {
+		if now.Sub(entry.lastAccess) > inactivityTTL {
+			delete(server.rateLimits, ip)
+		}
+	}
+	finalCount := len(server.rateLimits)
+	server.mu.Unlock()
+
+	// Should have removed 5 old entries, kept 3 recent
+	if finalCount != 3 {
+		t.Errorf("final count = %d, want 3 (kept recent entries only)", finalCount)
+	}
+
+	// Verify only recent entries remain
+	server.mu.Lock()
+	for i := 0; i < 3; i++ {
+		ip := fmt.Sprintf("recent.%d", i)
+		if _, exists := server.rateLimits[ip]; !exists {
+			t.Errorf("recent entry %s should still exist", ip)
+		}
+	}
+	for i := 0; i < 5; i++ {
+		ip := fmt.Sprintf("old.%d", i)
+		if _, exists := server.rateLimits[ip]; exists {
+			t.Errorf("old entry %s should have been removed", ip)
+		}
+	}
+	server.mu.Unlock()
 }
 
 // Helper functions

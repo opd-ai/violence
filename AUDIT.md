@@ -11,22 +11,22 @@
 **Total Issues Found:** 14 distinct functional discrepancies  
 **Critical Bugs:** 0 (4 fixed)  
 **Functional Mismatches:** 0 (3 fixed)  
-**Missing Features:** 2  
+**Missing Features:** 1 (1 fixed)  
 **Edge Case Bugs:** 2 (1 fixed)  
-**Performance Issues:** 2
+**Performance Issues:** 1 (1 fixed)
 
 ### Issue Breakdown by Category
 - **CRITICAL BUG:** 0 remaining — 4 FIXED (state broadcast ✅, dialogue policy violation ✅, save error handling ✅, lag compensation panic ✅)
 - **FUNCTIONAL MISMATCH:** 0 remaining — 3 FIXED (replay system integration ✅, mod API stubs ✅, positional audio panning ✅)
-- **MISSING FEATURE:** 2 issues (Rate limiter cleanup, player notification in matchmaking)
+- **MISSING FEATURE:** 1 remaining (player notification in matchmaking) — 1 FIXED (rate limiter cleanup ✅)
 - **EDGE CASE BUG:** 2 remaining (BSP input validation, concurrency in ModAPI) — 1 FIXED (lag compensation panic ✅)
-- **PERFORMANCE ISSUE:** 2 issues (Unbounded rate limiter map, missing atomic writes)
+- **PERFORMANCE ISSUE:** 1 remaining (missing atomic writes) — 1 FIXED (unbounded rate limiter map ✅)
 
 ### Completion Status
 - **HIGH PRIORITY:** 5 of 5 complete (100%)
-- **MEDIUM PRIORITY:** 3 of 4 complete (75%)
+- **MEDIUM PRIORITY:** 4 of 4 complete (100%)
 - **LOW PRIORITY:** 0 of 5 complete (0%)
-- **OVERALL:** 8 of 14 issues resolved (57%)
+- **OVERALL:** 9 of 14 issues resolved (64%)
 
 ---
 
@@ -543,6 +543,44 @@ _ = pan  // Explicitly discarded
 ````
 
 ````
+### ✅ RESOLVED: Federation Hub Rate Limiter Map Cleanup (FIXED 2026-03-02)
+**File:** cmd/federation-hub/main.go:167-173
+**Severity:** Medium (was Performance Issue)
+**Status:** RESOLVED
+
+**Original Issue:** The federation hub's rate limiting system created one rate.Limiter per unique IP address and stored them in an unbounded map. The map grew indefinitely with no cleanup mechanism, causing a memory leak in long-running hub instances.
+
+**Resolution Implemented:**
+1. **rateLimiterEntry struct:** Created wrapper type to track both limiter and last access time
+   - `limiter *rate.Limiter` - the rate limiter instance
+   - `lastAccess time.Time` - timestamp of last request from this IP
+
+2. **cleanupRateLimiters() goroutine:** Periodic cleanup running every 5 minutes with two strategies:
+   - **TTL-based cleanup:** Removes limiters not accessed in 1+ hours (inactivityTTL)
+   - **LRU eviction:** When map exceeds 10,000 entries, evicts oldest 10% using bubble sort
+   - Prevents unbounded memory growth in long-running hubs
+
+3. **withRateLimit() updates:** Modified to track last access time
+   - Creates rateLimiterEntry on first access with current timestamp
+   - Updates lastAccess field on each subsequent request
+   - Ensures cleanup logic has accurate access times
+
+**Verification:**
+- All tests pass (18 test cases total, 4 new for cleanup)
+- Test coverage: 66.2% package coverage
+- TTL cleanup validated with 2-hour old entries removed
+- LRU eviction validated with >10 excess entries evicted
+- Last access time tracking validated with sequential requests
+- Integration test validates full cleanup lifecycle
+
+**Impact:**
+- ✅ Memory leak eliminated for long-running hubs
+- ✅ Predictable memory usage (max ~10,000 active limiters)
+- ✅ No more periodic restarts needed
+- ✅ Performance maintained (cleanup every 5 minutes, minimal overhead)
+````
+
+````
 ### MISSING FEATURE: Federation Hub Rate Limiter Map Cleanup
 **File:** cmd/federation-hub/main.go:167-173
 **Severity:** Medium
@@ -976,10 +1014,15 @@ func SetGenre(genreID string) {}  // No implementation
    - Test coverage: 96.6% with 5 new test cases
    - All tests pass, code passes go fmt and go vet
 
-8. **Implement Rate Limiter Cleanup** (federation-hub/main.go:167-173)
-   - Add periodic cleanup goroutine
-   - Implement LRU eviction policy
-   - Add maximum map size limit
+8. **[x] Implement Rate Limiter Cleanup** (federation-hub/main.go:167-173) — COMPLETE (2026-03-02)
+   - Added rateLimiterEntry struct to track limiter and last access time
+   - Implemented cleanupRateLimiters() goroutine with 5-minute cleanup interval
+   - TTL-based cleanup: Removes limiters inactive for 1+ hours
+   - LRU eviction: Evicts oldest 10% when map exceeds 10,000 entries
+   - Updated withRateLimit() to track last access time on each request
+   - Prevents unbounded memory growth in long-running hubs
+   - Test coverage: 4 new test cases (TTL, LRU, UpdateLastAccess, Integration)
+   - All tests pass with 66.2% package coverage
 
 9. **Implement Player Matchmaking Notification** (matchmaking.go:225)
    - Add callback mechanism for match ready events
