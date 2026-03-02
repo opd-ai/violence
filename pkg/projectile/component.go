@@ -9,28 +9,28 @@ type ProjectileShape int
 
 const (
 	ShapeCircle ProjectileShape = iota // Standard circular projectile
-	ShapeBeam                           // Line segment with width
-	ShapeAOE                            // Area of effect explosion
+	ShapeBeam                          // Line segment with width
+	ShapeAOE                           // Area of effect explosion
 )
 
 // ProjectileComponent represents a projectile entity.
 // Pure data component - no methods with logic.
 type ProjectileComponent struct {
-	VelX, VelY     float64     // Velocity vector
-	Damage         float64     // Base damage amount
-	DamageType     DamageType  // Type of damage dealt
-	Lifetime       float64     // Remaining lifetime in seconds
-	MaxLifetime    float64     // Maximum lifetime for trail effects
-	OwnerID        int         // Entity ID of the projectile's owner (for friendly fire prevention)
-	Shape          ProjectileShape
-	Radius         float64     // For circle and AoE
-	BeamWidth      float64     // For beam projectiles
-	PierceCount    int         // How many entities it can pierce through (-1 = infinite)
-	Color          color.RGBA  // Visual color
-	TrailParticles bool        // Whether to spawn trail particles
-	ExplodeOnDeath bool        // Whether to create AoE explosion on impact
-	ExplosionRadius float64    // Radius of explosion if ExplodeOnDeath is true
-	HitEntities    map[int]bool // Track hit entities for pierce mechanics
+	VelX, VelY      float64    // Velocity vector
+	Damage          float64    // Base damage amount
+	DamageType      DamageType // Type of damage dealt
+	Lifetime        float64    // Remaining lifetime in seconds
+	MaxLifetime     float64    // Maximum lifetime for trail effects
+	OwnerID         int        // Entity ID of the projectile's owner (for friendly fire prevention)
+	Shape           ProjectileShape
+	Radius          float64      // For circle and AoE
+	BeamWidth       float64      // For beam projectiles
+	PierceCount     int          // How many entities it can pierce through (-1 = infinite)
+	Color           color.RGBA   // Visual color
+	TrailParticles  bool         // Whether to spawn trail particles
+	ExplodeOnDeath  bool         // Whether to create AoE explosion on impact
+	ExplosionRadius float64      // Radius of explosion if ExplodeOnDeath is true
+	HitEntities     map[int]bool // Track hit entities for pierce mechanics
 }
 
 // Type returns the component type identifier.
@@ -41,22 +41,22 @@ func (p *ProjectileComponent) Type() string {
 // NewProjectileComponent creates a standard projectile.
 func NewProjectileComponent(velX, velY, damage float64, damageType DamageType, ownerID int) *ProjectileComponent {
 	return &ProjectileComponent{
-		VelX:        velX,
-		VelY:        velY,
-		Damage:      damage,
-		DamageType:  damageType,
-		Lifetime:    5.0, // Default 5 second lifetime
-		MaxLifetime: 5.0,
-		OwnerID:     ownerID,
-		Shape:       ShapeCircle,
-		Radius:      0.2,
-		BeamWidth:   0.1,
-		PierceCount: 0,
-		Color:       getDamageTypeColor(damageType),
-		TrailParticles: true,
-		ExplodeOnDeath: false,
+		VelX:            velX,
+		VelY:            velY,
+		Damage:          damage,
+		DamageType:      damageType,
+		Lifetime:        5.0, // Default 5 second lifetime
+		MaxLifetime:     5.0,
+		OwnerID:         ownerID,
+		Shape:           ShapeCircle,
+		Radius:          0.2,
+		BeamWidth:       0.1,
+		PierceCount:     0,
+		Color:           getDamageTypeColor(damageType),
+		TrailParticles:  true,
+		ExplodeOnDeath:  false,
 		ExplosionRadius: 0.0,
-		HitEntities: make(map[int]bool),
+		HitEntities:     make(map[int]bool),
 	}
 }
 

@@ -49,12 +49,12 @@ func CalculateDamage(baseDamage float64, damageType DamageType, resistances map[
 	if resistances == nil {
 		return baseDamage
 	}
-	
+
 	resistance, exists := resistances[damageType]
 	if !exists {
 		return baseDamage
 	}
-	
+
 	// resistance of 0.5 = 50% damage reduction
 	// resistance of -0.5 = 50% damage increase (weakness)
 	return baseDamage * (1.0 - resistance)

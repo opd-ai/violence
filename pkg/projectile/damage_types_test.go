@@ -55,7 +55,7 @@ func TestCalculateDamage(t *testing.T) {
 			expected:    100.0,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := CalculateDamage(tt.baseDamage, tt.damageType, tt.resistances)
@@ -68,15 +68,15 @@ func TestCalculateDamage(t *testing.T) {
 
 func TestNewResistanceComponent(t *testing.T) {
 	rc := NewResistanceComponent()
-	
+
 	if rc == nil {
 		t.Fatal("NewResistanceComponent() returned nil")
 	}
-	
+
 	if rc.Resistances == nil {
 		t.Fatal("Resistances map is nil")
 	}
-	
+
 	if rc.Type() != "ResistanceComponent" {
 		t.Errorf("Type() = %v, want ResistanceComponent", rc.Type())
 	}
@@ -93,7 +93,7 @@ func TestDamageTypeNames(t *testing.T) {
 		DamageShadow:    "Shadow",
 		DamageArcane:    "Arcane",
 	}
-	
+
 	for dt, expectedName := range expectedNames {
 		if name, exists := DamageTypeNames[dt]; !exists {
 			t.Errorf("DamageType %v missing from DamageTypeNames", dt)
@@ -105,20 +105,20 @@ func TestDamageTypeNames(t *testing.T) {
 
 func TestResistanceComponent_Coverage(t *testing.T) {
 	rc := NewResistanceComponent()
-	
+
 	// Set some resistances
 	rc.Resistances[DamageFire] = 0.5
 	rc.Resistances[DamageIce] = -0.3
-	
+
 	// Verify retrieval
 	if rc.Resistances[DamageFire] != 0.5 {
 		t.Errorf("Fire resistance = %v, want 0.5", rc.Resistances[DamageFire])
 	}
-	
+
 	if rc.Resistances[DamageIce] != -0.3 {
 		t.Errorf("Ice resistance = %v, want -0.3", rc.Resistances[DamageIce])
 	}
-	
+
 	// Unset resistance should return zero value
 	if rc.Resistances[DamagePoison] != 0.0 {
 		t.Errorf("Poison resistance = %v, want 0.0", rc.Resistances[DamagePoison])
@@ -131,7 +131,7 @@ func BenchmarkCalculateDamage(b *testing.B) {
 		DamageIce:       0.3,
 		DamageLightning: -0.2,
 	}
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = CalculateDamage(100.0, DamageFire, resistances)

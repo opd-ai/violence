@@ -62,7 +62,7 @@ func CreateSpellProjectile(template SpellTemplate, dirX, dirY float64, ownerID i
 		template.DamageType,
 		ownerID,
 	)
-	
+
 	proj.Shape = template.Shape
 	proj.Radius = template.Radius
 	proj.BeamWidth = template.BeamWidth
@@ -72,13 +72,13 @@ func CreateSpellProjectile(template SpellTemplate, dirX, dirY float64, ownerID i
 	proj.TrailParticles = template.TrailParticles
 	proj.Lifetime = template.Lifetime
 	proj.MaxLifetime = template.Lifetime
-	
+
 	// Add slight random variance to damage (±10%)
 	if rng != nil {
 		variance := 0.9 + rng.Float64()*0.2
 		proj.Damage *= variance
 	}
-	
+
 	return proj
 }
 
@@ -89,43 +89,43 @@ func GetRandomSpellForGenre(genre string, rng *rand.Rand) SpellTemplate {
 		// Fallback to fantasy
 		templates = GenreSpellTemplates["fantasy"]
 	}
-	
+
 	if rng == nil {
 		return templates[0]
 	}
-	
+
 	return templates[rng.Intn(len(templates))]
 }
 
 // CreateResistanceProfile creates a genre-appropriate resistance profile for an entity.
-func CreateResistanceProfile(genre string, entityType string, rng *rand.Rand) *ResistanceComponent {
+func CreateResistanceProfile(genre, entityType string, rng *rand.Rand) *ResistanceComponent {
 	rc := NewResistanceComponent()
-	
+
 	switch genre {
 	case "fantasy":
 		switch entityType {
 		case "fire_elemental":
-			rc.Resistances[DamageFire] = 0.75      // 75% fire resistance
-			rc.Resistances[DamageIce] = -0.5       // 50% ice weakness
-			rc.Resistances[DamagePhysical] = 0.3   // 30% physical resistance
+			rc.Resistances[DamageFire] = 0.75    // 75% fire resistance
+			rc.Resistances[DamageIce] = -0.5     // 50% ice weakness
+			rc.Resistances[DamagePhysical] = 0.3 // 30% physical resistance
 		case "ice_elemental":
 			rc.Resistances[DamageIce] = 0.75
 			rc.Resistances[DamageFire] = -0.5
 			rc.Resistances[DamagePhysical] = 0.3
 		case "undead":
-			rc.Resistances[DamagePoison] = 1.0     // Immune to poison
-			rc.Resistances[DamageHoly] = -0.75     // 75% holy weakness
+			rc.Resistances[DamagePoison] = 1.0 // Immune to poison
+			rc.Resistances[DamageHoly] = -0.75 // 75% holy weakness
 			rc.Resistances[DamagePhysical] = 0.2
 		case "demon":
 			rc.Resistances[DamageFire] = 0.5
 			rc.Resistances[DamageShadow] = 0.5
-			rc.Resistances[DamageHoly] = -1.0      // Double holy damage
+			rc.Resistances[DamageHoly] = -1.0 // Double holy damage
 		case "construct":
 			rc.Resistances[DamagePoison] = 1.0     // Immune to poison
 			rc.Resistances[DamageLightning] = -0.3 // Lightning weakness
 			rc.Resistances[DamagePhysical] = 0.4
 		}
-		
+
 	case "scifi":
 		switch entityType {
 		case "robot":
@@ -141,11 +141,11 @@ func CreateResistanceProfile(genre string, entityType string, rng *rand.Rand) *R
 			rc.Resistances[DamageFire] = 0.5
 			rc.Resistances[DamageLightning] = 0.2
 		}
-		
+
 	case "horror":
 		switch entityType {
 		case "ghost":
-			rc.Resistances[DamagePhysical] = 0.8   // Hard to hit with physical
+			rc.Resistances[DamagePhysical] = 0.8 // Hard to hit with physical
 			rc.Resistances[DamageArcane] = -0.5
 			rc.Resistances[DamageShadow] = 0.7
 		case "cultist":
@@ -156,7 +156,7 @@ func CreateResistanceProfile(genre string, entityType string, rng *rand.Rand) *R
 			rc.Resistances[DamageFire] = -0.4
 		}
 	}
-	
+
 	return rc
 }
 
