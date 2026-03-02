@@ -57,6 +57,7 @@ import (
 	"github.com/opd-ai/violence/pkg/mod"
 	"github.com/opd-ai/violence/pkg/network"
 	"github.com/opd-ai/violence/pkg/outline"
+	"github.com/opd-ai/violence/pkg/parallax"
 	"github.com/opd-ai/violence/pkg/particle"
 	"github.com/opd-ai/violence/pkg/progression"
 	"github.com/opd-ai/violence/pkg/projectile"
@@ -333,6 +334,10 @@ type Game struct {
 
 	// Item icon generation system for inventory and loot display
 	itemIconSystem *itemicon.IconSystem
+
+	// Parallax background system for multi-layer depth scrolling
+	parallaxSystem    *parallax.System
+	parallaxComponent *parallax.Component
 }
 
 // NewGame creates and initializes a new game instance.
@@ -487,6 +492,10 @@ func NewGame() *Game {
 	// Initialize item icon generation system for inventory and loot visuals
 	g.itemIconSystem = itemicon.NewSystem(g.genreID, 200)
 
+	// Initialize parallax background system for environmental depth
+	g.parallaxSystem = parallax.NewSystem()
+	g.parallaxComponent = parallax.NewComponent(g.genreID, "default", int64(seed))
+
 	// Connect sliding system to spatial index
 	g.slidingSystem.SetSpatialIndex(g.spatialSystem.GetGrid())
 
@@ -598,6 +607,9 @@ func NewGame() *Game {
 
 	// Register atmospheric fog system with the World
 	g.world.AddSystem(g.fogSystem)
+
+	// Register parallax background system with the World
+	g.world.AddSystem(g.parallaxSystem)
 
 	// Register weapon swing animation system with the World
 	g.world.AddSystem(g.weaponAnimSystem)
@@ -725,6 +737,12 @@ func (g *Game) generateLevel() {
 		g.weatherEmitter = nil
 	}
 	g.setGenre(g.genreID)
+
+	// Initialize parallax background layers for the level
+	if g.parallaxSystem != nil && g.parallaxComponent != nil {
+		g.parallaxComponent.GenreID = g.genreID
+		g.parallaxSystem.InitializeForWorld(g.parallaxComponent, config.C.InternalWidth, config.C.InternalHeight)
+	}
 }
 
 // populateLevel populates the generated level with content and entities.
@@ -4027,6 +4045,12 @@ func (g *Game) drawPlaying(screen *ebiten.Image) {
 	g.renderer.SetLightMap(g.lightMap)
 	g.renderer.SetPostProcessor(g.postProcessor)
 	g.renderer.Tick() // Increment animation ticker
+
+	// Render parallax background layers (behind everything)
+	if g.parallaxSystem != nil && g.parallaxComponent != nil && g.parallaxComponent.Enabled {
+		g.parallaxComponent.UpdateCamera(camX, camY, config.C.InternalWidth, config.C.InternalHeight)
+		g.parallaxSystem.Render(screen, g.parallaxComponent)
+	}
 
 	// Render 3D world
 	g.renderer.Render(screen, camX, camY, g.camera.DirX, g.camera.DirY, g.camera.Pitch)
