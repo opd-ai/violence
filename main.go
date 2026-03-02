@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"log"
 	"math"
+	"math/rand"
 	"net"
 	"os"
 	"reflect"
@@ -225,6 +226,9 @@ type Game struct {
 
 	// Dynamic lighting system for entity-attached lights
 	lightingSystem *lighting.LightingSystem
+
+	// Boss phase transition system for multi-phase boss encounters
+	bossPhaseSystem *combat.BossPhaseSystem
 }
 
 // NewGame creates and initializes a new game instance.
@@ -306,6 +310,7 @@ func NewGame() *Game {
 		roomDecorations:    make(map[int]*decoration.RoomDecor),
 		collisionGeometry:  collision.NewCollisionGeometrySystem(),
 		lightingSystem:     lighting.NewLightingSystem("fantasy"),
+		bossPhaseSystem:    combat.NewBossPhaseSystem(),
 	}
 
 	// Initialize status system with the registry
@@ -341,6 +346,9 @@ func NewGame() *Game {
 
 	// Register dynamic lighting system with the World
 	g.world.AddSystem(g.lightingSystem)
+
+	// Register boss phase system with the World
+	g.world.AddSystem(g.bossPhaseSystem)
 
 	// Register hazard ECS system with the World
 	g.world.AddSystem(g.hazardECSSystem)
@@ -590,6 +598,47 @@ func (g *Game) spawnEnemies() {
 		agent := ai.NewAgent("enemy_"+string(rune(i+'0')), spawnX, spawnY)
 		g.aiAgents = append(g.aiAgents, agent)
 	}
+
+	// Spawn a boss enemy in the last room (1 in 3 chance)
+	if len(rooms) > 3 && g.rng.Float64() < 0.33 {
+		g.spawnBoss(rooms[len(rooms)-1])
+	}
+}
+
+// spawnBoss spawns a boss enemy with phase transitions.
+func (g *Game) spawnBoss(room *bsp.Room) {
+	spawnX := float64(room.X+room.W/2) + 0.5
+	spawnY := float64(room.Y+room.H/2) + 0.5
+
+	// Create boss entity
+	bossEntity := g.world.AddEntity()
+
+	// Add health component
+	healthComp := &combat.HealthComponent{
+		Current: 1000.0,
+		Max:     1000.0,
+	}
+	g.world.AddComponent(bossEntity, healthComp)
+
+	// Create and add boss phase component with genre-specific phases
+	// Use a new rand.Rand seeded from the game RNG
+	bossRand := rand.New(rand.NewSource(int64(g.seed + uint64(room.X*1000+room.Y))))
+	phases := combat.CreateBossPhases(g.genreID, bossRand)
+	bossPhaseComp := &combat.BossPhaseComponent{
+		CurrentPhase:       0,
+		Phases:             phases,
+		TransitionCooldown: 2.0,
+		InitialMaxHealth:   1000.0,
+	}
+	g.world.AddComponent(bossEntity, bossPhaseComp)
+
+	logrus.WithFields(logrus.Fields{
+		"entity_id":   bossEntity,
+		"x":           spawnX,
+		"y":           spawnY,
+		"genre":       g.genreID,
+		"phase_count": len(phases),
+	}).Info("Boss spawned with phase transitions")
 }
 
 // spawnDestructibles spawns destructible objects like barrels and crates.
