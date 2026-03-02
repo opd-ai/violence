@@ -38,6 +38,9 @@ type MatchResult struct {
 	Genre         string
 }
 
+// MatchReadyCallback is called when a match is ready for players.
+type MatchReadyCallback func(result *MatchResult)
+
 // Matchmaker manages matchmaking queues and player grouping.
 type Matchmaker struct {
 	hub               *FederationHub
@@ -49,6 +52,7 @@ type Matchmaker struct {
 	queueTimeout      time.Duration
 	minPlayersPerMode map[GameMode]int
 	maxPlayersPerMode map[GameMode]int
+	onMatchReady      MatchReadyCallback
 }
 
 // NewMatchmaker creates a new matchmaker instance.
@@ -84,6 +88,13 @@ func (m *Matchmaker) Start() {
 // Stop halts the matchmaker.
 func (m *Matchmaker) Stop() {
 	m.cancel()
+}
+
+// SetMatchReadyCallback sets the callback to be called when a match is ready.
+func (m *Matchmaker) SetMatchReadyCallback(callback MatchReadyCallback) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.onMatchReady = callback
 }
 
 // Enqueue adds a player to the matchmaking queue.
@@ -237,6 +248,11 @@ func (m *Matchmaker) finalizeMatch(mode GameMode, matchPlayers []*QueueEntry, se
 			"server_addr": result.ServerAddress,
 			"genre":       result.Genre,
 		}).Info("match created")
+
+		// Notify players that match is ready
+		if m.onMatchReady != nil {
+			m.onMatchReady(result)
+		}
 	}
 }
 

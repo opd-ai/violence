@@ -543,3 +543,187 @@ func TestMatchmaker_QueueTimeout_Integration(t *testing.T) {
 		t.Error("player should be removed after timeout")
 	}
 }
+
+func TestMatchmaker_MatchReadyCallback(t *testing.T) {
+	hub := NewFederationHub()
+	defer hub.Stop()
+
+	if err := hub.Start("127.0.0.1:0"); err != nil {
+		t.Fatalf("failed to start hub: %v", err)
+	}
+
+	// Register a test server
+	server := &ServerAnnouncement{
+		Name:       "TestServer",
+		Address:    "127.0.0.1:7777",
+		Genre:      "scifi",
+		Region:     RegionUSEast,
+		MaxPlayers: 8,
+		Players:    0,
+	}
+	hub.registerServer(server)
+
+	mm := NewMatchmaker(hub)
+
+	// Track callback invocations
+	var callbackInvoked bool
+	var receivedResult *MatchResult
+	mm.SetMatchReadyCallback(func(result *MatchResult) {
+		callbackInvoked = true
+		receivedResult = result
+	})
+
+	// Enqueue enough players for a match
+	mm.Enqueue("player1", ModeFFA, "scifi", RegionUSEast)
+	mm.Enqueue("player2", ModeFFA, "scifi", RegionUSEast)
+
+	// Process matches
+	mm.processMatches()
+
+	// Verify callback was invoked
+	if !callbackInvoked {
+		t.Error("callback should have been invoked when match was created")
+	}
+
+	// Verify result contents
+	if receivedResult == nil {
+		t.Fatal("received result should not be nil")
+	}
+	if len(receivedResult.PlayerIDs) != 2 {
+		t.Errorf("expected 2 players, got %d", len(receivedResult.PlayerIDs))
+	}
+	if receivedResult.ServerAddress != "127.0.0.1:7777" {
+		t.Errorf("expected server address 127.0.0.1:7777, got %s", receivedResult.ServerAddress)
+	}
+	if receivedResult.ServerName != "TestServer" {
+		t.Errorf("expected server name TestServer, got %s", receivedResult.ServerName)
+	}
+	if receivedResult.Mode != ModeFFA {
+		t.Errorf("expected mode %s, got %s", ModeFFA, receivedResult.Mode)
+	}
+	if receivedResult.Genre != "scifi" {
+		t.Errorf("expected genre scifi, got %s", receivedResult.Genre)
+	}
+
+	// Verify player IDs
+	expectedPlayers := map[string]bool{"player1": true, "player2": true}
+	for _, pid := range receivedResult.PlayerIDs {
+		if !expectedPlayers[pid] {
+			t.Errorf("unexpected player ID: %s", pid)
+		}
+		delete(expectedPlayers, pid)
+	}
+	if len(expectedPlayers) > 0 {
+		t.Errorf("missing expected players: %v", expectedPlayers)
+	}
+
+	// Verify players were removed from queue
+	if mm.IsQueued("player1") {
+		t.Error("player1 should be removed from queue after match")
+	}
+	if mm.IsQueued("player2") {
+		t.Error("player2 should be removed from queue after match")
+	}
+}
+
+func TestMatchmaker_NoCallbackSet(t *testing.T) {
+	hub := NewFederationHub()
+	defer hub.Stop()
+
+	if err := hub.Start("127.0.0.1:0"); err != nil {
+		t.Fatalf("failed to start hub: %v", err)
+	}
+
+	server := &ServerAnnouncement{
+		Name:       "TestServer",
+		Address:    "127.0.0.1:7777",
+		Genre:      "scifi",
+		Region:     RegionUSEast,
+		MaxPlayers: 8,
+		Players:    0,
+	}
+	hub.registerServer(server)
+
+	mm := NewMatchmaker(hub)
+	// Do not set callback
+
+	mm.Enqueue("player1", ModeFFA, "scifi", RegionUSEast)
+	mm.Enqueue("player2", ModeFFA, "scifi", RegionUSEast)
+
+	// Should not panic without callback
+	mm.processMatches()
+
+	// Players should still be removed from queue
+	if mm.IsQueued("player1") || mm.IsQueued("player2") {
+		t.Error("players should be removed from queue even without callback")
+	}
+}
+
+func TestMatchmaker_MultipleMatchesNotify(t *testing.T) {
+	hub := NewFederationHub()
+	defer hub.Stop()
+
+	if err := hub.Start("127.0.0.1:0"); err != nil {
+		t.Fatalf("failed to start hub: %v", err)
+	}
+
+	// Register servers
+	server1 := &ServerAnnouncement{
+		Name:       "Server1",
+		Address:    "127.0.0.1:7777",
+		Genre:      "scifi",
+		Region:     RegionUSEast,
+		MaxPlayers: 8,
+		Players:    0,
+	}
+	server2 := &ServerAnnouncement{
+		Name:       "Server2",
+		Address:    "127.0.0.1:7778",
+		Genre:      "fantasy",
+		Region:     RegionUSEast,
+		MaxPlayers: 8,
+		Players:    0,
+	}
+	hub.registerServer(server1)
+	hub.registerServer(server2)
+
+	mm := NewMatchmaker(hub)
+
+	// Track all callbacks
+	var matches []*MatchResult
+	mm.SetMatchReadyCallback(func(result *MatchResult) {
+		matches = append(matches, result)
+	})
+
+	// Enqueue players for different genres
+	mm.Enqueue("p1", ModeFFA, "scifi", RegionUSEast)
+	mm.Enqueue("p2", ModeFFA, "scifi", RegionUSEast)
+	mm.Enqueue("p3", ModeFFA, "fantasy", RegionUSEast)
+	mm.Enqueue("p4", ModeFFA, "fantasy", RegionUSEast)
+
+	// Process matches
+	mm.processMatches()
+
+	// Should have created 2 matches
+	if len(matches) != 2 {
+		t.Errorf("expected 2 matches, got %d", len(matches))
+	}
+
+	// Verify match genres
+	foundScifi := false
+	foundFantasy := false
+	for _, match := range matches {
+		if match.Genre == "scifi" {
+			foundScifi = true
+		}
+		if match.Genre == "fantasy" {
+			foundFantasy = true
+		}
+	}
+	if !foundScifi {
+		t.Error("expected a scifi match")
+	}
+	if !foundFantasy {
+		t.Error("expected a fantasy match")
+	}
+}
