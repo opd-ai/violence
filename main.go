@@ -69,6 +69,7 @@ import (
 	"github.com/opd-ai/violence/pkg/squad"
 	"github.com/opd-ai/violence/pkg/stats"
 	"github.com/opd-ai/violence/pkg/status"
+	"github.com/opd-ai/violence/pkg/telegraph"
 	"github.com/opd-ai/violence/pkg/territory"
 	"github.com/opd-ai/violence/pkg/texture"
 	"github.com/opd-ai/violence/pkg/trap"
@@ -301,6 +302,9 @@ type Game struct {
 	// Combat decal system for persistent visual marks from combat
 	decalSystem  *decal.System
 	combatDecals []decal.Decal
+
+	// Attack telegraph system for enemy attack visual indicators
+	telegraphSystem *telegraph.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -431,6 +435,9 @@ func NewGame() *Game {
 	g.decalSystem = decal.NewSystem(500, g.genreID, int64(seed))
 	g.combatDecals = make([]decal.Decal, 0, 500)
 
+	// Initialize attack telegraph system for enemy attack indicators
+	g.telegraphSystem = telegraph.NewSystem(g.genreID, int64(seed))
+
 	// Connect sliding system to spatial index
 	g.slidingSystem.SetSpatialIndex(g.spatialSystem.GetGrid())
 
@@ -527,6 +534,9 @@ func NewGame() *Game {
 
 	// Register attack trail system with the World
 	g.world.AddSystem(g.attackTrailSystem)
+
+	// Register attack telegraph system with the World
+	g.world.AddSystem(g.telegraphSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
@@ -3925,6 +3935,11 @@ func (g *Game) drawPlaying(screen *ebiten.Image) {
 	// Render weapon attack trails
 	if g.attackTrailSystem != nil {
 		g.attackTrailSystem.Render(screen, g.world, camX, camY)
+	}
+
+	// Render attack telegraph indicators
+	if g.telegraphSystem != nil {
+		g.telegraphSystem.Render(screen, g.world, camX, camY)
 	}
 
 	// Apply hit flash overlay

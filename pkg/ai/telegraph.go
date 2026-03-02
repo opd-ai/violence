@@ -5,15 +5,15 @@ import (
 	"math"
 	"reflect"
 
-	"github.com/opd-ai/violence/pkg/combat"
 	"github.com/opd-ai/violence/pkg/engine"
+	"github.com/opd-ai/violence/pkg/telegraph"
 )
 
 // TelegraphAttackContext extends Context with telegraph system access.
 type TelegraphAttackContext struct {
 	*Context
 	World           *engine.World
-	TelegraphSystem *combat.TelegraphSystem
+	TelegraphSystem *telegraph.System
 }
 
 // checkCanTelegraphAttack checks if entity can initiate a telegraph attack.
@@ -26,8 +26,15 @@ func checkCanTelegraphAttack(agent *Agent, ctx *Context) bool {
 			return false
 		}
 
-		// Check if telegraph system allows attack
-		return tCtx.TelegraphSystem.CanAttack(tCtx.World, entity)
+		// Check if telegraph component exists and is not active
+		telegraphType := reflect.TypeOf(&telegraph.Component{})
+		comp, ok := tCtx.World.GetComponent(entity, telegraphType)
+		if !ok {
+			return true // No component yet, can create one
+		}
+
+		tc := comp.(*telegraph.Component)
+		return !tc.Active // Can attack if not already telegraphing
 	}
 	return false
 }
@@ -44,18 +51,28 @@ func actionTelegraphAttack(agent *Agent, ctx *Context) NodeStatus {
 		return StatusFailure
 	}
 
-	// Initiate attack toward player
-	success := tCtx.TelegraphSystem.InitiateAttack(tCtx.World, entity, ctx.PlayerX, ctx.PlayerY)
-	if !success {
-		return StatusFailure
+	// Determine attack type based on distance and agent role
+	dx := ctx.PlayerX - agent.X
+	dy := ctx.PlayerY - agent.Y
+	dist := math.Sqrt(dx*dx + dy*dy)
+
+	attackType := "melee"
+	duration := 0.8
+
+	if dist > 3.0 {
+		attackType = "ranged"
+		duration = 1.0
+	} else if dist < 1.5 {
+		attackType = "charge"
+		duration = 0.5
 	}
+
+	// Initiate attack telegraph
+	tCtx.TelegraphSystem.StartTelegraph(tCtx.World, entity, attackType, duration)
 
 	agent.State = StateAttack
 
 	// Face the player
-	dx := ctx.PlayerX - agent.X
-	dy := ctx.PlayerY - agent.Y
-	dist := math.Sqrt(dx*dx + dy*dy)
 	if dist > 0.01 {
 		agent.DirX = dx / dist
 		agent.DirY = dy / dist
@@ -139,10 +156,11 @@ func findEntityByAgent(w *engine.World, agent *Agent) engine.Entity {
 // AddTelegraphToAgent adds a telegraph component to an entity for an AI agent.
 func AddTelegraphToAgent(w *engine.World, entity engine.Entity, genreID string, seed int64) {
 	// Create telegraph component with default inactive state
-	telegraph := &combat.TelegraphComponent{
-		Phase: combat.PhaseInactive,
-		Seed:  seed,
+	telegraphComp := &telegraph.Component{
+		Active:        false,
+		TelegraphTime: 1.0,
+		AttackType:    "melee",
 	}
 
-	w.AddComponent(entity, telegraph)
+	w.AddComponent(entity, telegraphComp)
 }
