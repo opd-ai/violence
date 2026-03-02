@@ -32,6 +32,7 @@ import (
 	"github.com/opd-ai/violence/pkg/destruct"
 	"github.com/opd-ai/violence/pkg/door"
 	"github.com/opd-ai/violence/pkg/engine"
+	"github.com/opd-ai/violence/pkg/equipment"
 	"github.com/opd-ai/violence/pkg/event"
 	"github.com/opd-ai/violence/pkg/faction"
 	"github.com/opd-ai/violence/pkg/federation"
@@ -244,6 +245,9 @@ type Game struct {
 
 	// Terrain sliding system for smooth wall collision response
 	slidingSystem *collision.SlidingSystem
+
+	// Equipment rendering system for visible gear on entity sprites
+	equipmentSystem *equipment.EquipmentSystem
 }
 
 // NewGame creates and initializes a new game instance.
@@ -329,6 +333,7 @@ func NewGame() *Game {
 		factionSystem:      faction.NewReputationSystem(),
 		statSystem:         stats.NewSystem(),
 		weatherSystem:      weather.NewSystem(2000, int64(seed), "fantasy"),
+		equipmentSystem:    equipment.NewEquipmentSystem("fantasy"),
 	}
 
 	// Initialize sliding system with spatial index (will be set properly after spatial system init)
@@ -389,6 +394,9 @@ func NewGame() *Game {
 
 	// Register sliding system with the World
 	g.world.AddSystem(g.slidingSystem)
+
+	// Register equipment rendering system with the World
+	g.world.AddSystem(g.equipmentSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
@@ -1031,6 +1039,9 @@ func (g *Game) setGenre(genreID string) {
 	}
 	if g.weatherSystem != nil {
 		g.weatherSystem.SetGenre(genreID)
+	}
+	if g.equipmentSystem != nil {
+		g.equipmentSystem.SetGenre(genreID)
 	}
 
 	// Generate genre-specific textures
