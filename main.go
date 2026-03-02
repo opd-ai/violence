@@ -66,6 +66,7 @@ import (
 	"github.com/opd-ai/violence/pkg/ui"
 	"github.com/opd-ai/violence/pkg/upgrade"
 	"github.com/opd-ai/violence/pkg/weapon"
+	"github.com/opd-ai/violence/pkg/weather"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/image/font/basicfont"
 )
@@ -237,6 +238,9 @@ type Game struct {
 
 	// Stat allocation system for character attribute management
 	statSystem *stats.System
+
+	// Environmental weather particle system for atmospheric effects
+	weatherSystem *weather.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -321,6 +325,7 @@ func NewGame() *Game {
 		bossPhaseSystem:    combat.NewBossPhaseSystem(),
 		factionSystem:      faction.NewReputationSystem(),
 		statSystem:         stats.NewSystem(),
+		weatherSystem:      weather.NewSystem(2000, int64(seed), "fantasy"),
 	}
 
 	// Initialize status system with the registry
@@ -368,6 +373,10 @@ func NewGame() *Game {
 
 	// Register stat allocation system with the World
 	g.world.AddSystem(g.statSystem)
+
+	// Register weather system with the World
+	g.world.AddSystem(g.weatherSystem)
+	g.weatherSystem.AddWeatherToWorld(g.world)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
@@ -1007,6 +1016,9 @@ func (g *Game) setGenre(genreID string) {
 	}
 	if g.spriteGenerator != nil {
 		g.spriteGenerator.SetGenre(genreID)
+	}
+	if g.weatherSystem != nil {
+		g.weatherSystem.SetGenre(genreID)
 	}
 
 	// Generate genre-specific textures
@@ -3376,6 +3388,11 @@ func (g *Game) drawPlaying(screen *ebiten.Image) {
 		g.renderParticles(screen)
 	}
 
+	// Render environmental weather particles with parallax depth
+	if g.weatherSystem != nil {
+		g.renderWeatherParticles(screen)
+	}
+
 	// Render environmental hazards
 	if g.hazardECSSystem != nil {
 		g.renderHazards(screen)
@@ -3438,6 +3455,90 @@ func (g *Game) renderParticles(screen *ebiten.Image) {
 			particleColor := color.RGBA{R: p.R, G: p.G, B: p.B, A: p.A}
 			vector.DrawFilledRect(screen, float32(screenX), float32(screenY), 2, 2, particleColor, false)
 		}
+	}
+}
+
+// renderWeatherParticles draws environmental weather particles with depth parallax.
+func (g *Game) renderWeatherParticles(screen *ebiten.Image) {
+	ws := g.weatherSystem.GetWeatherSystem()
+	if ws == nil {
+		return
+	}
+
+	// Update camera position for particle spawning
+	ws.SetCamera(g.camera.X, g.camera.Y, float64(config.C.InternalWidth)/10.0, float64(config.C.InternalHeight)/10.0)
+
+	particles := ws.GetActiveParticles()
+	for _, p := range particles {
+		// Apply parallax based on depth layer
+		// Background particles (depth 0.0) move slower with camera
+		// Foreground particles (depth 1.0) move at full camera speed
+		parallaxFactor := 0.3 + p.DepthLayer*0.7
+		dx := (p.X - g.camera.X) * parallaxFactor
+		dy := (p.Y - g.camera.Y) * parallaxFactor
+
+		// Project to screen space
+		screenX := config.C.InternalWidth/2 + int(dx*10)
+		screenY := config.C.InternalHeight/2 + int(dy*10)
+
+		// Screen bounds check with margin
+		margin := 50
+		if screenX < -margin || screenX > config.C.InternalWidth+margin ||
+			screenY < -margin || screenY > config.C.InternalHeight+margin {
+			continue
+		}
+
+		// Calculate alpha based on depth (background particles are more transparent)
+		depthAlpha := uint8(float64(p.Alpha) * (0.4 + p.DepthLayer*0.6))
+
+		// Apply flicker for embers and neon glitches
+		renderAlpha := depthAlpha
+		if p.FlickerSpeed > 0 {
+			flicker := (math.Sin(p.FlickerPhase) + 1.0) * 0.5
+			renderAlpha = uint8(float64(depthAlpha) * (0.6 + flicker*0.4))
+		}
+
+		particleColor := color.RGBA{
+			R: p.Color.R,
+			G: p.Color.G,
+			B: p.Color.B,
+			A: renderAlpha,
+		}
+
+		// Calculate size based on depth
+		size := p.Size * (0.5 + p.DepthLayer*0.5)
+
+		// Render particle based on type
+		if p.RotationSpeed != 0 {
+			// Snowflakes - render as small cross pattern
+			g.renderSnowflake(screen, float32(screenX), float32(screenY), float32(size), particleColor)
+		} else if size > 5.0 {
+			// Fog particles - render as larger soft circles
+			g.renderFogParticle(screen, float32(screenX), float32(screenY), float32(size), particleColor)
+		} else {
+			// Rain, dust, ash, embers - render as small rectangles or circles
+			vector.DrawFilledRect(screen, float32(screenX), float32(screenY), float32(size), float32(size), particleColor, false)
+		}
+	}
+}
+
+// renderSnowflake draws a small cross pattern for snowflakes.
+func (g *Game) renderSnowflake(screen *ebiten.Image, x, y, size float32, c color.RGBA) {
+	// Vertical line
+	vector.DrawFilledRect(screen, x-size*0.1, y-size*0.5, size*0.2, size, c, false)
+	// Horizontal line
+	vector.DrawFilledRect(screen, x-size*0.5, y-size*0.1, size, size*0.2, c, false)
+}
+
+// renderFogParticle draws a soft fog wisp as multiple overlapping circles.
+func (g *Game) renderFogParticle(screen *ebiten.Image, x, y, size float32, c color.RGBA) {
+	// Draw 3 overlapping circles with decreasing alpha for soft edge
+	for i := 0; i < 3; i++ {
+		factor := 1.0 - float32(i)*0.25
+		alpha := uint8(float32(c.A) * factor * 0.4)
+		fogColor := color.RGBA{R: c.R, G: c.G, B: c.B, A: alpha}
+		circleSize := size * (1.0 + float32(i)*0.3)
+		vector.DrawFilledRect(screen, x-circleSize/2, y-circleSize/2, circleSize, circleSize, fogColor, false)
 	}
 }
 
