@@ -677,3 +677,135 @@ func TestModAPI_ShowNotification_Overwrite(t *testing.T) {
 		t.Errorf("expected hudMsgTime to be reset to 180, got %d", hudMsgTime)
 	}
 }
+
+func TestModAPI_ConcurrentEventRegistration(t *testing.T) {
+	api := NewModAPI("test_mod", DefaultPermissions())
+
+	const numGoroutines = 10
+	const handlersPerGoroutine = 100
+
+	done := make(chan bool, numGoroutines)
+
+	// Register event handlers concurrently
+	for i := 0; i < numGoroutines; i++ {
+		go func(routineID int) {
+			for j := 0; j < handlersPerGoroutine; j++ {
+				handler := func(data EventData) error {
+					return nil
+				}
+				eventType := fmt.Sprintf("event.%d", routineID%5)
+				err := api.RegisterEventHandler(eventType, handler)
+				if err != nil {
+					t.Errorf("unexpected error in goroutine %d: %v", routineID, err)
+				}
+			}
+			done <- true
+		}(i)
+	}
+
+	// Wait for all goroutines to complete
+	for i := 0; i < numGoroutines; i++ {
+		<-done
+	}
+
+	// Verify total handler count
+	api.handlersMutex.RLock()
+	defer api.handlersMutex.RUnlock()
+
+	totalHandlers := 0
+	for _, handlers := range api.eventHandlers {
+		totalHandlers += len(handlers)
+	}
+
+	expected := numGoroutines * handlersPerGoroutine
+	if totalHandlers != expected {
+		t.Errorf("expected %d total handlers, got %d", expected, totalHandlers)
+	}
+}
+
+func TestModAPI_ConcurrentEventTrigger(t *testing.T) {
+	api := NewModAPI("test_mod", DefaultPermissions())
+
+	// Register some handlers
+	callCount := 0
+	handler := func(data EventData) error {
+		return nil
+	}
+
+	for i := 0; i < 10; i++ {
+		err := api.RegisterEventHandler(EventTypeWeaponFire, handler)
+		if err != nil {
+			t.Fatalf("failed to register handler: %v", err)
+		}
+	}
+
+	const numGoroutines = 20
+	done := make(chan bool, numGoroutines)
+
+	// Trigger events concurrently
+	for i := 0; i < numGoroutines; i++ {
+		go func() {
+			err := api.TriggerEvent(EventTypeWeaponFire, EventData{Type: EventTypeWeaponFire})
+			if err != nil {
+				t.Errorf("unexpected error triggering event: %v", err)
+			}
+			done <- true
+		}()
+	}
+
+	// Wait for all goroutines to complete
+	for i := 0; i < numGoroutines; i++ {
+		<-done
+	}
+
+	// Test passes if no race detected and no panics occurred
+	_ = callCount
+}
+
+func TestModAPI_ConcurrentRegisterAndTrigger(t *testing.T) {
+	api := NewModAPI("test_mod", DefaultPermissions())
+
+	const numRegisterers = 5
+	const numTriggers = 10
+	const iterations = 50
+
+	done := make(chan bool, numRegisterers+numTriggers)
+
+	// Concurrent registrations
+	for i := 0; i < numRegisterers; i++ {
+		go func(id int) {
+			for j := 0; j < iterations; j++ {
+				handler := func(data EventData) error {
+					return nil
+				}
+				eventType := fmt.Sprintf("event.%d", id%3)
+				err := api.RegisterEventHandler(eventType, handler)
+				if err != nil {
+					t.Errorf("registration error: %v", err)
+				}
+			}
+			done <- true
+		}(i)
+	}
+
+	// Concurrent triggers
+	for i := 0; i < numTriggers; i++ {
+		go func(id int) {
+			for j := 0; j < iterations; j++ {
+				eventType := fmt.Sprintf("event.%d", id%3)
+				err := api.TriggerEvent(eventType, EventData{Type: eventType})
+				if err != nil {
+					t.Errorf("trigger error: %v", err)
+				}
+			}
+			done <- true
+		}(i)
+	}
+
+	// Wait for all goroutines
+	for i := 0; i < numRegisterers+numTriggers; i++ {
+		<-done
+	}
+
+	// Test passes if no race detected and no panics occurred
+}

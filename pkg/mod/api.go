@@ -3,6 +3,7 @@ package mod
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/opd-ai/violence/pkg/engine"
 )
@@ -27,6 +28,7 @@ type ModAPI struct {
 
 	// Event handlers registered by the mod
 	eventHandlers map[string][]EventHandler
+	handlersMutex sync.RWMutex
 
 	// Game system references (set when API is bound to game)
 	world          *engine.World
@@ -101,6 +103,9 @@ func (api *ModAPI) RegisterEventHandler(eventType string, handler EventHandler) 
 		return fmt.Errorf("handler cannot be nil")
 	}
 
+	api.handlersMutex.Lock()
+	defer api.handlersMutex.Unlock()
+
 	api.eventHandlers[eventType] = append(api.eventHandlers[eventType], handler)
 	return nil
 }
@@ -108,7 +113,9 @@ func (api *ModAPI) RegisterEventHandler(eventType string, handler EventHandler) 
 // TriggerEvent invokes all registered handlers for an event type.
 // Used by the game engine to notify mods of events.
 func (api *ModAPI) TriggerEvent(eventType string, data EventData) error {
+	api.handlersMutex.RLock()
 	handlers := api.eventHandlers[eventType]
+	api.handlersMutex.RUnlock()
 
 	for i, handler := range handlers {
 		if err := handler(data); err != nil {
