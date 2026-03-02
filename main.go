@@ -248,6 +248,9 @@ type Game struct {
 
 	// Equipment rendering system for visible gear on entity sprites
 	equipmentSystem *equipment.EquipmentSystem
+
+	// Positional advantage system for backstab/flank/elevation combat
+	positionalSystem *combat.PositionalSystem
 }
 
 // NewGame creates and initializes a new game instance.
@@ -334,6 +337,7 @@ func NewGame() *Game {
 		statSystem:         stats.NewSystem(),
 		weatherSystem:      weather.NewSystem(2000, int64(seed), "fantasy"),
 		equipmentSystem:    equipment.NewEquipmentSystem("fantasy"),
+		positionalSystem:   combat.NewPositionalSystem("fantasy"),
 	}
 
 	// Initialize sliding system with spatial index (will be set properly after spatial system init)
@@ -397,6 +401,9 @@ func NewGame() *Game {
 
 	// Register equipment rendering system with the World
 	g.world.AddSystem(g.equipmentSystem)
+
+	// Register positional advantage system with the World
+	g.world.AddSystem(g.positionalSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
@@ -677,6 +684,9 @@ func (g *Game) spawnBoss(room *bsp.Room) {
 	}
 	g.world.AddComponent(bossEntity, bossPhaseComp)
 
+	// Add positional component for backstab/flank vulnerability
+	g.positionalSystem.AddPositionalComponent(g.world, bossEntity, 0, 0)
+
 	logrus.WithFields(logrus.Fields{
 		"entity_id":   bossEntity,
 		"x":           spawnX,
@@ -896,6 +906,9 @@ func (g *Game) initializePlayer() {
 		Attributes: playerStats,
 	}
 	g.world.AddComponent(g.playerEntity, statComp)
+
+	// Add positional component to player for backstab/flank mechanics
+	g.positionalSystem.AddPositionalComponent(g.world, g.playerEntity, 0, 0)
 }
 
 // findSpawnPosition finds a safe starting position for the player.
@@ -1156,6 +1169,9 @@ func (g *Game) updatePlaying() error {
 	// Sync player entity health with HUD
 	g.syncPlayerEntityHealth()
 
+	// Sync player facing direction for positional combat
+	g.syncPlayerFacing()
+
 	return nil
 }
 
@@ -1188,6 +1204,22 @@ func (g *Game) syncPlayerEntityHealth() {
 			health.Current = health.Max
 		}
 	}
+}
+
+// syncPlayerFacing updates player entity facing to match camera direction.
+func (g *Game) syncPlayerFacing() {
+	if g.playerEntity == 0 {
+		return
+	}
+
+	posType := reflect.TypeOf(&combat.PositionalComponent{})
+	comp, ok := g.world.GetComponent(g.playerEntity, posType)
+	if !ok {
+		return
+	}
+
+	posComp := comp.(*combat.PositionalComponent)
+	posComp.SetFacingFromDirection(g.camera.DirX, g.camera.DirY)
 }
 
 // processDefensiveActions handles dodge, parry, and block input.
@@ -1374,18 +1406,59 @@ func (g *Game) processWeaponHits(hitResults []weapon.HitResult, currentWeapon we
 		}
 
 		upgradedDamage := g.getUpgradedWeaponDamage(currentWeapon)
-		agent.Health -= upgradedDamage
+
+		// Apply positional damage modifier if player has positional component
+		posMultiplier := 1.0
+		if g.playerEntity != 0 && g.positionalSystem != nil {
+			// Vector from agent to player
+			toPlayerX := g.camera.X - agent.X
+			toPlayerY := g.camera.Y - agent.Y
+			attackFromAngle := math.Atan2(toPlayerY, toPlayerX)
+
+			// Agent facing (use DirX/DirY if available, else face player)
+			agentFacing := math.Atan2(agent.DirY, agent.DirX)
+
+			// Calculate angle difference
+			angleDiff := attackFromAngle - agentFacing
+			for angleDiff > math.Pi {
+				angleDiff -= 2 * math.Pi
+			}
+			for angleDiff < -math.Pi {
+				angleDiff += 2 * math.Pi
+			}
+
+			cfg := combat.GetPositionalConfig(g.genreID)
+
+			// Check for backstab
+			if math.Abs(angleDiff-math.Pi) < cfg.BackstabAngle {
+				posMultiplier = cfg.BackstabMultiplier
+				logrus.WithFields(logrus.Fields{
+					"advantage":  "backstab",
+					"multiplier": posMultiplier,
+				}).Debug("Positional advantage: backstab")
+			} else if math.Abs(angleDiff-math.Pi/2) < cfg.FlankAngle || math.Abs(angleDiff+math.Pi/2) < cfg.FlankAngle {
+				// Check flank
+				posMultiplier = cfg.FlankMultiplier
+				logrus.WithFields(logrus.Fields{
+					"advantage":  "flank",
+					"multiplier": posMultiplier,
+				}).Debug("Positional advantage: flank")
+			}
+		}
+
+		finalDamage := upgradedDamage * posMultiplier
+		agent.Health -= finalDamage
 
 		// Add screen feedback for hit
 		if g.feedbackSystem != nil {
-			shakeIntensity := upgradedDamage / 10.0
+			shakeIntensity := finalDamage / 10.0
 			if shakeIntensity > 5.0 {
 				shakeIntensity = 5.0
 			}
 			g.feedbackSystem.AddScreenShake(shakeIntensity)
 
-			isCritical := g.rng.Float64() < 0.15 // 15% crit chance
-			g.feedbackSystem.SpawnDamageNumber(agent.X, agent.Y, int(upgradedDamage), isCritical)
+			isCritical := g.rng.Float64() < 0.15 || posMultiplier >= 2.0 // Backstabs are always critical
+			g.feedbackSystem.SpawnDamageNumber(agent.X, agent.Y, int(finalDamage), isCritical)
 
 			impactType := feedback.ImpactHit
 			if isCritical {
