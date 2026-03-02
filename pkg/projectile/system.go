@@ -25,12 +25,18 @@ type FeedbackProvider interface {
 	AddHitFlash(intensity float64)
 }
 
+// DamageVisualProvider interface for damage-type visual effects.
+type DamageVisualProvider interface {
+	ApplyDamageVisual(w *engine.World, entity engine.Entity, damageTypeName string, damage, x, y float64)
+}
+
 // System handles projectile movement, collision, and damage application.
 type System struct {
-	spatialGrid      SpatialGrid
-	particleSpawner  ParticleSpawner
-	feedbackProvider FeedbackProvider
-	logger           *logrus.Entry
+	spatialGrid          SpatialGrid
+	particleSpawner      ParticleSpawner
+	feedbackProvider     FeedbackProvider
+	damageVisualProvider DamageVisualProvider
+	logger               *logrus.Entry
 }
 
 // NewSystem creates a new projectile system.
@@ -55,6 +61,11 @@ func (s *System) SetParticleSpawner(spawner ParticleSpawner) {
 // SetFeedbackProvider connects the feedback system for impact effects.
 func (s *System) SetFeedbackProvider(provider FeedbackProvider) {
 	s.feedbackProvider = provider
+}
+
+// SetDamageVisualProvider connects the damage visual effects system.
+func (s *System) SetDamageVisualProvider(provider DamageVisualProvider) {
+	s.damageVisualProvider = provider
 }
 
 // Update processes all projectile entities.
@@ -239,9 +250,14 @@ func (s *System) applyDamage(w *engine.World, target engine.Entity, proj *Projec
 		"damage_type": DamageTypeNames[proj.DamageType],
 	}).Debug("Projectile hit target")
 
-	// Visual feedback
-	if s.particleSpawner != nil {
-		s.particleSpawner.SpawnBurst(targetX, targetY, 0, 8, 3.0, 0.5, 0.3, 0.5, proj.Color)
+	// Apply damage-type visual effects
+	if s.damageVisualProvider != nil {
+		s.damageVisualProvider.ApplyDamageVisual(w, target, DamageTypeNames[proj.DamageType], finalDamage, targetX, targetY)
+	} else {
+		// Fallback: basic visual feedback if damage visual system not connected
+		if s.particleSpawner != nil {
+			s.particleSpawner.SpawnBurst(targetX, targetY, 0, 8, 3.0, 0.5, 0.3, 0.5, proj.Color)
+		}
 	}
 }
 

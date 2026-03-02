@@ -196,6 +196,15 @@ func (f *FeedbackSystem) AddHitFlash(intensity float64) {
 	}
 }
 
+// AddColorFlash adds a colored screen flash effect.
+func (f *FeedbackSystem) AddColorFlash(col color.RGBA, intensity float64) {
+	f.hitFlash.color = col
+	f.hitFlash.intensity += intensity
+	if f.hitFlash.intensity > 1.0 {
+		f.hitFlash.intensity = 1.0
+	}
+}
+
 // SpawnDamageNumber creates a floating damage number at the specified position.
 func (f *FeedbackSystem) SpawnDamageNumber(x, y float64, damage int, critical bool) {
 	if len(f.damageNumbers) >= f.maxDamageNums {

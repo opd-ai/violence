@@ -31,6 +31,7 @@ import (
 	"github.com/opd-ai/violence/pkg/crafting"
 	"github.com/opd-ai/violence/pkg/decoration"
 	"github.com/opd-ai/violence/pkg/destruct"
+	"github.com/opd-ai/violence/pkg/dmgfx"
 	"github.com/opd-ai/violence/pkg/door"
 	"github.com/opd-ai/violence/pkg/engine"
 	"github.com/opd-ai/violence/pkg/equipment"
@@ -272,6 +273,9 @@ type Game struct {
 
 	// Quest-loot integration system for objective completion rewards
 	questLootSystem *loot.QuestLootSystem
+
+	// Damage visual effects system for damage-type-specific visual feedback
+	dmgfxSystem *dmgfx.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -365,6 +369,7 @@ func NewGame() *Game {
 		biomeMaterialSystem: biome.NewBiomeMaterialSystem("fantasy"),
 		trapSystem:          trap.NewSystem(int64(seed)),
 		questLootSystem:     loot.NewQuestLootSystem("fantasy", seed),
+		dmgfxSystem:         dmgfx.NewSystem(),
 	}
 
 	// Initialize sliding system with spatial index (will be set properly after spatial system init)
@@ -457,6 +462,16 @@ func NewGame() *Game {
 
 	// Register quest-loot integration system with the World
 	g.world.AddSystem(g.questLootSystem)
+
+	// Register damage visual effects system with the World
+	g.world.AddSystem(g.dmgfxSystem)
+
+	// Connect damage visual effects system to dependencies
+	g.dmgfxSystem.SetParticleSpawner(g.particleSystem)
+	g.dmgfxSystem.SetFeedbackProvider(g.feedbackSystem)
+
+	// Connect projectile system to damage visual effects
+	g.projectileSystem.SetDamageVisualProvider(g.dmgfxSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
