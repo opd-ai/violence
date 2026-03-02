@@ -269,6 +269,9 @@ type Game struct {
 
 	// Biome material system for dungeon-specific crafting material drops
 	biomeMaterialSystem *biome.BiomeMaterialSystem
+
+	// Quest-loot integration system for objective completion rewards
+	questLootSystem *loot.QuestLootSystem
 }
 
 // NewGame creates and initializes a new game instance.
@@ -361,6 +364,7 @@ func NewGame() *Game {
 		projectileSystem:    projectile.NewSystem(),
 		biomeMaterialSystem: biome.NewBiomeMaterialSystem("fantasy"),
 		trapSystem:          trap.NewSystem(int64(seed)),
+		questLootSystem:     loot.NewQuestLootSystem("fantasy", seed),
 	}
 
 	// Initialize sliding system with spatial index (will be set properly after spatial system init)
@@ -450,6 +454,9 @@ func NewGame() *Game {
 
 	// Register interactive trap system with the World
 	g.world.AddSystem(g.trapSystem)
+
+	// Register quest-loot integration system with the World
+	g.world.AddSystem(g.questLootSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
@@ -1632,7 +1639,24 @@ func (g *Game) handleEnemyDeath(enemyX, enemyY float64) {
 	}
 
 	if g.questTracker != nil {
+		// Check if we just completed the kill objective
+		oldProgress := int64(0)
+		for i := range g.questTracker.Objectives {
+			if g.questTracker.Objectives[i].ID == "bonus_kills" && !g.questTracker.Objectives[i].Complete {
+				oldProgress = g.questTracker.Objectives[i].Progress
+				break
+			}
+		}
+
 		g.questTracker.UpdateProgress("bonus_kills", 1)
+
+		// Grant reward if objective was just completed
+		for i := range g.questTracker.Objectives {
+			obj := &g.questTracker.Objectives[i]
+			if obj.ID == "bonus_kills" && obj.Complete && oldProgress < int64(obj.Count) {
+				g.grantQuestReward("bonus_kills", "enemy", false, int(obj.Progress), obj.Count)
+			}
+		}
 	}
 
 	// Spawn biome-specific crafting materials based on location
@@ -1881,6 +1905,42 @@ func (g *Game) updateQuestObjectives() {
 				obj.Complete = false
 			}
 		}
+	}
+}
+
+// grantQuestReward generates and displays a quest reward for completing an objective.
+func (g *Game) grantQuestReward(objectiveID, objectiveType string, isMain bool, progress, count int) {
+	if g.questLootSystem == nil {
+		return
+	}
+
+	elapsedTime := time.Since(g.levelStartTime).Seconds()
+	var timeTarget float64 = 0
+
+	// Find the time target if this is a timed objective
+	for i := range g.questTracker.Objectives {
+		if g.questTracker.Objectives[i].ID == objectiveID {
+			if g.questTracker.Objectives[i].Type == quest.ObjSurvive {
+				timeTarget = float64(g.questTracker.Objectives[i].Count)
+			}
+			break
+		}
+	}
+
+	reward := g.questLootSystem.GrantRewardForObjective(
+		objectiveType,
+		isMain,
+		progress,
+		count,
+		elapsedTime,
+		timeTarget,
+		g.seed+uint64(len(objectiveID))*1000,
+	)
+
+	// Display reward notification
+	msg := reward.GetRewardDescription()
+	if g.hud != nil {
+		g.hud.ShowMessage(msg)
 	}
 }
 
@@ -2168,7 +2228,24 @@ func (g *Game) handleSecretWall(mapX, mapY int) {
 		g.audioEngine.PlaySFX("secret_open", float64(mapX), float64(mapY))
 		g.hud.ShowMessage("Secret discovered!")
 		if g.questTracker != nil {
+			// Check if we just completed the secret objective
+			oldProgress := int64(0)
+			for i := range g.questTracker.Objectives {
+				if g.questTracker.Objectives[i].ID == "bonus_secrets" && !g.questTracker.Objectives[i].Complete {
+					oldProgress = g.questTracker.Objectives[i].Progress
+					break
+				}
+			}
+
 			g.questTracker.UpdateProgress("bonus_secrets", 1)
+
+			// Grant reward if objective was just completed
+			for i := range g.questTracker.Objectives {
+				obj := &g.questTracker.Objectives[i]
+				if obj.ID == "bonus_secrets" && obj.Complete && oldProgress < int64(obj.Count) {
+					g.grantQuestReward("bonus_secrets", "secret", false, int(obj.Progress), obj.Count)
+				}
+			}
 		}
 	}
 }
