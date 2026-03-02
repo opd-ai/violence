@@ -315,7 +315,7 @@ This ensures multiplayer synchronization and reproducible save/load behavior.
 
 ## Limitations
 
-- **Go plugins only**: Mods are compiled Go plugins (`.so` on Linux/macOS, `.dll` on Windows). WASM and cross-platform plugin support is not yet available.
-- **No sandboxing**: Go plugins have full runtime access. Only load trusted mods.
+- **Go plugins**: Go plugins (`.so` on Linux/macOS, `.dll` on Windows) have full runtime access. Only load trusted plugins.
+- **WASM mods**: For sandboxed execution, use WASM-based mods instead. See `docs/MODDING_WASM.md` for details.
 - **One generator per type**: Only one generator can be registered per type string. Registering a duplicate returns an error.
-- **Build compatibility**: Plugins must be compiled with the same Go version and module dependencies as the main binary.
+- **Build compatibility**: Go plugins must be compiled with the same Go version and module dependencies as the main binary.

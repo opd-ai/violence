@@ -614,27 +614,28 @@ servers := unmarshallServers(values)
 3. **Anonymized Telemetry**: If enabled, aggregate by region, not IP
 4. **GDPR Compliance**: Allow users to request data deletion
 
-## Roadmap
+## Implementation Status
 
 ### Phase 1: HTTP Federation (v5.0) ✅
 - Basic hub API (register, heartbeat, query)
 - Docker deployment
 - Self-hosting documentation
 
-### Phase 2: Hub Peering (v5.1)
+### Phase 2: Hub Peering (v5.0) ✅
 - Hub discovery and sync
 - Multi-hub queries from clients
 - Hub health monitoring
 
-### Phase 3: DHT Discovery (v5.2)
-- LibP2P integration
-- DHT bootstrap nodes
-- Hybrid HTTP + DHT mode
+### Phase 3: DHT Discovery (v6.0) ✅
+- LibP2P Kademlia DHT integration (`pkg/federation/dht/`)
+- Bootstrap peer support
+- Genre-based server queries
+- 8-hour TTL with auto-expiration
 
-### Phase 4: Advanced Features (v6.0)
-- Mod distribution via hubs
+### Phase 4: Advanced Features (v6.0+) — In Progress
+- Mod distribution via hubs (planned for v6.1)
 - Server reputation system
-- Matchmaking algorithms (skill-based)
+- Skill-based matchmaking (Elo-based, implemented in `pkg/network/matchmaking.go`)
 
 ## Code Structure
 
@@ -655,11 +656,10 @@ pkg/federation/
 
 ## Conclusion
 
-The Violence federation hub protocol enables decentralized multiplayer without corporate servers. Self-hosting is simple (Docker one-liner), and the HTTP API is human-readable. For advanced users, DHT provides censorship resistance. This architecture ensures the game remains playable even if official infrastructure disappears.
+The Violence federation hub protocol enables decentralized multiplayer without corporate servers. Self-hosting is simple (Docker one-liner), and the HTTP API is human-readable. DHT-based discovery (implemented in `pkg/federation/dht/`) provides censorship resistance as an alternative to HTTP hubs. This architecture ensures the game remains playable even if official infrastructure disappears.
 
-**Next Steps**:
-1. Implement `cmd/federation-hub/main.go` HTTP server
-2. Create Docker image and publish to GitHub Container Registry
-3. Deploy official bootstrap hubs at `hub1.violence-game.org` and `hub2.violence-game.org`
-4. Write integration tests for hub peering
-5. Document community hub operators in `docs/COMMUNITY_HUBS.md`
+**Implementation**:
+- HTTP Federation Hub: `cmd/federation-hub/`
+- DHT Discovery: `pkg/federation/dht/`
+- Federation Client/Server SDK: `pkg/federation/`
+- See `DHT_IMPLEMENTATION_SUMMARY.md` for DHT implementation details
