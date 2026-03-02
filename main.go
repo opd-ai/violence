@@ -48,6 +48,7 @@ import (
 	"github.com/opd-ai/violence/pkg/network"
 	"github.com/opd-ai/violence/pkg/particle"
 	"github.com/opd-ai/violence/pkg/progression"
+	"github.com/opd-ai/violence/pkg/projectile"
 	"github.com/opd-ai/violence/pkg/props"
 	"github.com/opd-ai/violence/pkg/quest"
 	"github.com/opd-ai/violence/pkg/raycaster"
@@ -257,6 +258,9 @@ type Game struct {
 
 	// Ambient occlusion system for depth cues and atmospheric shading
 	aoSystem *lighting.AOSystem
+
+	// Projectile system for spell/ranged combat with damage types and resistances
+	projectileSystem *projectile.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -346,6 +350,7 @@ func NewGame() *Game {
 		positionalSystem:   combat.NewPositionalSystem("fantasy"),
 		adaptiveAISystem:   ai.NewAdaptiveAISystem("fantasy"),
 		aoSystem:           lighting.NewAOSystem("fantasy"),
+		projectileSystem:   projectile.NewSystem(),
 	}
 
 	// Initialize sliding system with spatial index (will be set properly after spatial system init)
@@ -421,6 +426,14 @@ func NewGame() *Game {
 
 	// Connect AO system to spatial index for fast proximity queries
 	g.aoSystem.SetSpatialGrid(g.spatialSystem.GetGrid())
+
+	// Register projectile system with the World
+	g.world.AddSystem(g.projectileSystem)
+
+	// Connect projectile system to spatial index, particles, and feedback
+	g.projectileSystem.SetSpatialGrid(g.spatialSystem.GetGrid())
+	g.projectileSystem.SetParticleSpawner(g.particleSystem)
+	g.projectileSystem.SetFeedbackProvider(g.feedbackSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
