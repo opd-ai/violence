@@ -14,19 +14,19 @@ import (
 
 // System manages health bar rendering for entities.
 type System struct {
-	genre              string
-	baseColor          color.RGBA
-	damageColor        color.RGBA
-	criticalColor      color.RGBA
-	backgroundColor    color.RGBA
-	borderColor        color.RGBA
-	iconSize           float32
-	fadeDelay          float64
-	logger             *logrus.Entry
-	statusIconCache    map[StatusIconType]*ebiten.Image
-	barImagePool       []*ebiten.Image
-	poolIndex          int
-	maxPoolSize        int
+	genre           string
+	baseColor       color.RGBA
+	damageColor     color.RGBA
+	criticalColor   color.RGBA
+	backgroundColor color.RGBA
+	borderColor     color.RGBA
+	iconSize        float32
+	fadeDelay       float64
+	logger          *logrus.Entry
+	statusIconCache map[StatusIconType]*ebiten.Image
+	barImagePool    []*ebiten.Image
+	poolIndex       int
+	maxPoolSize     int
 }
 
 // NewSystem creates a health bar rendering system.
@@ -95,7 +95,7 @@ func (s *System) applyGenreTheme() {
 // Update processes all entities with health bars.
 func (s *System) Update(w *engine.World) {
 	deltaTime := 1.0 / 60.0
-	
+
 	healthType := reflect.TypeOf(&engine.Health{})
 	barType := reflect.TypeOf(&Component{})
 	statusIconType := reflect.TypeOf(&StatusIconsComponent{})
@@ -109,7 +109,7 @@ func (s *System) Update(w *engine.World) {
 				bar.LastDamageAge += deltaTime
 			}
 		}
-		
+
 		statusIconComp, hasIcons := w.GetComponent(eid, statusIconType)
 		if hasIcons {
 			icons := statusIconComp.(*StatusIconsComponent)
@@ -125,42 +125,42 @@ func (s *System) RenderHealthBars(screen *ebiten.Image, w *engine.World, cameraX
 	posType := reflect.TypeOf(&engine.Position{})
 
 	entities := w.Query(healthType)
-	
+
 	for _, eid := range entities {
 		healthComp, ok := w.GetComponent(eid, healthType)
 		if !ok {
 			continue
 		}
 		health := healthComp.(*engine.Health)
-		
+
 		barComp, hasBar := w.GetComponent(eid, barType)
 		if !hasBar {
 			continue
 		}
 		bar := barComp.(*Component)
-		
+
 		if !bar.Visible {
 			continue
 		}
-		
+
 		healthPct := float64(health.Current) / float64(health.Max)
 		if healthPct >= 1.0 && !bar.ShowWhenFull && bar.LastDamageAge > s.fadeDelay {
 			continue
 		}
-		
+
 		posComp, hasPos := w.GetComponent(eid, posType)
 		if !hasPos {
 			continue
 		}
 		pos := posComp.(*engine.Position)
-		
+
 		screenX, screenY, visible := s.worldToScreen(pos.X, pos.Y, cameraX, cameraY, cameraDirX, cameraDirY, screenWidth, screenHeight)
 		if !visible {
 			continue
 		}
-		
+
 		s.drawHealthBar(screen, screenX, screenY-bar.OffsetY, bar.Width, bar.Height, healthPct, bar)
-		
+
 		s.drawStatusIcons(screen, w, eid, screenX, screenY-bar.OffsetY-bar.Height-4)
 	}
 }
@@ -169,24 +169,24 @@ func (s *System) RenderHealthBars(screen *ebiten.Image, w *engine.World, cameraX
 func (s *System) worldToScreen(worldX, worldY, camX, camY, camDirX, camDirY float64, screenWidth, screenHeight int) (float32, float32, bool) {
 	relX := worldX - camX
 	relY := worldY - camY
-	
+
 	perpX := -camDirY
 	perpY := camDirX
-	
+
 	viewDist := relX*camDirX + relY*camDirY
 	if viewDist < 0.5 || viewDist > 20.0 {
 		return 0, 0, false
 	}
-	
+
 	viewPerp := relX*perpX + relY*perpY
-	
+
 	screenX := float32(screenWidth)/2 + float32(viewPerp/viewDist*float64(screenWidth)/2)
 	screenY := float32(screenHeight) / 2
-	
+
 	if screenX < -50 || screenX > float32(screenWidth)+50 {
 		return 0, 0, false
 	}
-	
+
 	return screenX, screenY, true
 }
 
@@ -200,15 +200,15 @@ func (s *System) drawHealthBar(screen *ebiten.Image, x, y, width, height float32
 		}
 		alpha = uint8(255.0 * (1.0 - fadePct))
 	}
-	
+
 	bg := s.backgroundColor
 	bg.A = alpha
 	border := s.borderColor
 	border.A = alpha
-	
+
 	vector.DrawFilledRect(screen, x-1, y-1, width+2, height+2, border, false)
 	vector.DrawFilledRect(screen, x, y, width, height, bg, false)
-	
+
 	fillWidth := float32(healthPct) * width
 	if fillWidth < 0 {
 		fillWidth = 0
@@ -216,10 +216,10 @@ func (s *System) drawHealthBar(screen *ebiten.Image, x, y, width, height float32
 	if fillWidth > width {
 		fillWidth = width
 	}
-	
+
 	fillColor := s.getHealthColor(healthPct, bar)
 	fillColor.A = alpha
-	
+
 	if fillWidth > 0 {
 		vector.DrawFilledRect(screen, x, y, fillWidth, height, fillColor, false)
 	}
@@ -230,7 +230,7 @@ func (s *System) getHealthColor(healthPct float64, bar *Component) color.RGBA {
 	if bar.CustomColor != nil {
 		return *bar.CustomColor
 	}
-	
+
 	if healthPct < 0.25 {
 		return s.criticalColor
 	} else if healthPct < 0.5 {
@@ -246,16 +246,16 @@ func (s *System) drawStatusIcons(screen *ebiten.Image, w *engine.World, eid engi
 	if !ok {
 		return
 	}
-	
+
 	statusComp := comp.(*StatusIconsComponent)
 	if len(statusComp.Icons) == 0 {
 		return
 	}
-	
+
 	iconSpacing := s.iconSize + 2
 	totalWidth := float32(len(statusComp.Icons))*iconSpacing - 2
 	startX := x - totalWidth/2
-	
+
 	for i, icon := range statusComp.Icons {
 		iconX := startX + float32(i)*iconSpacing
 		s.drawStatusIcon(screen, iconX, y, icon)
@@ -268,20 +268,20 @@ func (s *System) drawStatusIcon(screen *ebiten.Image, x, y float32, icon StatusI
 	if img == nil {
 		return
 	}
-	
+
 	opts := &ebiten.DrawImageOptions{}
 	bounds := img.Bounds()
 	scale := float64(s.iconSize) / float64(bounds.Dx())
 	opts.GeoM.Scale(scale, scale)
 	opts.GeoM.Translate(float64(x), float64(y))
-	
+
 	if icon.Stacks > 1 {
 		opts.ColorScale.ScaleAlpha(1.0)
 	} else if icon.Duration < 2.0 {
 		pulse := math.Sin(icon.Duration * math.Pi * 4)
 		opts.ColorScale.ScaleAlpha(0.6 + 0.4*float32(pulse))
 	}
-	
+
 	screen.DrawImage(img, opts)
 }
 
@@ -290,13 +290,13 @@ func (s *System) getStatusIconImage(iconType StatusIconType) *ebiten.Image {
 	if cached, exists := s.statusIconCache[iconType]; exists {
 		return cached
 	}
-	
+
 	size := int(s.iconSize)
 	img := ebiten.NewImage(size, size)
-	
+
 	iconColor := s.getIconColor(iconType)
 	s.drawIconShape(img, iconType, iconColor, size)
-	
+
 	s.statusIconCache[iconType] = img
 	return img
 }
@@ -336,7 +336,7 @@ func (s *System) getIconColor(iconType StatusIconType) color.RGBA {
 // drawIconShape draws the icon shape based on type.
 func (s *System) drawIconShape(img *ebiten.Image, iconType StatusIconType, col color.RGBA, size int) {
 	center := float32(size) / 2
-	
+
 	switch iconType {
 	case IconPoison:
 		s.drawDroplet(img, center, center, float32(size)*0.4, col)
@@ -465,7 +465,7 @@ func (s *StatusIconsComponent) AddIcon(iconType StatusIconType, duration float64
 			return
 		}
 	}
-	
+
 	col := color.RGBA{255, 255, 255, 255}
 	s.Icons = append(s.Icons, StatusIcon{
 		Type:     iconType,
