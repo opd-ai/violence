@@ -4518,60 +4518,39 @@ func shouldRenderFeedbackAtPosition(x, y float64, camera *camera.Camera) bool {
 
 // drawAutomap renders the automap overlay.
 func (g *Game) drawAutomap(screen *ebiten.Image) {
-	bounds := screen.Bounds()
-	w := float32(bounds.Dx())
-
-	overlayX := w*0.75 - 80
-	overlayY := float32(20.0)
-	overlayW := float32(150.0)
-	overlayH := float32(150.0)
-
-	vector.DrawFilledRect(screen, overlayX, overlayY, overlayW, overlayH, color.RGBA{0, 0, 0, 180}, false)
-	vector.StrokeRect(screen, overlayX, overlayY, overlayW, overlayH, 1, color.RGBA{100, 100, 100, 255}, false)
-
 	if g.automap == nil || g.currentMap == nil {
 		return
 	}
 
-	scaleX := overlayW / float32(g.automap.Width)
-	scaleY := overlayH / float32(g.automap.Height)
-	scale := scaleX
-	if scaleY < scaleX {
-		scale = scaleY
-	}
+	bounds := screen.Bounds()
+	w := float32(bounds.Dx())
 
-	for y := 0; y < g.automap.Height && y < len(g.currentMap); y++ {
-		for x := 0; x < g.automap.Width && x < len(g.currentMap[0]); x++ {
-			if !g.automap.Revealed[y][x] {
-				continue
-			}
+	walls := make([][]bool, len(g.currentMap))
+	for y := 0; y < len(g.currentMap); y++ {
+		walls[y] = make([]bool, len(g.currentMap[y]))
+		for x := 0; x < len(g.currentMap[y]); x++ {
 			tile := g.currentMap[y][x]
-			tileX := overlayX + float32(x)*scale
-			tileY := overlayY + float32(y)*scale
-
-			var tileColor color.RGBA
-			switch {
-			case tile == bsp.TileWall || (tile >= 10 && tile <= 14): // Generic or genre-specific wall
-				tileColor = color.RGBA{150, 150, 150, 255}
-			case tile == bsp.TileFloor || tile == bsp.TileEmpty || (tile >= 20 && tile <= 29): // Floor variants
-				tileColor = color.RGBA{50, 50, 50, 255}
-			case tile == bsp.TileDoor:
-				tileColor = color.RGBA{100, 100, 200, 255}
-			case tile == bsp.TileSecret:
-				tileColor = color.RGBA{200, 200, 50, 255}
-			default:
-				tileColor = color.RGBA{80, 80, 80, 255}
-			}
-			vector.DrawFilledRect(screen, tileX, tileY, scale, scale, tileColor, false)
+			walls[y][x] = tile == bsp.TileWall || (tile >= 10 && tile <= 14)
 		}
 	}
 
-	playerX := overlayX + float32(g.camera.X)*scale
-	playerY := overlayY + float32(g.camera.Y)*scale
-	vector.DrawFilledCircle(screen, playerX, playerY, 2, color.RGBA{255, 255, 0, 255}, false)
+	angle := math.Atan2(g.camera.DirY, g.camera.DirX)
 
-	dirLen := scale * 3
-	vector.StrokeLine(screen, playerX, playerY, playerX+float32(g.camera.DirX)*dirLen, playerY+float32(g.camera.DirY)*dirLen, 1, color.RGBA{255, 255, 0, 255}, false)
+	cfg := automap.RenderConfig{
+		X:            w - 220,
+		Y:            20,
+		Width:        200,
+		Height:       200,
+		CellSize:     3.0,
+		PlayerX:      g.camera.X,
+		PlayerY:      g.camera.Y,
+		PlayerAngle:  angle,
+		Walls:        walls,
+		Opacity:      0.85,
+		ShowFogOfWar: true,
+	}
+
+	g.automap.RenderMinimap(screen, cfg)
 }
 
 // drawQuestObjectives renders quest objectives on screen.

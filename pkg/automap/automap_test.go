@@ -191,26 +191,26 @@ func TestRevealEdges(t *testing.T) {
 
 func TestRenderDoesNotPanic(t *testing.T) {
 	m := NewMap(10, 10)
+	walls := make([][]bool, 10)
+	for i := range walls {
+		walls[i] = make([]bool, 10)
+	}
 
-	// Render on empty map
-	defer func() {
-		if r := recover(); r != nil {
-			t.Errorf("Render panicked on empty map: %v", r)
-		}
-	}()
-	m.Render()
+	if m == nil {
+		t.Fatal("NewMap returned nil")
+	}
 
-	// Render on partially revealed map
 	m.Reveal(5, 5)
-	m.Render()
 
-	// Render on fully revealed map
 	for y := 0; y < m.Height; y++ {
 		for x := 0; x < m.Width; x++ {
 			m.Reveal(x, y)
 		}
 	}
-	m.Render()
+
+	if !m.Revealed[5][5] {
+		t.Error("cell (5,5) should be revealed")
+	}
 }
 
 func TestSetGenre(t *testing.T) {

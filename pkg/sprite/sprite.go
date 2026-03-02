@@ -1127,10 +1127,6 @@ func (g *Generator) generateSerpentEnemy(img *image.RGBA, rng *rand.Rand, frame 
 	fullBounds := image.Rect(cx-size/4, cy-size/4, cx+size/4, cy+size/2)
 	g.applyMaterialDetail(img, fullBounds, MaterialScales, rng.Int63(), 1.0, bodyColor)
 }
-	tongueEndY := headY - headRadius - tongueLen
-	drawThickLine(img, headX, headY-headRadius, headX-2, tongueEndY, 1, tongueColor)
-	drawThickLine(img, headX, headY-headRadius, headX+2, tongueEndY, 1, tongueColor)
-}
 
 // generateFlyingEnemy creates winged creature sprites.
 func (g *Generator) generateFlyingEnemy(img *image.RGBA, rng *rand.Rand, frame int) {
@@ -1483,11 +1479,4 @@ func drawThickLine(img *image.RGBA, x1, y1, x2, y2, thickness int, c color.RGBA)
 			y1 += sy
 		}
 	}
-}
-
-func abs(x int) int {
-	if x < 0 {
-		return -x
-	}
-	return x
 }

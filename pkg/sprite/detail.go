@@ -279,7 +279,7 @@ func (g *Generator) applyEquipmentOverlay(img *image.RGBA, bounds image.Rectangl
 }
 
 // drawHelmetOverlay renders helmet detail.
-func (g *Generator) drawHelmetOverlay(img *image.RGBA, cx, cy, radius int, rng *rand.Rand, color color.RGBA) {
+func (g *Generator) drawHelmetOverlay(img *image.RGBA, cx, cy, radius int, rng *rand.Rand, baseColor color.RGBA) {
 	for y := -radius; y <= radius; y++ {
 		for x := -radius; x <= radius; x++ {
 			if x*x+y*y <= radius*radius {
@@ -291,9 +291,9 @@ func (g *Generator) drawHelmetOverlay(img *image.RGBA, cx, cy, radius int, rng *
 					er, eg, eb, ea := existing.RGBA()
 					if ea > 0 {
 						blend := 0.3
-						r := uint8((float64(er>>8)*(1-blend) + float64(color.R)*blend))
-						g := uint8((float64(eg>>8)*(1-blend) + float64(color.G)*blend))
-						b := uint8((float64(eb>>8)*(1-blend) + float64(color.B)*blend))
+						r := uint8((float64(er>>8)*(1-blend) + float64(baseColor.R)*blend))
+						g := uint8((float64(eg>>8)*(1-blend) + float64(baseColor.G)*blend))
+						b := uint8((float64(eb>>8)*(1-blend) + float64(baseColor.B)*blend))
 						img.Set(px, py, color.RGBA{R: r, G: g, B: b, A: uint8(ea >> 8)})
 					}
 				}

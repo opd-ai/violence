@@ -1,6 +1,8 @@
 // Package automap provides the in-game auto-mapping system.
 package automap
 
+import "github.com/hajimehoshi/ebiten/v2"
+
 // AnnotationType represents special markers on the automap.
 type AnnotationType int
 
@@ -71,8 +73,23 @@ func (m *Map) GetAnnotationsAt(x, y int) []Annotation {
 	return result
 }
 
-// Render draws the automap (stub).
-func (m *Map) Render() {}
+// Render draws the automap with default settings.
+func (m *Map) Render(screen *ebiten.Image, playerX, playerY, playerAngle float64, walls [][]bool) {
+	cfg := RenderConfig{
+		X:            float32(screen.Bounds().Dx()) - 210,
+		Y:            10,
+		Width:        200,
+		Height:       200,
+		CellSize:     3.0,
+		PlayerX:      playerX,
+		PlayerY:      playerY,
+		PlayerAngle:  playerAngle,
+		Walls:        walls,
+		Opacity:      0.85,
+		ShowFogOfWar: true,
+	}
+	m.RenderMinimap(screen, cfg)
+}
 
 var currentGenre = "fantasy"
 
