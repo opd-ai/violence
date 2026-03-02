@@ -65,6 +65,7 @@ import (
 	"github.com/opd-ai/violence/pkg/quest"
 	"github.com/opd-ai/violence/pkg/raycaster"
 	"github.com/opd-ai/violence/pkg/render"
+	"github.com/opd-ai/violence/pkg/replay"
 	"github.com/opd-ai/violence/pkg/rng"
 	"github.com/opd-ai/violence/pkg/save"
 	"github.com/opd-ai/violence/pkg/secret"
@@ -198,6 +199,9 @@ type Game struct {
 
 	// Weapon mastery system
 	masteryManager *weapon.MasteryManager
+
+	// Replay system
+	replayRecorder *replay.ReplayRecorder
 
 	// Federation system
 	federationHub *federation.FederationHub
@@ -1336,6 +1340,13 @@ func (g *Game) finalizeGameStart() {
 	g.loadingScreen.Hide()
 	g.state = StatePlaying
 	g.tutorialSystem.ShowPrompt(tutorial.PromptMovement, tutorial.GetMessage(tutorial.PromptMovement))
+
+	// Start replay recording
+	g.replayRecorder = replay.NewReplayRecorder(int64(g.seed), 1) // 1 player for single-player
+	logrus.WithFields(logrus.Fields{
+		"seed":        g.seed,
+		"system_name": "replay",
+	}).Info("Replay recording started")
 }
 
 // setGenre propagates genre setting to all v3.0 systems (Step 29).
@@ -1532,6 +1543,11 @@ func (g *Game) updatePlaying() error {
 		return nil
 	}
 
+	// Record replay input if recording is active
+	if g.replayRecorder != nil {
+		g.recordReplayInput()
+	}
+
 	g.handlePlayerActions()
 	g.handleWeaponFiring()
 
@@ -1605,6 +1621,44 @@ func (g *Game) syncPlayerFacing() {
 
 	posComp := comp.(*combat.PositionalComponent)
 	posComp.SetFacingFromDirection(g.camera.DirX, g.camera.DirY)
+}
+
+// recordReplayInput captures current input state to the replay recorder.
+func (g *Game) recordReplayInput() {
+	var flags replay.InputFlags
+
+	// Record movement inputs
+	if g.input.IsPressed(input.ActionMoveForward) {
+		flags |= replay.InputMoveUp
+	}
+	if g.input.IsPressed(input.ActionMoveBackward) {
+		flags |= replay.InputMoveDown
+	}
+	if g.input.IsPressed(input.ActionStrafeLeft) {
+		flags |= replay.InputMoveLeft
+	}
+	if g.input.IsPressed(input.ActionStrafeRight) {
+		flags |= replay.InputMoveRight
+	}
+
+	// Record action inputs
+	if g.input.IsPressed(input.ActionFire) {
+		flags |= replay.InputFire
+	}
+	if g.input.IsPressed(input.ActionInteract) {
+		flags |= replay.InputUse
+	}
+
+	// Record mouse delta
+	mouseDX, mouseDY := g.input.MouseDelta()
+
+	// Record the input frame
+	g.replayRecorder.RecordInput(
+		0, // Player ID 0 for single-player
+		flags,
+		int16(mouseDX),
+		int16(mouseDY),
+	)
 }
 
 // processDefensiveActions handles dodge, parry, and block input.
@@ -2773,6 +2827,8 @@ func (g *Game) handlePauseAction(action string) {
 	case "settings":
 		g.menuManager.Show(ui.MenuTypeSettings)
 	case "quit_to_menu":
+		// Save replay before returning to menu
+		g.saveReplay(save.AutoSaveSlot)
 		g.state = StateMenu
 		g.menuManager.Show(ui.MenuTypeMain)
 	}
@@ -3994,7 +4050,44 @@ func (g *Game) saveGame(slot int) {
 		}).Error("Failed to save game")
 		g.hud.Message = fmt.Sprintf("Save failed: %v", err)
 		g.hud.MessageTime = 180 // 3 seconds at 60 FPS
+		return
 	}
+
+	// Save replay recording if active
+	g.saveReplay(slot)
+}
+
+// saveReplay saves the current replay recording to disk.
+func (g *Game) saveReplay(slot int) {
+	if g.replayRecorder == nil {
+		return
+	}
+
+	replayPath, err := save.GetReplayPath(slot)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"system_name": "replay",
+			"slot":        slot,
+			"error":       err.Error(),
+		}).Error("Failed to get replay path")
+		return
+	}
+
+	if err := g.replayRecorder.Save(replayPath); err != nil {
+		logrus.WithFields(logrus.Fields{
+			"system_name": "replay",
+			"slot":        slot,
+			"error":       err.Error(),
+		}).Warn("Failed to save replay")
+		// Don't show error to user; replay save is non-critical
+		return
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"system_name": "replay",
+		"slot":        slot,
+		"path":        replayPath,
+	}).Debug("Replay saved successfully")
 }
 
 // updateLoading handles loading screen updates.

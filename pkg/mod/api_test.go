@@ -2,7 +2,10 @@ package mod
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
+
+	"github.com/opd-ai/violence/pkg/engine"
 )
 
 func TestDefaultPermissions(t *testing.T) {
@@ -337,5 +340,340 @@ func TestEventType_Constants(t *testing.T) {
 				t.Errorf("expected %s, got %s", tt.expected, tt.constant)
 			}
 		})
+	}
+}
+
+func TestModAPI_BindGameSystems(t *testing.T) {
+	api := NewModAPI("test_mod", DefaultPermissions())
+	world := engine.NewWorld()
+	// Audio and sprite gen not initialized to avoid Ebiten display requirements
+	hudMsg := ""
+	hudMsgTime := 0
+
+	api.BindGameSystems(world, nil, nil, &hudMsg, &hudMsgTime)
+
+	if api.world != world {
+		t.Error("world not bound correctly")
+	}
+	if api.hudMessage != &hudMsg {
+		t.Error("hudMessage not bound correctly")
+	}
+	if api.hudMessageTime != &hudMsgTime {
+		t.Error("hudMessageTime not bound correctly")
+	}
+}
+
+func TestModAPI_SpawnEntity_NotBound(t *testing.T) {
+	perms := DefaultPermissions()
+	perms.AllowEntitySpawn = true
+	api := NewModAPI("test_mod", perms)
+
+	_, err := api.SpawnEntity("enemy", 10.0, 20.0)
+	if err == nil {
+		t.Fatal("expected error for unbound world")
+	}
+	if err.Error() != "mod API not bound to game world" {
+		t.Errorf("unexpected error: %s", err.Error())
+	}
+}
+
+func TestModAPI_SpawnEntity_Enemy(t *testing.T) {
+	perms := DefaultPermissions()
+	perms.AllowEntitySpawn = true
+	api := NewModAPI("test_mod", perms)
+	world := engine.NewWorld()
+	api.BindGameSystems(world, nil, nil, nil, nil)
+
+	entityID, err := api.SpawnEntity("enemy", 10.0, 20.0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	e := engine.Entity(entityID)
+
+	// Check Position component
+	pos, ok := world.GetComponent(e, reflect.TypeOf(&engine.Position{}))
+	if !ok {
+		t.Fatal("expected Position component")
+	}
+	if p := pos.(*engine.Position); p.X != 10.0 || p.Y != 20.0 {
+		t.Errorf("expected position (10, 20), got (%f, %f)", p.X, p.Y)
+	}
+
+	// Check Health component
+	_, ok = world.GetComponent(e, reflect.TypeOf(&engine.Health{}))
+	if !ok {
+		t.Fatal("expected Health component for enemy")
+	}
+
+	// Check Velocity component
+	_, ok = world.GetComponent(e, reflect.TypeOf(&engine.Velocity{}))
+	if !ok {
+		t.Fatal("expected Velocity component for enemy")
+	}
+}
+
+func TestModAPI_SpawnEntity_Prop(t *testing.T) {
+	perms := DefaultPermissions()
+	perms.AllowEntitySpawn = true
+	api := NewModAPI("test_mod", perms)
+	world := engine.NewWorld()
+	api.BindGameSystems(world, nil, nil, nil, nil)
+
+	entityID, err := api.SpawnEntity("prop", 5.0, 15.0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	e := engine.Entity(entityID)
+
+	// Check Position component
+	pos, ok := world.GetComponent(e, reflect.TypeOf(&engine.Position{}))
+	if !ok {
+		t.Fatal("expected Position component")
+	}
+	if p := pos.(*engine.Position); p.X != 5.0 || p.Y != 15.0 {
+		t.Errorf("expected position (5, 15), got (%f, %f)", p.X, p.Y)
+	}
+
+	// Props should not have Health or Velocity
+	_, ok = world.GetComponent(e, reflect.TypeOf(&engine.Health{}))
+	if ok {
+		t.Error("prop should not have Health component")
+	}
+}
+
+func TestModAPI_SpawnEntity_Pickup(t *testing.T) {
+	perms := DefaultPermissions()
+	perms.AllowEntitySpawn = true
+	api := NewModAPI("test_mod", perms)
+	world := engine.NewWorld()
+	api.BindGameSystems(world, nil, nil, nil, nil)
+
+	entityID, err := api.SpawnEntity("pickup", 3.0, 7.0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	e := engine.Entity(entityID)
+
+	// Check Position component
+	pos, ok := world.GetComponent(e, reflect.TypeOf(&engine.Position{}))
+	if !ok {
+		t.Fatal("expected Position component")
+	}
+	if p := pos.(*engine.Position); p.X != 3.0 || p.Y != 7.0 {
+		t.Errorf("expected position (3, 7), got (%f, %f)", p.X, p.Y)
+	}
+}
+
+func TestModAPI_SpawnEntity_Projectile(t *testing.T) {
+	perms := DefaultPermissions()
+	perms.AllowEntitySpawn = true
+	api := NewModAPI("test_mod", perms)
+	world := engine.NewWorld()
+	api.BindGameSystems(world, nil, nil, nil, nil)
+
+	entityID, err := api.SpawnEntity("projectile", 8.0, 12.0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	e := engine.Entity(entityID)
+
+	// Check Position component
+	pos, ok := world.GetComponent(e, reflect.TypeOf(&engine.Position{}))
+	if !ok {
+		t.Fatal("expected Position component")
+	}
+	if p := pos.(*engine.Position); p.X != 8.0 || p.Y != 12.0 {
+		t.Errorf("expected position (8, 12), got (%f, %f)", p.X, p.Y)
+	}
+
+	// Check Velocity component
+	_, ok = world.GetComponent(e, reflect.TypeOf(&engine.Velocity{}))
+	if !ok {
+		t.Fatal("expected Velocity component for projectile")
+	}
+}
+
+func TestModAPI_SpawnEntity_UnknownType(t *testing.T) {
+	perms := DefaultPermissions()
+	perms.AllowEntitySpawn = true
+	api := NewModAPI("test_mod", perms)
+	world := engine.NewWorld()
+	api.BindGameSystems(world, nil, nil, nil, nil)
+
+	_, err := api.SpawnEntity("unknown", 1.0, 2.0)
+	if err == nil {
+		t.Fatal("expected error for unknown entity type")
+	}
+	if err.Error() != "unknown entity type: unknown (must be enemy, prop, pickup, or projectile)" {
+		t.Errorf("unexpected error: %s", err.Error())
+	}
+}
+
+func TestModAPI_LoadTexture_NotBound(t *testing.T) {
+	perms := DefaultPermissions()
+	perms.AllowAssetLoad = true
+	api := NewModAPI("test_mod", perms)
+
+	_, err := api.LoadTexture("enemy:goblin:1234")
+	if err == nil {
+		t.Fatal("expected error for unbound sprite generator")
+	}
+	if err.Error() != "mod API not bound to sprite generator" {
+		t.Errorf("unexpected error: %s", err.Error())
+	}
+}
+
+func TestModAPI_LoadTexture_Success(t *testing.T) {
+	// Test the texture ID generation logic by checking hash consistency
+	perms := DefaultPermissions()
+	perms.AllowAssetLoad = true
+	api := NewModAPI("test_mod", perms)
+
+	// Create mock sprite generator
+	type mockSpriteGen struct{}
+	var mockGen mockSpriteGen
+	api.BindGameSystems(nil, nil, &mockGen, nil, nil)
+
+	texID, err := api.LoadTexture("enemy:goblin:1234")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if texID == 0 {
+		t.Error("expected non-zero texture ID")
+	}
+
+	// Same path should produce same ID (deterministic hashing)
+	texID2, err := api.LoadTexture("enemy:goblin:1234")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if texID != texID2 {
+		t.Error("expected same texture ID for same path")
+	}
+
+	// Different path should produce different ID
+	texID3, err := api.LoadTexture("enemy:orc:5678")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if texID == texID3 {
+		t.Error("expected different texture ID for different path")
+	}
+}
+
+func TestModAPI_PlaySound_NotBound(t *testing.T) {
+	perms := DefaultPermissions()
+	perms.AllowAssetLoad = true
+	api := NewModAPI("test_mod", perms)
+
+	err := api.PlaySound(SoundID(123))
+	if err == nil {
+		t.Fatal("expected error for unbound audio engine")
+	}
+	if err.Error() != "mod API not bound to audio engine" {
+		t.Errorf("unexpected error: %s", err.Error())
+	}
+}
+
+func TestModAPI_PlaySound_Success(t *testing.T) {
+	// Test the permission and binding logic with mock audio engine
+	perms := DefaultPermissions()
+	perms.AllowAssetLoad = true
+	api := NewModAPI("test_mod", perms)
+
+	// Create mock audio engine that implements AudioEngine interface
+	mock := &mockAudioEngine{}
+	api.BindGameSystems(nil, mock, nil, nil, nil)
+
+	err := api.PlaySound(SoundID(123))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !mock.called {
+		t.Error("expected PlaySFX to be called")
+	}
+
+	expectedSFX := "mod_sfx_123"
+	if mock.lastSFX != expectedSFX {
+		t.Errorf("expected SFX name '%s', got '%s'", expectedSFX, mock.lastSFX)
+	}
+}
+
+// mockAudioEngine implements AudioEngine for testing
+type mockAudioEngine struct {
+	called       bool
+	lastSFX      string
+	lastX, lastY float64
+}
+
+func (m *mockAudioEngine) PlaySFX(name string, x, y float64) error {
+	m.called = true
+	m.lastSFX = name
+	m.lastX = x
+	m.lastY = y
+	return nil
+}
+
+func TestModAPI_ShowNotification_NotBound(t *testing.T) {
+	perms := DefaultPermissions()
+	perms.AllowUIModify = true
+	api := NewModAPI("test_mod", perms)
+
+	err := api.ShowNotification("test message")
+	if err == nil {
+		t.Fatal("expected error for unbound HUD system")
+	}
+	if err.Error() != "mod API not bound to HUD system" {
+		t.Errorf("unexpected error: %s", err.Error())
+	}
+}
+
+func TestModAPI_ShowNotification_Success(t *testing.T) {
+	perms := DefaultPermissions()
+	perms.AllowUIModify = true
+	api := NewModAPI("test_mod", perms)
+	hudMsg := ""
+	hudMsgTime := 0
+	api.BindGameSystems(nil, nil, nil, &hudMsg, &hudMsgTime)
+
+	err := api.ShowNotification("Test Notification")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if hudMsg != "Test Notification" {
+		t.Errorf("expected hudMsg to be 'Test Notification', got '%s'", hudMsg)
+	}
+
+	if hudMsgTime != 180 {
+		t.Errorf("expected hudMsgTime to be 180, got %d", hudMsgTime)
+	}
+}
+
+func TestModAPI_ShowNotification_Overwrite(t *testing.T) {
+	perms := DefaultPermissions()
+	perms.AllowUIModify = true
+	api := NewModAPI("test_mod", perms)
+	hudMsg := "Old Message"
+	hudMsgTime := 50
+	api.BindGameSystems(nil, nil, nil, &hudMsg, &hudMsgTime)
+
+	err := api.ShowNotification("New Message")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if hudMsg != "New Message" {
+		t.Errorf("expected hudMsg to be 'New Message', got '%s'", hudMsg)
+	}
+
+	if hudMsgTime != 180 {
+		t.Errorf("expected hudMsgTime to be reset to 180, got %d", hudMsgTime)
 	}
 }
