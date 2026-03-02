@@ -49,6 +49,7 @@ import (
 	"github.com/opd-ai/violence/pkg/healthbar"
 	"github.com/opd-ai/violence/pkg/input"
 	"github.com/opd-ai/violence/pkg/inventory"
+	"github.com/opd-ai/violence/pkg/itemicon"
 	"github.com/opd-ai/violence/pkg/lighting"
 	"github.com/opd-ai/violence/pkg/loot"
 	"github.com/opd-ai/violence/pkg/lore"
@@ -329,6 +330,9 @@ type Game struct {
 
 	// Weapon swing animation system for visible melee attack arcs
 	weaponAnimSystem *weaponanim.System
+
+	// Item icon generation system for inventory and loot display
+	itemIconSystem *itemicon.IconSystem
 }
 
 // NewGame creates and initializes a new game instance.
@@ -479,6 +483,9 @@ func NewGame() *Game {
 	// Initialize weapon swing animation system for visible melee attack arcs
 	g.weaponAnimSystem = weaponanim.NewSystem()
 	g.weaponAnimSystem.SetGenre(g.genreID)
+
+	// Initialize item icon generation system for inventory and loot visuals
+	g.itemIconSystem = itemicon.NewSystem(g.genreID, 200)
 
 	// Connect sliding system to spatial index
 	g.slidingSystem.SetSpatialIndex(g.spatialSystem.GetGrid())
@@ -1412,6 +1419,9 @@ func (g *Game) setGenre(genreID string) {
 	}
 	if g.fogSystem != nil {
 		g.fogSystem.SetGenre(genreID)
+	}
+	if g.itemIconSystem != nil {
+		g.itemIconSystem.SetGenre(genreID)
 	}
 
 	// Generate genre-specific textures
