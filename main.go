@@ -81,6 +81,7 @@ import (
 	"github.com/opd-ai/violence/pkg/ui"
 	"github.com/opd-ai/violence/pkg/upgrade"
 	"github.com/opd-ai/violence/pkg/weapon"
+	"github.com/opd-ai/violence/pkg/weaponanim"
 	"github.com/opd-ai/violence/pkg/weather"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/image/font/basicfont"
@@ -325,6 +326,9 @@ type Game struct {
 
 	// Atmospheric fog system for distance-based depth cueing
 	fogSystem *fog.System
+
+	// Weapon swing animation system for visible melee attack arcs
+	weaponAnimSystem *weaponanim.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -472,6 +476,10 @@ func NewGame() *Game {
 	// Initialize atmospheric fog system for distance-based depth cueing
 	g.fogSystem = fog.NewSystem(g.genreID)
 
+	// Initialize weapon swing animation system for visible melee attack arcs
+	g.weaponAnimSystem = weaponanim.NewSystem()
+	g.weaponAnimSystem.SetGenre(g.genreID)
+
 	// Connect sliding system to spatial index
 	g.slidingSystem.SetSpatialIndex(g.spatialSystem.GetGrid())
 
@@ -583,6 +591,9 @@ func NewGame() *Game {
 
 	// Register atmospheric fog system with the World
 	g.world.AddSystem(g.fogSystem)
+
+	// Register weapon swing animation system with the World
+	g.world.AddSystem(g.weaponAnimSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
@@ -4071,6 +4082,11 @@ func (g *Game) drawPlaying(screen *ebiten.Image) {
 		g.attackTrailSystem.Render(screen, g.world, camX, camY)
 	}
 
+	// Render weapon swing animations
+	if g.weaponAnimSystem != nil {
+		g.renderWeaponSwings(screen, camX, camY)
+	}
+
 	// Render attack telegraph indicators
 	if g.telegraphSystem != nil {
 		g.telegraphSystem.Render(screen, g.world, camX, camY)
@@ -4706,6 +4722,49 @@ func shouldRenderFeedbackAtPosition(x, y float64, camera *camera.Camera) bool {
 	dy := y - camera.Y
 	dist := dx*dx + dy*dy
 	return dist <= 400
+}
+
+// renderWeaponSwings renders active weapon swing animations.
+func (g *Game) renderWeaponSwings(screen *ebiten.Image, camX, camY float64) {
+	renderer := weaponanim.NewRenderer()
+	renderer.SetGenre(g.genreID)
+
+	it := g.world.QueryWithBitmask(engine.ComponentIDPosition)
+	weaponAnimType := reflect.TypeOf(&weaponanim.WeaponAnimComponent{})
+	posType := reflect.TypeOf(&weaponanim.PositionComponent{})
+
+	for it.Next() {
+		entity := it.Entity()
+
+		animComp, ok := g.world.GetComponent(entity, weaponAnimType)
+		if !ok {
+			continue
+		}
+
+		anim := animComp.(*weaponanim.WeaponAnimComponent)
+		if !anim.Active && len(anim.TrailPoints) == 0 {
+			continue
+		}
+
+		// Get entity position
+		posComp, hasPos := g.world.GetComponent(entity, posType)
+		if !hasPos {
+			continue
+		}
+
+		pos := posComp.(*weaponanim.PositionComponent)
+		entityX := pos.X
+		entityY := pos.Y
+
+		// Check if entity is close enough to camera
+		dx := entityX - camX
+		dy := entityY - camY
+		if dx*dx+dy*dy > 400 {
+			continue
+		}
+
+		renderer.DrawSwing(screen, anim, entityX, entityY, camX, camY)
+	}
 }
 
 // drawAutomap renders the automap overlay.

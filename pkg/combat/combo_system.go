@@ -158,6 +158,11 @@ func (s *ComboSystem) executeComboStep(w *engine.World, entity engine.Entity, co
 		"damage":    step.DamageMul,
 	}).Info("combo step executed")
 
+	// Trigger weapon swing animation for melee attacks
+	if chain.WeaponType == "melee" || chain.WeaponType == "heavy" {
+		s.triggerWeaponSwingAnimation(w, entity, step.Name, combo.CurrentStep)
+	}
+
 	// Apply screen shake effect (stored for renderer to consume)
 	if step.ScreenShake > 0 {
 		// Add or update shake component
@@ -332,4 +337,71 @@ type ScreenShakeComponent struct {
 // Type implements Component interface.
 func (s *ScreenShakeComponent) Type() string {
 	return "screen_shake"
+}
+
+// TriggerWeaponSwingAnimation starts a weapon swing animation based on attack name.
+func (s *ComboSystem) triggerWeaponSwingAnimation(w *engine.World, entity engine.Entity, attackName string, step int) {
+	// Determine swing type from attack name
+	var swingType int // Maps to weaponanim.SwingType
+
+	switch {
+	case contains(attackName, "Slash") || contains(attackName, "Cut"):
+		swingType = 0 // SwingSlash
+	case contains(attackName, "Overhead") || contains(attackName, "Chop") || contains(attackName, "Slam"):
+		swingType = 1 // SwingOverhead
+	case contains(attackName, "Thrust") || contains(attackName, "Stab") || contains(attackName, "Lunge"):
+		swingType = 2 // SwingThrust
+	case contains(attackName, "Uppercut") || contains(attackName, "Rising"):
+		swingType = 3 // SwingUppercut
+	case contains(attackName, "Wide") || contains(attackName, "Sweep"):
+		swingType = 4 // SwingWide
+	default:
+		// Cycle through swing types based on step
+		swingType = step % 3
+	}
+
+	// Add or update swing trigger component
+	swingTriggerType := reflect.TypeOf(&SwingTriggerComponent{})
+	triggerComp, hasTrigger := w.GetComponent(entity, swingTriggerType)
+
+	if hasTrigger {
+		trigger := triggerComp.(*SwingTriggerComponent)
+		trigger.SwingType = swingType
+		trigger.Pending = true
+	} else {
+		w.AddComponent(entity, &SwingTriggerComponent{
+			SwingType: swingType,
+			Pending:   true,
+		})
+	}
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && findSubstring(s, substr)
+}
+
+func findSubstring(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		match := true
+		for j := 0; j < len(substr); j++ {
+			if s[i+j] != substr[j] {
+				match = false
+				break
+			}
+		}
+		if match {
+			return true
+		}
+	}
+	return false
+}
+
+// SwingTriggerComponent signals that a weapon swing animation should start.
+type SwingTriggerComponent struct {
+	SwingType int
+	Pending   bool
+}
+
+func (s *SwingTriggerComponent) Type() string {
+	return "swing_trigger"
 }
