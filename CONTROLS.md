@@ -92,6 +92,28 @@ Trigger values range from 0.0 (released) to 1.0 (fully pressed).
 | D-Pad Down     | D-Pad Down      | D-Pad Down             | Quick slot 3             |
 | D-Pad Left     | D-Pad Left      | D-Pad Left             | Quick slot 4             |
 
+## Touch Controls (Mobile)
+
+Touch input layout for iOS and Android devices:
+
+| Region         | Touch Action    | Function                        |
+| -------------- | --------------- | ------------------------------- |
+| Left 25%       | Drag            | Virtual joystick (movement)     |
+| Center 60%     | Drag            | Touch-to-look (camera control)  |
+| Right 20%      | Tap upper       | Fire current weapon             |
+| Right 20%      | Tap lower       | Alternate fire mode             |
+| Bottom 8%      | Tap buttons     | Action bar (6 configurable)     |
+
+Action bar slots (left to right):
+1. Reload
+2. Use/Interact
+3. Quick slot 1
+4. Quick slot 2
+5. Automap toggle
+6. Pause/Menu
+
+Virtual joystick returns to center when released. Touch-to-look sensitivity matches the `TouchSensitivity` setting in `config.toml`.
+
 ## Chat Controls
 
 When the chat overlay is visible:

@@ -8,49 +8,87 @@ Raycasting first-person shooter built with Go and Ebitengine.
 main.go                  Entry point — Ebitengine game loop
 config.toml              Default configuration file
 pkg/
-  config/                Configuration loading (Viper)
-  engine/                ECS framework (entities, components, systems)
-  procgen/genre/         Genre registry and SetGenre interface
-  rng/                   Seed-based deterministic RNG
-  raycaster/             DDA raycasting engine
-  bsp/                   BSP procedural level generator
-  render/                Rendering pipeline (raycaster → framebuffer → screen)
-  camera/                First-person camera (FOV, pitch, head-bob)
-  input/                 Input manager (keyboard, mouse, gamepad)
-  audio/                 Audio engine (procedurally generated music, SFX, positional audio)
-  ui/                    HUD, menus, and settings screens
-  tutorial/              Context-sensitive tutorial prompts
-  weapon/                Weapon definitions, firing, and mastery progression
-  upgrade/               Weapon upgrade token system
+  achievements/          Local achievement tracking with persistence
+  ai/                    Enemy behavior trees and adaptive AI
   ammo/                  Ammo types and pools
-  door/                  Keycard and door system
+  animation/             State-based sprite animation with LOD
+  attacktrail/           Visual weapon attack trail rendering
+  audio/                 Audio engine (procedurally generated music, SFX, positional audio)
   automap/               Fog-of-war automap
-  ai/                    Enemy behavior trees
-  combat/                Damage model and hit feedback
-  status/                Status effects (poison, burn, bleed, radiation)
-  loot/                  Loot tables and drops
-  progression/           XP and leveling
+  biome/                 Biome-specific zone identification and materials
+  bsp/                   BSP procedural level generator
+  camera/                First-person camera (FOV, pitch, head-bob)
+  chat/                  E2E encrypted in-game chat
   class/                 Character class definitions
-  texture/               Procedural texture atlas
-  lighting/              Sector-based dynamic lighting
-  particle/              Particle emitters and effects
-  event/                 World events and timed triggers
-  inventory/             Item inventory
+  collision/             Collision detection with layer masking
+  combat/                Damage model, combos, and hit feedback
+  config/                Configuration loading (Viper)
+  corpse/                Persistent corpse rendering
   crafting/              Scrap-to-ammo crafting
-  quest/                 Procedurally generated level objectives and tracking
-  shop/                  Between-level armory shop
-  squad/                 Squad companion AI
+  damagestate/           Visual damage state rendering
+  decal/                 Persistent combat decals
+  decoration/            Room decoration and environmental storytelling
+  destruct/              Destructible environments
+  dialogue/              Procedurally generated NPC conversations
+  dmgfx/                 Damage-type visual effects
+  door/                  Keycard and door system
+  economy/               Configurable game economy and rewards
+  engine/                ECS framework (entities, components, systems)
+  equipment/             Visual rendering of equipped items
+  event/                 World events and timed triggers
+  faction/               Faction reputation and relationships
+  federation/            Cross-server matchmaking and DHT discovery
+  feedback/              Visual and kinesthetic feedback
+  floor/                 Procedural floor tile variation
+  fog/                   Atmospheric fog rendering
+  hazard/                Environmental hazards (spikes, fire, radiation)
+  healthbar/             Overhead health bars and status icons
+  input/                 Input manager (keyboard, mouse, gamepad, touch)
+  integration/           Integration test utilities
+  inventory/             Item inventory
+  itemicon/              Procedural item icon generation
+  leaderboard/           Local and federated score tracking
+  level/                 Level generation and tile-based maps
+  lighting/              Sector-based dynamic lighting with shadows
+  loot/                  Loot tables and drops
   lore/                  Procedurally generated collectible lore and codex
   minigame/              Hacking and lockpicking mini-games
-  secret/                Push-wall secret discovery
-  destruct/              Destructible environments
-  props/                 Decorative prop placement
-  skills/                Skill and talent trees
-  save/                  Save and load (cross-platform)
-  network/               Client/server netcode
-  federation/            Cross-server matchmaking
-  chat/                  E2E encrypted in-game chat
   mod/                   Mod loader and plugin API
+  network/               Client/server netcode with matchmaking
+  outline/               Sprite silhouette rendering
+  parallax/              Multi-layer parallax backgrounds
+  particle/              Particle emitters and effects
+  pool/                  Memory pooling for zero-allocation hot paths
+  procgen/genre/         Genre registry and SetGenre interface
+  progression/           XP and leveling
+  projectile/            Projectile simulation
+  props/                 Decorative prop placement
+  quest/                 Procedurally generated level objectives and tracking
+  raycaster/             DDA raycasting engine
+  render/                Rendering pipeline (raycaster → framebuffer → screen)
+  replay/                Deterministic game replay recording and playback
+  rng/                   Seed-based deterministic RNG
+  save/                  Save and load (cross-platform)
+  secret/                Push-wall secret discovery
+  shop/                  Between-level armory shop
+  skills/                Skill and talent trees
+  spatial/               Grid-based spatial indexing
+  sprite/                Procedural sprite generation
+  squad/                 Squad companion AI
+  stats/                 Character stat allocation
+  status/                Status effects (poison, burn, bleed, radiation)
+  telegraph/             Visual attack telegraphing
+  territory/             Dynamic faction territory control
+  testutil/              Test helpers and mocks
+  texture/               Procedural texture atlas
+  trap/                  Interactive trap mechanics
+  tutorial/              Context-sensitive tutorial prompts
+  ui/                    HUD, menus, and settings screens
+  upgrade/               Weapon upgrade token system
+  walltex/               Enhanced wall texture generation
+  weapon/                Weapon definitions, firing, and mastery progression
+  weaponanim/            Visual weapon attack animation
+  weather/               Environmental particle effects
 ```
 
 ## Build and Run

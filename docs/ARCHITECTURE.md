@@ -9,50 +9,96 @@ main.go (Game Loop)
  ├── pkg/engine       ECS World — entities, components, systems
  ├── pkg/config       Configuration via Viper (config.toml)
  ├── pkg/rng          Deterministic seed-based RNG
- ├── pkg/input        Input manager (keyboard, mouse, gamepad)
+ ├── pkg/input        Input manager (keyboard, mouse, gamepad, touch)
+ ├── pkg/pool         Memory pooling for zero-allocation hot paths
  │
  ├── Generation Layer
  │   ├── pkg/bsp          BSP procedural level generation
+ │   ├── pkg/level        Level generation and tile-based maps
  │   ├── pkg/procgen      Genre registry and generation parameters
  │   ├── pkg/texture      Procedural texture atlas
+ │   ├── pkg/walltex      Enhanced wall texture generation
+ │   ├── pkg/sprite       Procedural sprite generation
  │   ├── pkg/props        Decorative prop placement
- │   └── pkg/lore         Procedural narrative content
+ │   ├── pkg/decoration   Room decoration and environmental storytelling
+ │   ├── pkg/lore         Procedural narrative content
+ │   ├── pkg/dialogue     Procedurally generated NPC conversations
+ │   └── pkg/biome        Biome-specific zone identification
  │
  ├── Simulation Layer
  │   ├── pkg/camera       First-person camera (FOV, pitch, head-bob)
  │   ├── pkg/raycaster    DDA raycasting engine
- │   ├── pkg/combat       Damage model and hit feedback
- │   ├── pkg/ai           Enemy behavior trees
+ │   ├── pkg/collision    Collision detection with layer masking
+ │   ├── pkg/spatial      Grid-based spatial indexing
+ │   ├── pkg/combat       Damage model, combos, and hit feedback
+ │   ├── pkg/ai           Enemy behavior trees and adaptive AI
  │   ├── pkg/weapon       Weapon definitions and firing
+ │   ├── pkg/projectile   Projectile simulation
  │   ├── pkg/status       Status effects (poison, burn, bleed, radiation)
  │   ├── pkg/door         Keycard and door system
+ │   ├── pkg/trap         Interactive trap mechanics
+ │   ├── pkg/hazard       Environmental hazards
  │   ├── pkg/destruct     Destructible environments
+ │   ├── pkg/faction      Faction reputation and relationships
+ │   ├── pkg/territory    Dynamic faction territory control
  │   └── pkg/event        World events and timed triggers
  │
  ├── Presentation Layer
  │   ├── pkg/render       Rendering pipeline (raycaster → framebuffer → screen)
- │   ├── pkg/lighting     Sector-based dynamic lighting
+ │   ├── pkg/lighting     Sector-based dynamic lighting with shadows
+ │   ├── pkg/fog          Atmospheric fog rendering
  │   ├── pkg/particle     Particle emitters and effects
+ │   ├── pkg/weather      Environmental particle effects
+ │   ├── pkg/animation    State-based sprite animation with LOD
+ │   ├── pkg/damagestate  Visual damage state rendering
+ │   ├── pkg/decal        Persistent combat decals
+ │   ├── pkg/corpse       Persistent corpse rendering
+ │   ├── pkg/outline      Sprite silhouette rendering
+ │   ├── pkg/healthbar    Overhead health bars and status icons
+ │   ├── pkg/telegraph    Visual attack telegraphing
+ │   ├── pkg/attacktrail  Visual weapon attack trails
+ │   ├── pkg/weaponanim   Visual weapon attack animation
+ │   ├── pkg/dmgfx        Damage-type visual effects
+ │   ├── pkg/itemicon     Procedural item icon generation
+ │   ├── pkg/floor        Procedural floor tile variation
+ │   ├── pkg/parallax     Multi-layer parallax backgrounds
+ │   ├── pkg/feedback     Visual and kinesthetic feedback
  │   ├── pkg/audio        Procedural audio synthesis and playback
  │   └── pkg/ui           HUD, menus, settings screens
  │
  ├── Game Systems
  │   ├── pkg/inventory    Item management
+ │   ├── pkg/equipment    Visual rendering of equipped items
  │   ├── pkg/crafting     Scrap-to-ammo conversion
  │   ├── pkg/shop         Between-level armory
+ │   ├── pkg/economy      Configurable game economy and rewards
  │   ├── pkg/loot         Loot tables and drops
  │   ├── pkg/progression  XP and leveling
  │   ├── pkg/class        Character class definitions
+ │   ├── pkg/stats        Character stat allocation
  │   ├── pkg/skills       Skill and talent trees
  │   ├── pkg/quest        Procedural objectives
  │   ├── pkg/squad        Squad companion AI
+ │   ├── pkg/secret       Push-wall secret discovery
+ │   ├── pkg/upgrade      Weapon upgrade token system
+ │   ├── pkg/ammo         Ammo types and pools
+ │   ├── pkg/automap      Fog-of-war automap
+ │   ├── pkg/minigame     Hacking and lockpicking mini-games
+ │   ├── pkg/tutorial     Context-sensitive tutorial prompts
  │   └── pkg/save         Cross-platform save/load
  │
- └── Multiplayer Layer
-     ├── pkg/network      Client/server netcode
-     ├── pkg/federation   Cross-server matchmaking, squads
-     ├── pkg/chat         E2E encrypted in-game chat
-     └── pkg/mod          Mod loader and plugin API
+ ├── Multiplayer Layer
+ │   ├── pkg/network      Client/server netcode with matchmaking
+ │   ├── pkg/federation   Cross-server matchmaking, DHT discovery, squads
+ │   ├── pkg/chat         E2E encrypted in-game chat
+ │   ├── pkg/leaderboard  Local and federated score tracking
+ │   ├── pkg/achievements Local achievement tracking
+ │   ├── pkg/replay       Deterministic replay recording and playback
+ │   └── pkg/mod          Mod loader and plugin API
+ │
+ └── Testing
+     ├── pkg/testutil     Test helpers and mocks
+     └── pkg/integration  Integration test utilities
 ```
 
 ## ECS Framework (`pkg/engine`)

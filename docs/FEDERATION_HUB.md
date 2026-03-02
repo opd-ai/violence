@@ -311,7 +311,7 @@ Content-Type: application/json
 - **Operating System**: Linux (Ubuntu 22.04+), macOS, Windows Server
 - **Hardware**: 512MB RAM, 1 CPU core, 10GB disk (minimal); 2GB RAM + 2 cores recommended
 - **Network**: Static IP or DDNS, port forwarding (default: 8080)
-- **Software**: Go 1.21+ or Docker
+- **Software**: Go 1.24+ or Docker
 
 ### Installation Methods
 
