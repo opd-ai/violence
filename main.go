@@ -241,6 +241,9 @@ type Game struct {
 
 	// Environmental weather particle system for atmospheric effects
 	weatherSystem *weather.System
+
+	// Terrain sliding system for smooth wall collision response
+	slidingSystem *collision.SlidingSystem
 }
 
 // NewGame creates and initializes a new game instance.
@@ -328,6 +331,9 @@ func NewGame() *Game {
 		weatherSystem:      weather.NewSystem(2000, int64(seed), "fantasy"),
 	}
 
+	// Initialize sliding system with spatial index (will be set properly after spatial system init)
+	g.slidingSystem = collision.NewSlidingSystem(nil)
+
 	// Initialize status system with the registry
 	g.statusSystem = status.NewSystem(g.statusReg)
 
@@ -337,6 +343,9 @@ func NewGame() *Game {
 
 	// Set loot drop system genre
 	g.lootDropSystem.SetGenre(g.genreID)
+
+	// Connect sliding system to spatial index
+	g.slidingSystem.SetSpatialIndex(g.spatialSystem.GetGrid())
 
 	// Register spatial system with the World
 	g.world.AddSystem(g.spatialSystem)
@@ -377,6 +386,9 @@ func NewGame() *Game {
 	// Register weather system with the World
 	g.world.AddSystem(g.weatherSystem)
 	g.weatherSystem.AddWeatherToWorld(g.world)
+
+	// Register sliding system with the World
+	g.world.AddSystem(g.slidingSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
