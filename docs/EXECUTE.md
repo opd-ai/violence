@@ -27,7 +27,16 @@ STEP 1 — DISCOVER (spend ≤5 minutes here):
 - Read the system initialization code to understand registered systems.
 - Grep for TODO, FIXME, stub, placeholder in engine and procgen packages.
 - Pick ONE enhancement you have NOT seen in git history. Roll a d20 to decide the category:
-    - **Gameplay improvements (roll of 1–7 — address the KNOWN GAMEPLAY PROBLEMS above):**
+    - **Visual improvements (roll of 1–12 — HIGHEST PRIORITY — address the KNOWN VISUAL PROBLEMS above):**
+        - **Sprite quality** — shading, sub-pixel detail, color gradients, material textures, highlight/shadow, anti-aliasing, distinctive silhouettes per entity type. Enemies, players, and NPCs must be visually distinct and richly detailed at small sizes.
+        - **Object & weapon visuals** — visible gear on sprites, weapon-specific attack animations, material differentiation (metal sheen, wood grain, magical glow), enchantment effects, rarity-driven visual complexity, damage state rendering. Weapons should look and feel different from each other.
+        - **Wall & environment art** — tile variation, wall textures with depth and wear, floor debris, props and decorations, genre-specific tilesets, environmental storytelling, parallax layers. Walls should convey material (stone, wood, metal, organic) through shading and detail.
+        - **Enemy visual variety** — dedicated body-plan templates per creature category, distinctive silhouettes, visual telegraphing of enemy type and threat level, death and hurt animations, status effect visibility. Every enemy type should be instantly recognizable.
+        - **Lighting & atmosphere** — dynamic point lights, shadow casting, ambient occlusion, genre-specific atmosphere (dungeon gloom, neon city glow, haunted fog)
+        - **Animation** — smoother transitions, attack/hurt/death animations, idle fidget, directional facing, animation blending, anticipation/follow-through frames
+        - **Particle & effects** — hit sparks, blood splatter, spell effects, environmental particles (dust, rain, embers), screen shake, flash, and juice
+        - **UI & readability** — health bars, damage numbers, status icons, minimap improvements, enemy indicators, loot highlighting, tooltip quality
+    - **Gameplay improvements (roll of 13–17 — address the KNOWN GAMEPLAY PROBLEMS above):**
         - **Combat depth** — weapon movesets, combo systems, dodge/parry, enemy telegraphs, positional advantage, status ailments, damage types and resistances
         - **Progression systems** — branching skill trees, stat allocation, specialization paths, prestige mechanics, equipment synergies, build-defining choices
         - **Dungeon generation** — room shape variety, themed zones, environmental hazards, traps, secrets, puzzles, set-piece encounters, verticality, destructible terrain
@@ -35,22 +44,14 @@ STEP 1 — DISCOVER (spend ≤5 minutes here):
         - **AI behavior** — behavior tree depth, squad tactics, enemy roles (tank/healer/ranged/ambusher), boss phases, companion AI, merchant pricing, NPC routines
         - **World systems** — dynamic events, territory control, faction warfare, environmental destruction, town evolution, trade routes, day/night cycles with gameplay impact
         - **Multiplayer features** — co-op mechanics, PvP arenas, shared objectives, trade systems, guild features, party roles, competitive events
-    - **Visual improvements (roll of 8–14 — address the KNOWN VISUAL PROBLEMS above):**
-        - **Lighting & atmosphere** — dynamic point lights, shadow casting, ambient occlusion, genre-specific atmosphere (dungeon gloom, neon city glow, haunted fog)
-        - **Sprite quality** — shading, sub-pixel detail, color gradients, material textures, highlight/shadow, anti-aliasing, distinctive silhouettes per entity type
-        - **Animation** — smoother transitions, attack/hurt/death animations, idle fidget, directional facing, animation blending, anticipation/follow-through frames
-        - **Particle & effects** — hit sparks, blood splatter, spell effects, environmental particles (dust, rain, embers), screen shake, flash, and juice
-        - **Environment art** — tile variation, wall/floor detail, props and decorations, genre-specific tilesets, environmental storytelling, parallax layers
-        - **UI & readability** — health bars, damage numbers, status icons, minimap improvements, enemy indicators, loot highlighting, tooltip quality
-        - **Equipment visuals** — visible gear on sprites, material differentiation, enchantment glow, rarity-driven visual complexity, damage state rendering
-    - **Technical improvements (roll of 15–20 — address the KNOWN TECHNICAL PROBLEMS above):**
+    - **Technical improvements (roll of 18–20 — address the KNOWN TECHNICAL PROBLEMS above):**
         - **Collision precision** — convex hull / polygon hitboxes derived from sprite data, per-frame attack masks, spell shape accuracy, collision layers and masks, terrain edge sliding
         - **Spatial indexing** — grid or quadtree partitioning for collision broadphase, render culling, proximity queries, and efficient entity lookup
         - **Network quality** — interpolation smoothing, client-side prediction, server reconciliation, bandwidth optimization, lag compensation for combat
         - **Memory optimization** — object pooling for particles/projectiles/sprites, LRU caching for generated assets, zero-alloc hot paths, buffer reuse
         - **Performance profiling** — benchmark critical systems, identify and fix frame-time spikes, GPU batching, draw call reduction, LOD systems
         - **Data architecture** — entity serialization improvements, save/load robustness, config validation, component versioning, migration support
-- If multiple candidates exist within your category, pick the one that most improves the player experience. Within gameplay, combat depth and AI behavior are highest-value. Within visuals, lighting/atmosphere and sprite quality are highest-value. Within technical, collision precision and spatial indexing are highest-value.
+- If multiple candidates exist within your category, pick the one that most improves the player experience. Within visuals, sprite quality, object/weapon visuals, wall/environment art, and enemy visual variety are highest-value — prioritize these over other visual sub-categories. Within gameplay, combat depth and AI behavior are highest-value. Within technical, collision precision and spatial indexing are highest-value.
 
 STEP 2 — IMPLEMENT (this is the bulk of the work):
 Follow these rules strictly. Violations are build failures.
