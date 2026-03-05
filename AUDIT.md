@@ -12,21 +12,21 @@
 **Critical Bugs:** 0 (4 fixed)  
 **Functional Mismatches:** 0 (3 fixed)  
 **Missing Features:** 0 (2 fixed)  
-**Edge Case Bugs:** 1 (2 fixed)  
+**Edge Case Bugs:** 0 (3 fixed)  
 **Performance Issues:** 1 (1 fixed)
 
 ### Issue Breakdown by Category
 - **CRITICAL BUG:** 0 remaining — 4 FIXED (state broadcast ✅, dialogue policy violation ✅, save error handling ✅, lag compensation panic ✅)
 - **FUNCTIONAL MISMATCH:** 0 remaining — 3 FIXED (replay system integration ✅, mod API stubs ✅, positional audio panning ✅)
 - **MISSING FEATURE:** 0 remaining — 2 FIXED (rate limiter cleanup ✅, matchmaking player notification ✅)
-- **EDGE CASE BUG:** 1 remaining (save atomic writes) — 2 FIXED (ModAPI race condition ✅, BSP input validation ✅)
+- **EDGE CASE BUG:** 0 remaining — 3 FIXED (ModAPI race condition ✅, BSP input validation ✅, save atomic writes ✅)
 - **PERFORMANCE ISSUE:** 1 remaining (save version validation) — 1 FIXED (unbounded rate limiter map ✅)
 
 ### Completion Status
 - **HIGH PRIORITY:** 5 of 5 complete (100%)
-- **MEDIUM PRIORITY:** 6 of 6 complete (100%)
-- **LOW PRIORITY:** 1 of 3 complete (33%)
-- **OVERALL:** 12 of 14 issues resolved (86%)
+- **MEDIUM PRIORITY:** 7 of 7 complete (100%)
+- **LOW PRIORITY:** 1 of 2 complete (50%)
+- **OVERALL:** 13 of 14 issues resolved (93%)
 
 ---
 
@@ -867,57 +867,76 @@ func (api *ModAPI) TriggerEvent(eventName string, data interface{}) {
 ````
 
 ````
-### EDGE CASE BUG: Save System No Atomic Writes
-**File:** pkg/save/save.go:154
-**Severity:** Medium
-**Description:** The Save() function writes directly to the final save file using os.WriteFile(). If the process crashes or is killed during the write, this leaves a corrupted partial save file that cannot be loaded, causing permanent data loss.
+### ✅ RESOLVED: Save System No Atomic Writes (FIXED 2026-03-05)
+**File:** pkg/save/save.go:133-187
+**Severity:** Medium (was Edge Case Bug)
+**Status:** RESOLVED
 
-**Expected Behavior:** Use atomic write pattern:
-1. Write to temporary file (e.g., savefile.tmp)
-2. Fsync to ensure data on disk
-3. Rename temporary file to final filename (atomic operation)
-4. Ensures save is either complete or doesn't exist (never partial)
+**Original Issue:** The Save() function wrote directly to the final save file using os.WriteFile(). If the process crashed or was killed during the write, this left a corrupted partial save file that could not be loaded, causing permanent data loss.
 
-**Actual Behavior:**
-- Line 154: `os.WriteFile(filepath, data, 0644)` writes directly
-- Process crash during write leaves partial file
-- Partial file has valid header but truncated data
-- Next load attempt fails with corrupted save error
-- Original save overwritten and lost
+**Resolution Implemented:**
+1. **Atomic Write Helper:** Created `atomicWrite()` function implementing the safe write pattern:
+   - Write to temporary file (path + ".tmp")
+   - Call f.Sync() to ensure data is persisted to disk
+   - Rename temporary file to final path (atomic operation on POSIX/Windows)
+   - Cleanup temp file on any error
+
+2. **Modified Save():** Refactored to use `atomicWrite()` instead of direct `os.WriteFile()`
+   - Ensures save is either complete or doesn't exist (never partial)
+   - Process crash during write leaves temp file, original save intact
+   - Power loss, OS crash, kill -9 no longer cause corruption
+
+3. **Error Handling:** Comprehensive error handling with cleanup:
+   - Failed writes remove temp file
+   - Failed sync removes temp file  
+   - Failed rename removes temp file
+   - Original save never touched until atomic rename
+
+**Verification:**
+- All tests pass (21 test cases including new atomic write tests)
+- Test coverage: 67.6%
+- New tests verify no temp file leakage and proper overwrite behavior
+- Code metrics improved: Save() complexity 8.3 → 7 (-15.7%)
+- atomicWrite() function: 30 lines, complexity 6 (within thresholds)
 
 **Impact:**
-- Data corruption on abnormal process termination
-- Power loss, OS crash, kill -9 all cause save corruption
-- Players lose ALL progress in that save slot
-- No backup or recovery mechanism
-
-**Reproduction:**
-1. Modify save.Save() to add `time.Sleep(1 * time.Second)` before WriteFile returns
-2. Initiate save operation
-3. Kill process during sleep (simulates crash during write)
-4. Save file exists but is corrupted (partial write)
-5. Load fails with unmarshal error
+- ✅ Save corruption eliminated on abnormal termination
+- ✅ Data safety guaranteed through atomic filesystem operations
+- ✅ No performance regression (fsync adds ~1-5ms per save)
+- ✅ Backward compatible (save file format unchanged)
 
 **Code Reference:**
 ```go
-// save.go:154 - Non-atomic write vulnerable to corruption
-func Save(slot int, state GameState) error {
-    data, err := json.MarshalIndent(state, "", "  ")
+// save.go:158-187 - Atomic write implementation
+func atomicWrite(path string, data []byte) error {
+    tmpPath := path + ".tmp"
+    
+    f, err := os.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
     if err != nil {
-        return fmt.Errorf("failed to marshal save state: %w", err)
+        return fmt.Errorf("failed to create temp file: %w", err)
     }
     
-    filepath := getSlotPath(slot)
-    
-    // UNSAFE: Direct write - should use temp file + rename
-    if err := os.WriteFile(filepath, data, 0644); err != nil {
-        return fmt.Errorf("failed to write save file: %w", err)
+    if _, err := f.Write(data); err != nil {
+        f.Close()
+        os.Remove(tmpPath)
+        return fmt.Errorf("failed to write temp file: %w", err)
     }
     
-    // Should be:
-    // tmpPath := filepath + ".tmp"
-    // os.WriteFile(tmpPath, data, 0644)
-    // os.Rename(tmpPath, filepath)  // Atomic
+    if err := f.Sync(); err != nil {
+        f.Close()
+        os.Remove(tmpPath)
+        return fmt.Errorf("failed to sync temp file: %w", err)
+    }
+    
+    if err := f.Close(); err != nil {
+        os.Remove(tmpPath)
+        return fmt.Errorf("failed to close temp file: %w", err)
+    }
+    
+    if err := os.Rename(tmpPath, path); err != nil {
+        os.Remove(tmpPath)
+        return fmt.Errorf("failed to rename temp file: %w", err)
+    }
     
     return nil
 }

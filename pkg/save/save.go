@@ -129,7 +129,7 @@ func getSlotPath(slot int) (string, error) {
 	return filepath.Join(savePath, fmt.Sprintf("slot_%d.json", slot)), nil
 }
 
-// Save writes game state to the given slot.
+// Save writes game state to the given slot using atomic writes.
 func Save(slot int, state *GameState) error {
 	if slot < 0 || slot >= MaxSlots {
 		return ErrInvalidSlot
@@ -151,8 +151,38 @@ func Save(slot int, state *GameState) error {
 		return fmt.Errorf("failed to marshal game state: %w", err)
 	}
 
-	if err := os.WriteFile(slotPath, data, 0o644); err != nil {
-		return fmt.Errorf("failed to write save file: %w", err)
+	return atomicWrite(slotPath, data)
+}
+
+// atomicWrite writes data to path atomically using temp file + rename.
+func atomicWrite(path string, data []byte) error {
+	tmpPath := path + ".tmp"
+
+	f, err := os.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		os.Remove(tmpPath)
+		return fmt.Errorf("failed to write temp file: %w", err)
+	}
+
+	if err := f.Sync(); err != nil {
+		f.Close()
+		os.Remove(tmpPath)
+		return fmt.Errorf("failed to sync temp file: %w", err)
+	}
+
+	if err := f.Close(); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("failed to close temp file: %w", err)
+	}
+
+	if err := os.Rename(tmpPath, path); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("failed to rename temp file: %w", err)
 	}
 
 	return nil

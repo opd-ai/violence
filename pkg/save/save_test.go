@@ -693,3 +693,68 @@ func TestGetSavePath_PlatformSpecific(t *testing.T) {
 		t.Errorf("save path should be a directory")
 	}
 }
+
+func TestAtomicWrite_NoTempFileLeakage(t *testing.T) {
+	_, cleanup := setupTestDir(t)
+	defer cleanup()
+
+	state := &GameState{
+		Seed:   123,
+		Genre:  "fantasy",
+		Player: Player{Health: 100},
+	}
+
+	err := Save(1, state)
+	if err != nil {
+		t.Fatalf("Save() failed: %v", err)
+	}
+
+	slotPath, _ := getSlotPath(1)
+	tmpPath := slotPath + ".tmp"
+
+	if _, err := os.Stat(tmpPath); !os.IsNotExist(err) {
+		t.Errorf("temporary file should not exist after save: %s", tmpPath)
+	}
+
+	if _, err := os.Stat(slotPath); os.IsNotExist(err) {
+		t.Errorf("save file should exist: %s", slotPath)
+	}
+}
+
+func TestAtomicWrite_OverwritesExisting(t *testing.T) {
+	_, cleanup := setupTestDir(t)
+	defer cleanup()
+
+	state1 := &GameState{
+		Seed:   111,
+		Genre:  "fantasy",
+		Player: Player{Health: 100},
+	}
+
+	if err := Save(2, state1); err != nil {
+		t.Fatalf("first Save() failed: %v", err)
+	}
+
+	loaded1, _ := Load(2)
+	if loaded1.Seed != 111 {
+		t.Errorf("first load Seed = %d, want 111", loaded1.Seed)
+	}
+
+	state2 := &GameState{
+		Seed:   222,
+		Genre:  "scifi",
+		Player: Player{Health: 50},
+	}
+
+	if err := Save(2, state2); err != nil {
+		t.Fatalf("second Save() failed: %v", err)
+	}
+
+	loaded2, _ := Load(2)
+	if loaded2.Seed != 222 {
+		t.Errorf("second load Seed = %d, want 222", loaded2.Seed)
+	}
+	if loaded2.Genre != "scifi" {
+		t.Errorf("second load Genre = %s, want scifi", loaded2.Genre)
+	}
+}
