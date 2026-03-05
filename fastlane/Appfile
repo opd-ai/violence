@@ -1,0 +1,15 @@
+# Appfile for Violence iOS Configuration
+
+app_identifier(ENV["APP_IDENTIFIER"] || "com.opd-ai.violence")
+apple_id(ENV["APPLE_ID"] || "your-apple-id@example.com")
+team_id(ENV["TEAM_ID"] || "YOUR_TEAM_ID")
+
+# iTunes Connect Team ID (if different from Developer Portal)
+itc_team_id(ENV["ITC_TEAM_ID"] || ENV["TEAM_ID"] || "YOUR_TEAM_ID")
+
+# For App Store Connect API
+# app_store_connect_api_key(
+#   key_id: ENV["ASC_KEY_ID"],
+#   issuer_id: ENV["ASC_ISSUER_ID"],
+#   key_content: ENV["ASC_KEY_CONTENT"]
+# )

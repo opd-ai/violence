@@ -37,7 +37,7 @@
    - **Dependencies**: Existing gomobile builds (`docs/MOBILE_BUILD.md`)
 
    **Sub-tasks**:
-   3.1. Configure Fastlane for iOS (.ipa signing, TestFlight upload, App Store submission)
+   3.1. [x] Configure Fastlane for iOS (.ipa signing, TestFlight upload, App Store submission) — COMPLETE (2026-03-05): Implemented comprehensive Fastlane automation with Gemfile, Fastfile (8 lanes: build, beta, release, setup_signing, sync_signing, setup, test), Appfile, Matchfile, and .env.example. Lanes support gomobile build integration, match-based code signing, TestFlight beta distribution, and App Store submission. Documentation in docs/FASTLANE_IOS.md covers installation, lane usage, CI/CD integration, and production checklist.
    3.2. Configure Fastlane for Android (.aab signing, internal track, production rollout)
    3.3. Create App Store metadata templates (descriptions, screenshots, privacy policy)
    3.4. Implement in-app purchase stubs for store compliance (cosmetic-only)

@@ -1,0 +1,19 @@
+# Matchfile for Violence Certificate Management
+
+git_url(ENV["MATCH_GIT_URL"] || "https://github.com/opd-ai/violence-certificates")
+git_branch("main")
+
+storage_mode("git")
+
+type("appstore")
+
+app_identifier([ENV["APP_IDENTIFIER"] || "com.opd-ai.violence"])
+
+username(ENV["APPLE_ID"] || "your-apple-id@example.com")
+
+# For App Store Connect API (recommended over Apple ID)
+# app_store_connect_api_key(
+#   key_id: ENV["ASC_KEY_ID"],
+#   issuer_id: ENV["ASC_ISSUER_ID"],
+#   key_content: ENV["ASC_KEY_CONTENT"]
+# )

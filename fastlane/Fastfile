@@ -1,0 +1,113 @@
+# Fastfile for Violence iOS Build Automation
+# This file contains the fastlane.tools configuration
+
+default_platform(:ios)
+
+platform :ios do
+  desc "Build and sign iOS .ipa for distribution"
+  lane :build do
+    # Build the Violence.xcframework using gomobile
+    sh("cd .. && gomobile bind -target=ios -o Violence.xcframework")
+    
+    # Create Xcode project wrapper if it doesn't exist
+    unless File.exist?("../ios/Violence.xcodeproj")
+      UI.user_error!("iOS Xcode project not found. Run 'fastlane ios setup' first.")
+    end
+    
+    # Use match for code signing certificate management
+    match(
+      type: "appstore",
+      readonly: true,
+      app_identifier: ENV["APP_IDENTIFIER"] || "com.opd-ai.violence"
+    )
+    
+    # Build the .ipa
+    gym(
+      scheme: "Violence",
+      workspace: "../ios/Violence.xcworkspace",
+      export_method: "app-store",
+      output_directory: "./build",
+      output_name: "Violence.ipa",
+      clean: true,
+      include_bitcode: false,
+      include_symbols: true
+    )
+  end
+
+  desc "Upload to TestFlight for beta testing"
+  lane :beta do
+    # Build the app
+    build
+    
+    # Upload to TestFlight
+    pilot(
+      skip_waiting_for_build_processing: false,
+      ipa: "./build/Violence.ipa",
+      app_identifier: ENV["APP_IDENTIFIER"] || "com.opd-ai.violence",
+      distribute_external: false,
+      notify_external_testers: false,
+      changelog: "Automated beta build from CI/CD pipeline"
+    )
+  end
+
+  desc "Submit to App Store for review"
+  lane :release do
+    # Build the app
+    build
+    
+    # Upload to App Store Connect
+    deliver(
+      ipa: "./build/Violence.ipa",
+      app_identifier: ENV["APP_IDENTIFIER"] || "com.opd-ai.violence",
+      submit_for_review: true,
+      automatic_release: false,
+      force: true,
+      skip_screenshots: true,
+      skip_metadata: false,
+      precheck_include_in_app_purchases: false
+    )
+  end
+
+  desc "Setup code signing with match"
+  lane :setup_signing do
+    match(
+      type: "appstore",
+      app_identifier: ENV["APP_IDENTIFIER"] || "com.opd-ai.violence",
+      force_for_new_devices: true
+    )
+  end
+
+  desc "Sync code signing certificates"
+  lane :sync_signing do
+    match(
+      type: "appstore",
+      app_identifier: ENV["APP_IDENTIFIER"] || "com.opd-ai.violence",
+      readonly: true
+    )
+  end
+
+  desc "Initial setup for iOS project structure"
+  lane :setup do
+    UI.message("Creating iOS project structure...")
+    
+    # Create iOS directory structure
+    sh("mkdir -p ../ios")
+    
+    UI.success("iOS project structure created.")
+    UI.message("Next steps:")
+    UI.message("1. Create Xcode project in ios/ directory")
+    UI.message("2. Link Violence.xcframework to project")
+    UI.message("3. Configure app identifier and signing")
+    UI.message("4. Run 'fastlane ios setup_signing' to configure certificates")
+  end
+
+  desc "Run tests on iOS"
+  lane :test do
+    scan(
+      scheme: "Violence",
+      workspace: "../ios/Violence.xcworkspace",
+      device: "iPhone 15 Pro",
+      clean: true
+    )
+  end
+end
