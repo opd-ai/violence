@@ -331,7 +331,9 @@ func (s *HubServer) handleAnnounceHTTP(w http.ResponseWriter, r *http.Request) {
 	}).Info("server registered")
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "registered"})
+	if err := json.NewEncoder(w).Encode(map[string]string{"status": "registered"}); err != nil {
+		logrus.WithError(err).Error("failed to encode announce response")
+	}
 }
 
 // handleQuery proxies to the federation hub's query handler.
@@ -350,7 +352,9 @@ func (s *HubServer) handleQuery(w http.ResponseWriter, r *http.Request) {
 	servers := s.hub.QueryServers(&query)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(servers)
+	if err := json.NewEncoder(w).Encode(servers); err != nil {
+		logrus.WithError(err).Error("failed to encode query response")
+	}
 }
 
 // handleLookup handles player presence lookup requests.
@@ -390,7 +394,9 @@ func (s *HubServer) handleLookup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		logrus.WithError(err).Error("failed to encode lookup response")
+	}
 }
 
 // handleHealth returns health check information.
@@ -405,7 +411,9 @@ func (s *HubServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		logrus.WithError(err).Error("failed to encode health response")
+	}
 }
 
 // PeerResponse contains information about peer hubs.
@@ -420,7 +428,9 @@ func (s *HubServer) handlePeers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		logrus.WithError(err).Error("failed to encode peers response")
+	}
 }
 
 // syncWithPeers periodically syncs server registry with peer hubs.
