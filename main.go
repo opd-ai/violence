@@ -79,6 +79,7 @@ import (
 	"github.com/opd-ai/violence/pkg/squad"
 	"github.com/opd-ai/violence/pkg/stats"
 	"github.com/opd-ai/violence/pkg/status"
+	"github.com/opd-ai/violence/pkg/statusfx"
 	"github.com/opd-ai/violence/pkg/telegraph"
 	"github.com/opd-ai/violence/pkg/territory"
 	"github.com/opd-ai/violence/pkg/texture"
@@ -364,6 +365,9 @@ type Game struct {
 
 	// Attack animation system for visual attack variety
 	attackAnimSystem *attackanim.System
+
+	// Status effect visual system for glowing auras and particles on status effects
+	statusFXSystem *statusfx.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -544,6 +548,9 @@ func NewGame() *Game {
 	// Initialize attack animation system for visual attack variety
 	g.attackAnimSystem = attackanim.NewSystem(g.genreID)
 
+	// Initialize status effect visual system for glowing auras and particles
+	g.statusFXSystem = statusfx.NewSystem(g.genreID, g.particleSystem)
+
 	// Connect sliding system to spatial index
 	g.slidingSystem.SetSpatialIndex(g.spatialSystem.GetGrid())
 
@@ -676,6 +683,9 @@ func NewGame() *Game {
 
 	// Register attack animation system with the World
 	g.world.AddSystem(g.attackAnimSystem)
+
+	// Register status effect visual system with the World
+	g.world.AddSystem(g.statusFXSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
@@ -4438,6 +4448,9 @@ func (g *Game) renderCombatEffects(screen *ebiten.Image, camX, camY float64) {
 	}
 	if g.damageNumberSystem != nil {
 		g.damageNumberSystem.Render(g.world, screen, camX, camY)
+	}
+	if g.statusFXSystem != nil {
+		g.statusFXSystem.Render(screen, g.world, camX, camY)
 	}
 }
 
