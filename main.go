@@ -4658,73 +4658,81 @@ func (g *Game) renderFloorDetails(screen *ebiten.Image) {
 
 // renderShadows draws dynamic shadows for props and entities based on active lights.
 func (g *Game) renderShadows(screen *ebiten.Image) {
-	// Collect shadow casters from props
+	casters := g.collectShadowCasters()
+	lights, coneLights := g.collectLights()
+	g.shadowSystem.RenderShadows(screen, casters, lights, coneLights, g.camera.X, g.camera.Y)
+}
+
+// collectShadowCasters gathers all shadow-casting objects in the scene.
+func (g *Game) collectShadowCasters() []lighting.ShadowCaster {
 	var casters []lighting.ShadowCaster
+	casters = g.collectPropShadows(casters)
+	casters = g.collectPlayerShadow(casters)
+	casters = g.collectLoreItemShadows(casters)
+	return casters
+}
 
-	if g.propsManager != nil {
-		allProps := g.propsManager.GetProps()
-		for _, prop := range allProps {
-			// Calculate distance to camera for culling
-			dx := prop.X - g.camera.X
-			dy := prop.Y - g.camera.Y
-			distSq := dx*dx + dy*dy
-
-			// Only cast shadows for nearby props (within visible range)
-			if distSq > 400 {
-				continue
-			}
-
-			// Determine shadow parameters based on prop type
-			radius := 0.5
-			height := 1.0
-			opacity := 0.7
-
-			switch prop.SpriteType {
-			case props.PropPillar:
-				radius = 0.6
-				height = 2.0
-				opacity = 0.8
-			case props.PropBarrel, props.PropCrate, props.PropContainer:
-				radius = 0.5
-				height = 1.2
-				opacity = 0.7
-			case props.PropTable:
-				radius = 0.7
-				height = 0.8
-				opacity = 0.6
-			case props.PropTorch:
-				// Torches are light sources - smaller shadow
-				radius = 0.2
-				height = 0.5
-				opacity = 0.4
-			case props.PropTerminal:
-				radius = 0.4
-				height = 1.5
-				opacity = 0.7
-			case props.PropBones, props.PropDebris:
-				// Small debris - subtle shadows
-				radius = 0.3
-				height = 0.3
-				opacity = 0.5
-			case props.PropPlant:
-				radius = 0.4
-				height = 0.8
-				opacity = 0.6
-			}
-
-			casters = append(casters, lighting.ShadowCaster{
-				X:          prop.X,
-				Y:          prop.Y,
-				Radius:     radius,
-				Height:     height,
-				Opacity:    opacity,
-				CastShadow: true,
-			})
-		}
+// collectPropShadows adds shadow casters from props within visible range.
+func (g *Game) collectPropShadows(casters []lighting.ShadowCaster) []lighting.ShadowCaster {
+	if g.propsManager == nil {
+		return casters
 	}
 
-	// Add player shadow
-	casters = append(casters, lighting.ShadowCaster{
+	allProps := g.propsManager.GetProps()
+	for _, prop := range allProps {
+		if !isWithinShadowRange(prop.X, prop.Y, g.camera.X, g.camera.Y) {
+			continue
+		}
+		casters = append(casters, createPropShadowCaster(prop))
+	}
+	return casters
+}
+
+// isWithinShadowRange checks if a position is within shadow rendering distance.
+func isWithinShadowRange(x, y, camX, camY float64) bool {
+	dx := x - camX
+	dy := y - camY
+	return dx*dx+dy*dy <= 400
+}
+
+// createPropShadowCaster generates a shadow caster with parameters based on prop type.
+func createPropShadowCaster(prop *props.Prop) lighting.ShadowCaster {
+	radius, height, opacity := determinePropShadowParams(prop.SpriteType)
+	return lighting.ShadowCaster{
+		X:          prop.X,
+		Y:          prop.Y,
+		Radius:     radius,
+		Height:     height,
+		Opacity:    opacity,
+		CastShadow: true,
+	}
+}
+
+// determinePropShadowParams returns shadow parameters based on prop type.
+func determinePropShadowParams(spriteType props.PropType) (radius, height, opacity float64) {
+	switch spriteType {
+	case props.PropPillar:
+		return 0.6, 2.0, 0.8
+	case props.PropBarrel, props.PropCrate, props.PropContainer:
+		return 0.5, 1.2, 0.7
+	case props.PropTable:
+		return 0.7, 0.8, 0.6
+	case props.PropTorch:
+		return 0.2, 0.5, 0.4
+	case props.PropTerminal:
+		return 0.4, 1.5, 0.7
+	case props.PropBones, props.PropDebris:
+		return 0.3, 0.3, 0.5
+	case props.PropPlant:
+		return 0.4, 0.8, 0.6
+	default:
+		return 0.5, 1.0, 0.7
+	}
+}
+
+// collectPlayerShadow adds the player character's shadow.
+func (g *Game) collectPlayerShadow(casters []lighting.ShadowCaster) []lighting.ShadowCaster {
+	return append(casters, lighting.ShadowCaster{
 		X:          g.camera.X,
 		Y:          g.camera.Y,
 		Radius:     0.4,
@@ -4732,13 +4740,12 @@ func (g *Game) renderShadows(screen *ebiten.Image) {
 		Opacity:    0.75,
 		CastShadow: true,
 	})
+}
 
-	// Add lore item shadows
+// collectLoreItemShadows adds shadows for lore items within visible range.
+func (g *Game) collectLoreItemShadows(casters []lighting.ShadowCaster) []lighting.ShadowCaster {
 	for _, item := range g.loreItems {
-		dx := item.PosX - g.camera.X
-		dy := item.PosY - g.camera.Y
-		distSq := dx*dx + dy*dy
-		if distSq <= 400 {
+		if isWithinShadowRange(item.PosX, item.PosY, g.camera.X, g.camera.Y) {
 			casters = append(casters, lighting.ShadowCaster{
 				X:          item.PosX,
 				Y:          item.PosY,
@@ -4749,38 +4756,56 @@ func (g *Game) renderShadows(screen *ebiten.Image) {
 			})
 		}
 	}
+	return casters
+}
 
-	// Collect lights from lightMap
-	// For now, we'll use a simple approach: add point lights based on torches and ambient sources
+// collectLights gathers all light sources for shadow rendering.
+func (g *Game) collectLights() ([]lighting.Light, []lighting.ConeLight) {
 	var lights []lighting.Light
 	var coneLights []lighting.ConeLight
 
-	// Collect dynamic lights from the lighting system
+	lights = g.collectDynamicLights(lights)
+	lights = g.collectTorchLights(lights)
+	coneLights = g.collectPlayerFlashlight(coneLights)
+
+	return lights, coneLights
+}
+
+// collectDynamicLights gathers lights from the lighting system.
+func (g *Game) collectDynamicLights(lights []lighting.Light) []lighting.Light {
 	if g.lightingSystem != nil {
 		dynamicLights := g.lightingSystem.CollectLights(g.world)
 		lights = append(lights, dynamicLights...)
 	}
+	return lights
+}
 
-	// Add torch props as light sources
-	if g.propsManager != nil {
-		allProps := g.propsManager.GetProps()
-		for _, prop := range allProps {
-			if prop.SpriteType == props.PropTorch {
-				lights = append(lights, lighting.Light{
-					X:         prop.X,
-					Y:         prop.Y,
-					Radius:    8.0,
-					Intensity: 0.9,
-					R:         1.0,
-					G:         0.8,
-					B:         0.4,
-				})
-			}
-		}
+// collectTorchLights adds torch props as light sources.
+func (g *Game) collectTorchLights(lights []lighting.Light) []lighting.Light {
+	if g.propsManager == nil {
+		return lights
 	}
 
-	// Add player flashlight as cone light (always present for gameplay visibility)
-	coneLights = append(coneLights, lighting.ConeLight{
+	allProps := g.propsManager.GetProps()
+	for _, prop := range allProps {
+		if prop.SpriteType == props.PropTorch {
+			lights = append(lights, lighting.Light{
+				X:         prop.X,
+				Y:         prop.Y,
+				Radius:    8.0,
+				Intensity: 0.9,
+				R:         1.0,
+				G:         0.8,
+				B:         0.4,
+			})
+		}
+	}
+	return lights
+}
+
+// collectPlayerFlashlight adds the player's flashlight cone light.
+func (g *Game) collectPlayerFlashlight(coneLights []lighting.ConeLight) []lighting.ConeLight {
+	return append(coneLights, lighting.ConeLight{
 		X:         g.camera.X,
 		Y:         g.camera.Y,
 		DirX:      g.camera.DirX,
@@ -4793,9 +4818,6 @@ func (g *Game) renderShadows(screen *ebiten.Image) {
 		B:         1.0,
 		IsActive:  true,
 	})
-
-	// Render shadows
-	g.shadowSystem.RenderShadows(screen, casters, lights, coneLights, g.camera.X, g.camera.Y)
 }
 
 // renderHazards draws environmental hazards as floor sprites in world space.
@@ -5281,83 +5303,123 @@ func calculateSpriteTransform(loreItem *lore.LoreItem, camera *camera.Camera, pl
 // renderLootItems draws dropped loot items as procedural sprites in world space.
 func (g *Game) renderLootItems(screen *ebiten.Image) {
 	planeX, planeY := calculateCameraPlane(g.camera)
-
 	visualType := reflect.TypeOf((*loot.VisualComponent)(nil))
 	posType := reflect.TypeOf((*loot.PositionComponent)(nil))
-
 	entities := g.world.Query(visualType, posType)
 
 	for _, entity := range entities {
-		comp, found := g.world.GetComponent(entity, visualType)
-		if !found {
-			continue
-		}
+		g.renderSingleLootItem(screen, entity, visualType, posType, planeX, planeY)
+	}
+}
 
-		lv, ok := comp.(*loot.VisualComponent)
-		if !ok || lv.Collected {
-			continue
-		}
+// renderSingleLootItem renders one loot item if it meets visibility criteria.
+func (g *Game) renderSingleLootItem(screen *ebiten.Image, entity engine.Entity, visualType, posType reflect.Type, planeX, planeY float64) {
+	lv, pos := g.getLootComponents(entity, visualType, posType)
+	if lv == nil || pos == nil || lv.Collected {
+		return
+	}
 
-		posComp, found := g.world.GetComponent(entity, posType)
-		if !found {
-			continue
-		}
+	if !isLootItemVisible(pos.X, pos.Y, g.camera.X, g.camera.Y) {
+		return
+	}
 
-		pos, ok := posComp.(*loot.PositionComponent)
-		if !ok {
-			continue
-		}
+	transformX, transformY := calculateLootTransform(pos.X, pos.Y, g.camera, planeX, planeY)
+	if transformY <= 0.1 {
+		return
+	}
 
-		posX := pos.X
-		posY := pos.Y
+	spriteScreenX, spriteHeight, spriteWidth := calculateSpriteDimensions(transformX, transformY)
+	drawStartX, drawStartY := calculateLootDrawPosition(spriteScreenX, spriteHeight, spriteWidth, lv.BobPhase)
 
-		dx := posX - g.camera.X
-		dy := posY - g.camera.Y
-		dist := dx*dx + dy*dy
-		if dist > 400 {
-			continue
-		}
+	if !isWithinScreenBounds(drawStartX, drawStartX+spriteWidth) {
+		return
+	}
 
-		transformX, transformY := calculateLootTransform(posX, posY, g.camera, planeX, planeY)
-		if transformY <= 0.1 {
-			continue
-		}
+	g.drawLootSprite(screen, lv, drawStartX, drawStartY, spriteWidth, spriteHeight)
+}
 
-		bobOffset := math.Sin(lv.BobPhase) * 5.0
+// getLootComponents retrieves visual and position components for a loot entity.
+func (g *Game) getLootComponents(entity engine.Entity, visualType, posType reflect.Type) (*loot.VisualComponent, *loot.PositionComponent) {
+	comp, found := g.world.GetComponent(entity, visualType)
+	if !found {
+		return nil, nil
+	}
+	lv, ok := comp.(*loot.VisualComponent)
+	if !ok {
+		return nil, nil
+	}
 
-		spriteScreenX, spriteHeight, spriteWidth := calculateSpriteDimensions(transformX, transformY)
-		drawStartX, _, drawStartY, _ := calculateSpriteDrawBounds(spriteScreenX, spriteHeight, spriteWidth)
-		drawStartY += int(bobOffset)
+	posComp, found := g.world.GetComponent(entity, posType)
+	if !found {
+		return nil, nil
+	}
+	pos, ok := posComp.(*loot.PositionComponent)
+	if !ok {
+		return nil, nil
+	}
 
-		if !isWithinScreenBounds(drawStartX, drawStartX+spriteWidth) {
-			continue
-		}
+	return lv, pos
+}
 
-		size := 32
-		spriteImg := g.lootVisualSystem.GenerateItemSprite(lv.ItemID, lv.Category, lv.Rarity, lv.Seed, size)
+// isLootItemVisible checks if a loot item is within rendering distance.
+func isLootItemVisible(x, y, camX, camY float64) bool {
+	dx := x - camX
+	dy := y - camY
+	return dx*dx+dy*dy <= 400
+}
 
-		if spriteImg != nil {
-			op := &ebiten.DrawImageOptions{}
-			scaleX := float64(spriteWidth) / float64(spriteImg.Bounds().Dx())
-			scaleY := float64(spriteHeight) / float64(spriteImg.Bounds().Dy())
-			op.GeoM.Scale(scaleX, scaleY)
-			op.GeoM.Translate(float64(drawStartX), float64(drawStartY))
+// calculateLootDrawPosition computes the screen position for rendering loot with bob animation.
+func calculateLootDrawPosition(spriteScreenX, spriteHeight, spriteWidth int, bobPhase float64) (int, int) {
+	bobOffset := math.Sin(bobPhase) * 5.0
+	drawStartX, _, drawStartY, _ := calculateSpriteDrawBounds(spriteScreenX, spriteHeight, spriteWidth)
+	drawStartY += int(bobOffset)
+	return drawStartX, drawStartY
+}
 
-			glowIntensity := float32(0.8 + 0.2*math.Sin(lv.GlowPhase))
-			rarityGlow := float32(1.0)
-			switch lv.Rarity {
-			case loot.RarityLegendary:
-				rarityGlow = 1.3
-			case loot.RarityRare:
-				rarityGlow = 1.15
-			case loot.RarityUncommon:
-				rarityGlow = 1.05
-			}
+// drawLootSprite renders the loot sprite with rarity-based glow effects.
+func (g *Game) drawLootSprite(screen *ebiten.Image, lv *loot.VisualComponent, drawStartX, drawStartY, spriteWidth, spriteHeight int) {
+	size := 32
+	spriteImg := g.lootVisualSystem.GenerateItemSprite(lv.ItemID, lv.Category, lv.Rarity, lv.Seed, size)
+	if spriteImg == nil {
+		return
+	}
 
-			op.ColorScale.Scale(glowIntensity*rarityGlow, glowIntensity*rarityGlow, glowIntensity*rarityGlow, 1.0)
+	op := createLootSpriteOptions(spriteImg, drawStartX, drawStartY, spriteWidth, spriteHeight, lv)
+	screen.DrawImage(spriteImg, op)
+}
 
-			screen.DrawImage(spriteImg, op)
-		}
+// createLootSpriteOptions configures rendering options for loot sprites with glow effects.
+func createLootSpriteOptions(spriteImg *ebiten.Image, drawStartX, drawStartY, spriteWidth, spriteHeight int, lv *loot.VisualComponent) *ebiten.DrawImageOptions {
+	op := &ebiten.DrawImageOptions{}
+	scaleX := float64(spriteWidth) / float64(spriteImg.Bounds().Dx())
+	scaleY := float64(spriteHeight) / float64(spriteImg.Bounds().Dy())
+	op.GeoM.Scale(scaleX, scaleY)
+	op.GeoM.Translate(float64(drawStartX), float64(drawStartY))
+
+	glowIntensity := calculateGlowIntensity(lv.GlowPhase, lv.Rarity)
+	op.ColorScale.Scale(glowIntensity, glowIntensity, glowIntensity, 1.0)
+
+	return op
+}
+
+// calculateGlowIntensity computes the glow effect intensity based on animation phase and rarity.
+func calculateGlowIntensity(glowPhase float64, rarity loot.Rarity) float32 {
+	baseGlow := float32(0.8 + 0.2*math.Sin(glowPhase))
+	rarityMultiplier := getRarityGlowMultiplier(rarity)
+	return baseGlow * rarityMultiplier
+}
+
+// getRarityGlowMultiplier returns the glow multiplier for different rarity tiers.
+func getRarityGlowMultiplier(rarity loot.Rarity) float32 {
+	switch rarity {
+	case loot.RarityLegendary:
+		return 1.3
+	case loot.RarityRare:
+		return 1.15
+	case loot.RarityUncommon:
+		return 1.05
+	default:
+		return 1.0
 	}
 }
 
