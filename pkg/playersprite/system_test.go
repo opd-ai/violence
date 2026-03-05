@@ -188,4 +188,3 @@ func TestSystem_UpdateCachedSprite(t *testing.T) {
 		t.Error("Expected new sprite to be generated")
 	}
 }
-
