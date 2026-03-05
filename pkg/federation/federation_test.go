@@ -196,10 +196,3 @@ func TestFederation_UnregisterNonexistent(t *testing.T) {
 	// Should not panic
 	fed.Unregister("nonexistent")
 }
-
-func TestSetGenre(t *testing.T) {
-	// Should not panic
-	SetGenre("fantasy")
-	SetGenre("scifi")
-	SetGenre("")
-}

@@ -122,6 +122,3 @@ func (f *Federation) Unregister(name string) {
 	defer f.mu.Unlock()
 	delete(f.servers, name)
 }
-
-// SetGenre configures the federation system for a genre.
-func SetGenre(genreID string) {}
