@@ -38,8 +38,8 @@ func (s *System) SetGenre(genreID string) {
 // Update implements the System interface.
 func (s *System) Update(w *engine.World) {
 	deltaTime := 1.0 / 60.0
-
 	it := w.QueryWithBitmask(engine.ComponentIDPosition)
+
 	swingTriggerType := reflect.TypeOf(&SwingTriggerComponent{})
 	weaponAnimType := reflect.TypeOf(&WeaponAnimComponent{})
 	posType := reflect.TypeOf(&PositionComponent{})
@@ -47,68 +47,92 @@ func (s *System) Update(w *engine.World) {
 
 	for it.Next() {
 		entity := it.Entity()
-
-		// Check for pending swing triggers
-		triggerComp, hasTrigger := w.GetComponent(entity, swingTriggerType)
-		if hasTrigger {
-			trigger := triggerComp.(*SwingTriggerComponent)
-			if trigger.Pending {
-				// Get facing direction from velocity or default
-				facing := 0.0
-				if velComp, hasVel := w.GetComponent(entity, velType); hasVel {
-					vel := velComp.(*VelocityComponent)
-					if vel.VX != 0 || vel.VY != 0 {
-						facing = math.Atan2(vel.VY, vel.VX)
-					}
-				}
-
-				// Start the swing animation
-				startAngle, endAngle, duration := GetSwingParameters(SwingType(trigger.SwingType), facing)
-
-				animComp, hasAnim := w.GetComponent(entity, weaponAnimType)
-				if !hasAnim {
-					animComp = &WeaponAnimComponent{
-						Color: color.RGBA{R: 200, G: 200, B: 220, A: 200},
-						Width: 3.0,
-					}
-					w.AddComponent(entity, animComp)
-				}
-
-				anim := animComp.(*WeaponAnimComponent)
-				anim.Active = true
-				anim.SwingType = SwingType(trigger.SwingType)
-				anim.Progress = 0.0
-				anim.Duration = duration
-				anim.StartAngle = startAngle
-				anim.EndAngle = endAngle
-				anim.ArcRadius = 25.0 // Default weapon length
-				anim.TrailPoints = nil
-
-				trigger.Pending = false
-			}
-		}
-
-		// Update existing animations
-		animComp, ok := w.GetComponent(entity, weaponAnimType)
-		if !ok {
-			continue
-		}
-
-		anim := animComp.(*WeaponAnimComponent)
-		if !anim.Active {
-			continue
-		}
-
-		// Get entity position
-		posComp, hasPos := w.GetComponent(entity, posType)
-		if !hasPos {
-			continue
-		}
-		pos := posComp.(*PositionComponent)
-
-		s.updateAnimation(anim, pos, deltaTime)
-		s.updateTrail(anim, pos, deltaTime)
+		s.processPendingSwingTrigger(w, entity, swingTriggerType, weaponAnimType, velType)
+		s.processActiveAnimation(w, entity, weaponAnimType, posType, deltaTime)
 	}
+}
+
+// processPendingSwingTrigger checks for and initiates pending weapon swing animations.
+func (s *System) processPendingSwingTrigger(w *engine.World, entity engine.Entity, swingTriggerType, weaponAnimType, velType reflect.Type) {
+	triggerComp, hasTrigger := w.GetComponent(entity, swingTriggerType)
+	if !hasTrigger {
+		return
+	}
+
+	trigger := triggerComp.(*SwingTriggerComponent)
+	if !trigger.Pending {
+		return
+	}
+
+	facing := s.calculateFacingDirection(w, entity, velType)
+	s.startSwingAnimation(w, entity, weaponAnimType, trigger, facing)
+	trigger.Pending = false
+}
+
+// calculateFacingDirection determines entity facing from velocity or returns default.
+func (s *System) calculateFacingDirection(w *engine.World, entity engine.Entity, velType reflect.Type) float64 {
+	velComp, hasVel := w.GetComponent(entity, velType)
+	if !hasVel {
+		return 0.0
+	}
+
+	vel := velComp.(*VelocityComponent)
+	if vel.VX != 0 || vel.VY != 0 {
+		return math.Atan2(vel.VY, vel.VX)
+	}
+	return 0.0
+}
+
+// startSwingAnimation initializes a new weapon swing animation.
+func (s *System) startSwingAnimation(w *engine.World, entity engine.Entity, weaponAnimType reflect.Type, trigger *SwingTriggerComponent, facing float64) {
+	startAngle, endAngle, duration := GetSwingParameters(SwingType(trigger.SwingType), facing)
+
+	anim := s.getOrCreateAnimComponent(w, entity, weaponAnimType)
+	anim.Active = true
+	anim.SwingType = SwingType(trigger.SwingType)
+	anim.Progress = 0.0
+	anim.Duration = duration
+	anim.StartAngle = startAngle
+	anim.EndAngle = endAngle
+	anim.ArcRadius = 25.0
+	anim.TrailPoints = nil
+}
+
+// getOrCreateAnimComponent retrieves existing or creates new weapon animation component.
+func (s *System) getOrCreateAnimComponent(w *engine.World, entity engine.Entity, weaponAnimType reflect.Type) *WeaponAnimComponent {
+	animComp, hasAnim := w.GetComponent(entity, weaponAnimType)
+	if hasAnim {
+		return animComp.(*WeaponAnimComponent)
+	}
+
+	newAnim := &WeaponAnimComponent{
+		Color: color.RGBA{R: 200, G: 200, B: 220, A: 200},
+		Width: 3.0,
+	}
+	w.AddComponent(entity, newAnim)
+	return newAnim
+}
+
+// processActiveAnimation updates ongoing weapon swing animations.
+func (s *System) processActiveAnimation(w *engine.World, entity engine.Entity, weaponAnimType, posType reflect.Type, deltaTime float64) {
+	animComp, ok := w.GetComponent(entity, weaponAnimType)
+	if !ok {
+		return
+	}
+
+	anim := animComp.(*WeaponAnimComponent)
+	if !anim.Active {
+		return
+	}
+
+	posComp, hasPos := w.GetComponent(entity, posType)
+	if !hasPos {
+		return
+	}
+	pos := posComp.(*PositionComponent)
+
+	s.updateAnimation(anim, pos, deltaTime)
+	s.updateTrail(anim, pos, deltaTime)
 }
 
 // updateAnimation progresses the swing animation.

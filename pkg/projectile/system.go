@@ -143,63 +143,63 @@ func (s *System) checkCollisions(w *engine.World, entity engine.Entity, proj *Pr
 		return
 	}
 
-	// Query nearby entities using spatial partitioning
-	queryRadius := proj.Radius
-	if proj.Shape == ShapeBeam {
-		queryRadius = proj.BeamWidth * 2.0
-	}
-
+	queryRadius := calculateQueryRadius(proj)
 	nearby := s.spatialGrid.QueryRadius(x, y, queryRadius*2.0)
-
 	positionType := reflect.TypeOf((*engine.Position)(nil))
 
 	for _, target := range nearby {
-		// Skip self
-		if target == entity {
+		if shouldSkipCollisionTarget(target, entity, proj) {
 			continue
 		}
 
-		// Skip owner (friendly fire prevention)
-		targetID := int(target)
-		if targetID == proj.OwnerID {
+		targetPos := s.getTargetPosition(w, target, positionType)
+		if targetPos == nil {
 			continue
 		}
 
-		// Skip already hit entities (for pierce mechanics)
-		if proj.HitEntities[targetID] {
-			continue
-		}
-
-		// Get target position
-		targetPosComp, ok := w.GetComponent(target, positionType)
-		if !ok {
-			continue
-		}
-		targetPos, ok := targetPosComp.(*engine.Position)
-		if !ok {
-			continue
-		}
-
-		// Check shape-specific collision
 		if !s.checkShapeCollision(x, y, targetPos.X, targetPos.Y, proj) {
 			continue
 		}
 
-		// Apply damage
-		s.applyDamage(w, target, proj, targetPos.X, targetPos.Y)
+		s.processTargetHit(w, target, entity, proj, targetPos.X, targetPos.Y, x, y, toRemove)
+		if proj.PierceCount < 0 {
+			return
+		}
+	}
+}
 
-		// Track hit for pierce mechanics
-		proj.HitEntities[targetID] = true
+// calculateQueryRadius determines the spatial query radius based on projectile shape.
+func calculateQueryRadius(proj *ProjectileComponent) float64 {
+	if proj.Shape == ShapeBeam {
+		return proj.BeamWidth * 2.0
+	}
+	return proj.Radius
+}
 
-		// Decrement pierce count
-		if proj.PierceCount >= 0 {
-			proj.PierceCount--
-			if proj.PierceCount < 0 {
-				// Projectile is consumed
-				s.handleProjectileDeath(w, entity, proj, x, y)
-				*toRemove = append(*toRemove, entity)
-				return
-			}
+// shouldSkipCollisionTarget checks if a target should be excluded from collision processing.
+func shouldSkipCollisionTarget(target, entity engine.Entity, proj *ProjectileComponent) bool {
+	if target == entity {
+		return true
+	}
+	targetID := int(target)
+	if targetID == proj.OwnerID {
+		return true
+	}
+	return proj.HitEntities[targetID]
+}
+
+// processTargetHit handles damage application and pierce mechanics for a hit target.
+func (s *System) processTargetHit(w *engine.World, target, entity engine.Entity, proj *ProjectileComponent, targetX, targetY, projX, projY float64, toRemove *[]engine.Entity) {
+	s.applyDamage(w, target, proj, targetX, targetY)
+
+	targetID := int(target)
+	proj.HitEntities[targetID] = true
+
+	if proj.PierceCount >= 0 {
+		proj.PierceCount--
+		if proj.PierceCount < 0 {
+			s.handleProjectileDeath(w, entity, proj, projX, projY)
+			*toRemove = append(*toRemove, entity)
 		}
 	}
 }

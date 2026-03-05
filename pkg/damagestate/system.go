@@ -386,47 +386,65 @@ func drawGlitchBlock(rgba *image.RGBA, size int, glitchColor color.RGBA, rng *ra
 
 // renderPostApocDamage renders rust, dirt, and wear.
 func (sys *System) renderPostApocDamage(rgba *image.RGBA, comp *Component, size int, rng *rand.Rand) {
-	rustColor := color.RGBA{R: 140, G: 70, B: 30, A: 180}
-	dirtColor := color.RGBA{R: 80, G: 70, B: 60, A: 160}
+	sys.renderRustPatches(rgba, comp, size, rng)
+	sys.renderDirtStreaks(rgba, comp, size, rng)
+}
 
-	// Rust patches
+// renderRustPatches draws rust damage patches across the surface.
+func (sys *System) renderRustPatches(rgba *image.RGBA, comp *Component, size int, rng *rand.Rand) {
+	rustColor := color.RGBA{R: 140, G: 70, B: 30, A: 180}
 	rustCount := comp.DamageLevel * 2
+
 	for i := 0; i < rustCount; i++ {
 		cx := rng.Intn(size)
 		cy := rng.Intn(size)
 		radius := 2 + rng.Intn(comp.DamageLevel+1)
+		sys.drawIrregularPatch(rgba, cx, cy, radius, size, rustColor, rng)
+	}
+}
 
-		// Irregular rust pattern
-		for dy := -radius; dy <= radius; dy++ {
-			for dx := -radius; dx <= radius; dx++ {
-				distSq := dx*dx + dy*dy
-				if distSq <= radius*radius && rng.Float64() < 0.7 {
-					x := cx + dx
-					y := cy + dy
-					if x >= 0 && x < size && y >= 0 && y < size {
-						rgba.Set(x, y, rustColor)
-					}
+// drawIrregularPatch renders an irregular circular patch with random gaps.
+func (sys *System) drawIrregularPatch(rgba *image.RGBA, cx, cy, radius, size int, col color.RGBA, rng *rand.Rand) {
+	for dy := -radius; dy <= radius; dy++ {
+		for dx := -radius; dx <= radius; dx++ {
+			distSq := dx*dx + dy*dy
+			if distSq <= radius*radius && rng.Float64() < 0.7 {
+				x := cx + dx
+				y := cy + dy
+				if x >= 0 && x < size && y >= 0 && y < size {
+					rgba.Set(x, y, col)
 				}
 			}
 		}
 	}
+}
 
-	// Add dirt streaks
-	if comp.DamageLevel >= 2 {
-		streakCount := comp.DamageLevel
-		for i := 0; i < streakCount; i++ {
-			startX := rng.Intn(size)
-			startY := rng.Intn(size / 2)
-			streakLen := 2 + rng.Intn(size/3)
-			angle := math.Pi/2 + (rng.Float64()-0.5)*math.Pi/6 // Mostly vertical
+// renderDirtStreaks draws vertical dirt streaks for higher damage levels.
+func (sys *System) renderDirtStreaks(rgba *image.RGBA, comp *Component, size int, rng *rand.Rand) {
+	if comp.DamageLevel < 2 {
+		return
+	}
 
-			for j := 0; j < streakLen; j++ {
-				x := startX + int(float64(j)*math.Sin(angle))
-				y := startY + int(float64(j)*math.Cos(angle))
-				if x >= 0 && x < size && y >= 0 && y < size {
-					rgba.Set(x, y, dirtColor)
-				}
-			}
+	dirtColor := color.RGBA{R: 80, G: 70, B: 60, A: 160}
+	streakCount := comp.DamageLevel
+
+	for i := 0; i < streakCount; i++ {
+		sys.drawDirtStreak(rgba, size, dirtColor, rng)
+	}
+}
+
+// drawDirtStreak renders a single dirt streak with mostly vertical orientation.
+func (sys *System) drawDirtStreak(rgba *image.RGBA, size int, col color.RGBA, rng *rand.Rand) {
+	startX := rng.Intn(size)
+	startY := rng.Intn(size / 2)
+	streakLen := 2 + rng.Intn(size/3)
+	angle := math.Pi/2 + (rng.Float64()-0.5)*math.Pi/6
+
+	for j := 0; j < streakLen; j++ {
+		x := startX + int(float64(j)*math.Sin(angle))
+		y := startY + int(float64(j)*math.Cos(angle))
+		if x >= 0 && x < size && y >= 0 && y < size {
+			rgba.Set(x, y, col)
 		}
 	}
 }

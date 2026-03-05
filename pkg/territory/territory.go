@@ -208,31 +208,48 @@ func (s *ControlSystem) updateContestStatus(w *engine.World) {
 }
 
 func (s *ControlSystem) processContestation(w *engine.World, territory *Territory) {
+	factionCounts := s.countLivingFactionMembers(w, territory.ID)
+	controllingCount, contestingCount, contestingFaction := s.analyzeContestationState(territory, factionCounts)
+
+	s.updateTerritoryControl(territory, controllingCount, contestingCount, contestingFaction)
+	s.updateTerritoryContestedState(territory, contestingCount)
+}
+
+// countLivingFactionMembers counts alive faction members in a territory.
+func (s *ControlSystem) countLivingFactionMembers(w *engine.World, territoryID TerritoryID) map[faction.FactionID]int {
 	terType := reflect.TypeOf((*TerritoryComponent)(nil))
 	facType := reflect.TypeOf((*faction.FactionMemberComponent)(nil))
 	healthType := reflect.TypeOf((*combat.HealthComponent)(nil))
 
 	factionCounts := make(map[faction.FactionID]int)
-
 	entities := w.Query(terType, facType, healthType)
+
 	for _, ent := range entities {
-		terComp, _ := w.GetComponent(ent, terType)
-		facComp, _ := w.GetComponent(ent, facType)
-		healthComp, _ := w.GetComponent(ent, healthType)
-
-		tc, okT := terComp.(*TerritoryComponent)
-		fc, okF := facComp.(*faction.FactionMemberComponent)
-		hc, okH := healthComp.(*combat.HealthComponent)
-
-		if !okT || !okF || !okH || tc.CurrentTerritory != territory.ID {
-			continue
-		}
-
-		if hc.Current > 0 {
+		if s.isLivingTerritoryMember(w, ent, territoryID, terType, facType, healthType) {
+			facComp, _ := w.GetComponent(ent, facType)
+			fc, _ := facComp.(*faction.FactionMemberComponent)
 			factionCounts[fc.FactionID]++
 		}
 	}
 
+	return factionCounts
+}
+
+// isLivingTerritoryMember checks if an entity is alive and in the specified territory.
+func (s *ControlSystem) isLivingTerritoryMember(w *engine.World, ent engine.Entity, territoryID TerritoryID, terType, facType, healthType reflect.Type) bool {
+	terComp, _ := w.GetComponent(ent, terType)
+	facComp, _ := w.GetComponent(ent, facType)
+	healthComp, _ := w.GetComponent(ent, healthType)
+
+	tc, okT := terComp.(*TerritoryComponent)
+	_, okF := facComp.(*faction.FactionMemberComponent)
+	hc, okH := healthComp.(*combat.HealthComponent)
+
+	return okT && okF && okH && tc.CurrentTerritory == territoryID && hc.Current > 0
+}
+
+// analyzeContestationState determines the strongest contesting faction.
+func (s *ControlSystem) analyzeContestationState(territory *Territory, factionCounts map[faction.FactionID]int) (int, int, faction.FactionID) {
 	controllingCount := factionCounts[territory.ControlFaction]
 	contestingCount := 0
 	var contestingFaction faction.FactionID
@@ -244,6 +261,11 @@ func (s *ControlSystem) processContestation(w *engine.World, territory *Territor
 		}
 	}
 
+	return controllingCount, contestingCount, contestingFaction
+}
+
+// updateTerritoryControl adjusts control points and handles territory transfer.
+func (s *ControlSystem) updateTerritoryControl(territory *Territory, controllingCount, contestingCount int, contestingFaction faction.FactionID) {
 	if contestingCount > controllingCount {
 		territory.ControlPoints--
 		if territory.ControlPoints <= 0 {
@@ -255,7 +277,10 @@ func (s *ControlSystem) processContestation(w *engine.World, territory *Territor
 			territory.ControlPoints = territory.MaxControl
 		}
 	}
+}
 
+// updateTerritoryContestedState updates the contested flag and battle time.
+func (s *ControlSystem) updateTerritoryContestedState(territory *Territory, contestingCount int) {
 	territory.Contested = (contestingCount > 0)
 	if territory.Contested {
 		territory.LastBattleTime = s.gameTime

@@ -183,27 +183,37 @@ func satisfies(version, constraint string) bool {
 
 // compareVersions returns -1 if v1 < v2, 0 if v1 == v2, 1 if v1 > v2.
 func compareVersions(v1, v2 string) int {
-	v1 = strings.TrimPrefix(v1, "v")
-	v2 = strings.TrimPrefix(v2, "v")
+	core1, pre1 := parseVersionParts(v1)
+	core2, pre2 := parseVersionParts(v2)
 
-	parts1 := strings.SplitN(v1, "-", 2)
-	parts2 := strings.SplitN(v2, "-", 2)
+	coreResult := compareCoreVersions(core1, core2)
+	if coreResult != 0 {
+		return coreResult
+	}
 
-	core1 := parts1[0]
-	core2 := parts2[0]
+	return comparePrereleaseVersions(pre1, pre2)
+}
 
-	// Compare core version (major.minor.patch)
+// parseVersionParts extracts core version and prerelease suffix from a version string.
+func parseVersionParts(version string) (core, prerelease string) {
+	version = strings.TrimPrefix(version, "v")
+	parts := strings.SplitN(version, "-", 2)
+	core = parts[0]
+	if len(parts) > 1 {
+		prerelease = parts[1]
+	}
+	return core, prerelease
+}
+
+// compareCoreVersions compares major.minor.patch version numbers.
+func compareCoreVersions(core1, core2 string) int {
 	nums1 := strings.Split(core1, ".")
 	nums2 := strings.Split(core2, ".")
 
 	for i := 0; i < 3; i++ {
-		n1, n2 := 0, 0
-		if i < len(nums1) {
-			n1, _ = strconv.Atoi(nums1[i])
-		}
-		if i < len(nums2) {
-			n2, _ = strconv.Atoi(nums2[i])
-		}
+		n1 := getVersionNumber(nums1, i)
+		n2 := getVersionNumber(nums2, i)
+
 		if n1 < n2 {
 			return -1
 		}
@@ -211,17 +221,30 @@ func compareVersions(v1, v2 string) int {
 			return 1
 		}
 	}
+	return 0
+}
 
-	// If core versions equal, compare prerelease
-	if len(parts1) > 1 && len(parts2) == 1 {
-		return -1 // v1 is prerelease, v2 is stable
+// getVersionNumber extracts a version component number from parts array.
+func getVersionNumber(parts []string, index int) int {
+	if index < len(parts) {
+		n, _ := strconv.Atoi(parts[index])
+		return n
 	}
-	if len(parts1) == 1 && len(parts2) > 1 {
-		return 1 // v1 is stable, v2 is prerelease
+	return 0
+}
+
+// comparePrereleaseVersions compares prerelease version suffixes.
+func comparePrereleaseVersions(pre1, pre2 string) int {
+	hasPre1 := pre1 != ""
+	hasPre2 := pre2 != ""
+
+	if hasPre1 && !hasPre2 {
+		return -1
 	}
-	if len(parts1) > 1 && len(parts2) > 1 {
-		pre1 := parts1[1]
-		pre2 := parts2[1]
+	if !hasPre1 && hasPre2 {
+		return 1
+	}
+	if hasPre1 && hasPre2 {
 		if pre1 < pre2 {
 			return -1
 		}
@@ -229,7 +252,6 @@ func compareVersions(v1, v2 string) int {
 			return 1
 		}
 	}
-
 	return 0
 }
 

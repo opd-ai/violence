@@ -175,61 +175,83 @@ func (s *System) GenerateTraps(worldMap [][]int, seed int64) {
 		return
 	}
 
-	width := len(worldMap[0])
-	height := len(worldMap)
-
+	width, height := len(worldMap[0]), len(worldMap)
 	localRNG := rng.NewRNG(uint64(seed))
 	trapTypes := GetGenreTraps(s.genre)
 
-	// Place traps in corridors and doorways
+	s.placeTrapsinWorld(worldMap, width, height, localRNG, trapTypes, seed)
+
+	s.logger.WithFields(logrus.Fields{
+		"count": len(s.traps),
+		"genre": s.genre,
+	}).Info("Generated traps")
+}
+
+// placeTrapsinWorld attempts to place traps in valid corridor and doorway locations.
+func (s *System) placeTrapsinWorld(worldMap [][]int, width, height int, localRNG *rng.RNG, trapTypes []TrapType, seed int64) {
 	targetCount := 3 + localRNG.Intn(8)
 	attempts := 0
 	maxAttempts := 200
 
 	for len(s.traps) < targetCount && attempts < maxAttempts {
 		attempts++
+		x, y := generateRandomPosition(width, height, localRNG)
 
-		x := 2 + localRNG.Intn(width-4)
-		y := 2 + localRNG.Intn(height-4)
-
-		// Check if location is valid (floor tile)
-		if worldMap[y][x] != 2 && worldMap[y][x] != 20 && worldMap[y][x] != 21 &&
-			worldMap[y][x] != 22 && worldMap[y][x] != 23 && worldMap[y][x] != 24 {
+		if !isValidTrapLocation(worldMap, x, y, width, height) {
 			continue
 		}
 
-		// Prefer corridors (narrow passages)
-		neighborCount := 0
-		for dy := -1; dy <= 1; dy++ {
-			for dx := -1; dx <= 1; dx++ {
-				if dy == 0 && dx == 0 {
-					continue
-				}
-				nx, ny := x+dx, y+dy
-				if nx >= 0 && nx < width && ny >= 0 && ny < height {
-					if worldMap[ny][nx] >= 2 {
-						neighborCount++
-					}
-				}
-			}
-		}
-
-		// Prefer locations with 3-5 floor neighbors (corridors, doorways)
-		if neighborCount < 3 || neighborCount > 5 {
-			continue
-		}
-
-		// Create trap
-		trapType := trapTypes[localRNG.Intn(len(trapTypes))]
-		trap := NewTrap(trapType, float64(x)+0.5, float64(y)+0.5, seed+int64(x*1000+y))
-		trap.Genre = s.genre
+		trap := createTrapAtLocation(x, y, trapTypes, localRNG, s.genre, seed)
 		s.traps = append(s.traps, trap)
 	}
+}
 
-	s.logger.WithFields(logrus.Fields{
-		"count": len(s.traps),
-		"genre": s.genre,
-	}).Info("Generated traps")
+// generateRandomPosition creates a random position within map boundaries.
+func generateRandomPosition(width, height int, localRNG *rng.RNG) (int, int) {
+	x := 2 + localRNG.Intn(width-4)
+	y := 2 + localRNG.Intn(height-4)
+	return x, y
+}
+
+// isValidTrapLocation checks if a location is suitable for trap placement.
+func isValidTrapLocation(worldMap [][]int, x, y, width, height int) bool {
+	if !isFloorTile(worldMap[y][x]) {
+		return false
+	}
+
+	neighborCount := countFloorNeighbors(worldMap, x, y, width, height)
+	return neighborCount >= 3 && neighborCount <= 5
+}
+
+// isFloorTile checks if a tile value represents a floor.
+func isFloorTile(tileValue int) bool {
+	return tileValue == 2 || tileValue == 20 || tileValue == 21 ||
+		tileValue == 22 || tileValue == 23 || tileValue == 24
+}
+
+// countFloorNeighbors counts floor tiles adjacent to a position.
+func countFloorNeighbors(worldMap [][]int, x, y, width, height int) int {
+	count := 0
+	for dy := -1; dy <= 1; dy++ {
+		for dx := -1; dx <= 1; dx++ {
+			if dy == 0 && dx == 0 {
+				continue
+			}
+			nx, ny := x+dx, y+dy
+			if nx >= 0 && nx < width && ny >= 0 && ny < height && worldMap[ny][nx] >= 2 {
+				count++
+			}
+		}
+	}
+	return count
+}
+
+// createTrapAtLocation generates a new trap at the specified coordinates.
+func createTrapAtLocation(x, y int, trapTypes []TrapType, localRNG *rng.RNG, genre string, seed int64) *Trap {
+	trapType := trapTypes[localRNG.Intn(len(trapTypes))]
+	trap := NewTrap(trapType, float64(x)+0.5, float64(y)+0.5, seed+int64(x*1000+y))
+	trap.Genre = genre
+	return trap
 }
 
 // GetTraps returns all traps in the system.

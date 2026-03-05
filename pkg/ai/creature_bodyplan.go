@@ -393,89 +393,110 @@ func drawInsectEyes(img *image.RGBA, centerX, centerY int, ctype CreatureType, e
 
 // generateSerpentCreature draws snake-like elongated creatures.
 func generateSerpentCreature(img *image.RGBA, rng *rand.Rand, ctype CreatureType, frame AnimFrame) {
-	var bodyColor, bellyColor, eyeColor color.RGBA
-	var thickness int
+	bodyColor, bellyColor, eyeColor, thickness := selectSerpentColors(ctype)
+	waveOffset := calculateWaveOffset(frame)
 
+	drawSerpentBody(img, thickness, waveOffset, bodyColor, bellyColor)
+	drawSerpentHead(img, waveOffset, eyeColor, frame)
+	drawSerpentScales(img, waveOffset, bodyColor)
+}
+
+// selectSerpentColors returns color scheme and thickness for serpent creature types.
+func selectSerpentColors(ctype CreatureType) (body, belly, eye color.RGBA, thickness int) {
 	switch ctype {
 	case CreatureSnake:
-		bodyColor = color.RGBA{R: 60, G: 100, B: 40, A: 255}
-		bellyColor = color.RGBA{R: 140, G: 160, B: 120, A: 255}
-		eyeColor = color.RGBA{R: 255, G: 200, B: 0, A: 255}
-		thickness = 4
+		return color.RGBA{R: 60, G: 100, B: 40, A: 255},
+			color.RGBA{R: 140, G: 160, B: 120, A: 255},
+			color.RGBA{R: 255, G: 200, B: 0, A: 255},
+			4
 	case CreatureWorm:
-		bodyColor = color.RGBA{R: 140, G: 100, B: 80, A: 255}
-		bellyColor = color.RGBA{R: 160, G: 120, B: 100, A: 255}
-		eyeColor = color.RGBA{R: 80, G: 60, B: 40, A: 255}
-		thickness = 6
+		return color.RGBA{R: 140, G: 100, B: 80, A: 255},
+			color.RGBA{R: 160, G: 120, B: 100, A: 255},
+			color.RGBA{R: 80, G: 60, B: 40, A: 255},
+			6
 	case CreatureLamia:
-		bodyColor = color.RGBA{R: 100, G: 80, B: 140, A: 255}
-		bellyColor = color.RGBA{R: 180, G: 160, B: 200, A: 255}
-		eyeColor = color.RGBA{R: 150, G: 50, B: 200, A: 255}
-		thickness = 5
+		return color.RGBA{R: 100, G: 80, B: 140, A: 255},
+			color.RGBA{R: 180, G: 160, B: 200, A: 255},
+			color.RGBA{R: 150, G: 50, B: 200, A: 255},
+			5
 	default: // Serpent
-		bodyColor = color.RGBA{R: 80, G: 60, B: 100, A: 255}
-		bellyColor = color.RGBA{R: 140, G: 120, B: 160, A: 255}
-		eyeColor = color.RGBA{R: 200, G: 50, B: 50, A: 255}
-		thickness = 5
+		return color.RGBA{R: 80, G: 60, B: 100, A: 255},
+			color.RGBA{R: 140, G: 120, B: 160, A: 255},
+			color.RGBA{R: 200, G: 50, B: 50, A: 255},
+			5
 	}
+}
 
-	// Serpentine motion path (S-curve)
-	segments := 12
-	waveOffset := 0.0
+// calculateWaveOffset determines serpentine motion offset based on animation frame.
+func calculateWaveOffset(frame AnimFrame) float64 {
 	if frame == AnimFrameWalk1 {
-		waveOffset = 0.5
+		return 0.5
 	} else if frame == AnimFrameWalk2 {
-		waveOffset = -0.5
+		return -0.5
 	}
+	return 0.0
+}
 
+// drawSerpentBody renders the segmented serpent body with S-curve motion.
+func drawSerpentBody(img *image.RGBA, thickness int, waveOffset float64, bodyColor, bellyColor color.RGBA) {
+	segments := 12
 	for i := 0; i < segments; i++ {
-		t := float64(i) / float64(segments-1)
-		y := 10 + int(t*44)
-		x := 32 + int(math.Sin(t*math.Pi*2+waveOffset)*12)
-
-		segThick := thickness
-		if i == 0 {
-			segThick = thickness + 2 // Thicker head
-		} else if i == segments-1 {
-			segThick = thickness - 2 // Thinner tail
-		}
-
+		x, y, segThick := calculateSerpentSegment(i, segments, thickness, waveOffset)
 		common.FillCircle(img, x, y, segThick, bodyColor)
 
-		// Belly stripe
 		if i > 0 && i < segments-1 {
 			common.FillCircle(img, x, y, segThick-1, bellyColor)
 		}
 	}
+}
 
-	// Head details
-	headY := 10
+// calculateSerpentSegment computes position and thickness for a body segment.
+func calculateSerpentSegment(i, segments, thickness int, waveOffset float64) (x, y, segThick int) {
+	t := float64(i) / float64(segments-1)
+	y = 10 + int(t*44)
+	x = 32 + int(math.Sin(t*math.Pi*2+waveOffset)*12)
+	segThick = thickness
+
+	if i == 0 {
+		segThick = thickness + 2
+	} else if i == segments-1 {
+		segThick = thickness - 2
+	}
+
+	return x, y, segThick
+}
+
+// drawSerpentHead renders the serpent's head with eyes and tongue.
+func drawSerpentHead(img *image.RGBA, waveOffset float64, eyeColor color.RGBA, frame AnimFrame) {
 	headX := 32 + int(math.Sin(waveOffset)*12)
+	headY := 10
 
-	// Eyes
 	common.FillCircle(img, headX-2, headY, 1, eyeColor)
 	common.FillCircle(img, headX+2, headY, 1, eyeColor)
 
-	// Tongue (attack frame)
 	if frame == AnimFrameAttack {
-		common.DrawLine(img, headX, headY-2, headX, headY-8, color.RGBA{R: 200, G: 50, B: 50, A: 255}, 1)
+		tongueColor := color.RGBA{R: 200, G: 50, B: 50, A: 255}
+		common.DrawLine(img, headX, headY-2, headX, headY-8, tongueColor, 1)
+	}
+}
+
+// drawSerpentScales adds scale pattern detail to the serpent body.
+func drawSerpentScales(img *image.RGBA, waveOffset float64, bodyColor color.RGBA) {
+	segments := 12
+	darkerScale := color.RGBA{
+		R: bodyColor.R - 20,
+		G: bodyColor.G - 20,
+		B: bodyColor.B - 20,
+		A: 255,
 	}
 
-	// Scale pattern
 	for i := 1; i < segments-1; i++ {
-		t := float64(i) / float64(segments-1)
-		y := 10 + int(t*44)
-		x := 32 + int(math.Sin(t*math.Pi*2+waveOffset)*12)
-
 		if i%2 == 0 {
-			darker := color.RGBA{
-				R: bodyColor.R - 20,
-				G: bodyColor.G - 20,
-				B: bodyColor.B - 20,
-				A: 255,
-			}
-			common.FillCircle(img, x-2, y, 1, darker)
-			common.FillCircle(img, x+2, y, 1, darker)
+			t := float64(i) / float64(segments-1)
+			y := 10 + int(t*44)
+			x := 32 + int(math.Sin(t*math.Pi*2+waveOffset)*12)
+			common.FillCircle(img, x-2, y, 1, darkerScale)
+			common.FillCircle(img, x+2, y, 1, darkerScale)
 		}
 	}
 }
@@ -572,106 +593,119 @@ func generateFlyingCreature(img *image.RGBA, rng *rand.Rand, ctype CreatureType,
 
 // generateAmorphousCreature draws formless or semi-fluid creatures.
 func generateAmorphousCreature(img *image.RGBA, rng *rand.Rand, ctype CreatureType, frame AnimFrame) {
-	var coreColor, accentColor, glowColor color.RGBA
-	var wobble float64
+	coreColor, accentColor, glowColor, wobble := selectAmorphousColors(ctype)
+	centerX, centerY := 32, 32
+	pulsePhase := calculatePulsePhase(frame)
 
+	drawAmorphousBlobs(img, centerX, centerY, wobble, pulsePhase, coreColor, accentColor)
+	common.FillCircle(img, centerX, centerY, 8, glowColor)
+	drawTypeSpecificFeatures(img, ctype, centerX, centerY, wobble, pulsePhase, coreColor, accentColor)
+	drawAmorphousEyes(img, centerX, centerY, ctype)
+}
+
+// selectAmorphousColors returns color scheme and wobble for amorphous creature types.
+func selectAmorphousColors(ctype CreatureType) (core, accent, glow color.RGBA, wobble float64) {
 	switch ctype {
 	case CreatureSlime:
-		coreColor = color.RGBA{R: 80, G: 200, B: 100, A: 200}
-		accentColor = color.RGBA{R: 120, G: 240, B: 140, A: 180}
-		glowColor = color.RGBA{R: 160, G: 255, B: 180, A: 100}
-		wobble = 1.5
+		return color.RGBA{R: 80, G: 200, B: 100, A: 200},
+			color.RGBA{R: 120, G: 240, B: 140, A: 180},
+			color.RGBA{R: 160, G: 255, B: 180, A: 100},
+			1.5
 	case CreatureOoze:
-		coreColor = color.RGBA{R: 100, G: 80, B: 120, A: 220}
-		accentColor = color.RGBA{R: 140, G: 120, B: 160, A: 200}
-		glowColor = color.RGBA{R: 180, G: 160, B: 200, A: 120}
-		wobble = 1.2
+		return color.RGBA{R: 100, G: 80, B: 120, A: 220},
+			color.RGBA{R: 140, G: 120, B: 160, A: 200},
+			color.RGBA{R: 180, G: 160, B: 200, A: 120},
+			1.2
 	case CreatureElemental:
-		coreColor = color.RGBA{R: 200, G: 100, B: 60, A: 180}
-		accentColor = color.RGBA{R: 255, G: 140, B: 80, A: 140}
-		glowColor = color.RGBA{R: 255, G: 200, B: 100, A: 100}
-		wobble = 2.0
+		return color.RGBA{R: 200, G: 100, B: 60, A: 180},
+			color.RGBA{R: 255, G: 140, B: 80, A: 140},
+			color.RGBA{R: 255, G: 200, B: 100, A: 100},
+			2.0
 	default: // Wraith
-		coreColor = color.RGBA{R: 60, G: 60, B: 80, A: 150}
-		accentColor = color.RGBA{R: 100, G: 100, B: 140, A: 120}
-		glowColor = color.RGBA{R: 140, G: 140, B: 200, A: 80}
-		wobble = 1.8
+		return color.RGBA{R: 60, G: 60, B: 80, A: 150},
+			color.RGBA{R: 100, G: 100, B: 140, A: 120},
+			color.RGBA{R: 140, G: 140, B: 200, A: 80},
+			1.8
 	}
+}
 
-	centerX := 32
-	centerY := 32
-
-	// Animation pulse
-	pulsePhase := 0.0
+// calculatePulsePhase converts animation frame to pulse phase for animation.
+func calculatePulsePhase(frame AnimFrame) float64 {
 	if frame == AnimFrameWalk1 {
-		pulsePhase = 0.5
+		return 0.5
 	} else if frame == AnimFrameWalk2 {
-		pulsePhase = 1.0
+		return 1.0
 	}
+	return 0.0
+}
 
-	// Generate blob shape using multiple overlapping circles
+// drawAmorphousBlobs renders the main blob body with core and accent layers.
+func drawAmorphousBlobs(img *image.RGBA, centerX, centerY int, wobble, pulsePhase float64, coreColor, accentColor color.RGBA) {
 	numBlobs := 8
+
+	// Core layer
 	for i := 0; i < numBlobs; i++ {
 		angle := (float64(i) / float64(numBlobs)) * 2 * math.Pi
 		radius := 12.0 + wobble*math.Sin(angle*3+pulsePhase*math.Pi)
-
 		blobX := centerX + int(radius*0.6*math.Cos(angle))
 		blobY := centerY + int(radius*0.6*math.Sin(angle))
-		blobR := int(radius)
-
-		common.FillCircle(img, blobX, blobY, blobR, coreColor)
+		common.FillCircle(img, blobX, blobY, int(radius), coreColor)
 	}
 
-	// Accent layer (slightly smaller)
+	// Accent layer
 	for i := 0; i < numBlobs; i++ {
 		angle := (float64(i) / float64(numBlobs)) * 2 * math.Pi
 		radius := 10.0 + wobble*math.Sin(angle*3+pulsePhase*math.Pi)
-
 		blobX := centerX + int(radius*0.5*math.Cos(angle))
 		blobY := centerY + int(radius*0.5*math.Sin(angle))
-		blobR := int(radius * 0.8)
-
-		common.FillCircle(img, blobX, blobY, blobR, accentColor)
+		common.FillCircle(img, blobX, blobY, int(radius*0.8), accentColor)
 	}
+}
 
-	// Core glow
-	common.FillCircle(img, centerX, centerY, 8, glowColor)
-
-	// Type-specific features
+// drawTypeSpecificFeatures adds unique visual elements based on creature type.
+func drawTypeSpecificFeatures(img *image.RGBA, ctype CreatureType, centerX, centerY int, wobble, pulsePhase float64, coreColor, accentColor color.RGBA) {
 	if ctype == CreatureElemental {
-		// Flame-like tendrils
-		for i := 0; i < 6; i++ {
-			angle := (float64(i) / 6.0) * 2 * math.Pi
-			length := 10 + int(wobble*4*math.Sin(pulsePhase*math.Pi))
-
-			tendrilX := centerX + int(float64(length)*math.Cos(angle))
-			tendrilY := centerY + int(float64(length)*math.Sin(angle))
-
-			common.DrawLine(img, centerX, centerY, tendrilX, tendrilY, accentColor, 2)
-		}
+		drawElementalTendrils(img, centerX, centerY, wobble, pulsePhase, accentColor)
 	} else if ctype == CreatureWraith {
-		// Ghostly wispy trails
-		for i := 0; i < 4; i++ {
-			trailY := centerY + 12 + i*4
-			trailWidth := 8 - i
-			alpha := uint8(150 - i*30)
-
-			trailColor := color.RGBA{R: coreColor.R, G: coreColor.G, B: coreColor.B, A: alpha}
-			common.FillEllipse(img, centerX, trailY, trailWidth, 2, trailColor)
-		}
+		drawWraithTrails(img, centerX, centerY, coreColor)
 	}
+}
 
-	// Eyes (glowing orbs)
+// drawElementalTendrils renders flame-like tendrils for elemental creatures.
+func drawElementalTendrils(img *image.RGBA, centerX, centerY int, wobble, pulsePhase float64, accentColor color.RGBA) {
+	for i := 0; i < 6; i++ {
+		angle := (float64(i) / 6.0) * 2 * math.Pi
+		length := 10 + int(wobble*4*math.Sin(pulsePhase*math.Pi))
+		tendrilX := centerX + int(float64(length)*math.Cos(angle))
+		tendrilY := centerY + int(float64(length)*math.Sin(angle))
+		common.DrawLine(img, centerX, centerY, tendrilX, tendrilY, accentColor, 2)
+	}
+}
+
+// drawWraithTrails renders ghostly wispy trails for wraith creatures.
+func drawWraithTrails(img *image.RGBA, centerX, centerY int, coreColor color.RGBA) {
+	for i := 0; i < 4; i++ {
+		trailY := centerY + 12 + i*4
+		trailWidth := 8 - i
+		alpha := uint8(150 - i*30)
+		trailColor := color.RGBA{R: coreColor.R, G: coreColor.G, B: coreColor.B, A: alpha}
+		common.FillEllipse(img, centerX, trailY, trailWidth, 2, trailColor)
+	}
+}
+
+// drawAmorphousEyes renders glowing orb eyes based on creature type.
+func drawAmorphousEyes(img *image.RGBA, centerX, centerY int, ctype CreatureType) {
 	eyeY := centerY - 4
 	eyeGlow := color.RGBA{R: 255, G: 255, B: 100, A: 200}
 	if ctype == CreatureWraith {
 		eyeGlow = color.RGBA{R: 100, G: 255, B: 255, A: 200}
 	}
 
+	pupilColor := color.RGBA{R: 50, G: 50, B: 50, A: 255}
 	common.FillCircle(img, centerX-4, eyeY, 3, eyeGlow)
 	common.FillCircle(img, centerX+4, eyeY, 3, eyeGlow)
-	common.FillCircle(img, centerX-4, eyeY, 2, color.RGBA{R: 50, G: 50, B: 50, A: 255})
-	common.FillCircle(img, centerX+4, eyeY, 2, color.RGBA{R: 50, G: 50, B: 50, A: 255})
+	common.FillCircle(img, centerX-4, eyeY, 2, pupilColor)
+	common.FillCircle(img, centerX+4, eyeY, 2, pupilColor)
 }
 
 // generateSimpleHumanoid is a fallback for unknown creature types.
