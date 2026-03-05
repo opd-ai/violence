@@ -346,6 +346,9 @@ type Game struct {
 
 	// Wall texture variation system for enhanced environmental visuals
 	wallTexSystem *walltex.System
+
+	// Particle rendering system for enhanced particle shape and visual variety
+	particleRenderer *particle.RendererSystem
 }
 
 // NewGame creates and initializes a new game instance.
@@ -511,6 +514,9 @@ func NewGame() *Game {
 	// Initialize wall texture variation system for procedural wall detail
 	g.wallTexSystem = walltex.NewSystem(g.genreID, 200)
 
+	// Initialize particle rendering system for enhanced particle visuals
+	g.particleRenderer = particle.NewRendererSystem()
+
 	// Connect sliding system to spatial index
 	g.slidingSystem.SetSpatialIndex(g.spatialSystem.GetGrid())
 
@@ -631,6 +637,9 @@ func NewGame() *Game {
 
 	// Register wall texture variation system with the World
 	g.world.AddSystem(g.wallTexSystem)
+
+	// Register particle rendering system with the World
+	g.world.AddSystem(g.particleRenderer)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
@@ -4360,7 +4369,7 @@ func (g *Game) renderHitFlashOverlay(screen *ebiten.Image) {
 	}
 }
 
-// renderParticles draws particles as simple colored pixels (placeholder implementation).
+// renderParticles draws particles with enhanced visual shapes and effects.
 func (g *Game) renderParticles(screen *ebiten.Image) {
 	// Use optimized visible particles query with frustum culling
 	const maxDistSq = 400.0
@@ -4370,18 +4379,23 @@ func (g *Game) renderParticles(screen *ebiten.Image) {
 		maxDistSq,
 	)
 
-	for _, p := range particles {
+	renderer := g.particleRenderer.GetRenderer()
+
+	for i := range particles {
+		p := &particles[i]
 		dx := p.X - g.camera.X
 		dy := p.Y - g.camera.Y
 
 		// Project to screen space
-		screenX := config.C.InternalWidth/2 + int(dx*10)
-		screenY := config.C.InternalHeight/2 + int(dy*10)
+		screenX := float32(config.C.InternalWidth/2) + float32(dx*10)
+		screenY := float32(config.C.InternalHeight/2) + float32(dy*10)
 
-		// Screen bounds check
-		if screenX >= 0 && screenX < config.C.InternalWidth && screenY >= 0 && screenY < config.C.InternalHeight {
-			particleColor := color.RGBA{R: p.R, G: p.G, B: p.B, A: p.A}
-			vector.DrawFilledRect(screen, float32(screenX), float32(screenY), 2, 2, particleColor, false)
+		// Screen bounds check with margin for larger particles
+		const margin = 20.0
+		if screenX >= -margin && screenX < float32(config.C.InternalWidth)+margin &&
+			screenY >= -margin && screenY < float32(config.C.InternalHeight)+margin {
+			// Use enhanced particle renderer
+			renderer.RenderParticle(screen, p, screenX, screenY, g.genreID)
 		}
 	}
 }
