@@ -758,3 +758,114 @@ func TestAtomicWrite_OverwritesExisting(t *testing.T) {
 		t.Errorf("second load Genre = %s, want scifi", loaded2.Genre)
 	}
 }
+
+// TestVersionValidation tests that Load() validates save file version.
+func TestVersionValidation(t *testing.T) {
+	_, cleanup := setupTestDir(t)
+	defer cleanup()
+
+	tests := []struct {
+		name        string
+		saveData    string
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name: "valid version 1.0",
+			saveData: `{
+				"version": "1.0",
+				"seed": 123,
+				"timestamp": "2024-01-01T00:00:00Z",
+				"player": {"x": 0, "y": 0, "dir_x": 1, "dir_y": 0, "pitch": 0, "health": 100, "armor": 0, "ammo": 0},
+				"map": {"width": 10, "height": 10, "tiles": []},
+				"inventory": {"items": []},
+				"genre": "fantasy",
+				"progression": {"level": 1, "xp": 0},
+				"keycards": {},
+				"ammo_pool": {}
+			}`,
+			wantErr: false,
+		},
+		{
+			name: "incompatible version 2.0",
+			saveData: `{
+				"version": "2.0",
+				"seed": 123,
+				"timestamp": "2024-01-01T00:00:00Z",
+				"player": {"x": 0, "y": 0, "dir_x": 1, "dir_y": 0, "pitch": 0, "health": 100, "armor": 0, "ammo": 0},
+				"map": {"width": 10, "height": 10, "tiles": []},
+				"inventory": {"items": []},
+				"genre": "fantasy",
+				"progression": {"level": 1, "xp": 0},
+				"keycards": {},
+				"ammo_pool": {}
+			}`,
+			wantErr:     true,
+			errContains: "incompatible",
+		},
+		{
+			name: "missing version field",
+			saveData: `{
+				"seed": 123,
+				"timestamp": "2024-01-01T00:00:00Z",
+				"player": {"x": 0, "y": 0, "dir_x": 1, "dir_y": 0, "pitch": 0, "health": 100, "armor": 0, "ammo": 0},
+				"map": {"width": 10, "height": 10, "tiles": []},
+				"inventory": {"items": []},
+				"genre": "fantasy",
+				"progression": {"level": 1, "xp": 0},
+				"keycards": {},
+				"ammo_pool": {}
+			}`,
+			wantErr:     true,
+			errContains: "missing version",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			slotPath, err := getSlotPath(4)
+			if err != nil {
+				t.Fatalf("getSlotPath failed: %v", err)
+			}
+
+			if err := os.WriteFile(slotPath, []byte(tt.saveData), 0o644); err != nil {
+				t.Fatalf("failed to write test save file: %v", err)
+			}
+
+			_, err = Load(4)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Load() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			if tt.wantErr && tt.errContains != "" && !strings.Contains(err.Error(), tt.errContains) {
+				t.Errorf("Load() error = %v, should contain %q", err, tt.errContains)
+			}
+
+			os.Remove(slotPath)
+		})
+	}
+}
+
+// TestValidateVersion tests the validateVersion function directly.
+func TestValidateVersion(t *testing.T) {
+	tests := []struct {
+		name    string
+		version string
+		wantErr bool
+	}{
+		{"valid current version", CurrentVersion, false},
+		{"empty version", "", true},
+		{"future version", "2.0", true},
+		{"old version", "0.9", true},
+		{"invalid format", "abc", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateVersion(tt.version)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("validateVersion(%q) error = %v, wantErr %v", tt.version, err, tt.wantErr)
+			}
+		})
+	}
+}

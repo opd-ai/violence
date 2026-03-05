@@ -12,13 +12,15 @@ import (
 )
 
 const (
-	AutoSaveSlot = 0
-	MaxSlots     = 10
+	AutoSaveSlot   = 0
+	MaxSlots       = 10
+	CurrentVersion = "1.0"
 )
 
 var (
-	ErrInvalidSlot = errors.New("invalid save slot")
-	ErrSlotEmpty   = errors.New("save slot is empty")
+	ErrInvalidSlot         = errors.New("invalid save slot")
+	ErrSlotEmpty           = errors.New("save slot is empty")
+	ErrIncompatibleVersion = errors.New("save file version is incompatible with current game version")
 )
 
 // GameState represents the complete serializable game state.
@@ -143,7 +145,7 @@ func Save(slot int, state *GameState) error {
 		return err
 	}
 
-	state.Version = "1.0"
+	state.Version = CurrentVersion
 	state.Timestamp = time.Now()
 
 	data, err := json.MarshalIndent(state, "", "  ")
@@ -152,6 +154,18 @@ func Save(slot int, state *GameState) error {
 	}
 
 	return atomicWrite(slotPath, data)
+}
+
+// validateVersion checks if the save file version is compatible with the current game version.
+func validateVersion(saveVersion string) error {
+	if saveVersion == "" {
+		return fmt.Errorf("save file missing version field")
+	}
+	if saveVersion != CurrentVersion {
+		return fmt.Errorf("%w: save is version %s, game requires version %s",
+			ErrIncompatibleVersion, saveVersion, CurrentVersion)
+	}
+	return nil
 }
 
 // atomicWrite writes data to path atomically using temp file + rename.
@@ -211,6 +225,11 @@ func Load(slot int) (*GameState, error) {
 	var state GameState
 	if err := json.Unmarshal(data, &state); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal game state: %w", err)
+	}
+
+	// Validate save version compatibility
+	if err := validateVersion(state.Version); err != nil {
+		return nil, err
 	}
 
 	return &state, nil
