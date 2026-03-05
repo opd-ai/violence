@@ -31,6 +31,7 @@ import (
 	"github.com/opd-ai/violence/pkg/config"
 	"github.com/opd-ai/violence/pkg/corpse"
 	"github.com/opd-ai/violence/pkg/crafting"
+	"github.com/opd-ai/violence/pkg/damagenumber"
 	"github.com/opd-ai/violence/pkg/damagestate"
 	"github.com/opd-ai/violence/pkg/decal"
 	"github.com/opd-ai/violence/pkg/decoration"
@@ -349,6 +350,12 @@ type Game struct {
 
 	// Particle rendering system for enhanced particle shape and visual variety
 	particleRenderer *particle.RendererSystem
+
+	// Floating damage number system for combat feedback
+	damageNumberSystem *damagenumber.System
+
+	// Weapon visual enhancement system for material-based rendering
+	weaponVisualSystem *weapon.VisualSystem
 }
 
 // NewGame creates and initializes a new game instance.
@@ -517,6 +524,12 @@ func NewGame() *Game {
 	// Initialize particle rendering system for enhanced particle visuals
 	g.particleRenderer = particle.NewRendererSystem()
 
+	// Initialize floating damage number system for combat feedback
+	g.damageNumberSystem = damagenumber.NewSystem(g.genreID)
+
+	// Initialize weapon visual enhancement system for material-based rendering
+	g.weaponVisualSystem = weapon.NewVisualSystem()
+
 	// Connect sliding system to spatial index
 	g.slidingSystem.SetSpatialIndex(g.spatialSystem.GetGrid())
 
@@ -640,6 +653,12 @@ func NewGame() *Game {
 
 	// Register particle rendering system with the World
 	g.world.AddSystem(g.particleRenderer)
+
+	// Register floating damage number system with the World
+	g.world.AddSystem(g.damageNumberSystem)
+
+	// Register weapon visual enhancement system with the World
+	g.world.AddSystem(g.weaponVisualSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
@@ -4339,6 +4358,9 @@ func (g *Game) renderCombatEffects(screen *ebiten.Image, camX, camY float64) {
 	}
 	if g.healthBarSystem != nil {
 		g.healthBarSystem.RenderHealthBars(screen, g.world, camX, camY, g.camera.DirX, g.camera.DirY, config.C.InternalWidth, config.C.InternalHeight)
+	}
+	if g.damageNumberSystem != nil {
+		g.damageNumberSystem.Render(g.world, screen, camX, camY)
 	}
 }
 
