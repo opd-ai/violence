@@ -629,76 +629,103 @@ func applyDamageState(img *image.RGBA, damage DamageState, rng *rand.Rand) {
 		return
 	}
 
-	bounds := img.Bounds()
-
 	switch damage {
 	case DamageScratched:
-		// Add small scratches
-		numScratches := 5 + rng.Intn(8)
-		for i := 0; i < numScratches; i++ {
-			x := bounds.Min.X + rng.Intn(bounds.Dx())
-			y := bounds.Min.Y + rng.Intn(bounds.Dy())
-			length := 3 + rng.Intn(5)
-			angle := rng.Float64() * math.Pi * 2
-
-			for j := 0; j < length; j++ {
-				sx := x + int(float64(j)*math.Cos(angle))
-				sy := y + int(float64(j)*math.Sin(angle))
-				if sx >= bounds.Min.X && sx < bounds.Max.X && sy >= bounds.Min.Y && sy < bounds.Max.Y {
-					r, g, b, a := img.At(sx, sy).RGBA()
-					if a > 32768 {
-						img.Set(sx, sy, color.RGBA{
-							R: uint8((r >> 8) * 9 / 10),
-							G: uint8((g >> 8) * 9 / 10),
-							B: uint8((b >> 8) * 9 / 10),
-							A: uint8(a >> 8),
-						})
-					}
-				}
-			}
-		}
-
+		applyScratches(img, rng)
 	case DamageWorn:
-		// Significant wear - darken overall
-		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-			for x := bounds.Min.X; x < bounds.Max.X; x++ {
-				r, g, b, a := img.At(x, y).RGBA()
-				if a > 32768 {
-					img.Set(x, y, color.RGBA{
-						R: uint8((r >> 8) * 8 / 10),
-						G: uint8((g >> 8) * 8 / 10),
-						B: uint8((b >> 8) * 8 / 10),
-						A: uint8(a >> 8),
-					})
-				}
-			}
-		}
-
-		// Add rust spots or tarnish
-		numSpots := 8 + rng.Intn(10)
-		rustCol := color.RGBA{R: 120, G: 60, B: 30, A: 255}
-		for i := 0; i < numSpots; i++ {
-			x := bounds.Min.X + rng.Intn(bounds.Dx())
-			y := bounds.Min.Y + rng.Intn(bounds.Dy())
-			common.FillCircle(img, x, y, 1+rng.Intn(2), rustCol)
-		}
-
+		applyWornEffects(img, rng)
 	case DamageBroken:
-		// Cracks and severe damage
-		numCracks := 3 + rng.Intn(4)
-		for i := 0; i < numCracks; i++ {
-			x := bounds.Min.X + rng.Intn(bounds.Dx())
-			y := bounds.Min.Y + rng.Intn(bounds.Dy())
-			length := 10 + rng.Intn(20)
-			angle := rng.Float64() * math.Pi * 2
+		applyBrokenCracks(img, rng)
+	}
+}
 
-			for j := 0; j < length; j++ {
-				cx := x + int(float64(j)*math.Cos(angle))
-				cy := y + int(float64(j)*math.Sin(angle))
-				if cx >= bounds.Min.X && cx < bounds.Max.X && cy >= bounds.Min.Y && cy < bounds.Max.Y {
-					img.Set(cx, cy, color.RGBA{R: 20, G: 20, B: 20, A: 255})
-				}
-			}
+// applyScratches adds small scratches to the weapon surface.
+func applyScratches(img *image.RGBA, rng *rand.Rand) {
+	bounds := img.Bounds()
+	numScratches := 5 + rng.Intn(8)
+	for i := 0; i < numScratches; i++ {
+		drawScratchLine(img, bounds, rng)
+	}
+}
+
+// drawScratchLine renders a single scratch line on the weapon.
+func drawScratchLine(img *image.RGBA, bounds image.Rectangle, rng *rand.Rand) {
+	x := bounds.Min.X + rng.Intn(bounds.Dx())
+	y := bounds.Min.Y + rng.Intn(bounds.Dy())
+	length := 3 + rng.Intn(5)
+	angle := rng.Float64() * math.Pi * 2
+
+	for j := 0; j < length; j++ {
+		sx := x + int(float64(j)*math.Cos(angle))
+		sy := y + int(float64(j)*math.Sin(angle))
+		if sx >= bounds.Min.X && sx < bounds.Max.X && sy >= bounds.Min.Y && sy < bounds.Max.Y {
+			darkenPixel(img, sx, sy, 9, 10)
+		}
+	}
+}
+
+// darkenPixel darkens a pixel by the specified ratio if it's not transparent.
+func darkenPixel(img *image.RGBA, x, y int, numerator, denominator uint8) {
+	r, g, b, a := img.At(x, y).RGBA()
+	if a > 32768 {
+		img.Set(x, y, color.RGBA{
+			R: uint8((r >> 8) * uint32(numerator) / uint32(denominator)),
+			G: uint8((g >> 8) * uint32(numerator) / uint32(denominator)),
+			B: uint8((b >> 8) * uint32(numerator) / uint32(denominator)),
+			A: uint8(a >> 8),
+		})
+	}
+}
+
+// applyWornEffects applies wear and rust effects to the weapon.
+func applyWornEffects(img *image.RGBA, rng *rand.Rand) {
+	darkenEntireImage(img)
+	addRustSpots(img, rng)
+}
+
+// darkenEntireImage darkens all non-transparent pixels to simulate wear.
+func darkenEntireImage(img *image.RGBA) {
+	bounds := img.Bounds()
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			darkenPixel(img, x, y, 8, 10)
+		}
+	}
+}
+
+// addRustSpots adds rust spots or tarnish to the weapon surface.
+func addRustSpots(img *image.RGBA, rng *rand.Rand) {
+	bounds := img.Bounds()
+	numSpots := 8 + rng.Intn(10)
+	rustCol := color.RGBA{R: 120, G: 60, B: 30, A: 255}
+	for i := 0; i < numSpots; i++ {
+		x := bounds.Min.X + rng.Intn(bounds.Dx())
+		y := bounds.Min.Y + rng.Intn(bounds.Dy())
+		common.FillCircle(img, x, y, 1+rng.Intn(2), rustCol)
+	}
+}
+
+// applyBrokenCracks adds severe cracks and damage to the weapon.
+func applyBrokenCracks(img *image.RGBA, rng *rand.Rand) {
+	bounds := img.Bounds()
+	numCracks := 3 + rng.Intn(4)
+	for i := 0; i < numCracks; i++ {
+		drawCrackLine(img, bounds, rng)
+	}
+}
+
+// drawCrackLine renders a single crack line on the weapon.
+func drawCrackLine(img *image.RGBA, bounds image.Rectangle, rng *rand.Rand) {
+	x := bounds.Min.X + rng.Intn(bounds.Dx())
+	y := bounds.Min.Y + rng.Intn(bounds.Dy())
+	length := 10 + rng.Intn(20)
+	angle := rng.Float64() * math.Pi * 2
+
+	for j := 0; j < length; j++ {
+		cx := x + int(float64(j)*math.Cos(angle))
+		cy := y + int(float64(j)*math.Sin(angle))
+		if cx >= bounds.Min.X && cx < bounds.Max.X && cy >= bounds.Min.Y && cy < bounds.Max.Y {
+			img.Set(cx, cy, color.RGBA{R: 20, G: 20, B: 20, A: 255})
 		}
 	}
 }

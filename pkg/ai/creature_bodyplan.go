@@ -216,103 +216,170 @@ func generateQuadrupedCreature(img *image.RGBA, rng *rand.Rand, ctype CreatureTy
 
 // generateInsectCreature draws multi-legged arthropod creatures.
 func generateInsectCreature(img *image.RGBA, rng *rand.Rand, ctype CreatureType, frame AnimFrame) {
-	var bodyColor, shellColor, eyeColor color.RGBA
-	var legCount int
-
-	switch ctype {
-	case CreatureSpider:
-		bodyColor = color.RGBA{R: 40, G: 30, B: 35, A: 255}
-		shellColor = color.RGBA{R: 60, G: 50, B: 55, A: 255}
-		eyeColor = color.RGBA{R: 255, G: 0, B: 0, A: 255}
-		legCount = 8
-	case CreatureBeetle:
-		bodyColor = color.RGBA{R: 20, G: 60, B: 40, A: 255}
-		shellColor = color.RGBA{R: 30, G: 100, B: 60, A: 255}
-		eyeColor = color.RGBA{R: 200, G: 200, B: 50, A: 255}
-		legCount = 6
-	case CreatureMantis:
-		bodyColor = color.RGBA{R: 80, G: 140, B: 60, A: 255}
-		shellColor = color.RGBA{R: 100, G: 160, B: 80, A: 255}
-		eyeColor = color.RGBA{R: 255, G: 255, B: 100, A: 255}
-		legCount = 6
-	case CreatureScorpion:
-		bodyColor = color.RGBA{R: 140, G: 100, B: 60, A: 255}
-		shellColor = color.RGBA{R: 160, G: 120, B: 80, A: 255}
-		eyeColor = color.RGBA{R: 100, G: 50, B: 0, A: 255}
-		legCount = 8
-	default: // Ant
-		bodyColor = color.RGBA{R: 100, G: 40, B: 40, A: 255}
-		shellColor = color.RGBA{R: 120, G: 60, B: 60, A: 255}
-		eyeColor = color.RGBA{R: 50, G: 50, B: 50, A: 255}
-		legCount = 6
-	}
+	colors := selectInsectColors(ctype)
+	legCount := selectLegCount(ctype)
 
 	centerX := 32
 	centerY := 32
 
-	// Draw legs (radiating from center)
-	legAngleOffset := 0.0
-	if frame == AnimFrameWalk1 {
-		legAngleOffset = 0.2
-	} else if frame == AnimFrameWalk2 {
-		legAngleOffset = -0.2
+	drawInsectLegsAnimated(img, centerX, centerY, legCount, frame, colors.body)
+	drawInsectBodyByType(img, centerX, centerY, ctype, frame, colors.body, colors.shell)
+	drawInsectEyes(img, centerX, centerY, ctype, colors.eye)
+}
+
+// insectColors holds the color scheme for an insect creature.
+type insectColors struct {
+	body  color.RGBA
+	shell color.RGBA
+	eye   color.RGBA
+}
+
+// selectInsectColors returns the color scheme for a specific insect type.
+func selectInsectColors(ctype CreatureType) insectColors {
+	switch ctype {
+	case CreatureSpider:
+		return insectColors{
+			body:  color.RGBA{R: 40, G: 30, B: 35, A: 255},
+			shell: color.RGBA{R: 60, G: 50, B: 55, A: 255},
+			eye:   color.RGBA{R: 255, G: 0, B: 0, A: 255},
+		}
+	case CreatureBeetle:
+		return insectColors{
+			body:  color.RGBA{R: 20, G: 60, B: 40, A: 255},
+			shell: color.RGBA{R: 30, G: 100, B: 60, A: 255},
+			eye:   color.RGBA{R: 200, G: 200, B: 50, A: 255},
+		}
+	case CreatureMantis:
+		return insectColors{
+			body:  color.RGBA{R: 80, G: 140, B: 60, A: 255},
+			shell: color.RGBA{R: 100, G: 160, B: 80, A: 255},
+			eye:   color.RGBA{R: 255, G: 255, B: 100, A: 255},
+		}
+	case CreatureScorpion:
+		return insectColors{
+			body:  color.RGBA{R: 140, G: 100, B: 60, A: 255},
+			shell: color.RGBA{R: 160, G: 120, B: 80, A: 255},
+			eye:   color.RGBA{R: 100, G: 50, B: 0, A: 255},
+		}
+	default: // Ant
+		return insectColors{
+			body:  color.RGBA{R: 100, G: 40, B: 40, A: 255},
+			shell: color.RGBA{R: 120, G: 60, B: 60, A: 255},
+			eye:   color.RGBA{R: 50, G: 50, B: 50, A: 255},
+		}
 	}
+}
+
+// selectLegCount returns the number of legs for a specific insect type.
+func selectLegCount(ctype CreatureType) int {
+	if ctype == CreatureSpider || ctype == CreatureScorpion {
+		return 8
+	}
+	return 6
+}
+
+// drawInsectLegsAnimated renders animated legs radiating from the center.
+func drawInsectLegsAnimated(img *image.RGBA, centerX, centerY, legCount int, frame AnimFrame, bodyColor color.RGBA) {
+	legAngleOffset := calculateLegAngleOffset(frame)
 
 	for i := 0; i < legCount; i++ {
 		angle := (float64(i) / float64(legCount)) * 2 * math.Pi
-		side := 1
-		if i >= legCount/2 {
-			side = -1
-		}
+		side := calculateLegSide(i, legCount)
 		angle += legAngleOffset * float64(side)
 
-		// Leg segments
-		segment1X := centerX + int(8*math.Cos(angle))
-		segment1Y := centerY + int(8*math.Sin(angle))
-		segment2X := centerX + int(16*math.Cos(angle))
-		segment2Y := centerY + int(16*math.Sin(angle))
+		drawInsectLeg(img, centerX, centerY, angle, bodyColor)
+	}
+}
 
-		common.DrawLine(img, centerX, centerY, segment1X, segment1Y, bodyColor, 2)
-		common.DrawLine(img, segment1X, segment1Y, segment2X, segment2Y, bodyColor, 1)
+// calculateLegAngleOffset returns the leg animation offset for the current frame.
+func calculateLegAngleOffset(frame AnimFrame) float64 {
+	if frame == AnimFrameWalk1 {
+		return 0.2
+	}
+	if frame == AnimFrameWalk2 {
+		return -0.2
+	}
+	return 0.0
+}
+
+// calculateLegSide determines which side of the body a leg is on.
+func calculateLegSide(legIndex, legCount int) int {
+	if legIndex >= legCount/2 {
+		return -1
+	}
+	return 1
+}
+
+// drawInsectLeg renders a single two-segment insect leg.
+func drawInsectLeg(img *image.RGBA, centerX, centerY int, angle float64, bodyColor color.RGBA) {
+	segment1X := centerX + int(8*math.Cos(angle))
+	segment1Y := centerY + int(8*math.Sin(angle))
+	segment2X := centerX + int(16*math.Cos(angle))
+	segment2Y := centerY + int(16*math.Sin(angle))
+
+	common.DrawLine(img, centerX, centerY, segment1X, segment1Y, bodyColor, 2)
+	common.DrawLine(img, segment1X, segment1Y, segment2X, segment2Y, bodyColor, 1)
+}
+
+// drawInsectBodyByType renders the body shape specific to each insect type.
+func drawInsectBodyByType(img *image.RGBA, centerX, centerY int, ctype CreatureType, frame AnimFrame, bodyColor, shellColor color.RGBA) {
+	switch ctype {
+	case CreatureSpider:
+		drawSpiderBody(img, centerX, centerY, bodyColor, shellColor)
+	case CreatureMantis:
+		drawMantisBody(img, centerX, centerY, frame, bodyColor, shellColor)
+	default:
+		drawSegmentedBody(img, centerX, centerY, ctype, bodyColor, shellColor)
+	}
+}
+
+// drawSpiderBody renders a spider's round abdomen and cephalothorax.
+func drawSpiderBody(img *image.RGBA, centerX, centerY int, bodyColor, shellColor color.RGBA) {
+	common.FillCircle(img, centerX, centerY+4, 10, bodyColor)
+	common.FillCircle(img, centerX, centerY+4, 8, shellColor)
+	common.FillCircle(img, centerX, centerY-6, 6, bodyColor)
+}
+
+// drawMantisBody renders a mantis with elongated thorax and triangular head.
+func drawMantisBody(img *image.RGBA, centerX, centerY int, frame AnimFrame, bodyColor, shellColor color.RGBA) {
+	common.FillEllipse(img, centerX, centerY, 6, 12, bodyColor)
+	common.FillEllipse(img, centerX, centerY, 5, 10, shellColor)
+	common.FillTriangle(img, centerX, centerY-12, centerX-4, centerY-6, centerX+4, centerY-6, bodyColor)
+
+	if frame == AnimFrameAttack {
+		common.DrawLine(img, centerX-6, centerY-6, centerX-12, centerY-16, shellColor, 2)
+		common.DrawLine(img, centerX+6, centerY-6, centerX+12, centerY-16, shellColor, 2)
+	}
+}
+
+// drawSegmentedBody renders a segmented body for beetles, ants, and scorpions.
+func drawSegmentedBody(img *image.RGBA, centerX, centerY int, ctype CreatureType, bodyColor, shellColor color.RGBA) {
+	common.FillCircle(img, centerX, centerY-8, 5, bodyColor)
+	common.FillEllipse(img, centerX, centerY, 7, 8, shellColor)
+	common.FillEllipse(img, centerX, centerY+10, 8, 10, bodyColor)
+
+	if ctype == CreatureScorpion {
+		drawScorpionTail(img, centerX, centerY)
+	}
+}
+
+// drawScorpionTail renders a scorpion's tail with stinger.
+func drawScorpionTail(img *image.RGBA, centerX, centerY int) {
+	tailSegments := 5
+	bodyColor := color.RGBA{R: 140, G: 100, B: 60, A: 255}
+
+	for i := 0; i < tailSegments; i++ {
+		segY := centerY + 20 + i*3
+		segSize := 4 - i/2
+		common.FillCircle(img, centerX, segY, segSize, bodyColor)
 	}
 
-	// Main body (top-down view: head, thorax, abdomen)
-	if ctype == CreatureSpider {
-		// Spider: round abdomen, small cephalothorax
-		common.FillCircle(img, centerX, centerY+4, 10, bodyColor)
-		common.FillCircle(img, centerX, centerY+4, 8, shellColor)
-		common.FillCircle(img, centerX, centerY-6, 6, bodyColor)
-	} else if ctype == CreatureMantis {
-		// Mantis: elongated thorax, triangular head
-		common.FillEllipse(img, centerX, centerY, 6, 12, bodyColor)
-		common.FillEllipse(img, centerX, centerY, 5, 10, shellColor)
-		common.FillTriangle(img, centerX, centerY-12, centerX-4, centerY-6, centerX+4, centerY-6, bodyColor)
-		// Raptorial forelegs (attack pose)
-		if frame == AnimFrameAttack {
-			common.DrawLine(img, centerX-6, centerY-6, centerX-12, centerY-16, shellColor, 2)
-			common.DrawLine(img, centerX+6, centerY-6, centerX+12, centerY-16, shellColor, 2)
-		}
-	} else {
-		// Beetle/Ant/Scorpion: segmented body
-		common.FillCircle(img, centerX, centerY-8, 5, bodyColor)       // Head
-		common.FillEllipse(img, centerX, centerY, 7, 8, shellColor)    // Thorax
-		common.FillEllipse(img, centerX, centerY+10, 8, 10, bodyColor) // Abdomen
+	stingerY := centerY + 20 + tailSegments*3
+	common.FillTriangle(img, centerX, stingerY, centerX-3, stingerY+4, centerX+3, stingerY+4, color.RGBA{R: 200, G: 200, B: 50, A: 255})
+}
 
-		if ctype == CreatureScorpion {
-			// Scorpion tail with stinger
-			tailSegments := 5
-			for i := 0; i < tailSegments; i++ {
-				segY := centerY + 20 + i*3
-				segSize := 4 - i/2
-				common.FillCircle(img, centerX, segY, segSize, bodyColor)
-			}
-			// Stinger
-			stingerY := centerY + 20 + tailSegments*3
-			common.FillTriangle(img, centerX, stingerY, centerX-3, stingerY+4, centerX+3, stingerY+4, color.RGBA{R: 200, G: 200, B: 50, A: 255})
-		}
-	}
-
-	// Eyes (multiple for spiders)
+// drawInsectEyes renders eyes appropriate for the insect type.
+func drawInsectEyes(img *image.RGBA, centerX, centerY int, ctype CreatureType, eyeColor color.RGBA) {
 	if ctype == CreatureSpider {
 		common.FillCircle(img, centerX-3, centerY-8, 1, eyeColor)
 		common.FillCircle(img, centerX-1, centerY-8, 1, eyeColor)

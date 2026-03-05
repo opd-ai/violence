@@ -309,56 +309,76 @@ func (sys *System) renderHorrorDamage(rgba *image.RGBA, comp *Component, size in
 
 // renderCyberpunkDamage renders neon glitches and circuit damage.
 func (sys *System) renderCyberpunkDamage(rgba *image.RGBA, comp *Component, size int, rng *rand.Rand) {
+	sys.renderCircuitCracks(rgba, comp, size, rng)
+	if comp.DamageLevel >= 3 {
+		sys.renderGlitchBlocks(rgba, size, rng)
+	}
+}
+
+// renderCircuitCracks draws neon circuit cracks on the damaged surface.
+func (sys *System) renderCircuitCracks(rgba *image.RGBA, comp *Component, size int, rng *rand.Rand) {
 	neonPink := color.RGBA{R: 255, G: 0, B: 128, A: 200}
 	neonCyan := color.RGBA{R: 0, G: 255, B: 255, A: 200}
 	darkGray := color.RGBA{R: 30, G: 30, B: 35, A: 180}
 
-	// Render cracked armor/circuitry
 	crackCount := comp.DamageLevel * 2
 	for i := 0; i < crackCount; i++ {
-		startX := rng.Intn(size)
-		startY := rng.Intn(size)
-		angle := rng.Float64() * 2 * math.Pi
-		length := 3 + rng.Intn(size/4)
+		neonColor := selectNeonColor(neonPink, neonCyan, rng)
+		drawNeonCrack(rgba, size, neonColor, darkGray, rng)
+	}
+}
 
-		neonColor := neonPink
-		if rng.Float64() < 0.5 {
-			neonColor = neonCyan
-		}
+// selectNeonColor randomly chooses between pink and cyan neon colors.
+func selectNeonColor(pink, cyan color.RGBA, rng *rand.Rand) color.RGBA {
+	if rng.Float64() < 0.5 {
+		return cyan
+	}
+	return pink
+}
 
-		for j := 0; j < length; j++ {
-			x := startX + int(float64(j)*math.Cos(angle))
-			y := startY + int(float64(j)*math.Sin(angle))
-			if x >= 0 && x < size && y >= 0 && y < size {
-				if j%2 == 0 {
-					rgba.Set(x, y, neonColor)
-				} else {
-					rgba.Set(x, y, darkGray)
-				}
+// drawNeonCrack renders a single neon crack line with alternating colors.
+func drawNeonCrack(rgba *image.RGBA, size int, neonColor, darkColor color.RGBA, rng *rand.Rand) {
+	startX := rng.Intn(size)
+	startY := rng.Intn(size)
+	angle := rng.Float64() * 2 * math.Pi
+	length := 3 + rng.Intn(size/4)
+
+	for j := 0; j < length; j++ {
+		x := startX + int(float64(j)*math.Cos(angle))
+		y := startY + int(float64(j)*math.Sin(angle))
+		if x >= 0 && x < size && y >= 0 && y < size {
+			if j%2 == 0 {
+				rgba.Set(x, y, neonColor)
+			} else {
+				rgba.Set(x, y, darkColor)
 			}
 		}
 	}
+}
 
-	// Add glitch blocks for critical damage
-	if comp.DamageLevel >= 3 {
-		glitchCount := 2 + rng.Intn(2)
-		for i := 0; i < glitchCount; i++ {
-			x := rng.Intn(size - 4)
-			y := rng.Intn(size - 4)
-			w := 2 + rng.Intn(3)
-			h := 2 + rng.Intn(3)
+// renderGlitchBlocks draws glitchy rectangular blocks for critical damage.
+func (sys *System) renderGlitchBlocks(rgba *image.RGBA, size int, rng *rand.Rand) {
+	neonPink := color.RGBA{R: 255, G: 0, B: 128, A: 200}
+	neonCyan := color.RGBA{R: 0, G: 255, B: 255, A: 200}
 
-			glitchColor := neonPink
-			if rng.Float64() < 0.5 {
-				glitchColor = neonCyan
-			}
+	glitchCount := 2 + rng.Intn(2)
+	for i := 0; i < glitchCount; i++ {
+		glitchColor := selectNeonColor(neonPink, neonCyan, rng)
+		drawGlitchBlock(rgba, size, glitchColor, rng)
+	}
+}
 
-			for dy := 0; dy < h; dy++ {
-				for dx := 0; dx < w; dx++ {
-					if x+dx < size && y+dy < size {
-						rgba.Set(x+dx, y+dy, glitchColor)
-					}
-				}
+// drawGlitchBlock renders a single rectangular glitch block.
+func drawGlitchBlock(rgba *image.RGBA, size int, glitchColor color.RGBA, rng *rand.Rand) {
+	x := rng.Intn(size - 4)
+	y := rng.Intn(size - 4)
+	w := 2 + rng.Intn(3)
+	h := 2 + rng.Intn(3)
+
+	for dy := 0; dy < h; dy++ {
+		for dx := 0; dx < w; dx++ {
+			if x+dx < size && y+dy < size {
+				rgba.Set(x+dx, y+dy, glitchColor)
 			}
 		}
 	}

@@ -285,62 +285,102 @@ func (s *IconSystem) drawConsumableIcon(img *image.RGBA, comp *ItemIconComponent
 	cx, cy := size/2, size/2
 
 	liquidColor := s.getRarityBaseColor(comp.Rarity)
-	glassColor := color.RGBA{R: 180, G: 200, B: 220, A: 200}
 
 	switch comp.SubType {
 	case "potion":
-		bottleW := size / 3
-		bottleH := size * 2 / 3
-		neckH := size / 6
-
-		for y := cy + neckH; y < cy+bottleH/2; y++ {
-			bulge := int(float64(bottleW/2) * (1.0 + 0.3*math.Sin(float64(y-cy-neckH)/float64(bottleH-neckH)*math.Pi)))
-			for x := cx - bulge; x < cx+bulge; x++ {
-				if x >= 0 && x < size && y >= 0 && y < size {
-					img.Set(x, y, glassColor)
-				}
-			}
-		}
-
-		liquidLevel := cy + bottleH/2 - bottleH/4
-		for y := liquidLevel; y < cy+bottleH/2-2; y++ {
-			bulge := int(float64(bottleW/2) * (1.0 + 0.3*math.Sin(float64(y-cy-neckH)/float64(bottleH-neckH)*math.Pi)))
-			for x := cx - bulge + 2; x < cx+bulge-2; x++ {
-				if x >= 0 && x < size && y >= 0 && y < size {
-					img.Set(x, y, liquidColor)
-				}
-			}
-		}
-
-		neckW := bottleW / 3
-		for y := cy; y < cy+neckH; y++ {
-			for x := cx - neckW/2; x < cx+neckW/2; x++ {
-				if x >= 0 && x < size && y >= 0 && y < size {
-					img.Set(x, y, glassColor)
-				}
-			}
-		}
-
-		common.FillRect(img, cx-neckW, cy-3, cx+neckW, cy+1, color.RGBA{R: 100, G: 60, B: 40, A: 255})
-
+		s.drawPotionIcon(img, size, cx, cy, liquidColor)
 	case "scroll":
-		scrollW := size * 2 / 3
-		scrollH := size * 3 / 4
-		paperColor := color.RGBA{R: 230, G: 215, B: 190, A: 255}
-
-		common.FillRect(img, cx-scrollW/2, cy-scrollH/2, cx+scrollW/2, cy+scrollH/2, paperColor)
-
-		for i := 0; i < 3; i++ {
-			lineY := cy - scrollH/4 + i*scrollH/6
-			common.FillRect(img, cx-scrollW/3, lineY, cx+scrollW/3, lineY+1, color.RGBA{R: 100, G: 80, B: 60, A: 180})
-		}
-
-		sealR := size / 8
-		common.FillCircle(img, cx, cy+scrollH/3, sealR, liquidColor)
-
+		s.drawScrollIcon(img, size, cx, cy, liquidColor)
 	default:
 		common.FillCircle(img, cx, cy, size/3, liquidColor)
 	}
+}
+
+// drawPotionIcon renders a potion bottle with liquid.
+func (s *IconSystem) drawPotionIcon(img *image.RGBA, size, cx, cy int, liquidColor color.RGBA) {
+	glassColor := color.RGBA{R: 180, G: 200, B: 220, A: 200}
+	bottleW := size / 3
+	bottleH := size * 2 / 3
+	neckH := size / 6
+
+	drawPotionBody(img, size, cx, cy, neckH, bottleW, bottleH, glassColor)
+	drawPotionLiquid(img, size, cx, cy, neckH, bottleW, bottleH, liquidColor)
+	drawPotionNeck(img, size, cx, cy, neckH, bottleW)
+	drawPotionCork(img, cx, cy, bottleW)
+}
+
+// drawPotionBody renders the glass body of the potion bottle.
+func drawPotionBody(img *image.RGBA, size, cx, cy, neckH, bottleW, bottleH int, glassColor color.RGBA) {
+	for y := cy + neckH; y < cy+bottleH/2; y++ {
+		bulge := calculateBottleBulge(y, cy, neckH, bottleW, bottleH)
+		for x := cx - bulge; x < cx+bulge; x++ {
+			if x >= 0 && x < size && y >= 0 && y < size {
+				img.Set(x, y, glassColor)
+			}
+		}
+	}
+}
+
+// calculateBottleBulge computes the bottle width at a given height.
+func calculateBottleBulge(y, cy, neckH, bottleW, bottleH int) int {
+	return int(float64(bottleW/2) * (1.0 + 0.3*math.Sin(float64(y-cy-neckH)/float64(bottleH-neckH)*math.Pi)))
+}
+
+// drawPotionLiquid renders the liquid inside the potion bottle.
+func drawPotionLiquid(img *image.RGBA, size, cx, cy, neckH, bottleW, bottleH int, liquidColor color.RGBA) {
+	liquidLevel := cy + bottleH/2 - bottleH/4
+	for y := liquidLevel; y < cy+bottleH/2-2; y++ {
+		bulge := calculateBottleBulge(y, cy, neckH, bottleW, bottleH)
+		for x := cx - bulge + 2; x < cx+bulge-2; x++ {
+			if x >= 0 && x < size && y >= 0 && y < size {
+				img.Set(x, y, liquidColor)
+			}
+		}
+	}
+}
+
+// drawPotionNeck renders the neck of the potion bottle.
+func drawPotionNeck(img *image.RGBA, size, cx, cy, neckH, bottleW int) {
+	glassColor := color.RGBA{R: 180, G: 200, B: 220, A: 200}
+	neckW := bottleW / 3
+	for y := cy; y < cy+neckH; y++ {
+		for x := cx - neckW/2; x < cx+neckW/2; x++ {
+			if x >= 0 && x < size && y >= 0 && y < size {
+				img.Set(x, y, glassColor)
+			}
+		}
+	}
+}
+
+// drawPotionCork renders the cork stopper on the potion bottle.
+func drawPotionCork(img *image.RGBA, cx, cy, bottleW int) {
+	neckW := bottleW / 3
+	common.FillRect(img, cx-neckW, cy-3, cx+neckW, cy+1, color.RGBA{R: 100, G: 60, B: 40, A: 255})
+}
+
+// drawScrollIcon renders a scroll with seal.
+func (s *IconSystem) drawScrollIcon(img *image.RGBA, size, cx, cy int, sealColor color.RGBA) {
+	scrollW := size * 2 / 3
+	scrollH := size * 3 / 4
+	paperColor := color.RGBA{R: 230, G: 215, B: 190, A: 255}
+
+	common.FillRect(img, cx-scrollW/2, cy-scrollH/2, cx+scrollW/2, cy+scrollH/2, paperColor)
+	drawScrollText(img, cx, cy, scrollW, scrollH)
+	drawScrollSeal(img, cx, cy, scrollH, size, sealColor)
+}
+
+// drawScrollText renders text lines on the scroll.
+func drawScrollText(img *image.RGBA, cx, cy, scrollW, scrollH int) {
+	for i := 0; i < 3; i++ {
+		lineY := cy - scrollH/4 + i*scrollH/6
+		common.FillRect(img, cx-scrollW/3, lineY, cx+scrollW/3, lineY+1, color.RGBA{R: 100, G: 80, B: 60, A: 180})
+	}
+}
+
+// drawScrollSeal renders the wax seal on the scroll.
+func drawScrollSeal(img *image.RGBA, cx, cy, scrollH, size int, sealColor color.RGBA) {
+	sealR := size / 8
+	common.FillCircle(img, cx, cy+scrollH/3, sealR, sealColor)
 }
 
 // drawMaterialIcon renders crafting material icons.

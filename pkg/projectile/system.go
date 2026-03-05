@@ -280,77 +280,106 @@ func (s *System) createExplosion(w *engine.World, entity engine.Entity, proj *Pr
 		return
 	}
 
-	// Visual explosion
-	if s.particleSpawner != nil {
-		s.particleSpawner.SpawnBurst(x, y, 0, 30, 6.0, 1.0, 0.5, 0.2, proj.Color)
-	}
+	s.spawnExplosionEffects(x, y, proj.Color)
+	nearby := s.spatialGrid.QueryRadius(x, y, proj.ExplosionRadius)
+	s.applyExplosionDamageToTargets(w, entity, proj, x, y, nearby)
+}
 
-	// Screen shake for explosions
+// spawnExplosionEffects creates visual and feedback effects for an explosion.
+func (s *System) spawnExplosionEffects(x, y float64, color color.RGBA) {
+	if s.particleSpawner != nil {
+		s.particleSpawner.SpawnBurst(x, y, 0, 30, 6.0, 1.0, 0.5, 0.2, color)
+	}
 	if s.feedbackProvider != nil {
 		s.feedbackProvider.AddScreenShake(3.0)
 	}
+}
 
-	// Query all entities in explosion radius
-	nearby := s.spatialGrid.QueryRadius(x, y, proj.ExplosionRadius)
-
+// applyExplosionDamageToTargets processes damage for all entities in the explosion radius.
+func (s *System) applyExplosionDamageToTargets(w *engine.World, entity engine.Entity, proj *ProjectileComponent, x, y float64, nearby []engine.Entity) {
 	positionType := reflect.TypeOf((*engine.Position)(nil))
 	resistanceType := reflect.TypeOf((*ResistanceComponent)(nil))
 
 	for _, target := range nearby {
-		// Skip the projectile itself
-		if target == entity {
+		if s.shouldSkipExplosionTarget(target, entity, proj.OwnerID) {
 			continue
 		}
 
-		// Skip owner
-		targetID := int(target)
-		if targetID == proj.OwnerID {
+		targetPos := s.getTargetPosition(w, target, positionType)
+		if targetPos == nil {
 			continue
 		}
 
-		// Get target position
-		targetPosComp, ok := w.GetComponent(target, positionType)
-		if !ok {
-			continue
-		}
-		targetPos, ok := targetPosComp.(*engine.Position)
-		if !ok {
-			continue
-		}
-
-		dx := targetPos.X - x
-		dy := targetPos.Y - y
-		dist := math.Sqrt(dx*dx + dy*dy)
-
-		if dist > proj.ExplosionRadius {
-			continue
-		}
-
-		// Falloff damage based on distance
-		falloff := 1.0 - (dist / proj.ExplosionRadius)
-		explosionDamage := proj.Damage * falloff
-
-		// Apply damage with resistance
-		finalDamage := explosionDamage
-
-		if comp, ok := w.GetComponent(target, resistanceType); ok {
-			if resistance, ok := comp.(*ResistanceComponent); ok {
-				finalDamage = CalculateDamage(explosionDamage, proj.DamageType, resistance.Resistances)
-			}
-		}
-
-		s.logger.WithFields(logrus.Fields{
-			"target_id":   targetID,
-			"damage":      finalDamage,
-			"damage_type": DamageTypeNames[proj.DamageType],
-			"explosion":   true,
-		}).Debug("Explosion hit target")
-
-		// Impact particles on each hit entity
-		if s.particleSpawner != nil {
-			s.particleSpawner.SpawnBurst(targetPos.X, targetPos.Y, 0, 5, 2.5, 0.4, 0.2, 0.3, proj.Color)
+		if s.applyExplosionDamageToTarget(w, target, targetPos, proj, x, y, resistanceType) {
+			s.spawnTargetImpactEffects(targetPos.X, targetPos.Y, proj.Color)
 		}
 	}
+}
+
+// shouldSkipExplosionTarget checks if a target should be excluded from explosion damage.
+func (s *System) shouldSkipExplosionTarget(target, projectileEntity engine.Entity, ownerID int) bool {
+	return target == projectileEntity || int(target) == ownerID
+}
+
+// getTargetPosition retrieves the position component for a target entity.
+func (s *System) getTargetPosition(w *engine.World, target engine.Entity, positionType reflect.Type) *engine.Position {
+	targetPosComp, ok := w.GetComponent(target, positionType)
+	if !ok {
+		return nil
+	}
+	targetPos, ok := targetPosComp.(*engine.Position)
+	if !ok {
+		return nil
+	}
+	return targetPos
+}
+
+// applyExplosionDamageToTarget calculates and applies explosion damage to a single target.
+func (s *System) applyExplosionDamageToTarget(w *engine.World, target engine.Entity, targetPos *engine.Position, proj *ProjectileComponent, x, y float64, resistanceType reflect.Type) bool {
+	dist := calculateDistance(targetPos.X, targetPos.Y, x, y)
+	if dist > proj.ExplosionRadius {
+		return false
+	}
+
+	falloff := 1.0 - (dist / proj.ExplosionRadius)
+	explosionDamage := proj.Damage * falloff
+	finalDamage := s.calculateFinalDamage(w, target, explosionDamage, proj.DamageType, resistanceType)
+
+	s.logger.WithFields(logrus.Fields{
+		"target_id":   int(target),
+		"damage":      finalDamage,
+		"damage_type": DamageTypeNames[proj.DamageType],
+		"explosion":   true,
+	}).Debug("Explosion hit target")
+
+	return true
+}
+
+// calculateFinalDamage applies resistance modifiers to explosion damage.
+func (s *System) calculateFinalDamage(w *engine.World, target engine.Entity, damage float64, damageType DamageType, resistanceType reflect.Type) float64 {
+	comp, ok := w.GetComponent(target, resistanceType)
+	if !ok {
+		return damage
+	}
+	resistance, ok := comp.(*ResistanceComponent)
+	if !ok {
+		return damage
+	}
+	return CalculateDamage(damage, damageType, resistance.Resistances)
+}
+
+// spawnTargetImpactEffects creates impact particles on a damaged target.
+func (s *System) spawnTargetImpactEffects(x, y float64, color color.RGBA) {
+	if s.particleSpawner != nil {
+		s.particleSpawner.SpawnBurst(x, y, 0, 5, 2.5, 0.4, 0.2, 0.3, color)
+	}
+}
+
+// calculateDistance computes the Euclidean distance between two points.
+func calculateDistance(x1, y1, x2, y2 float64) float64 {
+	dx := x1 - x2
+	dy := y1 - y2
+	return math.Sqrt(dx*dx + dy*dy)
 }
 
 // Type returns the system type for registration.

@@ -209,55 +209,87 @@ func (s *System) Update(w *engine.World) {
 	now := time.Now()
 
 	for _, entity := range entities {
-		comp, ok := w.GetComponent(entity, statusType)
-		if !ok {
+		statusComp := s.getStatusComponent(w, entity, statusType)
+		if statusComp == nil {
 			continue
 		}
 
-		statusComp := comp.(*StatusComponent)
+		s.processActiveEffects(w, entity, statusComp, healthType, now)
+	}
+}
 
-		// Process each active effect
-		remainingEffects := []ActiveEffect{}
-		for _, effect := range statusComp.ActiveEffects {
-			// Tick effect if interval elapsed
-			if now.Sub(effect.LastTick) >= effect.TickInterval {
-				effect.LastTick = now
+// getStatusComponent retrieves the status component for an entity.
+func (s *System) getStatusComponent(w *engine.World, entity engine.Entity, statusType reflect.Type) *StatusComponent {
+	comp, ok := w.GetComponent(entity, statusType)
+	if !ok {
+		return nil
+	}
+	return comp.(*StatusComponent)
+}
 
-				// Apply damage/healing if entity has health
-				if effect.DamagePerTick != 0 {
-					healthComp, hasHealth := w.GetComponent(entity, healthType)
-					if hasHealth {
-						health := healthComp.(*engine.Health)
-						damage := int(effect.DamagePerTick)
+// processActiveEffects updates all active status effects for an entity.
+func (s *System) processActiveEffects(w *engine.World, entity engine.Entity, statusComp *StatusComponent, healthType reflect.Type, now time.Time) {
+	remainingEffects := []ActiveEffect{}
 
-						health.Current -= damage
-						if health.Current > health.Max {
-							health.Current = health.Max
-						}
-						if health.Current < 0 {
-							health.Current = 0
-						}
+	for _, effect := range statusComp.ActiveEffects {
+		s.tickEffectIfNeeded(w, entity, &effect, healthType, now)
+		effect.TimeRemaining -= 16 * time.Millisecond
 
-						if damage > 0 {
-							s.logger.Debugf("Entity %d took %d damage from %s (%d/%d HP)", entity, damage, effect.EffectName, health.Current, health.Max)
-						} else {
-							s.logger.Debugf("Entity %d healed %d from %s (%d/%d HP)", entity, -damage, effect.EffectName, health.Current, health.Max)
-						}
-					}
-				}
-			}
-
-			// Update duration
-			effect.TimeRemaining -= 16 * time.Millisecond // ~60 FPS frame time
-
-			if effect.TimeRemaining > 0 {
-				remainingEffects = append(remainingEffects, effect)
-			} else {
-				s.logger.Debugf("Effect %s expired on entity %d", effect.EffectName, entity)
-			}
+		if effect.TimeRemaining > 0 {
+			remainingEffects = append(remainingEffects, effect)
+		} else {
+			s.logger.Debugf("Effect %s expired on entity %d", effect.EffectName, entity)
 		}
+	}
 
-		statusComp.ActiveEffects = remainingEffects
+	statusComp.ActiveEffects = remainingEffects
+}
+
+// tickEffectIfNeeded applies periodic damage/healing if the tick interval has elapsed.
+func (s *System) tickEffectIfNeeded(w *engine.World, entity engine.Entity, effect *ActiveEffect, healthType reflect.Type, now time.Time) {
+	if now.Sub(effect.LastTick) < effect.TickInterval {
+		return
+	}
+
+	effect.LastTick = now
+
+	if effect.DamagePerTick != 0 {
+		s.applyEffectDamage(w, entity, effect, healthType)
+	}
+}
+
+// applyEffectDamage applies damage or healing from a status effect.
+func (s *System) applyEffectDamage(w *engine.World, entity engine.Entity, effect *ActiveEffect, healthType reflect.Type) {
+	healthComp, hasHealth := w.GetComponent(entity, healthType)
+	if !hasHealth {
+		return
+	}
+
+	health := healthComp.(*engine.Health)
+	damage := int(effect.DamagePerTick)
+
+	health.Current -= damage
+	clampHealth(health)
+
+	s.logHealthChange(entity, damage, effect.EffectName, health)
+}
+
+// clampHealth ensures health stays within valid bounds.
+func clampHealth(health *engine.Health) {
+	if health.Current > health.Max {
+		health.Current = health.Max
+	}
+	if health.Current < 0 {
+		health.Current = 0
+	}
+}
+
+// logHealthChange logs damage or healing from status effects.
+func (s *System) logHealthChange(entity engine.Entity, damage int, effectName string, health *engine.Health) {
+	if damage > 0 {
+		s.logger.Debugf("Entity %d took %d damage from %s (%d/%d HP)", entity, damage, effectName, health.Current, health.Max)
+	} else {
+		s.logger.Debugf("Entity %d healed %d from %s (%d/%d HP)", entity, -damage, effectName, health.Current, health.Max)
 	}
 }
 

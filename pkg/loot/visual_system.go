@@ -141,42 +141,78 @@ func (vs *VisualSystem) drawPotion(img *ebiten.Image, rarity Rarity, rng *rand.R
 	bottleHeight := size * 2 / 3
 	neckHeight := size / 6
 
+	vs.renderPotionPixels(img, size, cx, cy, bottleWidth, bottleHeight, neckHeight, baseColor, glassColor)
+
+	if rarity >= RarityRare {
+		vs.addSparkles(img, rng, size, 3+int(rarity))
+	}
+}
+
+// renderPotionPixels draws all pixels that make up the potion bottle.
+func (vs *VisualSystem) renderPotionPixels(img *ebiten.Image, size, cx, cy, bottleWidth, bottleHeight, neckHeight int, baseColor, glassColor color.RGBA) {
 	for y := 0; y < size; y++ {
 		for x := 0; x < size; x++ {
 			dx := x - cx
 			dy := y - cy
 
-			if dy < -bottleHeight/2 && dy > -bottleHeight/2-neckHeight {
-				if common.Abs(dx) < bottleWidth/4 {
-					img.Set(x, y, glassColor)
-				}
-			} else if dy >= -bottleHeight/2 && dy < bottleHeight/2 {
-				widthAtY := bottleWidth / 2
-				if dy > bottleHeight/4 {
-					ratio := float64(dy-bottleHeight/4) / float64(bottleHeight/4)
-					widthAtY = int(float64(bottleWidth/2) * (1.0 - ratio*0.3))
-				}
-
-				if common.Abs(dx) < widthAtY {
-					liquidLevel := -bottleHeight/2 + bottleHeight/4
-					if dy > liquidLevel {
-						brightness := 1.0 - float64(common.Abs(dx))/float64(widthAtY)*0.3
-						img.Set(x, y, applyShade(baseColor, brightness))
-					} else {
-						img.Set(x, y, glassColor)
-					}
-
-					if common.Abs(dx) == widthAtY-1 || dy == -bottleHeight/2 {
-						img.Set(x, y, color.RGBA{100, 100, 120, 255})
-					}
-				}
-			}
+			vs.setPotionPixel(img, x, y, dx, dy, bottleWidth, bottleHeight, neckHeight, baseColor, glassColor)
 		}
 	}
+}
 
-	if rarity >= RarityRare {
-		vs.addSparkles(img, rng, size, 3+int(rarity))
+// setPotionPixel determines and sets the color for a single pixel in the potion bottle.
+func (vs *VisualSystem) setPotionPixel(img *ebiten.Image, x, y, dx, dy, bottleWidth, bottleHeight, neckHeight int, baseColor, glassColor color.RGBA) {
+	if vs.isInNeck(dy, bottleHeight, neckHeight, dx, bottleWidth) {
+		img.Set(x, y, glassColor)
+	} else if vs.isInBody(dy, bottleHeight, dx, bottleWidth) {
+		vs.drawBodyPixel(img, x, y, dx, dy, bottleWidth, bottleHeight, baseColor, glassColor)
 	}
+}
+
+// isInNeck checks if a pixel is in the bottle neck.
+func (vs *VisualSystem) isInNeck(dy, bottleHeight, neckHeight, dx, bottleWidth int) bool {
+	return dy < -bottleHeight/2 && dy > -bottleHeight/2-neckHeight && common.Abs(dx) < bottleWidth/4
+}
+
+// isInBody checks if a pixel is in the bottle body.
+func (vs *VisualSystem) isInBody(dy, bottleHeight, dx, bottleWidth int) bool {
+	if dy < -bottleHeight/2 || dy >= bottleHeight/2 {
+		return false
+	}
+	widthAtY := vs.calculateBottleWidth(dy, bottleHeight, bottleWidth)
+	return common.Abs(dx) < widthAtY
+}
+
+// calculateBottleWidth computes the bottle width at a given height.
+func (vs *VisualSystem) calculateBottleWidth(dy, bottleHeight, bottleWidth int) int {
+	widthAtY := bottleWidth / 2
+	if dy > bottleHeight/4 {
+		ratio := float64(dy-bottleHeight/4) / float64(bottleHeight/4)
+		widthAtY = int(float64(bottleWidth/2) * (1.0 - ratio*0.3))
+	}
+	return widthAtY
+}
+
+// drawBodyPixel renders a single pixel in the bottle body with liquid or glass.
+func (vs *VisualSystem) drawBodyPixel(img *ebiten.Image, x, y, dx, dy, bottleWidth, bottleHeight int, baseColor, glassColor color.RGBA) {
+	widthAtY := vs.calculateBottleWidth(dy, bottleHeight, bottleWidth)
+	liquidLevel := -bottleHeight/2 + bottleHeight/4
+
+	if dy > liquidLevel {
+		brightness := 1.0 - float64(common.Abs(dx))/float64(widthAtY)*0.3
+		img.Set(x, y, applyShade(baseColor, brightness))
+	} else {
+		img.Set(x, y, glassColor)
+	}
+
+	if vs.isBottleOutline(dx, dy, widthAtY, bottleHeight) {
+		img.Set(x, y, color.RGBA{100, 100, 120, 255})
+	}
+}
+
+// isBottleOutline checks if a pixel is on the bottle outline.
+func (vs *VisualSystem) isBottleOutline(dx, dy, widthAtY, bottleHeight int) bool {
+	return common.Abs(dx) == widthAtY-1 || dy == -bottleHeight/2
 }
 
 // drawScroll renders a rolled parchment with runes.

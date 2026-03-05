@@ -159,42 +159,67 @@ func validateModFields(mod *Mod) error {
 
 // checkModConflicts verifies that the mod does not conflict with any enabled mods.
 func (l *Loader) checkModConflicts(mod *Mod) error {
-	modName := mod.Name
-	if mod.Manifest != nil {
-		modName = mod.Manifest.Name
+	modName := getModName(mod)
+
+	if err := l.checkLegacyConflicts(modName); err != nil {
+		return err
 	}
 
-	// Check legacy conflicts registry
+	if err := l.checkManifestConflicts(mod, modName); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// getModName retrieves the effective name of a mod.
+func getModName(mod *Mod) string {
+	if mod.Manifest != nil {
+		return mod.Manifest.Name
+	}
+	return mod.Name
+}
+
+// checkLegacyConflicts verifies against the legacy conflicts registry.
+func (l *Loader) checkLegacyConflicts(modName string) error {
 	conflicts, ok := l.conflicts[modName]
-	if ok {
-		for _, conflict := range conflicts {
-			for _, existing := range l.mods {
-				existingName := existing.Name
-				if existing.Manifest != nil {
-					existingName = existing.Manifest.Name
-				}
-				if existingName == conflict && existing.Enabled {
-					return fmt.Errorf("mod %s conflicts with %s", modName, conflict)
-				}
-			}
-		}
+	if !ok {
+		return nil
 	}
 
-	// Check manifest-declared conflicts
-	if mod.Manifest != nil {
-		for _, conflict := range mod.Manifest.Conflicts {
-			for _, existing := range l.mods {
-				existingName := existing.Name
-				if existing.Manifest != nil {
-					existingName = existing.Manifest.Name
-				}
-				if existingName == conflict && existing.Enabled {
-					return fmt.Errorf("mod %s conflicts with %s (declared in manifest)", modName, conflict)
-				}
-			}
+	for _, conflict := range conflicts {
+		if err := l.checkConflictWithEnabled(modName, conflict, ""); err != nil {
+			return err
 		}
 	}
+	return nil
+}
 
+// checkManifestConflicts verifies conflicts declared in the mod manifest.
+func (l *Loader) checkManifestConflicts(mod *Mod, modName string) error {
+	if mod.Manifest == nil {
+		return nil
+	}
+
+	for _, conflict := range mod.Manifest.Conflicts {
+		if err := l.checkConflictWithEnabled(modName, conflict, " (declared in manifest)"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// checkConflictWithEnabled checks if a conflicting mod is enabled.
+func (l *Loader) checkConflictWithEnabled(modName, conflict, suffix string) error {
+	for _, existing := range l.mods {
+		if !existing.Enabled {
+			continue
+		}
+		existingName := getModName(&existing)
+		if existingName == conflict {
+			return fmt.Errorf("mod %s conflicts with %s%s", modName, conflict, suffix)
+		}
+	}
 	return nil
 }
 

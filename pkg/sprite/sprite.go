@@ -1039,74 +1039,130 @@ func (g *Generator) generateInsectEnemy(img *image.RGBA, rng *rand.Rand, frame i
 	cx, cy := size/2, size/2
 
 	bodyColor := g.getCreatureColor("insect", rng)
-	darkColor := color.RGBA{
-		R: bodyColor.R / 3,
-		G: bodyColor.G / 3,
-		B: bodyColor.B / 3,
+	darkColor := createDarkColor(bodyColor)
+
+	g.drawInsectBody(img, cx, cy, size, bodyColor)
+	g.drawInsectLegs(img, cx, cy, size, frame, bodyColor, darkColor)
+	g.drawInsectHead(img, cx, cy, size, frame, bodyColor, darkColor)
+	g.applyInsectTexture(img, cx, cy, size, bodyColor, rng)
+}
+
+// createDarkColor generates a darker variant of the given color.
+func createDarkColor(base color.RGBA) color.RGBA {
+	return color.RGBA{
+		R: base.R / 3,
+		G: base.G / 3,
+		B: base.B / 3,
 		A: 255,
 	}
+}
 
+// drawInsectBody renders the segmented body of the insect.
+func (g *Generator) drawInsectBody(img *image.RGBA, cx, cy, size int, bodyColor color.RGBA) {
 	segmentCount := 3
 	segmentW := size / 4
 	segmentH := size / 6
 
 	for i := 0; i < segmentCount; i++ {
-		segY := cy - size/6 + i*segmentH
-		segW := segmentW - i*2
-		if segW < segmentW/2 {
-			segW = segmentW / 2
-		}
+		drawBodySegment(img, cx, cy, size, i, segmentW, segmentH, bodyColor)
+	}
+}
 
-		for y := segY; y < segY+segmentH-2; y++ {
-			for x := cx - segW/2; x < cx+segW/2; x++ {
-				if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
-					dx := float64(x - cx)
-					shade := 1.0 - math.Abs(dx)/float64(segW)*0.5
-					r := uint8(float64(bodyColor.R) * shade)
-					g := uint8(float64(bodyColor.G) * shade)
-					b := uint8(float64(bodyColor.B) * shade)
-					img.Set(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
-				}
+// drawBodySegment renders a single body segment with shading.
+func drawBodySegment(img *image.RGBA, cx, cy, size, segIndex, segmentW, segmentH int, bodyColor color.RGBA) {
+	segY := cy - size/6 + segIndex*segmentH
+	segW := segmentW - segIndex*2
+	if segW < segmentW/2 {
+		segW = segmentW / 2
+	}
+
+	for y := segY; y < segY+segmentH-2; y++ {
+		for x := cx - segW/2; x < cx+segW/2; x++ {
+			if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
+				shadedColor := calculateShading(x, cx, segW, bodyColor)
+				img.Set(x, y, shadedColor)
 			}
 		}
 	}
+}
 
-	legCount := 6
-	for i := 0; i < legCount; i++ {
-		side := 1
-		if i%2 == 0 {
-			side = -1
-		}
-		segIdx := i / 2
-		legY := cy - size/6 + segIdx*segmentH + segmentH/2
-
-		legOffset := 0
-		if frame%3 == 1 && i%2 == 0 {
-			legOffset = 2
-		} else if frame%3 == 2 && i%2 == 1 {
-			legOffset = 2
-		}
-
-		legStartX := cx + side*segmentW/2
-		legMidX := legStartX + side*(size/6+legOffset)
-		legMidY := legY - size/12
-		legEndX := legMidX + side*size/12
-		legEndY := legY + size/8
-
-		common.DrawThickLine(img, legStartX, legY, legMidX, legMidY, 1, darkColor)
-		common.DrawThickLine(img, legMidX, legMidY, legEndX, legEndY, 1, darkColor)
+// calculateShading applies horizontal shading based on distance from center.
+func calculateShading(x, cx, segW int, baseColor color.RGBA) color.RGBA {
+	dx := float64(x - cx)
+	shade := 1.0 - math.Abs(dx)/float64(segW)*0.5
+	return color.RGBA{
+		R: uint8(float64(baseColor.R) * shade),
+		G: uint8(float64(baseColor.G) * shade),
+		B: uint8(float64(baseColor.B) * shade),
+		A: 255,
 	}
+}
 
+// drawInsectLegs renders all legs with animation.
+func (g *Generator) drawInsectLegs(img *image.RGBA, cx, cy, size, frame int, bodyColor, darkColor color.RGBA) {
+	legCount := 6
+	segmentW := size / 4
+	segmentH := size / 6
+
+	for i := 0; i < legCount; i++ {
+		drawAnimatedLeg(img, cx, cy, size, i, frame, segmentW, segmentH, darkColor)
+	}
+}
+
+// drawAnimatedLeg renders a single animated insect leg.
+func drawAnimatedLeg(img *image.RGBA, cx, cy, size, legIndex, frame, segmentW, segmentH int, darkColor color.RGBA) {
+	side := 1
+	if legIndex%2 == 0 {
+		side = -1
+	}
+	segIdx := legIndex / 2
+	legY := cy - size/6 + segIdx*segmentH + segmentH/2
+
+	legOffset := calculateLegOffset(frame, legIndex)
+
+	legStartX := cx + side*segmentW/2
+	legMidX := legStartX + side*(size/6+legOffset)
+	legMidY := legY - size/12
+	legEndX := legMidX + side*size/12
+	legEndY := legY + size/8
+
+	common.DrawThickLine(img, legStartX, legY, legMidX, legMidY, 1, darkColor)
+	common.DrawThickLine(img, legMidX, legMidY, legEndX, legEndY, 1, darkColor)
+}
+
+// calculateLegOffset determines leg animation offset based on frame and index.
+func calculateLegOffset(frame, legIndex int) int {
+	if frame%3 == 1 && legIndex%2 == 0 {
+		return 2
+	}
+	if frame%3 == 2 && legIndex%2 == 1 {
+		return 2
+	}
+	return 0
+}
+
+// drawInsectHead renders the head with eyes and antennae.
+func (g *Generator) drawInsectHead(img *image.RGBA, cx, cy, size, frame int, bodyColor, darkColor color.RGBA) {
 	headRadius := size / 8
 	headY := cy - size/6 - 2
 	common.FillCircle(img, cx, headY, headRadius, bodyColor)
 
+	drawInsectEyes(img, cx, headY, headRadius)
+	drawInsectAntennae(img, cx, headY, headRadius, size, frame, darkColor)
+}
+
+// drawInsectEyes renders the insect's eyes.
+func drawInsectEyes(img *image.RGBA, cx, headY, headRadius int) {
 	eyeColor := color.RGBA{R: 255, G: 50, B: 50, A: 255}
 	common.FillCircle(img, cx-headRadius/2, headY, 2, eyeColor)
 	common.FillCircle(img, cx+headRadius/2, headY, 2, eyeColor)
+}
 
+// drawInsectAntennae renders animated antennae.
+func drawInsectAntennae(img *image.RGBA, cx, headY, headRadius, size, frame int, darkColor color.RGBA) {
 	antennaLen := size / 5
 	antennaAngle := float64(frame%8) * math.Pi / 32
+
 	leftAntennaX := cx - headRadius/2 - int(float64(antennaLen)*math.Sin(antennaAngle))
 	leftAntennaY := headY - headRadius - int(float64(antennaLen)*math.Cos(antennaAngle))
 	rightAntennaX := cx + headRadius/2 + int(float64(antennaLen)*math.Sin(antennaAngle))
@@ -1114,8 +1170,14 @@ func (g *Generator) generateInsectEnemy(img *image.RGBA, rng *rand.Rand, frame i
 
 	common.DrawThickLine(img, cx-headRadius/2, headY-headRadius, leftAntennaX, leftAntennaY, 1, darkColor)
 	common.DrawThickLine(img, cx+headRadius/2, headY-headRadius, rightAntennaX, rightAntennaY, 1, darkColor)
+}
 
-	// Apply chitin texture to all segments
+// applyInsectTexture applies chitin texture to all body segments.
+func (g *Generator) applyInsectTexture(img *image.RGBA, cx, cy, size int, bodyColor color.RGBA, rng *rand.Rand) {
+	segmentCount := 3
+	segmentW := size / 4
+	segmentH := size / 6
+
 	for i := 0; i < segmentCount; i++ {
 		segY := cy - size/6 + i*segmentH
 		segW := segmentW - i*2

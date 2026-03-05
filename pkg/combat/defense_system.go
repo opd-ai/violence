@@ -47,65 +47,100 @@ func (s *DefenseSystem) Update(w *engine.World) {
 func (s *DefenseSystem) updateDefense(w *engine.World, entity engine.Entity, pos *engine.Position, def *DefenseComponent) {
 	deltaTime := 1.0 / 60.0
 
-	// Regenerate stamina when not actively defending
+	s.regenerateStamina(def, deltaTime)
+	s.updateDefenseTimers(def, deltaTime)
+	s.processDefenseStateMachine(w, entity, pos, def, deltaTime)
+}
+
+// regenerateStamina restores stamina when defense is inactive.
+func (s *DefenseSystem) regenerateStamina(def *DefenseComponent, deltaTime float64) {
 	if def.State == DefenseInactive {
 		def.StaminaCurrent = math.Min(def.StaminaMax, def.StaminaCurrent+def.StaminaRegen*deltaTime)
 	}
+}
 
-	// Update cooldown
+// updateDefenseTimers decrements all active defense timers.
+func (s *DefenseSystem) updateDefenseTimers(def *DefenseComponent, deltaTime float64) {
+	updateCooldownTimer(def, deltaTime)
+	updatePerfectParryTimer(def, deltaTime)
+	updateBackstabTimer(def, deltaTime)
+	updateIFrameTimer(def, deltaTime)
+}
+
+// updateCooldownTimer decrements the cooldown timer.
+func updateCooldownTimer(def *DefenseComponent, deltaTime float64) {
 	if def.CooldownTimer > 0 {
 		def.CooldownTimer -= deltaTime
 		if def.CooldownTimer < 0 {
 			def.CooldownTimer = 0
 		}
 	}
+}
 
-	// Update buff timers
+// updatePerfectParryTimer decrements the perfect parry buff timer.
+func updatePerfectParryTimer(def *DefenseComponent, deltaTime float64) {
 	if def.PerfectParryTimer > 0 {
 		def.PerfectParryTimer -= deltaTime
 		if def.PerfectParryTimer <= 0 {
 			def.PerfectParryBuff = false
 		}
 	}
+}
 
+// updateBackstabTimer decrements the backstab window timer.
+func updateBackstabTimer(def *DefenseComponent, deltaTime float64) {
 	if def.BackstabTimer > 0 {
 		def.BackstabTimer -= deltaTime
 		if def.BackstabTimer <= 0 {
 			def.BackstabWindow = false
 		}
 	}
+}
 
-	// Update i-frame timer
+// updateIFrameTimer decrements the dodge invincibility frame timer.
+func updateIFrameTimer(def *DefenseComponent, deltaTime float64) {
 	if def.DodgeIFrameTimer > 0 {
 		def.DodgeIFrameTimer -= deltaTime
 	}
+}
 
-	// Process defense state machine
+// processDefenseStateMachine handles the defense state transitions.
+func (s *DefenseSystem) processDefenseStateMachine(w *engine.World, entity engine.Entity, pos *engine.Position, def *DefenseComponent, deltaTime float64) {
 	switch def.State {
 	case DefenseInactive:
-		// Waiting for input
 		return
-
 	case DefenseWindup:
-		def.StateTimer -= deltaTime
-		if def.StateTimer <= 0 {
-			s.activateDefense(w, entity, pos, def)
-		}
-
+		s.handleWindupState(w, entity, pos, def, deltaTime)
 	case DefenseActive:
-		def.StateTimer -= deltaTime
-		s.processActiveDefense(w, entity, pos, def, deltaTime)
-
-		if def.StateTimer <= 0 {
-			s.enterRecovery(def)
-		}
-
+		s.handleActiveState(w, entity, pos, def, deltaTime)
 	case DefenseRecovery:
-		def.StateTimer -= deltaTime
-		if def.StateTimer <= 0 {
-			def.State = DefenseInactive
-			def.Type = DefenseNone
-		}
+		s.handleRecoveryState(def, deltaTime)
+	}
+}
+
+// handleWindupState processes the defense windup phase.
+func (s *DefenseSystem) handleWindupState(w *engine.World, entity engine.Entity, pos *engine.Position, def *DefenseComponent, deltaTime float64) {
+	def.StateTimer -= deltaTime
+	if def.StateTimer <= 0 {
+		s.activateDefense(w, entity, pos, def)
+	}
+}
+
+// handleActiveState processes the active defense phase.
+func (s *DefenseSystem) handleActiveState(w *engine.World, entity engine.Entity, pos *engine.Position, def *DefenseComponent, deltaTime float64) {
+	def.StateTimer -= deltaTime
+	s.processActiveDefense(w, entity, pos, def, deltaTime)
+	if def.StateTimer <= 0 {
+		s.enterRecovery(def)
+	}
+}
+
+// handleRecoveryState processes the recovery phase.
+func (s *DefenseSystem) handleRecoveryState(def *DefenseComponent, deltaTime float64) {
+	def.StateTimer -= deltaTime
+	if def.StateTimer <= 0 {
+		def.State = DefenseInactive
+		def.Type = DefenseNone
 	}
 }
 
