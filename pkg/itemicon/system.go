@@ -403,7 +403,7 @@ func (s *IconSystem) drawQuestIcon(img *image.RGBA, comp *ItemIconComponent, rng
 		nextX := cx + int(float64(nextR)*math.Cos(nextAngle-math.Pi/2))
 		nextY := cy + int(float64(nextR)*math.Sin(nextAngle-math.Pi/2))
 
-		common.DrawLine(img, x, y, nextX, nextY, questColor)
+		common.DrawLine(img, x, y, nextX, nextY, questColor, 1)
 	}
 
 	common.FillCircle(img, cx, cy, starR/3, questColor)
@@ -482,7 +482,7 @@ func (s *IconSystem) addWearEffect(img *image.RGBA, durability float64, size int
 	for i := 0; i < scratchCount; i++ {
 		x1, y1 := i*size/scratchCount, 0
 		x2, y2 := x1+size/5, size
-		common.DrawLine(img, x1, y1, x2, y2, darkColor)
+		common.DrawLine(img, x1, y1, x2, y2, darkColor, 1)
 	}
 }
 

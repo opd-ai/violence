@@ -264,7 +264,7 @@ func TestDrawLine(t *testing.T) {
 	img := GenerateWeaponSprite(1, TypeMelee, FrameIdle)
 	testColor := color.RGBA{R: 0, G: 0, B: 255, A: 255}
 
-	common.DrawLine(img, 10, 10, 30, 30, testColor)
+	common.DrawLine(img, 10, 10, 30, 30, testColor, 1)
 
 	// Check that line endpoints are drawn
 	c1 := img.At(10, 10)

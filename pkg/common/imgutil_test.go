@@ -83,7 +83,7 @@ func TestDrawLine(t *testing.T) {
 	img := image.NewRGBA(image.Rect(0, 0, 100, 100))
 	testColor := color.RGBA{R: 0, G: 0, B: 255, A: 255}
 
-	DrawLine(img, 10, 10, 30, 30, testColor)
+	DrawLine(img, 10, 10, 30, 30, testColor, 1)
 
 	// Check that line endpoints are drawn
 	c1 := img.At(10, 10)
@@ -161,9 +161,62 @@ func TestBoundsChecking(t *testing.T) {
 	// These should not panic even with out-of-bounds coordinates
 	FillRect(img, -10, -10, 60, 60, testColor)
 	FillCircle(img, 0, 0, 100, testColor)
-	DrawLine(img, -10, -10, 60, 60, testColor)
+	DrawLine(img, -10, -10, 60, 60, testColor, 1)
 	DrawThickLine(img, -10, -10, 60, 60, 5, testColor)
 	DrawRect(img, -10, -10, 60, 60, testColor)
+	FillEllipse(img, 25, 25, 100, 100, testColor)
+	FillTriangle(img, -10, -10, 60, 60, 25, 25, testColor)
 
 	// If we get here without panicking, the bounds checking works
+}
+
+func TestFillEllipse(t *testing.T) {
+	img := image.NewRGBA(image.Rect(0, 0, 100, 100))
+	testColor := color.RGBA{R: 255, G: 128, B: 0, A: 255}
+
+	FillEllipse(img, 50, 50, 20, 10, testColor)
+
+	// Check center pixel is filled
+	c := img.At(50, 50)
+	r, g, b, a := c.RGBA()
+	if r>>8 != 255 || g>>8 != 128 || b>>8 != 0 || a>>8 != 255 {
+		t.Error("ellipse center pixel not filled correctly")
+	}
+
+	// Check a pixel on the horizontal axis (should be filled)
+	c = img.At(60, 50)
+	r, g, b, a = c.RGBA()
+	if r>>8 != 255 || g>>8 != 128 || b>>8 != 0 || a>>8 != 255 {
+		t.Error("ellipse horizontal pixel not filled correctly")
+	}
+
+	// Check a pixel outside ellipse (should not be filled)
+	c = img.At(75, 50)
+	r, g, b, a = c.RGBA()
+	if r != 0 || g != 0 || b != 0 || a != 0 {
+		t.Error("pixel outside ellipse should be transparent")
+	}
+}
+
+func TestFillTriangle(t *testing.T) {
+	img := image.NewRGBA(image.Rect(0, 0, 100, 100))
+	testColor := color.RGBA{R: 128, G: 255, B: 128, A: 255}
+
+	FillTriangle(img, 50, 20, 30, 60, 70, 60, testColor)
+
+	// Check a pixel inside the triangle (centroid)
+	centroidX := (50 + 30 + 70) / 3
+	centroidY := (20 + 60 + 60) / 3
+	c := img.At(centroidX, centroidY)
+	r, g, b, a := c.RGBA()
+	if r>>8 != 128 || g>>8 != 255 || b>>8 != 128 || a>>8 != 255 {
+		t.Error("triangle centroid pixel not filled correctly")
+	}
+
+	// Check a pixel outside the triangle
+	c = img.At(10, 10)
+	r, g, b, a = c.RGBA()
+	if r != 0 || g != 0 || b != 0 || a != 0 {
+		t.Error("pixel outside triangle should be transparent")
+	}
 }

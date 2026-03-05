@@ -95,8 +95,8 @@ func generateHitscanWeapon(img *image.RGBA, rng *rand.Rand, frame FrameType) {
 	common.FillRect(img, 50, 75, 60, 95, color.RGBA{R: 60, G: 40, B: 30, A: 255})
 
 	// Trigger guard
-	common.DrawLine(img, 56, 72, 56, 78, color.RGBA{R: 100, G: 100, B: 110, A: 255})
-	common.DrawLine(img, 56, 78, 62, 78, color.RGBA{R: 100, G: 100, B: 110, A: 255})
+	common.DrawLine(img, 56, 72, 56, 78, color.RGBA{R: 100, G: 100, B: 110, A: 255}, 1)
+	common.DrawLine(img, 56, 78, 62, 78, color.RGBA{R: 100, G: 100, B: 110, A: 255}, 1)
 
 	// Muzzle flash (only during fire frame)
 	if frame == FrameFire {
@@ -107,7 +107,7 @@ func generateHitscanWeapon(img *image.RGBA, rng *rand.Rand, frame FrameType) {
 			angle := float64(i) * math.Pi / 3
 			x := 110 + int(math.Cos(angle)*15)
 			y := 54 + int(math.Sin(angle)*15)
-			common.DrawLine(img, 110, 54, x, y, flashColor)
+			common.DrawLine(img, 110, 54, x, y, flashColor, 1)
 		}
 	}
 

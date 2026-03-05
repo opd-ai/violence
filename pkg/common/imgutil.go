@@ -57,11 +57,21 @@ func FillCircle(img *image.RGBA, cx, cy, radius int, c color.RGBA) {
 }
 
 // DrawLine draws a line from (x1, y1) to (x2, y2) using Bresenham's algorithm.
+// The thickness parameter specifies line width in pixels.
 // This function consolidates duplicate drawLine implementations from:
 // - pkg/ai/sprite_gen.go
 // - pkg/weapon/sprite_gen.go
 // - pkg/itemicon/system.go
-func DrawLine(img *image.RGBA, x1, y1, x2, y2 int, c color.RGBA) {
+func DrawLine(img *image.RGBA, x1, y1, x2, y2 int, c color.RGBA, thickness int) {
+	if thickness <= 1 {
+		drawLineThin(img, x1, y1, x2, y2, c)
+	} else {
+		DrawThickLine(img, x1, y1, x2, y2, thickness, c)
+	}
+}
+
+// drawLineThin draws a 1-pixel line using Bresenham's algorithm.
+func drawLineThin(img *image.RGBA, x1, y1, x2, y2 int, c color.RGBA) {
 	bounds := img.Bounds()
 	dx := Abs(x2 - x1)
 	dy := Abs(y2 - y1)
@@ -161,4 +171,73 @@ func DrawRect(img *image.RGBA, x1, y1, x2, y2 int, c color.RGBA) {
 			}
 		}
 	}
+}
+
+// FillEllipse fills an ellipse with the given color.
+// The ellipse is centered at (cx, cy) with horizontal radius rx and vertical radius ry.
+func FillEllipse(img *image.RGBA, cx, cy, rx, ry int, c color.RGBA) {
+	bounds := img.Bounds()
+	for y := cy - ry; y <= cy+ry; y++ {
+		for x := cx - rx; x <= cx+rx; x++ {
+			dx := float64(x - cx)
+			dy := float64(y - cy)
+			if (dx*dx)/(float64(rx*rx))+(dy*dy)/(float64(ry*ry)) <= 1.0 {
+				if x >= 0 && x < bounds.Dx() && y >= 0 && y < bounds.Dy() {
+					img.Set(x, y, c)
+				}
+			}
+		}
+	}
+}
+
+// FillTriangle fills a triangle with the given color.
+// The triangle is defined by three vertices (x1, y1), (x2, y2), (x3, y3).
+func FillTriangle(img *image.RGBA, x1, y1, x2, y2, x3, y3 int, c color.RGBA) {
+	bounds := img.Bounds()
+
+	// Find bounding box
+	minX := min(x1, min(x2, x3))
+	maxX := max(x1, max(x2, x3))
+	minY := min(y1, min(y2, y3))
+	maxY := max(y1, max(y2, y3))
+
+	// Scan and fill
+	for y := minY; y <= maxY; y++ {
+		for x := minX; x <= maxX; x++ {
+			if isPointInTriangle(x, y, x1, y1, x2, y2, x3, y3) {
+				if x >= 0 && x < bounds.Dx() && y >= 0 && y < bounds.Dy() {
+					img.Set(x, y, c)
+				}
+			}
+		}
+	}
+}
+
+// isPointInTriangle checks if point (px, py) is inside triangle (x1,y1), (x2,y2), (x3,y3).
+func isPointInTriangle(px, py, x1, y1, x2, y2, x3, y3 int) bool {
+	// Use barycentric coordinates
+	denominator := ((y2-y3)*(x1-x3) + (x3-x2)*(y1-y3))
+	if denominator == 0 {
+		return false
+	}
+
+	a := ((y2-y3)*(px-x3) + (x3-x2)*(py-y3)) / denominator
+	b := ((y3-y1)*(px-x3) + (x1-x3)*(py-y3)) / denominator
+	c := 1 - a - b
+
+	return a >= 0 && b >= 0 && c >= 0
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
