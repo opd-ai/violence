@@ -18,6 +18,7 @@ import (
 	"github.com/opd-ai/violence/pkg/ai"
 	"github.com/opd-ai/violence/pkg/ammo"
 	"github.com/opd-ai/violence/pkg/animation"
+	"github.com/opd-ai/violence/pkg/attackanim"
 	"github.com/opd-ai/violence/pkg/attacktrail"
 	"github.com/opd-ai/violence/pkg/audio"
 	"github.com/opd-ai/violence/pkg/automap"
@@ -360,6 +361,9 @@ type Game struct {
 
 	// Camera effects system for enhanced visual feedback (shake, flash, zoom, chromatic aberration)
 	cameraFXSystem *camerafx.System
+
+	// Attack animation system for visual attack variety
+	attackAnimSystem *attackanim.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -537,6 +541,9 @@ func NewGame() *Game {
 	// Initialize camera effects system for enhanced visual feedback
 	g.cameraFXSystem = camerafx.NewSystem(g.genreID, int64(seed))
 
+	// Initialize attack animation system for visual attack variety
+	g.attackAnimSystem = attackanim.NewSystem(g.genreID)
+
 	// Connect sliding system to spatial index
 	g.slidingSystem.SetSpatialIndex(g.spatialSystem.GetGrid())
 
@@ -666,6 +673,9 @@ func NewGame() *Game {
 
 	// Register weapon visual enhancement system with the World
 	g.world.AddSystem(g.weaponVisualSystem)
+
+	// Register attack animation system with the World
+	g.world.AddSystem(g.attackAnimSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
@@ -2326,8 +2336,25 @@ func (g *Game) updateAIAgents() {
 		dx := g.camera.X - agent.X
 		dy := g.camera.Y - agent.Y
 		distSq := dx*dx + dy*dy
+		dist := math.Sqrt(distSq)
 
 		if distSq < 100 && agent.Cooldown <= 0 {
+			// Determine attack animation type based on distance and agent archetype
+			animType := g.selectAttackAnimation(agent, dist)
+
+			// Start attack animation on agent's entity if available
+			if g.attackAnimSystem != nil && g.world != nil {
+				entity := g.findOrCreateAgentEntity(agent)
+				dirX := dx
+				dirY := dy
+				if dist > 0.01 {
+					dirX /= dist
+					dirY /= dist
+				}
+				intensity := 1.0 + (agent.Damage / 50.0)
+				g.attackAnimSystem.StartAttack(g.world, entity, animType, dirX, dirY, intensity)
+			}
+
 			g.handleAgentAttack(agent)
 		}
 
@@ -6132,6 +6159,50 @@ func (g *Game) addChatMessage(message string) {
 	if len(g.chatMessages) > 50 {
 		g.chatMessages = g.chatMessages[len(g.chatMessages)-50:]
 	}
+}
+
+// selectAttackAnimation determines the attack animation type based on agent properties.
+func (g *Game) selectAttackAnimation(agent *ai.Agent, distance float64) string {
+	// Select based on archetype and distance
+	switch agent.ArchetypeID {
+	case "melee", "grunt", "soldier":
+		if distance < 2.0 {
+			return "quick_jab"
+		} else if distance < 4.0 {
+			return "melee_slash"
+		}
+		return "lunge"
+
+	case "heavy", "brute", "tank":
+		if distance < 3.0 {
+			return "overhead_smash"
+		}
+		return "lunge"
+
+	case "fast", "assassin", "rogue":
+		if distance < 2.5 {
+			return "quick_jab"
+		}
+		return "spin_attack"
+
+	case "ranged", "archer", "gunner":
+		return "ranged_charge"
+
+	default:
+		if distance < 2.5 {
+			return "melee_slash"
+		} else if distance < 5.0 {
+			return "lunge"
+		}
+		return "ranged_charge"
+	}
+}
+
+// findOrCreateAgentEntity finds or creates an ECS entity for an AI agent.
+func (g *Game) findOrCreateAgentEntity(agent *ai.Agent) engine.Entity {
+	// For now, create a new entity for each attack
+	// In a full implementation, agents would maintain persistent entity references
+	return g.world.AddEntity()
 }
 
 func main() {
