@@ -12,8 +12,6 @@ import (
 var (
 	// ErrConflict indicates a save conflict between local and cloud versions.
 	ErrConflict = errors.New("save conflict detected")
-	// ErrNotFound indicates the requested save was not found.
-	ErrNotFound = errors.New("save not found")
 	// ErrNoSlotAvailable indicates no empty slot for KeepBoth resolution.
 	ErrNoSlotAvailable = errors.New("no slot available")
 )

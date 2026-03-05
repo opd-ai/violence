@@ -3,8 +3,12 @@ package cloud
 
 import (
 	"context"
+	"errors"
 	"time"
 )
+
+// ErrNotFound is returned when a save file is not found in cloud storage.
+var ErrNotFound = errors.New("save file not found")
 
 // SaveMetadata contains metadata for a cloud-stored save file.
 type SaveMetadata struct {
