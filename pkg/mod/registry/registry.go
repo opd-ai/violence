@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -102,99 +103,128 @@ func (r *Registry) HandleUpload(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Parse multipart form
+	manifest, wasmData, err := r.parseUploadRequest(w, req)
+	if err != nil {
+		return
+	}
+
+	checksum, err := r.validateAndStoreFiles(w, manifest, wasmData)
+	if err != nil {
+		return
+	}
+
+	if err := r.saveModMetadata(w, manifest, wasmData, checksum); err != nil {
+		return
+	}
+
+	r.sendUploadSuccess(w, manifest, checksum)
+}
+
+// parseUploadRequest extracts and validates manifest and WASM files from the upload request.
+func (r *Registry) parseUploadRequest(w http.ResponseWriter, req *http.Request) (*mod.Manifest, []byte, error) {
 	if err := req.ParseMultipartForm(r.maxModSize); err != nil {
 		logrus.WithError(err).Warn("Failed to parse multipart form")
 		http.Error(w, "Invalid request", http.StatusBadRequest)
-		return
+		return nil, nil, err
 	}
 
-	// Get WASM file
 	file, header, err := req.FormFile("wasm")
 	if err != nil {
 		http.Error(w, "Missing wasm file", http.StatusBadRequest)
-		return
+		return nil, nil, err
 	}
 	defer file.Close()
 
-	// Check file size
 	if header.Size > r.maxModSize {
 		http.Error(w, fmt.Sprintf("File too large (max %d bytes)", r.maxModSize), http.StatusRequestEntityTooLarge)
-		return
+		return nil, nil, fmt.Errorf("file too large")
 	}
 
-	// Get manifest file
 	manifestFile, _, err := req.FormFile("manifest")
 	if err != nil {
 		http.Error(w, "Missing manifest file", http.StatusBadRequest)
-		return
+		return nil, nil, err
 	}
 	defer manifestFile.Close()
 
-	// Parse and validate manifest
+	manifest, err := r.parseManifest(w, manifestFile)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	wasmData, err := io.ReadAll(file)
+	if err != nil {
+		http.Error(w, "Failed to read WASM file", http.StatusInternalServerError)
+		return nil, nil, err
+	}
+
+	return manifest, wasmData, nil
+}
+
+// parseManifest reads and validates a manifest JSON file.
+func (r *Registry) parseManifest(w http.ResponseWriter, manifestFile multipart.File) (*mod.Manifest, error) {
 	manifestData, err := io.ReadAll(manifestFile)
 	if err != nil {
 		http.Error(w, "Failed to read manifest", http.StatusBadRequest)
-		return
+		return nil, err
 	}
 
 	var manifest mod.Manifest
 	if err := json.Unmarshal(manifestData, &manifest); err != nil {
 		logrus.WithError(err).Warn("Invalid manifest JSON")
 		http.Error(w, "Invalid manifest JSON", http.StatusBadRequest)
-		return
+		return nil, err
 	}
 
 	if err := manifest.Validate(); err != nil {
 		logrus.WithError(err).Warn("Manifest validation failed")
 		http.Error(w, fmt.Sprintf("Invalid manifest: %v", err), http.StatusBadRequest)
-		return
+		return nil, err
 	}
 
-	// Read WASM data for validation
-	wasmData, err := io.ReadAll(file)
-	if err != nil {
-		http.Error(w, "Failed to read WASM file", http.StatusInternalServerError)
-		return
-	}
+	return &manifest, nil
+}
 
-	// Validate WASM format
+// validateAndStoreFiles validates WASM data and stores it to disk.
+func (r *Registry) validateAndStoreFiles(w http.ResponseWriter, manifest *mod.Manifest, wasmData []byte) (string, error) {
 	if err := validateWASM(wasmData); err != nil {
 		logrus.WithError(err).Warn("WASM validation failed")
 		http.Error(w, fmt.Sprintf("Invalid WASM file: %v", err), http.StatusBadRequest)
-		return
+		return "", err
 	}
 
-	// Virus scan stub (placeholder for future integration)
 	if err := virusScanStub(wasmData); err != nil {
 		logrus.WithError(err).Warn("Virus scan failed")
 		http.Error(w, "Security scan failed", http.StatusForbidden)
-		return
+		return "", err
 	}
 
-	// Calculate SHA256 checksum
 	hash := sha256.Sum256(wasmData)
 	checksum := hex.EncodeToString(hash[:])
 
-	// Store WASM file
 	modPath := filepath.Join(r.storagePath, fmt.Sprintf("%s-%s.wasm", manifest.Name, manifest.Version))
 	if err := os.WriteFile(modPath, wasmData, 0o644); err != nil {
 		logrus.WithError(err).Error("Failed to write WASM file")
 		http.Error(w, "Storage error", http.StatusInternalServerError)
-		return
+		return "", err
 	}
 
-	// Insert metadata into database
+	return checksum, nil
+}
+
+// saveModMetadata inserts mod metadata into the database.
+func (r *Registry) saveModMetadata(w http.ResponseWriter, manifest *mod.Manifest, wasmData []byte, checksum string) error {
 	tagsJSON, _ := json.Marshal(manifest.Tags)
-	_, err = r.db.Exec(`
+	_, err := r.db.Exec(`
 		INSERT OR REPLACE INTO mods (name, version, author, description, tags, sha256, size, uploaded_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`, manifest.Name, manifest.Version, manifest.Author, manifest.Description, string(tagsJSON), checksum, len(wasmData), time.Now())
 	if err != nil {
 		logrus.WithError(err).Error("Failed to insert mod record")
-		os.Remove(modPath) // Cleanup on error
+		modPath := filepath.Join(r.storagePath, fmt.Sprintf("%s-%s.wasm", manifest.Name, manifest.Version))
+		os.Remove(modPath)
 		http.Error(w, "Database error", http.StatusInternalServerError)
-		return
+		return err
 	}
 
 	logrus.WithFields(logrus.Fields{
@@ -206,7 +236,11 @@ func (r *Registry) HandleUpload(w http.ResponseWriter, req *http.Request) {
 		"sha256":      checksum,
 	}).Info("Mod uploaded successfully")
 
-	// Return success response
+	return nil
+}
+
+// sendUploadSuccess sends a successful upload response.
+func (r *Registry) sendUploadSuccess(w http.ResponseWriter, manifest *mod.Manifest, checksum string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]interface{}{

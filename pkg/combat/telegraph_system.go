@@ -109,7 +109,6 @@ func (s *TelegraphSystem) updateTelegraph(w *engine.World, entity engine.Entity,
 }
 
 func (s *TelegraphSystem) executeDamage(w *engine.World, attacker engine.Entity, telegraph *TelegraphComponent, attackerPos *engine.Position) {
-	// Find all potential targets
 	it := w.QueryWithBitmask(engine.ComponentIDPosition, engine.ComponentIDHealth)
 
 	posType := reflect.TypeOf(&engine.Position{})
@@ -123,86 +122,113 @@ func (s *TelegraphSystem) executeDamage(w *engine.World, attacker engine.Entity,
 		target := it.Entity()
 
 		if target == attacker {
-			continue // Don't hit self
+			continue
 		}
 
 		tPosComp, _ := w.GetComponent(target, posType)
 		targetPos := tPosComp.(*engine.Position)
 
-		// Check if target is in attack area
 		if !s.isInAttackArea(attackerPos, targetPos, telegraph) {
 			continue
 		}
 
-		// Apply damage
 		healthComp, hasHealth := w.GetComponent(target, healthType)
 		if !hasHealth {
 			continue
 		}
 
 		health := healthComp.(*engine.Health)
-
-		// Calculate damage with direction
-		dx := targetPos.X - attackerPos.X
-		dy := targetPos.Y - attackerPos.Y
-		dist := math.Sqrt(dx*dx + dy*dy)
-
-		attackAngle := math.Atan2(dy, dx)
-		defenderFacing := 0.0
-
 		baseDamage := telegraph.Pattern.Damage
 
-		// Check for defensive actions
-		defComp, hasDefense := w.GetComponent(target, defenseType)
-		if hasDefense {
-			defense := defComp.(*DefenseComponent)
-			modifiedDamage, negated := ProcessIncomingDamage(defense, baseDamage, attackAngle, defenderFacing)
-			baseDamage = modifiedDamage
+		attackAngle := calculateAttackAngle(attackerPos, targetPos)
 
-			if negated {
-				s.logger.WithFields(logrus.Fields{
-					"target":  target,
-					"defense": defense.Type,
-				}).Debug("attack negated by defense")
-
-				// Perfect parry stuns the attacker
-				if defense.IsPerfectParryWindow() {
-					parryStunned = true
-					if tComp, ok := w.GetComponent(attacker, reflect.TypeOf(&TelegraphComponent{})); ok {
-						attackerTelegraph := tComp.(*TelegraphComponent)
-						attackerTelegraph.Phase = PhaseInactive
-						attackerTelegraph.PhaseTimer = defense.ParryStunDuration
-					}
-				}
-				continue
-			}
+		if s.processDamageWithDefense(w, target, attacker, baseDamage, attackAngle, defenseType, &parryStunned) {
+			continue
 		}
 
-		if dist > 0.001 {
-			_ = dx / dist // dirX for future knockback
-			_ = dy / dist // dirY for future knockback
-		}
-
-		health.Current -= int(baseDamage)
-		if health.Current < 0 {
-			health.Current = 0
-		}
-
+		applyDamageToHealth(health, baseDamage)
 		hitCount++
 
-		s.logger.WithFields(logrus.Fields{
-			"attacker": attacker,
-			"target":   target,
-			"damage":   baseDamage,
-			"pattern":  telegraph.Pattern.Name,
-		}).Debug("telegraph hit")
+		s.logHit(attacker, target, baseDamage, telegraph.Pattern.Name)
 	}
 
+	s.logExecutionSummary(attacker, hitCount, parryStunned, telegraph.Pattern.Name)
+}
+
+// calculateAttackAngle computes the angle from attacker to target.
+func calculateAttackAngle(attackerPos, targetPos *engine.Position) float64 {
+	dx := targetPos.X - attackerPos.X
+	dy := targetPos.Y - attackerPos.Y
+	return math.Atan2(dy, dx)
+}
+
+// processDamageWithDefense applies defense modifiers and returns true if attack was negated.
+func (s *TelegraphSystem) processDamageWithDefense(w *engine.World, target, attacker engine.Entity, baseDamage, attackAngle float64, defenseType reflect.Type, parryStunned *bool) bool {
+	defComp, hasDefense := w.GetComponent(target, defenseType)
+	if !hasDefense {
+		return false
+	}
+
+	defense := defComp.(*DefenseComponent)
+	defenderFacing := 0.0
+	_, negated := ProcessIncomingDamage(defense, baseDamage, attackAngle, defenderFacing)
+
+	if !negated {
+		return false
+	}
+
+	s.logDefenseNegation(target, defense.Type)
+
+	if defense.IsPerfectParryWindow() {
+		*parryStunned = true
+		applyParryStun(w, attacker, defense.ParryStunDuration)
+	}
+
+	return true
+}
+
+// applyParryStun stuns an attacker after a perfect parry.
+func applyParryStun(w *engine.World, attacker engine.Entity, stunDuration float64) {
+	if tComp, ok := w.GetComponent(attacker, reflect.TypeOf(&TelegraphComponent{})); ok {
+		attackerTelegraph := tComp.(*TelegraphComponent)
+		attackerTelegraph.Phase = PhaseInactive
+		attackerTelegraph.PhaseTimer = stunDuration
+	}
+}
+
+// applyDamageToHealth reduces health by damage amount.
+func applyDamageToHealth(health *engine.Health, damage float64) {
+	health.Current -= int(damage)
+	if health.Current < 0 {
+		health.Current = 0
+	}
+}
+
+// logHit logs a single successful hit.
+func (s *TelegraphSystem) logHit(attacker, target engine.Entity, damage float64, patternName string) {
+	s.logger.WithFields(logrus.Fields{
+		"attacker": attacker,
+		"target":   target,
+		"damage":   damage,
+		"pattern":  patternName,
+	}).Debug("telegraph hit")
+}
+
+// logDefenseNegation logs when an attack is blocked.
+func (s *TelegraphSystem) logDefenseNegation(target engine.Entity, defenseType DefenseType) {
+	s.logger.WithFields(logrus.Fields{
+		"target":  target,
+		"defense": defenseType,
+	}).Debug("attack negated by defense")
+}
+
+// logExecutionSummary logs the overall results of a telegraph attack.
+func (s *TelegraphSystem) logExecutionSummary(attacker engine.Entity, hitCount int, parryStunned bool, patternName string) {
 	if hitCount > 0 {
 		s.logger.WithFields(logrus.Fields{
 			"attacker": attacker,
 			"hits":     hitCount,
-			"pattern":  telegraph.Pattern.Name,
+			"pattern":  patternName,
 		}).Info("telegraph executed")
 	}
 

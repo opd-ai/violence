@@ -908,17 +908,34 @@ func (g *Generator) generateQuadrupedEnemy(img *image.RGBA, rng *rand.Rand, fram
 	cx, cy := size/2, size/2
 
 	bodyColor := g.getCreatureColor("quadruped", rng)
-	darkColor := color.RGBA{
-		R: bodyColor.R / 2,
-		G: bodyColor.G / 2,
-		B: bodyColor.B / 2,
-		A: 255,
-	}
+	darkColor := calculateDarkerColor(bodyColor)
 
 	bodyW := size / 2
 	bodyH := size / 5
 	bodyY := cy - size/10
 
+	drawQuadrupedBody(img, cx, bodyY, bodyW, bodyH, bodyColor)
+	drawQuadrupedLegs(img, cx, bodyY, bodyW, bodyH, size, frame, darkColor)
+	drawQuadrupedHead(img, cx, bodyY, bodyW, bodyH, size, bodyColor)
+	drawQuadrupedEye(img, cx, bodyY, bodyW, size)
+	drawQuadrupedTail(img, cx, bodyY, bodyW, bodyH, size, frame, darkColor)
+
+	bodyBounds := image.Rect(cx-bodyW/2, bodyY, cx+bodyW/2, bodyY+bodyH)
+	g.applyMaterialDetail(img, bodyBounds, MaterialFur, rng.Int63(), 0.8, bodyColor)
+}
+
+// calculateDarkerColor creates a darker version of a color.
+func calculateDarkerColor(base color.RGBA) color.RGBA {
+	return color.RGBA{
+		R: base.R / 2,
+		G: base.G / 2,
+		B: base.B / 2,
+		A: 255,
+	}
+}
+
+// drawQuadrupedBody draws the main body with vertical shading.
+func drawQuadrupedBody(img *image.RGBA, cx, bodyY, bodyW, bodyH int, bodyColor color.RGBA) {
 	for y := bodyY; y < bodyY+bodyH; y++ {
 		for x := cx - bodyW/2; x < cx+bodyW/2; x++ {
 			if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
@@ -931,13 +948,11 @@ func (g *Generator) generateQuadrupedEnemy(img *image.RGBA, rng *rand.Rand, fram
 			}
 		}
 	}
+}
 
-	legOffsets := []int{0, 0, 0, 0}
-	if frame%3 == 1 {
-		legOffsets = []int{2, -2, -2, 2}
-	} else if frame%3 == 2 {
-		legOffsets = []int{-2, 2, 2, -2}
-	}
+// drawQuadrupedLegs draws four animated legs.
+func drawQuadrupedLegs(img *image.RGBA, cx, bodyY, bodyW, bodyH, size, frame int, darkColor color.RGBA) {
+	legOffsets := calculateLegOffsets(frame)
 
 	legPositions := [][2]int{
 		{cx - bodyW/3, bodyY + bodyH},
@@ -947,20 +962,36 @@ func (g *Generator) generateQuadrupedEnemy(img *image.RGBA, rng *rand.Rand, fram
 	}
 
 	for i, pos := range legPositions {
-		legX := pos[0]
-		legY := pos[1] + legOffsets[i]
-		legW := size / 16
-		legH := size / 4
+		drawSingleLeg(img, pos[0], pos[1]+legOffsets[i], size, darkColor)
+	}
+}
 
-		for y := legY; y < legY+legH; y++ {
-			for x := legX - legW/2; x < legX+legW/2; x++ {
-				if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
-					img.Set(x, y, darkColor)
-				}
+// calculateLegOffsets returns leg animation offsets for the current frame.
+func calculateLegOffsets(frame int) []int {
+	if frame%3 == 1 {
+		return []int{2, -2, -2, 2}
+	} else if frame%3 == 2 {
+		return []int{-2, 2, 2, -2}
+	}
+	return []int{0, 0, 0, 0}
+}
+
+// drawSingleLeg draws one leg at the specified position.
+func drawSingleLeg(img *image.RGBA, legX, legY, size int, darkColor color.RGBA) {
+	legW := size / 16
+	legH := size / 4
+
+	for y := legY; y < legY+legH; y++ {
+		for x := legX - legW/2; x < legX+legW/2; x++ {
+			if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
+				img.Set(x, y, darkColor)
 			}
 		}
 	}
+}
 
+// drawQuadrupedHead draws the creature's head with horizontal shading.
+func drawQuadrupedHead(img *image.RGBA, cx, bodyY, bodyW, bodyH, size int, bodyColor color.RGBA) {
 	headW := bodyW / 3
 	headH := size / 5
 	headX := cx + bodyW/2
@@ -978,10 +1009,21 @@ func (g *Generator) generateQuadrupedEnemy(img *image.RGBA, rng *rand.Rand, fram
 			}
 		}
 	}
+}
+
+// drawQuadrupedEye draws a single eye on the head.
+func drawQuadrupedEye(img *image.RGBA, cx, bodyY, bodyW, size int) {
+	headW := bodyW / 3
+	headH := size / 5
+	headX := cx + bodyW/2
+	headY := bodyY - headH/2
 
 	eyeColor := color.RGBA{R: 255, G: 200, B: 50, A: 255}
 	common.FillCircle(img, headX+headW-3, headY+headH/3, 2, eyeColor)
+}
 
+// drawQuadrupedTail draws an animated tail.
+func drawQuadrupedTail(img *image.RGBA, cx, bodyY, bodyW, bodyH, size, frame int, darkColor color.RGBA) {
 	tailX := cx - bodyW/2
 	tailY := bodyY + bodyH/2
 	tailAngle := float64(frame%8) * math.Pi / 16
@@ -989,10 +1031,6 @@ func (g *Generator) generateQuadrupedEnemy(img *image.RGBA, rng *rand.Rand, fram
 	tailEndX := tailX - int(float64(tailLen)*math.Cos(tailAngle))
 	tailEndY := tailY + int(float64(tailLen)*math.Sin(tailAngle))
 	common.DrawThickLine(img, tailX, tailY, tailEndX, tailEndY, 2, darkColor)
-
-	// Apply fur texture to body
-	bodyBounds := image.Rect(cx-bodyW/2, bodyY, cx+bodyW/2, bodyY+bodyH)
-	g.applyMaterialDetail(img, bodyBounds, MaterialFur, rng.Int63(), 0.8, bodyColor)
 }
 
 // generateInsectEnemy creates multi-legged insect sprites.
@@ -1095,17 +1133,31 @@ func (g *Generator) generateSerpentEnemy(img *image.RGBA, rng *rand.Rand, frame 
 	cx, cy := size/2, size/2
 
 	bodyColor := g.getCreatureColor("serpent", rng)
-	scaleColor := color.RGBA{
-		R: uint8(math.Min(255, float64(bodyColor.R)*1.2)),
-		G: uint8(math.Min(255, float64(bodyColor.G)*1.2)),
-		B: uint8(math.Min(255, float64(bodyColor.B)*1.2)),
-		A: 255,
-	}
+	scaleColor := calculateLighterColor(bodyColor, 1.2)
 
 	segments := 8
 	baseRadius := size / 8
 	wavePhase := float64(frame) * 0.3
 
+	drawSerpentBody(img, cx, cy, size, segments, baseRadius, wavePhase, bodyColor, scaleColor)
+	drawSerpentHead(img, cx, cy, size, baseRadius, wavePhase, bodyColor, frame)
+
+	fullBounds := image.Rect(cx-size/4, cy-size/4, cx+size/4, cy+size/2)
+	g.applyMaterialDetail(img, fullBounds, MaterialScales, rng.Int63(), 1.0, bodyColor)
+}
+
+// calculateLighterColor creates a lighter version of a color.
+func calculateLighterColor(base color.RGBA, factor float64) color.RGBA {
+	return color.RGBA{
+		R: uint8(math.Min(255, float64(base.R)*factor)),
+		G: uint8(math.Min(255, float64(base.G)*factor)),
+		B: uint8(math.Min(255, float64(base.B)*factor)),
+		A: 255,
+	}
+}
+
+// drawSerpentBody draws the segmented body of a serpent with wave motion.
+func drawSerpentBody(img *image.RGBA, cx, cy, size, segments, baseRadius int, wavePhase float64, bodyColor, scaleColor color.RGBA) {
 	for i := 0; i < segments; i++ {
 		t := float64(i) / float64(segments)
 		segY := cy - size/4 + int(t*float64(size)*0.8)
@@ -1117,34 +1169,49 @@ func (g *Generator) generateSerpentEnemy(img *image.RGBA, rng *rand.Rand, frame 
 			radius = 2
 		}
 
-		for y := -radius; y <= radius; y++ {
-			for x := -radius; x <= radius; x++ {
-				if x*x+y*y <= radius*radius {
-					px := segX + x
-					py := segY + y
-					if px >= 0 && px < img.Bounds().Dx() && py >= 0 && py < img.Bounds().Dy() {
-						dist := math.Sqrt(float64(x*x + y*y))
-						shade := 1.0 - (dist / float64(radius) * 0.4)
-						r := uint8(math.Min(255, float64(bodyColor.R)*shade))
-						g := uint8(math.Min(255, float64(bodyColor.G)*shade))
-						b := uint8(math.Min(255, float64(bodyColor.B)*shade))
-						img.Set(px, py, color.RGBA{R: r, G: g, B: b, A: 255})
-					}
-				}
-			}
-		}
+		drawSerpentSegment(img, segX, segY, radius, bodyColor)
 
 		if i%2 == 0 && i < segments-1 {
 			common.FillCircle(img, segX-radius/2, segY, 1, scaleColor)
 			common.FillCircle(img, segX+radius/2, segY, 1, scaleColor)
 		}
 	}
+}
 
+// drawSerpentSegment draws a single body segment with shading.
+func drawSerpentSegment(img *image.RGBA, segX, segY, radius int, bodyColor color.RGBA) {
+	for y := -radius; y <= radius; y++ {
+		for x := -radius; x <= radius; x++ {
+			if x*x+y*y <= radius*radius {
+				px := segX + x
+				py := segY + y
+				if px >= 0 && px < img.Bounds().Dx() && py >= 0 && py < img.Bounds().Dy() {
+					dist := math.Sqrt(float64(x*x + y*y))
+					shade := 1.0 - (dist / float64(radius) * 0.4)
+					r := uint8(math.Min(255, float64(bodyColor.R)*shade))
+					g := uint8(math.Min(255, float64(bodyColor.G)*shade))
+					b := uint8(math.Min(255, float64(bodyColor.B)*shade))
+					img.Set(px, py, color.RGBA{R: r, G: g, B: b, A: 255})
+				}
+			}
+		}
+	}
+}
+
+// drawSerpentHead draws the head with eyes and animated tongue.
+func drawSerpentHead(img *image.RGBA, cx, cy, size, baseRadius int, wavePhase float64, bodyColor color.RGBA, frame int) {
 	headRadius := baseRadius + 2
 	headY := cy - size/4
 	waveOffset := int(math.Sin(wavePhase) * float64(size) / 6)
 	headX := cx + waveOffset
 
+	drawSerpentHeadShape(img, headX, headY, headRadius, bodyColor)
+	drawSerpentEyes(img, headX, headY, headRadius)
+	drawSerpentTongue(img, headX, headY, headRadius, size, frame)
+}
+
+// drawSerpentHeadShape renders the head as a shaded circle.
+func drawSerpentHeadShape(img *image.RGBA, headX, headY, headRadius int, bodyColor color.RGBA) {
 	for y := -headRadius; y <= headRadius; y++ {
 		for x := -headRadius; x <= headRadius; x++ {
 			if x*x+y*y <= headRadius*headRadius {
@@ -1161,21 +1228,23 @@ func (g *Generator) generateSerpentEnemy(img *image.RGBA, rng *rand.Rand, frame 
 			}
 		}
 	}
+}
 
+// drawSerpentEyes renders yellow eyes on the serpent head.
+func drawSerpentEyes(img *image.RGBA, headX, headY, headRadius int) {
 	eyeColor := color.RGBA{R: 255, G: 200, B: 0, A: 255}
 	common.FillCircle(img, headX-headRadius/2, headY, 2, eyeColor)
 	common.FillCircle(img, headX+headRadius/2, headY, 2, eyeColor)
+}
 
+// drawSerpentTongue renders an animated forked tongue.
+func drawSerpentTongue(img *image.RGBA, headX, headY, headRadius, size, frame int) {
 	tongueLen := size / 8
 	if frame%4 < 2 {
 		tongueLen = size / 12
 	}
 	tongueColor := color.RGBA{R: 200, G: 50, B: 50, A: 255}
 	common.DrawThickLine(img, headX, headY+headRadius/2, headX, headY+headRadius/2+tongueLen, 1, tongueColor)
-
-	// Apply scale texture to body segments
-	fullBounds := image.Rect(cx-size/4, cy-size/4, cx+size/4, cy+size/2)
-	g.applyMaterialDetail(img, fullBounds, MaterialScales, rng.Int63(), 1.0, bodyColor)
 }
 
 // generateFlyingEnemy creates winged creature sprites.

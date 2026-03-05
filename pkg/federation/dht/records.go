@@ -135,48 +135,68 @@ func (n *Node) UpdateGenreIndex(ctx context.Context, genre, serverName string, a
 
 	key := makeKey("genre", genre)
 
-	// Get current index
-	var serverNames []string
+	serverNames, err := n.fetchGenreIndex(ctx, key)
+	if err != nil {
+		return err
+	}
+
+	serverNames = updateServerList(serverNames, serverName, add)
+
+	return n.storeGenreIndex(ctx, key, serverNames)
+}
+
+// fetchGenreIndex retrieves the current server list for a genre from the DHT.
+func (n *Node) fetchGenreIndex(ctx context.Context, key string) ([]string, error) {
 	data, err := n.dht.GetValue(ctx, key)
 	if err != nil && err != datastore.ErrNotFound {
-		// Check for routing not found error (DHT-specific)
 		if err.Error() != "routing: not found" {
-			return fmt.Errorf("failed to get genre index: %w", err)
+			return nil, fmt.Errorf("failed to get genre index: %w", err)
 		}
-		// Index doesn't exist yet, start with empty list
+		return []string{}, nil
 	}
-	if err == nil {
-		if err := json.Unmarshal(data, &serverNames); err != nil {
-			return fmt.Errorf("failed to unmarshal genre index: %w", err)
-		}
+	if err != nil {
+		return []string{}, nil
 	}
 
-	// Update index
+	var serverNames []string
+	if err := json.Unmarshal(data, &serverNames); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal genre index: %w", err)
+	}
+	return serverNames, nil
+}
+
+// updateServerList adds or removes a server name from the list.
+func updateServerList(serverNames []string, serverName string, add bool) []string {
 	if add {
-		// Add server name if not already present
-		found := false
-		for _, name := range serverNames {
-			if name == serverName {
-				found = true
-				break
-			}
-		}
-		if !found {
-			serverNames = append(serverNames, serverName)
-		}
-	} else {
-		// Remove server name
-		filtered := make([]string, 0, len(serverNames))
-		for _, name := range serverNames {
-			if name != serverName {
-				filtered = append(filtered, name)
-			}
-		}
-		serverNames = filtered
+		return addServerToList(serverNames, serverName)
 	}
+	return removeServerFromList(serverNames, serverName)
+}
 
-	// Serialize and store updated index
-	data, err = json.Marshal(serverNames)
+// addServerToList adds a server name to the list if not already present.
+func addServerToList(serverNames []string, serverName string) []string {
+	for _, name := range serverNames {
+		if name == serverName {
+			return serverNames
+		}
+	}
+	return append(serverNames, serverName)
+}
+
+// removeServerFromList removes a server name from the list.
+func removeServerFromList(serverNames []string, serverName string) []string {
+	filtered := make([]string, 0, len(serverNames))
+	for _, name := range serverNames {
+		if name != serverName {
+			filtered = append(filtered, name)
+		}
+	}
+	return filtered
+}
+
+// storeGenreIndex serializes and stores the updated genre index in the DHT.
+func (n *Node) storeGenreIndex(ctx context.Context, key string, serverNames []string) error {
+	data, err := json.Marshal(serverNames)
 	if err != nil {
 		return fmt.Errorf("failed to marshal genre index: %w", err)
 	}

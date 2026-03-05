@@ -4862,8 +4862,12 @@ func (g *Game) renderHazards(screen *ebiten.Image) {
 // renderFeedbackEffects renders damage numbers and impact effects.
 func (g *Game) renderFeedbackEffects(screen *ebiten.Image) {
 	planeX, planeY := calculateCameraPlane(g.camera)
+	g.renderDamageNumbers(screen, planeX, planeY)
+	g.renderImpactEffects(screen, planeX, planeY)
+}
 
-	// Render damage numbers
+// renderDamageNumbers renders floating damage numbers.
+func (g *Game) renderDamageNumbers(screen *ebiten.Image, planeX, planeY float64) {
 	damageNumbers := g.feedbackSystem.GetDamageNumbers()
 	for _, dn := range damageNumbers {
 		dnX, dnY := dn.GetPosition()
@@ -4876,33 +4880,50 @@ func (g *Game) renderFeedbackEffects(screen *ebiten.Image) {
 			continue
 		}
 
-		spriteScreenX := int((float64(config.C.InternalWidth) / 2.0) * (1.0 + transformX/transformY))
-		spriteScreenY := int(float64(config.C.InternalHeight)/2.0 - float64(config.C.InternalHeight)/(transformY*2.0))
+		g.drawDamageNumberText(screen, dn, transformX, transformY)
+	}
+}
 
-		dnText := dn.FormatDamageNumber()
-		dnColor := dn.GetColor()
-		scale := dn.GetScale()
+// drawDamageNumberText renders a single damage number with optional outline.
+func (g *Game) drawDamageNumberText(screen *ebiten.Image, dn interface {
+	FormatDamageNumber() string
+	GetColor() color.RGBA
+	GetScale() float64
+}, transformX, transformY float64,
+) {
+	spriteScreenX := int((float64(config.C.InternalWidth) / 2.0) * (1.0 + transformX/transformY))
+	spriteScreenY := int(float64(config.C.InternalHeight)/2.0 - float64(config.C.InternalHeight)/(transformY*2.0))
 
-		textBounds := text.BoundString(basicfont.Face7x13, dnText)
-		textX := spriteScreenX - int(float64(textBounds.Dx())*scale/2.0)
-		textY := spriteScreenY
+	dnText := dn.FormatDamageNumber()
+	dnColor := dn.GetColor()
+	scale := dn.GetScale()
 
-		if scale > 1.0 {
-			for dx := -1; dx <= 1; dx++ {
-				for dy := -1; dy <= 1; dy++ {
-					if dx == 0 && dy == 0 {
-						continue
-					}
-					outlineColor := color.RGBA{R: 0, G: 0, B: 0, A: dnColor.A}
-					text.Draw(screen, dnText, basicfont.Face7x13, textX+dx, textY+dy, outlineColor)
-				}
-			}
-		}
+	textBounds := text.BoundString(basicfont.Face7x13, dnText)
+	textX := spriteScreenX - int(float64(textBounds.Dx())*scale/2.0)
+	textY := spriteScreenY
 
-		text.Draw(screen, dnText, basicfont.Face7x13, textX, textY, dnColor)
+	if scale > 1.0 {
+		drawTextOutline(screen, dnText, textX, textY, dnColor.A)
 	}
 
-	// Render impact effects
+	text.Draw(screen, dnText, basicfont.Face7x13, textX, textY, dnColor)
+}
+
+// drawTextOutline renders a black outline around text for emphasis.
+func drawTextOutline(screen *ebiten.Image, txt string, x, y int, alpha uint8) {
+	for dx := -1; dx <= 1; dx++ {
+		for dy := -1; dy <= 1; dy++ {
+			if dx == 0 && dy == 0 {
+				continue
+			}
+			outlineColor := color.RGBA{R: 0, G: 0, B: 0, A: alpha}
+			text.Draw(screen, txt, basicfont.Face7x13, x+dx, y+dy, outlineColor)
+		}
+	}
+}
+
+// renderImpactEffects renders circular impact effects.
+func (g *Game) renderImpactEffects(screen *ebiten.Image, planeX, planeY float64) {
 	impactEffects := g.feedbackSystem.GetImpactEffects()
 	for _, ie := range impactEffects {
 		ieX, ieY := ie.GetPosition()
@@ -4915,29 +4936,43 @@ func (g *Game) renderFeedbackEffects(screen *ebiten.Image) {
 			continue
 		}
 
-		spriteScreenX := int((float64(config.C.InternalWidth) / 2.0) * (1.0 + transformX/transformY))
-		spriteScreenY := int(float64(config.C.InternalHeight)/2.0 - float64(config.C.InternalHeight)/(transformY*4.0))
-
-		size := int(20.0 * ie.GetScale() / transformY * 10.0)
-		if size < 2 {
-			size = 2
-		}
-		if size > 30 {
-			size = 30
-		}
-
-		ieColor := ie.GetColor()
-
-		vector.DrawFilledCircle(screen,
-			float32(spriteScreenX), float32(spriteScreenY),
-			float32(size/2), ieColor, false)
-
-		vector.StrokeCircle(screen,
-			float32(spriteScreenX), float32(spriteScreenY),
-			float32(size/2+2), 2,
-			color.RGBA{R: 255, G: 255, B: 255, A: ieColor.A / 2},
-			false)
+		g.drawImpactCircle(screen, ie, transformX, transformY)
 	}
+}
+
+// drawImpactCircle renders a single impact effect as a filled circle with stroke.
+func (g *Game) drawImpactCircle(screen *ebiten.Image, ie interface {
+	GetScale() float64
+	GetColor() color.RGBA
+}, transformX, transformY float64,
+) {
+	spriteScreenX := int((float64(config.C.InternalWidth) / 2.0) * (1.0 + transformX/transformY))
+	spriteScreenY := int(float64(config.C.InternalHeight)/2.0 - float64(config.C.InternalHeight)/(transformY*4.0))
+
+	size := calculateImpactSize(ie.GetScale(), transformY)
+	ieColor := ie.GetColor()
+
+	vector.DrawFilledCircle(screen,
+		float32(spriteScreenX), float32(spriteScreenY),
+		float32(size/2), ieColor, false)
+
+	vector.StrokeCircle(screen,
+		float32(spriteScreenX), float32(spriteScreenY),
+		float32(size/2+2), 2,
+		color.RGBA{R: 255, G: 255, B: 255, A: ieColor.A / 2},
+		false)
+}
+
+// calculateImpactSize computes the screen size for an impact effect.
+func calculateImpactSize(scale, transformY float64) int {
+	size := int(20.0 * scale / transformY * 10.0)
+	if size < 2 {
+		return 2
+	}
+	if size > 30 {
+		return 30
+	}
+	return size
 }
 
 // shouldRenderFeedbackAtPosition checks if a feedback effect is close enough to render.
