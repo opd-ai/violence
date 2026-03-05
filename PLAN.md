@@ -50,7 +50,7 @@
 
    **Sub-tasks**:
    4.1. [x] Define cloud save API interface (upload, download, list, delete, conflict resolution) — COMPLETE (2026-03-05): Implemented comprehensive cloud save interfaces in `pkg/save/cloud/`. Created `Provider` interface with upload/download/list/delete/metadata methods, `SaveMetadata` struct with checksum validation, `ConflictResolution` enum (KeepLocal/KeepCloud/KeepBoth), and `Syncer` for synchronization with checksum verification and conflict detection. Test coverage: 88.0% (exceeds 82% target).
-   4.2. Implement S3-compatible backend (works with AWS, MinIO, Backblaze B2)
+   4.2. [x] Implement S3-compatible backend (works with AWS, MinIO, Backblaze B2) — COMPLETE (2026-03-05): Implemented full S3Provider in `pkg/save/cloud/s3.go` using AWS SDK v2. Supports AWS S3, MinIO, Backblaze B2, and all S3-compatible services. Features include: configurable endpoint/region/credentials, automatic bucket management, SHA256 checksum validation, metadata storage as JSON, error handling with ErrNotFound mapping, and path-style URL support for MinIO. All 11 functions under 30 lines and complexity ≤10. Test coverage: comprehensive unit tests for all Provider interface methods. Documentation in `docs/S3_CLOUD_SAVES.md`.
    4.3. Implement WebDAV backend for self-hosted cloud storage
    4.4. Add save conflict resolution UI (keep local, keep cloud, merge)
    4.5. Create background sync worker with retry and offline queue
