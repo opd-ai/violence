@@ -62,6 +62,7 @@ import (
 	"github.com/opd-ai/violence/pkg/outline"
 	"github.com/opd-ai/violence/pkg/parallax"
 	"github.com/opd-ai/violence/pkg/particle"
+	"github.com/opd-ai/violence/pkg/playersprite"
 	"github.com/opd-ai/violence/pkg/progression"
 	"github.com/opd-ai/violence/pkg/projectile"
 	"github.com/opd-ai/violence/pkg/props"
@@ -369,6 +370,9 @@ type Game struct {
 
 	// Status effect visual system for glowing auras and particles on status effects
 	statusFXSystem *statusfx.System
+
+	// Player sprite rendering system for character visuals with equipment
+	playerSpriteSystem *playersprite.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -553,6 +557,9 @@ func NewGame() *Game {
 	// Initialize status effect visual system for glowing auras and particles
 	g.statusFXSystem = statusfx.NewSystem(g.genreID, g.particleSystem)
 
+	// Initialize player sprite rendering system for character visuals
+	g.playerSpriteSystem = playersprite.NewSystem(g.genreID)
+
 	// Connect sliding system to spatial index
 	g.slidingSystem.SetSpatialIndex(g.spatialSystem.GetGrid())
 
@@ -688,6 +695,9 @@ func NewGame() *Game {
 
 	// Register status effect visual system with the World
 	g.world.AddSystem(g.statusFXSystem)
+
+	// Register player sprite rendering system with the World
+	g.world.AddSystem(g.playerSpriteSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
@@ -1568,6 +1578,9 @@ func (g *Game) setGenreForGameplaySystems(genreID string) {
 	}
 	if g.itemIconSystem != nil {
 		g.itemIconSystem.SetGenre(genreID)
+	}
+	if g.playerSpriteSystem != nil {
+		g.playerSpriteSystem.SetGenre(genreID)
 	}
 }
 
