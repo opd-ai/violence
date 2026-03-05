@@ -1,7 +1,11 @@
 // Package automap provides the in-game auto-mapping system.
 package automap
 
-import "github.com/hajimehoshi/ebiten/v2"
+import (
+	"sync"
+
+	"github.com/hajimehoshi/ebiten/v2"
+)
 
 // AnnotationType represents special markers on the automap.
 type AnnotationType int
@@ -49,6 +53,9 @@ func (m *Map) Reveal(x, y int) {
 
 // AddAnnotation adds a special marker to the automap.
 func (m *Map) AddAnnotation(x, y int, annotationType AnnotationType) {
+	if x < 0 || x >= m.Width || y < 0 || y >= m.Height {
+		return
+	}
 	// Check if annotation already exists at this position
 	for _, ann := range m.Annotations {
 		if ann.X == x && ann.Y == y {
@@ -91,14 +98,21 @@ func (m *Map) Render(screen *ebiten.Image, playerX, playerY, playerAngle float64
 	m.RenderMinimap(screen, cfg)
 }
 
-var currentGenre = "fantasy"
+var (
+	genreMu      sync.RWMutex
+	currentGenre = "fantasy"
+)
 
 // SetGenre configures automap visuals for a genre.
 func SetGenre(genreID string) {
+	genreMu.Lock()
 	currentGenre = genreID
+	genreMu.Unlock()
 }
 
 // GetCurrentGenre returns the current global genre setting.
 func GetCurrentGenre() string {
+	genreMu.RLock()
+	defer genreMu.RUnlock()
 	return currentGenre
 }

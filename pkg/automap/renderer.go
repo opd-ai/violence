@@ -137,7 +137,7 @@ func GetGenreTheme(genreID string) GenreTheme {
 
 // RenderMinimap draws the minimap to the screen.
 func (m *Map) RenderMinimap(screen *ebiten.Image, cfg RenderConfig) {
-	theme := GetGenreTheme(currentGenre)
+	theme := GetGenreTheme(GetCurrentGenre())
 	cfg = applyDefaultRenderConfig(cfg)
 
 	centerX := cfg.X + cfg.Width/2
