@@ -183,9 +183,14 @@ func (sys *System) renderSciFiDamage(rgba *image.RGBA, comp *Component, size int
 	crackColor := color.RGBA{R: 40, G: 40, B: 40, A: 180}
 	glitchColor := color.RGBA{R: 0, G: 255, B: 255, A: 150}
 
-	// Render cracks
-	crackCount := comp.DamageLevel
-	for i := 0; i < crackCount; i++ {
+	sys.renderSciFiCracks(rgba, comp.DamageLevel, size, crackColor, rng)
+	sys.renderSciFiSparks(rgba, comp.DamageLevel, size, sparkColor, rng)
+	sys.renderSciFiGlitches(rgba, comp.DamageLevel, size, glitchColor, rng)
+}
+
+// renderSciFiCracks draws branching crack lines across the surface.
+func (sys *System) renderSciFiCracks(rgba *image.RGBA, damageLevel, size int, crackColor color.RGBA, rng *rand.Rand) {
+	for i := 0; i < damageLevel; i++ {
 		startX := rng.Intn(size)
 		startY := rng.Intn(size)
 		angle := rng.Float64() * 2 * math.Pi
@@ -197,57 +202,69 @@ func (sys *System) renderSciFiDamage(rgba *image.RGBA, comp *Component, size int
 			if x >= 0 && x < size && y >= 0 && y < size {
 				rgba.Set(x, y, crackColor)
 			}
-
-			// Branch cracks at random intervals
 			if j > 2 && rng.Float64() < 0.15 {
-				branchAngle := angle + (rng.Float64()-0.5)*math.Pi/3
-				branchLen := 2 + rng.Intn(4)
-				for k := 0; k < branchLen; k++ {
-					bx := x + int(float64(k)*math.Cos(branchAngle))
-					by := y + int(float64(k)*math.Sin(branchAngle))
-					if bx >= 0 && bx < size && by >= 0 && by < size {
-						rgba.Set(bx, by, crackColor)
-					}
-				}
+				sys.renderCrackBranch(rgba, x, y, size, angle, crackColor, rng)
 			}
 		}
 	}
+}
 
-	// Add spark points for moderate+ damage
-	if comp.DamageLevel >= 2 {
-		sparkCount := comp.DamageLevel - 1
-		for i := 0; i < sparkCount; i++ {
-			cx := rng.Intn(size)
-			cy := rng.Intn(size)
-			sys.fillCircle(rgba, cx, cy, 1, sparkColor)
+// renderCrackBranch draws a small branching crack from a main crack.
+func (sys *System) renderCrackBranch(rgba *image.RGBA, x, y, size int, baseAngle float64, crackColor color.RGBA, rng *rand.Rand) {
+	branchAngle := baseAngle + (rng.Float64()-0.5)*math.Pi/3
+	branchLen := 2 + rng.Intn(4)
+	for k := 0; k < branchLen; k++ {
+		bx := x + int(float64(k)*math.Cos(branchAngle))
+		by := y + int(float64(k)*math.Sin(branchAngle))
+		if bx >= 0 && bx < size && by >= 0 && by < size {
+			rgba.Set(bx, by, crackColor)
+		}
+	}
+}
 
-			// Add spark rays
-			rayCount := 3 + rng.Intn(3)
-			for j := 0; j < rayCount; j++ {
-				angle := rng.Float64() * 2 * math.Pi
-				rayLen := 2 + rng.Intn(3)
-				for k := 1; k <= rayLen; k++ {
-					rx := cx + int(float64(k)*math.Cos(angle))
-					ry := cy + int(float64(k)*math.Sin(angle))
-					if rx >= 0 && rx < size && ry >= 0 && ry < size {
-						alpha := uint8(200 - k*40)
-						rgba.Set(rx, ry, color.RGBA{R: 255, G: 200, B: 50, A: alpha})
-					}
-				}
+// renderSciFiSparks draws electric spark points with radiating rays for moderate damage.
+func (sys *System) renderSciFiSparks(rgba *image.RGBA, damageLevel, size int, sparkColor color.RGBA, rng *rand.Rand) {
+	if damageLevel < 2 {
+		return
+	}
+	sparkCount := damageLevel - 1
+	for i := 0; i < sparkCount; i++ {
+		cx := rng.Intn(size)
+		cy := rng.Intn(size)
+		sys.fillCircle(rgba, cx, cy, 1, sparkColor)
+		sys.renderSparkRays(rgba, cx, cy, size, rng)
+	}
+}
+
+// renderSparkRays draws radiating rays emanating from a spark point.
+func (sys *System) renderSparkRays(rgba *image.RGBA, cx, cy, size int, rng *rand.Rand) {
+	rayCount := 3 + rng.Intn(3)
+	for j := 0; j < rayCount; j++ {
+		angle := rng.Float64() * 2 * math.Pi
+		rayLen := 2 + rng.Intn(3)
+		for k := 1; k <= rayLen; k++ {
+			rx := cx + int(float64(k)*math.Cos(angle))
+			ry := cy + int(float64(k)*math.Sin(angle))
+			if rx >= 0 && rx < size && ry >= 0 && ry < size {
+				alpha := uint8(200 - k*40)
+				rgba.Set(rx, ry, color.RGBA{R: 255, G: 200, B: 50, A: alpha})
 			}
 		}
 	}
+}
 
-	// Critical: add glitch lines
-	if comp.DamageLevel >= 3 {
-		glitchCount := 2 + rng.Intn(2)
-		for i := 0; i < glitchCount; i++ {
-			y := rng.Intn(size)
-			startX := rng.Intn(size / 2)
-			endX := startX + 3 + rng.Intn(size/3)
-			for x := startX; x < endX && x < size; x++ {
-				rgba.Set(x, y, glitchColor)
-			}
+// renderSciFiGlitches draws horizontal glitch lines for critical damage.
+func (sys *System) renderSciFiGlitches(rgba *image.RGBA, damageLevel, size int, glitchColor color.RGBA, rng *rand.Rand) {
+	if damageLevel < 3 {
+		return
+	}
+	glitchCount := 2 + rng.Intn(2)
+	for i := 0; i < glitchCount; i++ {
+		y := rng.Intn(size)
+		startX := rng.Intn(size / 2)
+		endX := startX + 3 + rng.Intn(size/3)
+		for x := startX; x < endX && x < size; x++ {
+			rgba.Set(x, y, glitchColor)
 		}
 	}
 }

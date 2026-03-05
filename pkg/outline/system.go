@@ -144,62 +144,74 @@ func (s *System) generateOutlinePixels(src, dst *image.RGBA, outlineColor color.
 
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
-			srcIdx := (y*src.Stride + x*4)
-			srcAlpha := src.Pix[srcIdx+3]
+			s.processPixelForOutline(src, dst, x, y, w, h, outlineColor, thickness, glow)
+		}
+	}
+}
 
-			if srcAlpha > 0 {
-				dst.SetRGBA(x, y, src.RGBAAt(x, y))
+// processPixelForOutline determines if a pixel should be part of the outline.
+func (s *System) processPixelForOutline(src, dst *image.RGBA, x, y, w, h int, outlineColor color.RGBA, thickness int, glow bool) {
+	srcIdx := (y*src.Stride + x*4)
+	srcAlpha := src.Pix[srcIdx+3]
+
+	if srcAlpha > 0 {
+		dst.SetRGBA(x, y, src.RGBAAt(x, y))
+		return
+	}
+
+	hasOpaqueNeighbor, minDist := s.checkForOpaqueNeighbors(src, x, y, w, h, thickness)
+	if hasOpaqueNeighbor {
+		alpha := s.calculateOutlineAlpha(outlineColor.A, minDist, thickness, glow)
+		dst.SetRGBA(x, y, color.RGBA{
+			R: outlineColor.R,
+			G: outlineColor.G,
+			B: outlineColor.B,
+			A: alpha,
+		})
+	}
+}
+
+// checkForOpaqueNeighbors searches neighboring pixels for opaque content.
+func (s *System) checkForOpaqueNeighbors(src *image.RGBA, x, y, w, h, thickness int) (bool, float64) {
+	hasOpaqueNeighbor := false
+	minDist := float64(thickness + 1)
+
+	for dy := -thickness; dy <= thickness; dy++ {
+		for dx := -thickness; dx <= thickness; dx++ {
+			if dx == 0 && dy == 0 {
 				continue
 			}
 
-			hasOpaqueNeighbor := false
-			minDist := float64(thickness + 1)
-
-			for dy := -thickness; dy <= thickness; dy++ {
-				for dx := -thickness; dx <= thickness; dx++ {
-					if dx == 0 && dy == 0 {
-						continue
-					}
-
-					nx, ny := x+dx, y+dy
-					if nx < 0 || nx >= w || ny < 0 || ny >= h {
-						continue
-					}
-
-					nIdx := ny*src.Stride + nx*4
-					nAlpha := src.Pix[nIdx+3]
-
-					if nAlpha > 128 {
-						dist := math.Sqrt(float64(dx*dx + dy*dy))
-						if dist <= float64(thickness) {
-							hasOpaqueNeighbor = true
-							if dist < minDist {
-								minDist = dist
-							}
-						}
-					}
-				}
+			nx, ny := x+dx, y+dy
+			if nx < 0 || nx >= w || ny < 0 || ny >= h {
+				continue
 			}
 
-			if hasOpaqueNeighbor {
-				alpha := uint8(255)
-				if glow {
-					falloff := 1.0 - (minDist / float64(thickness))
-					alpha = uint8(float64(outlineColor.A) * math.Pow(falloff, 1.5))
-				} else {
-					falloff := 1.0 - (minDist / float64(thickness))
-					alpha = uint8(float64(outlineColor.A) * falloff)
-				}
+			nIdx := ny*src.Stride + nx*4
+			nAlpha := src.Pix[nIdx+3]
 
-				dst.SetRGBA(x, y, color.RGBA{
-					R: outlineColor.R,
-					G: outlineColor.G,
-					B: outlineColor.B,
-					A: alpha,
-				})
+			if nAlpha > 128 {
+				dist := math.Sqrt(float64(dx*dx + dy*dy))
+				if dist <= float64(thickness) {
+					hasOpaqueNeighbor = true
+					if dist < minDist {
+						minDist = dist
+					}
+				}
 			}
 		}
 	}
+
+	return hasOpaqueNeighbor, minDist
+}
+
+// calculateOutlineAlpha computes alpha value based on distance and glow setting.
+func (s *System) calculateOutlineAlpha(baseAlpha uint8, minDist float64, thickness int, glow bool) uint8 {
+	falloff := 1.0 - (minDist / float64(thickness))
+	if glow {
+		return uint8(float64(baseAlpha) * math.Pow(falloff, 1.5))
+	}
+	return uint8(float64(baseAlpha) * falloff)
 }
 
 // GetPlayerColor returns the player outline color.

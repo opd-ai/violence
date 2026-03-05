@@ -188,57 +188,83 @@ func (s *HubServer) cleanupRateLimiters() {
 		case <-s.ctx.Done():
 			return
 		case <-ticker.C:
-			s.mu.Lock()
-			now := time.Now()
-
-			// Strategy 1: Remove inactive limiters (TTL-based cleanup)
-			for ip, entry := range s.rateLimits {
-				if now.Sub(entry.lastAccess) > inactivityTTL {
-					delete(s.rateLimits, ip)
-					logrus.WithFields(logrus.Fields{
-						"ip":       ip,
-						"inactive": now.Sub(entry.lastAccess),
-					}).Debug("removed inactive rate limiter")
-				}
-			}
-
-			// Strategy 2: LRU eviction if map size exceeds limit
-			if len(s.rateLimits) > maxLimiters {
-				// Find oldest entries to evict
-				type entry struct {
-					ip         string
-					lastAccess time.Time
-				}
-				entries := make([]entry, 0, len(s.rateLimits))
-				for ip, e := range s.rateLimits {
-					entries = append(entries, entry{ip: ip, lastAccess: e.lastAccess})
-				}
-
-				// Sort by last access time (oldest first)
-				for i := 0; i < len(entries)-1; i++ {
-					for j := i + 1; j < len(entries); j++ {
-						if entries[i].lastAccess.After(entries[j].lastAccess) {
-							entries[i], entries[j] = entries[j], entries[i]
-						}
-					}
-				}
-
-				// Evict oldest 10% to bring below limit
-				evictCount := len(s.rateLimits) - maxLimiters + (maxLimiters / 10)
-				for i := 0; i < evictCount && i < len(entries); i++ {
-					delete(s.rateLimits, entries[i].ip)
-					logrus.WithFields(logrus.Fields{
-						"ip":     entries[i].ip,
-						"reason": "LRU eviction",
-						"count":  len(s.rateLimits),
-					}).Debug("evicted rate limiter")
-				}
-			}
-
-			s.mu.Unlock()
-
-			logrus.WithField("active_limiters", len(s.rateLimits)).Debug("rate limiter cleanup completed")
+			s.performCleanupCycle(maxLimiters, inactivityTTL)
 		}
+	}
+}
+
+// performCleanupCycle executes both TTL and LRU cleanup strategies.
+func (s *HubServer) performCleanupCycle(maxLimiters int, inactivityTTL time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	now := time.Now()
+	s.removeInactiveLimiters(now, inactivityTTL)
+	s.evictExcessLimiters(maxLimiters)
+
+	logrus.WithField("active_limiters", len(s.rateLimits)).Debug("rate limiter cleanup completed")
+}
+
+// removeInactiveLimiters removes rate limiters that exceeded inactivity TTL.
+func (s *HubServer) removeInactiveLimiters(now time.Time, inactivityTTL time.Duration) {
+	for ip, entry := range s.rateLimits {
+		if now.Sub(entry.lastAccess) > inactivityTTL {
+			delete(s.rateLimits, ip)
+			logrus.WithFields(logrus.Fields{
+				"ip":       ip,
+				"inactive": now.Sub(entry.lastAccess),
+			}).Debug("removed inactive rate limiter")
+		}
+	}
+}
+
+// evictExcessLimiters performs LRU eviction if limiter count exceeds maximum.
+func (s *HubServer) evictExcessLimiters(maxLimiters int) {
+	if len(s.rateLimits) <= maxLimiters {
+		return
+	}
+
+	entries := s.collectLimiterEntries()
+	sortEntriesByAccessTime(entries)
+	s.evictOldestEntries(entries, maxLimiters)
+}
+
+// collectLimiterEntries gathers all rate limiter entries with timestamps.
+func (s *HubServer) collectLimiterEntries() []limiterSortEntry {
+	entries := make([]limiterSortEntry, 0, len(s.rateLimits))
+	for ip, e := range s.rateLimits {
+		entries = append(entries, limiterSortEntry{ip: ip, lastAccess: e.lastAccess})
+	}
+	return entries
+}
+
+// limiterSortEntry holds IP and last access time for sorting.
+type limiterSortEntry struct {
+	ip         string
+	lastAccess time.Time
+}
+
+// sortEntriesByAccessTime sorts entries by last access time (oldest first).
+func sortEntriesByAccessTime(entries []limiterSortEntry) {
+	for i := 0; i < len(entries)-1; i++ {
+		for j := i + 1; j < len(entries); j++ {
+			if entries[i].lastAccess.After(entries[j].lastAccess) {
+				entries[i], entries[j] = entries[j], entries[i]
+			}
+		}
+	}
+}
+
+// evictOldestEntries removes oldest 10% entries to bring count below maximum.
+func (s *HubServer) evictOldestEntries(entries []limiterSortEntry, maxLimiters int) {
+	evictCount := len(s.rateLimits) - maxLimiters + (maxLimiters / 10)
+	for i := 0; i < evictCount && i < len(entries); i++ {
+		delete(s.rateLimits, entries[i].ip)
+		logrus.WithFields(logrus.Fields{
+			"ip":     entries[i].ip,
+			"reason": "LRU eviction",
+			"count":  len(s.rateLimits),
+		}).Debug("evicted rate limiter")
 	}
 }
 

@@ -1435,6 +1435,13 @@ func (g *Game) setGenreForV5Systems(genreID string) {
 
 // setGenreForOptionalV5Systems configures optional v5.0 systems with the specified genre.
 func (g *Game) setGenreForOptionalV5Systems(genreID string) {
+	g.setGenreForWorldSystems(genreID)
+	g.setGenreForVisualSystems(genreID)
+	g.setGenreForGameplaySystems(genreID)
+}
+
+// setGenreForWorldSystems updates genre for world generation and environment systems.
+func (g *Game) setGenreForWorldSystems(genreID string) {
 	if g.propsManager != nil {
 		g.propsManager.SetGenre(genreID)
 	}
@@ -1447,6 +1454,13 @@ func (g *Game) setGenreForOptionalV5Systems(genreID string) {
 	if g.decorationSystem != nil {
 		g.decorationSystem.SetGenre(genreID)
 	}
+	if g.weatherSystem != nil {
+		g.weatherSystem.SetGenre(genreID)
+	}
+}
+
+// setGenreForVisualSystems updates genre for rendering and visual effect systems.
+func (g *Game) setGenreForVisualSystems(genreID string) {
 	if g.animationSystem != nil {
 		g.animationSystem.SetGenre(genreID)
 	}
@@ -1455,12 +1469,6 @@ func (g *Game) setGenreForOptionalV5Systems(genreID string) {
 	}
 	if g.spriteGenerator != nil {
 		g.spriteGenerator.SetGenre(genreID)
-	}
-	if g.weatherSystem != nil {
-		g.weatherSystem.SetGenre(genreID)
-	}
-	if g.equipmentSystem != nil {
-		g.equipmentSystem.SetGenre(genreID)
 	}
 	if g.floorDetailSystem != nil {
 		g.floorDetailSystem.SetGenre(genreID)
@@ -1471,11 +1479,18 @@ func (g *Game) setGenreForOptionalV5Systems(genreID string) {
 	if g.corpseSystem != nil {
 		g.corpseSystem.SetGenre(genreID)
 	}
-	if g.healthBarSystem != nil {
-		g.healthBarSystem.SetGenre(genreID)
-	}
 	if g.fogSystem != nil {
 		g.fogSystem.SetGenre(genreID)
+	}
+}
+
+// setGenreForGameplaySystems updates genre for UI and gameplay systems.
+func (g *Game) setGenreForGameplaySystems(genreID string) {
+	if g.equipmentSystem != nil {
+		g.equipmentSystem.SetGenre(genreID)
+	}
+	if g.healthBarSystem != nil {
+		g.healthBarSystem.SetGenre(genreID)
 	}
 	if g.itemIconSystem != nil {
 		g.itemIconSystem.SetGenre(genreID)
@@ -1687,56 +1702,79 @@ func (g *Game) recordReplayInput() {
 
 // processDefensiveActions handles dodge, parry, and block input.
 func (g *Game) processDefensiveActions() {
-	if g.playerEntity == 0 || g.defenseSystem == nil {
+	defense := g.getPlayerDefenseComponent()
+	if defense == nil {
 		return
 	}
 
+	g.processDodgeAction(defense)
+	g.processParryAction(defense)
+	g.processBlockAction(defense)
+}
+
+// getPlayerDefenseComponent retrieves the player's defense component.
+func (g *Game) getPlayerDefenseComponent() *combat.DefenseComponent {
+	if g.playerEntity == 0 || g.defenseSystem == nil {
+		return nil
+	}
 	defenseType := reflect.TypeOf(&combat.DefenseComponent{})
 	comp, ok := g.world.GetComponent(g.playerEntity, defenseType)
 	if !ok {
+		return nil
+	}
+	return comp.(*combat.DefenseComponent)
+}
+
+// processDodgeAction handles dodge input with directional movement.
+func (g *Game) processDodgeAction(defense *combat.DefenseComponent) {
+	if !g.input.IsJustPressed(input.ActionDodge) {
 		return
 	}
 
-	defense := comp.(*combat.DefenseComponent)
-
-	// Handle dodge (Shift + movement direction)
-	if g.input.IsJustPressed(input.ActionDodge) {
-		dirX := 0.0
-		dirY := 0.0
-
-		if g.input.IsPressed(input.ActionMoveForward) {
-			dirX += g.camera.DirX
-			dirY += g.camera.DirY
-		}
-		if g.input.IsPressed(input.ActionMoveBackward) {
-			dirX -= g.camera.DirX
-			dirY -= g.camera.DirY
-		}
-		if g.input.IsPressed(input.ActionStrafeLeft) {
-			dirX += g.camera.DirY
-			dirY -= g.camera.DirX
-		}
-		if g.input.IsPressed(input.ActionStrafeRight) {
-			dirX -= g.camera.DirY
-			dirY += g.camera.DirX
-		}
-
-		if g.defenseSystem.InitiateDodge(defense, dirX, dirY, g.genreID) {
-			g.audioEngine.PlaySFX("dodge", g.camera.X, g.camera.Y)
-			if g.feedbackSystem != nil {
-				g.feedbackSystem.AddScreenShake(1.0)
-			}
+	dirX, dirY := g.calculateDodgeDirection()
+	if g.defenseSystem.InitiateDodge(defense, dirX, dirY, g.genreID) {
+		g.audioEngine.PlaySFX("dodge", g.camera.X, g.camera.Y)
+		if g.feedbackSystem != nil {
+			g.feedbackSystem.AddScreenShake(1.0)
 		}
 	}
+}
 
-	// Handle parry (R key)
+// calculateDodgeDirection computes dodge direction from current movement inputs.
+func (g *Game) calculateDodgeDirection() (float64, float64) {
+	dirX, dirY := 0.0, 0.0
+
+	if g.input.IsPressed(input.ActionMoveForward) {
+		dirX += g.camera.DirX
+		dirY += g.camera.DirY
+	}
+	if g.input.IsPressed(input.ActionMoveBackward) {
+		dirX -= g.camera.DirX
+		dirY -= g.camera.DirY
+	}
+	if g.input.IsPressed(input.ActionStrafeLeft) {
+		dirX += g.camera.DirY
+		dirY -= g.camera.DirX
+	}
+	if g.input.IsPressed(input.ActionStrafeRight) {
+		dirX -= g.camera.DirY
+		dirY += g.camera.DirX
+	}
+
+	return dirX, dirY
+}
+
+// processParryAction handles parry input and feedback.
+func (g *Game) processParryAction(defense *combat.DefenseComponent) {
 	if g.input.IsJustPressed(input.ActionParry) {
 		if g.defenseSystem.InitiateParry(defense, g.genreID) {
 			g.audioEngine.PlaySFX("parry", g.camera.X, g.camera.Y)
 		}
 	}
+}
 
-	// Handle block (hold Ctrl)
+// processBlockAction handles block input state transitions.
+func (g *Game) processBlockAction(defense *combat.DefenseComponent) {
 	if g.input.IsPressed(input.ActionBlock) && defense.Type != combat.DefenseBlock {
 		if g.defenseSystem.InitiateBlock(defense, g.genreID) {
 			g.audioEngine.PlaySFX("block", g.camera.X, g.camera.Y)
@@ -4191,131 +4229,124 @@ func (g *Game) drawMenu(screen *ebiten.Image) {
 
 // drawPlaying renders the game world and HUD.
 func (g *Game) drawPlaying(screen *ebiten.Image) {
-	// Apply camera shake offset if active
+	camX, camY := g.applyCameraShake()
+	g.setupRenderer()
+	g.renderWorldLayers(screen, camX, camY)
+	g.renderOverlaysAndHUD(screen, camX, camY)
+}
+
+// applyCameraShake calculates camera position with shake offset.
+func (g *Game) applyCameraShake() (float64, float64) {
 	camX, camY := g.camera.X, g.camera.Y
 	if g.feedbackSystem != nil {
 		shakeX, shakeY := g.feedbackSystem.GetScreenShakeOffset()
 		camX += shakeX * 0.01
 		camY += shakeY * 0.01
 	}
+	return camX, camY
+}
 
-	// Wire v3.0 systems to renderer (Step 28)
+// setupRenderer configures the renderer systems for the current frame.
+func (g *Game) setupRenderer() {
 	g.renderer.SetTextureAtlas(g.textureAtlas)
 	g.renderer.SetLightMap(g.lightMap)
 	g.renderer.SetPostProcessor(g.postProcessor)
-	g.renderer.Tick() // Increment animation ticker
+	g.renderer.Tick()
+}
 
-	// Render parallax background layers (behind everything)
+// renderWorldLayers draws all world elements in proper depth order.
+func (g *Game) renderWorldLayers(screen *ebiten.Image, camX, camY float64) {
+	g.renderBackgroundAndWorld(screen, camX, camY)
+	g.renderWorldEntities(screen, camX, camY)
+	g.renderCombatEffects(screen, camX, camY)
+}
+
+// renderBackgroundAndWorld renders parallax background and 3D world.
+func (g *Game) renderBackgroundAndWorld(screen *ebiten.Image, camX, camY float64) {
 	if g.parallaxSystem != nil && g.parallaxComponent != nil && g.parallaxComponent.Enabled {
 		g.parallaxComponent.UpdateCamera(camX, camY, config.C.InternalWidth, config.C.InternalHeight)
 		g.parallaxSystem.Render(screen, g.parallaxComponent)
 	}
-
-	// Render 3D world
 	g.renderer.Render(screen, camX, camY, g.camera.DirX, g.camera.DirY, g.camera.Pitch)
+}
 
-	// Render floor detail overlays for visual variety
+// renderWorldEntities renders floor details, decals, corpses, props, and loot.
+func (g *Game) renderWorldEntities(screen *ebiten.Image, camX, camY float64) {
 	if g.floorDetailSystem != nil && len(g.floorDetails) > 0 {
 		g.renderFloorDetails(screen)
 	}
-
-	// Render combat decals (blood, scorch marks, etc.)
 	if g.decalSystem != nil && len(g.combatDecals) > 0 {
 		g.decalSystem.RenderDecals(screen, g.combatDecals, camX, camY)
 	}
-
-	// Render corpses on top of decals
 	if g.corpseSystem != nil && len(g.corpses) > 0 {
 		g.corpseSystem.RenderAllCorpses(screen, g.corpses, camX, camY)
 	}
-
-	// Render props as sprites in world space
 	if g.propsManager != nil {
 		g.renderProps(screen)
 	}
-
-	// Render lore items as sprites in world space
 	if len(g.loreItems) > 0 {
 		g.renderLoreItems(screen)
 	}
-
-	// Render dropped loot items as sprites in world space
 	if g.lootVisualSystem != nil {
 		g.renderLootItems(screen)
 	}
-
-	// Render dynamic shadows for entities/props
 	if g.shadowSystem != nil && g.lightMap != nil {
 		g.renderShadows(screen)
 	}
+}
 
-	// Render particles on top of 3D world (simple sprite overlay for now)
-	// TODO: Add particle rendering to renderer or as separate overlay
+// renderCombatEffects renders particles, weather, hazards, and combat feedback.
+func (g *Game) renderCombatEffects(screen *ebiten.Image, camX, camY float64) {
 	if g.particleSystem != nil {
 		g.renderParticles(screen)
 	}
-
-	// Render environmental weather particles with parallax depth
 	if g.weatherSystem != nil {
 		g.renderWeatherParticles(screen)
 	}
-
-	// Render environmental hazards
 	if g.hazardECSSystem != nil {
 		g.renderHazards(screen)
 	}
-
-	// Render damage numbers and impact effects
 	if g.feedbackSystem != nil {
 		g.renderFeedbackEffects(screen)
 	}
-
-	// Render weapon attack trails
 	if g.attackTrailSystem != nil {
 		g.attackTrailSystem.Render(screen, g.world, camX, camY)
 	}
-
-	// Render weapon swing animations
 	if g.weaponAnimSystem != nil {
 		g.renderWeaponSwings(screen, camX, camY)
 	}
-
-	// Render attack telegraph indicators
 	if g.telegraphSystem != nil {
 		g.telegraphSystem.Render(screen, g.world, camX, camY)
 	}
-
-	// Render entity health bars and status icons
 	if g.healthBarSystem != nil {
 		g.healthBarSystem.RenderHealthBars(screen, g.world, camX, camY, g.camera.DirX, g.camera.DirY, config.C.InternalWidth, config.C.InternalHeight)
 	}
+}
 
-	// Apply hit flash overlay
+// renderOverlaysAndHUD renders hit flash, automap, HUD, quests, and tutorial.
+func (g *Game) renderOverlaysAndHUD(screen *ebiten.Image, camX, camY float64) {
+	g.renderHitFlashOverlay(screen)
+	if g.automapVisible && g.automap != nil {
+		g.drawAutomap(screen)
+	}
+	g.hud.Update()
+	ui.DrawHUD(screen, g.hud)
+	if g.questTracker != nil {
+		g.drawQuestObjectives(screen)
+	}
+	if g.tutorialSystem.Active {
+		ui.DrawTutorial(screen, g.tutorialSystem.Current)
+	}
+}
+
+// renderHitFlashOverlay applies screen flash effect when player is hit.
+func (g *Game) renderHitFlashOverlay(screen *ebiten.Image) {
 	if g.feedbackSystem != nil {
 		intensity := g.feedbackSystem.GetHitFlashIntensity()
 		if intensity > 0.01 {
 			flashColor := g.feedbackSystem.GetHitFlashColor()
 			vector.DrawFilledRect(screen, 0, 0, float32(config.C.InternalWidth), float32(config.C.InternalHeight), flashColor, false)
 		}
-	}
-
-	// Render automap overlay if visible
-	if g.automapVisible && g.automap != nil {
-		g.drawAutomap(screen)
-	}
-
-	// Render HUD
-	g.hud.Update()
-	ui.DrawHUD(screen, g.hud)
-
-	// Render quest objectives (top-right corner)
-	if g.questTracker != nil {
-		g.drawQuestObjectives(screen)
-	}
-
-	// Render tutorial prompts
-	if g.tutorialSystem.Active {
-		ui.DrawTutorial(screen, g.tutorialSystem.Current)
 	}
 }
 

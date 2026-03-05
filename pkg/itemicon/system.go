@@ -140,73 +140,94 @@ func (s *IconSystem) drawWeaponIcon(img *image.RGBA, comp *ItemIconComponent, rn
 
 	switch comp.SubType {
 	case "sword", "blade":
-		bladeLen := size * 3 / 4
-		bladeW := size / 8
-		handleLen := size / 5
-
-		for y := cy - bladeLen/2; y < cy+bladeLen/4; y++ {
-			w := bladeW - int(math.Abs(float64(y-cy+bladeLen/2))/float64(bladeLen/2)*float64(bladeW/2))
-			if w < 2 {
-				w = 2
-			}
-			for x := cx - w/2; x < cx+w/2; x++ {
-				if x >= 0 && x < size && y >= 0 && y < size {
-					shade := 1.0 - math.Abs(float64(x-cx))/float64(w)*0.4
-					r := uint8(float64(metalColor.R) * shade)
-					g := uint8(float64(metalColor.G) * shade)
-					b := uint8(float64(metalColor.B) * shade)
-					img.Set(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
-				}
-			}
-		}
-
-		for x := cx - 1; x <= cx+1; x++ {
-			for y := cy - bladeLen/2; y < cy+bladeLen/4; y++ {
-				if x >= 0 && x < size && y >= 0 && y < size {
-					highlight := color.RGBA{R: 255, G: 255, B: 255, A: 180}
-					img.Set(x, y, highlight)
-				}
-			}
-		}
-
-		guardY := cy + bladeLen/4
-		common.FillRect(img, cx-size/4, guardY-2, cx+size/4, guardY+2, baseColor)
-
-		for y := guardY; y < guardY+handleLen; y++ {
-			for x := cx - bladeW/2; x < cx+bladeW/2; x++ {
-				if x >= 0 && x < size && y >= 0 && y < size {
-					img.Set(x, y, handleColor)
-				}
-			}
-		}
-
+		s.drawSwordIcon(img, cx, cy, size, baseColor, metalColor, handleColor)
 	case "axe":
-		handleLen := size * 2 / 3
-		for y := cy; y < cy+handleLen; y++ {
-			for x := cx - 2; x < cx+2; x++ {
-				if x >= 0 && x < size && y >= 0 && y < size {
-					img.Set(x, y, handleColor)
-				}
-			}
-		}
-
-		bladeW := size / 2
-		bladeH := size / 3
-		for y := cy - bladeH; y < cy+bladeH/3; y++ {
-			for x := cx - bladeW/2; x < cx+bladeW/2; x++ {
-				if x >= 0 && x < size && y >= 0 && y < size {
-					dx := float64(x - cx)
-					shade := 0.8 + 0.2*(1.0-math.Abs(dx)/float64(bladeW/2))
-					r := uint8(float64(metalColor.R) * shade)
-					g := uint8(float64(metalColor.G) * shade)
-					b := uint8(float64(metalColor.B) * shade)
-					img.Set(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
-				}
-			}
-		}
-
+		s.drawAxeIcon(img, cx, cy, size, metalColor, handleColor)
 	default:
 		s.drawGenericWeapon(img, baseColor, metalColor, handleColor, rng)
+	}
+}
+
+// drawSwordIcon renders a sword blade with handle and guard.
+func (s *IconSystem) drawSwordIcon(img *image.RGBA, cx, cy, size int, baseColor, metalColor, handleColor color.RGBA) {
+	bladeLen := size * 3 / 4
+	bladeW := size / 8
+	handleLen := size / 5
+
+	s.drawSwordBlade(img, cx, cy, size, bladeLen, bladeW, metalColor)
+	s.drawSwordHighlight(img, cx, cy, size, bladeLen)
+	s.drawSwordGuardAndHandle(img, cx, cy, size, bladeLen, bladeW, handleLen, baseColor, handleColor)
+}
+
+// drawSwordBlade renders the tapered blade shape with shading.
+func (s *IconSystem) drawSwordBlade(img *image.RGBA, cx, cy, size, bladeLen, bladeW int, metalColor color.RGBA) {
+	for y := cy - bladeLen/2; y < cy+bladeLen/4; y++ {
+		w := bladeW - int(math.Abs(float64(y-cy+bladeLen/2))/float64(bladeLen/2)*float64(bladeW/2))
+		if w < 2 {
+			w = 2
+		}
+		for x := cx - w/2; x < cx+w/2; x++ {
+			if x >= 0 && x < size && y >= 0 && y < size {
+				shade := 1.0 - math.Abs(float64(x-cx))/float64(w)*0.4
+				r := uint8(float64(metalColor.R) * shade)
+				g := uint8(float64(metalColor.G) * shade)
+				b := uint8(float64(metalColor.B) * shade)
+				img.Set(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
+			}
+		}
+	}
+}
+
+// drawSwordHighlight adds a central highlight line to the blade.
+func (s *IconSystem) drawSwordHighlight(img *image.RGBA, cx, cy, size, bladeLen int) {
+	highlight := color.RGBA{R: 255, G: 255, B: 255, A: 180}
+	for x := cx - 1; x <= cx+1; x++ {
+		for y := cy - bladeLen/2; y < cy+bladeLen/4; y++ {
+			if x >= 0 && x < size && y >= 0 && y < size {
+				img.Set(x, y, highlight)
+			}
+		}
+	}
+}
+
+// drawSwordGuardAndHandle renders the crossguard and handle.
+func (s *IconSystem) drawSwordGuardAndHandle(img *image.RGBA, cx, cy, size, bladeLen, bladeW, handleLen int, baseColor, handleColor color.RGBA) {
+	guardY := cy + bladeLen/4
+	common.FillRect(img, cx-size/4, guardY-2, cx+size/4, guardY+2, baseColor)
+
+	for y := guardY; y < guardY+handleLen; y++ {
+		for x := cx - bladeW/2; x < cx+bladeW/2; x++ {
+			if x >= 0 && x < size && y >= 0 && y < size {
+				img.Set(x, y, handleColor)
+			}
+		}
+	}
+}
+
+// drawAxeIcon renders an axe with handle and blade head.
+func (s *IconSystem) drawAxeIcon(img *image.RGBA, cx, cy, size int, metalColor, handleColor color.RGBA) {
+	handleLen := size * 2 / 3
+	for y := cy; y < cy+handleLen; y++ {
+		for x := cx - 2; x < cx+2; x++ {
+			if x >= 0 && x < size && y >= 0 && y < size {
+				img.Set(x, y, handleColor)
+			}
+		}
+	}
+
+	bladeW := size / 2
+	bladeH := size / 3
+	for y := cy - bladeH; y < cy+bladeH/3; y++ {
+		for x := cx - bladeW/2; x < cx+bladeW/2; x++ {
+			if x >= 0 && x < size && y >= 0 && y < size {
+				dx := float64(x - cx)
+				shade := 0.8 + 0.2*(1.0-math.Abs(dx)/float64(bladeW/2))
+				r := uint8(float64(metalColor.R) * shade)
+				g := uint8(float64(metalColor.G) * shade)
+				b := uint8(float64(metalColor.B) * shade)
+				img.Set(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
+			}
+		}
 	}
 }
 

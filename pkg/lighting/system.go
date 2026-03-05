@@ -90,78 +90,87 @@ func (s *LightingSystem) GetAmbient() (r, g, b, intensity float64) {
 // This is called by the ECS World each frame.
 func (s *LightingSystem) Update(w *engine.World) {
 	s.tick++
-	deltaTime := 1.0 / 60.0 // Assume 60 FPS
+	deltaTime := 1.0 / 60.0
 
 	lightType := reflect.TypeOf(&LightComponent{})
 	positionType := reflect.TypeOf(&PositionComponent{})
-
-	// Query all entities with light components
 	entities := w.Query(lightType)
 
 	for _, entity := range entities {
-		lightComp, ok := w.GetComponent(entity, lightType)
-		if !ok {
+		light := s.getLightComponent(w, entity, lightType)
+		if light == nil || !light.Enabled {
 			continue
 		}
 
-		light, ok := lightComp.(*LightComponent)
-		if !ok || !light.Enabled {
-			continue
-		}
+		s.updateLightLifetime(light, deltaTime)
+		s.updateLightPosition(w, entity, light, positionType)
+		s.updateLightEffects(light, deltaTime)
+		s.applyLightFade(light)
+	}
+}
 
-		// Update light age
-		light.CurrentAge += deltaTime
+// getLightComponent retrieves and validates the light component.
+func (s *LightingSystem) getLightComponent(w *engine.World, entity engine.Entity, lightType reflect.Type) *LightComponent {
+	lightComp, ok := w.GetComponent(entity, lightType)
+	if !ok {
+		return nil
+	}
+	light, ok := lightComp.(*LightComponent)
+	if !ok {
+		return nil
+	}
+	return light
+}
 
-		// Check lifetime expiration
-		if light.Lifetime > 0 && light.CurrentAge >= light.Lifetime {
-			light.Enabled = false
-			continue
-		}
+// updateLightLifetime advances light age and handles expiration.
+func (s *LightingSystem) updateLightLifetime(light *LightComponent, deltaTime float64) {
+	light.CurrentAge += deltaTime
+	if light.Lifetime > 0 && light.CurrentAge >= light.Lifetime {
+		light.Enabled = false
+	}
+}
 
-		// Update position from entity if attached
-		if light.AttachedToEntity {
-			if posComp, found := w.GetComponent(entity, positionType); found {
-				if pos, ok := posComp.(*PositionComponent); ok {
-					light.X = pos.X + light.OffsetX
-					light.Y = pos.Y + light.OffsetY
-				}
-			}
-		}
-
-		// Update flickering
-		if light.IsFlickering {
-			// Flicker is already handled by UpdateFlicker method
-			// Just ensure it gets called during rendering
-		}
-
-		// Update pulsing
-		if light.Pulsing {
-			light.PulsePhase += deltaTime * light.PulseSpeed * 2.0 * math.Pi
-			if light.PulsePhase > 2.0*math.Pi {
-				light.PulsePhase -= 2.0 * math.Pi
-			}
-		}
-
-		// Apply fade in/out based on lifetime
-		if light.Lifetime > 0 {
-			fadeMultiplier := 1.0
-
-			// Fade in at start
-			if light.FadeInDuration > 0 && light.CurrentAge < light.FadeInDuration {
-				fadeMultiplier = light.CurrentAge / light.FadeInDuration
-			}
-
-			// Fade out at end
-			timeRemaining := light.Lifetime - light.CurrentAge
-			if light.FadeOutDuration > 0 && timeRemaining < light.FadeOutDuration {
-				fadeMultiplier = math.Min(fadeMultiplier, timeRemaining/light.FadeOutDuration)
-			}
-
-			// Store base intensity if not already stored
-			// Apply fade to current rendering (handled in GetEffectiveIntensity)
-			light.Intensity = light.PointLight.Intensity * fadeMultiplier
+// updateLightPosition synchronizes light position with attached entity.
+func (s *LightingSystem) updateLightPosition(w *engine.World, entity engine.Entity, light *LightComponent, positionType reflect.Type) {
+	if !light.AttachedToEntity {
+		return
+	}
+	if posComp, found := w.GetComponent(entity, positionType); found {
+		if pos, ok := posComp.(*PositionComponent); ok {
+			light.X = pos.X + light.OffsetX
+			light.Y = pos.Y + light.OffsetY
 		}
 	}
+}
+
+// updateLightEffects updates pulsing animation.
+func (s *LightingSystem) updateLightEffects(light *LightComponent, deltaTime float64) {
+	if light.Pulsing {
+		light.PulsePhase += deltaTime * light.PulseSpeed * 2.0 * math.Pi
+		if light.PulsePhase > 2.0*math.Pi {
+			light.PulsePhase -= 2.0 * math.Pi
+		}
+	}
+}
+
+// applyLightFade calculates and applies fade in/out based on lifetime.
+func (s *LightingSystem) applyLightFade(light *LightComponent) {
+	if light.Lifetime <= 0 {
+		return
+	}
+
+	fadeMultiplier := 1.0
+
+	if light.FadeInDuration > 0 && light.CurrentAge < light.FadeInDuration {
+		fadeMultiplier = light.CurrentAge / light.FadeInDuration
+	}
+
+	timeRemaining := light.Lifetime - light.CurrentAge
+	if light.FadeOutDuration > 0 && timeRemaining < light.FadeOutDuration {
+		fadeMultiplier = math.Min(fadeMultiplier, timeRemaining/light.FadeOutDuration)
+	}
+
+	light.Intensity = light.PointLight.Intensity * fadeMultiplier
 }
 
 // GetEffectiveIntensity returns the current intensity including flicker and pulse.

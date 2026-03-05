@@ -127,7 +127,7 @@ func TestFindExitPositionSelectsFurthestRoom(t *testing.T) {
 // TestBSPGeneratorNeverProducesNilRooms verifies BSP generator contract.
 func TestBSPGeneratorNeverProducesNilRooms(t *testing.T) {
 	r := rng.NewRNG(12345)
-	gen := bsp.NewGenerator(120, 120, r)
+	gen, _ := bsp.NewGenerator(120, 120, r)
 	tree, _ := gen.Generate()
 
 	rooms := bsp.GetRooms(tree)

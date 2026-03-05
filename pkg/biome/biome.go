@@ -265,83 +265,12 @@ func RollMaterials(biomeType BiomeType, tier int, genreID string, seed uint64) [
 	profile := GetBiomeProfile(biomeType)
 	localRNG := rng.NewRNG(seed)
 
-	affinity := 1.0
-	if mult, ok := profile.GenreAffinities[genreID]; ok {
-		affinity = mult
-	}
-
+	affinity := calculateGenreAffinity(&profile, genreID)
 	var results []MaterialDrop
 
-	// Roll common materials
-	for _, mat := range profile.CommonMats {
-		adjustedChance := mat.Chance * affinity
-		if tier >= 2 {
-			adjustedChance *= 1.2
-		}
-		if tier >= 3 {
-			adjustedChance *= 1.3
-		}
-
-		if localRNG.Float64() < adjustedChance {
-			amount := mat.MinAmount
-			if mat.MaxAmount > mat.MinAmount {
-				amount += localRNG.Intn(mat.MaxAmount - mat.MinAmount + 1)
-			}
-			results = append(results, MaterialDrop{
-				MaterialID: mat.MaterialID,
-				Chance:     adjustedChance,
-				MinAmount:  amount,
-				MaxAmount:  amount,
-			})
-		}
-	}
-
-	// Roll uncommon materials
-	for _, mat := range profile.UncommonMats {
-		adjustedChance := mat.Chance * affinity
-		if tier >= 2 {
-			adjustedChance *= 1.3
-		}
-		if tier >= 3 {
-			adjustedChance *= 1.5
-		}
-
-		if localRNG.Float64() < adjustedChance {
-			amount := mat.MinAmount
-			if mat.MaxAmount > mat.MinAmount {
-				amount += localRNG.Intn(mat.MaxAmount - mat.MinAmount + 1)
-			}
-			results = append(results, MaterialDrop{
-				MaterialID: mat.MaterialID,
-				Chance:     adjustedChance,
-				MinAmount:  amount,
-				MaxAmount:  amount,
-			})
-		}
-	}
-
-	// Roll rare materials (only for tier 2+)
-	if tier >= 2 {
-		for _, mat := range profile.RareMats {
-			adjustedChance := mat.Chance * affinity
-			if tier >= 3 {
-				adjustedChance *= 2.0
-			}
-
-			if localRNG.Float64() < adjustedChance {
-				amount := mat.MinAmount
-				if mat.MaxAmount > mat.MinAmount {
-					amount += localRNG.Intn(mat.MaxAmount - mat.MinAmount + 1)
-				}
-				results = append(results, MaterialDrop{
-					MaterialID: mat.MaterialID,
-					Chance:     adjustedChance,
-					MinAmount:  amount,
-					MaxAmount:  amount,
-				})
-			}
-		}
-	}
+	rollCommonMaterials(&results, profile.CommonMats, tier, affinity, localRNG)
+	rollUncommonMaterials(&results, profile.UncommonMats, tier, affinity, localRNG)
+	rollRareMaterials(&results, profile.RareMats, tier, affinity, localRNG)
 
 	logrus.WithFields(logrus.Fields{
 		"system_name":    "BiomeMaterialSystem",
@@ -352,6 +281,76 @@ func RollMaterials(biomeType BiomeType, tier int, genreID string, seed uint64) [
 	}).Trace("Rolled biome materials")
 
 	return results
+}
+
+// calculateGenreAffinity determines the genre multiplier for material drop rates.
+func calculateGenreAffinity(profile *BiomeProfile, genreID string) float64 {
+	if mult, ok := profile.GenreAffinities[genreID]; ok {
+		return mult
+	}
+	return 1.0
+}
+
+// rollCommonMaterials generates common material drops with tier-based bonuses.
+func rollCommonMaterials(results *[]MaterialDrop, materials []MaterialDrop, tier int, affinity float64, rng *rng.RNG) {
+	for _, mat := range materials {
+		adjustedChance := calculateTierAdjustedChance(mat.Chance, affinity, tier, 1.2, 1.3)
+		if rng.Float64() < adjustedChance {
+			*results = append(*results, createMaterialDrop(mat, adjustedChance, rng))
+		}
+	}
+}
+
+// rollUncommonMaterials generates uncommon material drops with higher tier scaling.
+func rollUncommonMaterials(results *[]MaterialDrop, materials []MaterialDrop, tier int, affinity float64, rng *rng.RNG) {
+	for _, mat := range materials {
+		adjustedChance := calculateTierAdjustedChance(mat.Chance, affinity, tier, 1.3, 1.5)
+		if rng.Float64() < adjustedChance {
+			*results = append(*results, createMaterialDrop(mat, adjustedChance, rng))
+		}
+	}
+}
+
+// rollRareMaterials generates rare material drops for tier 2+ with significant scaling.
+func rollRareMaterials(results *[]MaterialDrop, materials []MaterialDrop, tier int, affinity float64, rng *rng.RNG) {
+	if tier < 2 {
+		return
+	}
+	for _, mat := range materials {
+		adjustedChance := mat.Chance * affinity
+		if tier >= 3 {
+			adjustedChance *= 2.0
+		}
+		if rng.Float64() < adjustedChance {
+			*results = append(*results, createMaterialDrop(mat, adjustedChance, rng))
+		}
+	}
+}
+
+// calculateTierAdjustedChance applies tier multipliers to base chance with genre affinity.
+func calculateTierAdjustedChance(baseChance, affinity float64, tier int, tier2Mult, tier3Mult float64) float64 {
+	adjusted := baseChance * affinity
+	if tier >= 2 {
+		adjusted *= tier2Mult
+	}
+	if tier >= 3 {
+		adjusted *= tier3Mult
+	}
+	return adjusted
+}
+
+// createMaterialDrop generates a material drop with randomized amount.
+func createMaterialDrop(mat MaterialDrop, chance float64, rng *rng.RNG) MaterialDrop {
+	amount := mat.MinAmount
+	if mat.MaxAmount > mat.MinAmount {
+		amount += rng.Intn(mat.MaxAmount - mat.MinAmount + 1)
+	}
+	return MaterialDrop{
+		MaterialID: mat.MaterialID,
+		Chance:     chance,
+		MinAmount:  amount,
+		MaxAmount:  amount,
+	}
 }
 
 // SelectBiomeForGenre chooses an appropriate biome type for a genre.

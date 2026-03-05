@@ -104,6 +104,26 @@ var (
 // Validate checks that the manifest has valid fields.
 // Returns error if any required field is missing or invalid.
 func (m *Manifest) Validate() error {
+	if err := m.validateNameField(); err != nil {
+		return err
+	}
+	if err := m.validateVersionFields(); err != nil {
+		return err
+	}
+	if err := m.validateAuthorAndDescription(); err != nil {
+		return err
+	}
+	if err := m.validateDependencies(); err != nil {
+		return err
+	}
+	if err := m.validateTags(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateNameField validates the mod name field.
+func (m *Manifest) validateNameField() error {
 	if m.Name == "" {
 		return fmt.Errorf("name is required")
 	}
@@ -113,41 +133,55 @@ func (m *Manifest) Validate() error {
 	if len(m.Name) > 64 {
 		return fmt.Errorf("name too long (max 64 characters)")
 	}
+	return nil
+}
 
+// validateVersionFields validates version and game version compatibility fields.
+func (m *Manifest) validateVersionFields() error {
 	if m.Version == "" {
 		return fmt.Errorf("version is required")
 	}
 	if !IsValidSemver(m.Version) {
 		return fmt.Errorf("version must be valid semver (got %q)", m.Version)
 	}
+	if m.MinGameVersion != "" && !IsValidSemver(m.MinGameVersion) {
+		return fmt.Errorf("min_game_version must be valid semver (got %q)", m.MinGameVersion)
+	}
+	if m.MaxGameVersion != "" && !IsValidSemver(m.MaxGameVersion) {
+		return fmt.Errorf("max_game_version must be valid semver (got %q)", m.MaxGameVersion)
+	}
+	return nil
+}
 
+// validateAuthorAndDescription validates author and description fields.
+func (m *Manifest) validateAuthorAndDescription() error {
 	if m.Author == "" {
 		return fmt.Errorf("author is required")
 	}
 	if len(m.Author) > 128 {
 		return fmt.Errorf("author name too long (max 128 characters)")
 	}
-
 	if len(m.Description) > 500 {
 		return fmt.Errorf("description too long (max 500 characters)")
 	}
+	return nil
+}
 
-	if m.MinGameVersion != "" && !IsValidSemver(m.MinGameVersion) {
-		return fmt.Errorf("min_game_version must be valid semver (got %q)", m.MinGameVersion)
-	}
-
-	if m.MaxGameVersion != "" && !IsValidSemver(m.MaxGameVersion) {
-		return fmt.Errorf("max_game_version must be valid semver (got %q)", m.MaxGameVersion)
-	}
-
-	// Validate dependencies
+// validateDependencies validates all dependency entries.
+func (m *Manifest) validateDependencies() error {
 	for i, dep := range m.Dependencies {
 		if err := dep.Validate(); err != nil {
 			return fmt.Errorf("dependency %d invalid: %w", i, err)
 		}
 	}
+	return nil
+}
 
-	// Validate tags
+// validateTags validates tag count and individual tag constraints.
+func (m *Manifest) validateTags() error {
+	if len(m.Tags) > 10 {
+		return fmt.Errorf("too many tags (max 10)")
+	}
 	for i, tag := range m.Tags {
 		if len(tag) == 0 {
 			return fmt.Errorf("tag %d is empty", i)
@@ -156,11 +190,6 @@ func (m *Manifest) Validate() error {
 			return fmt.Errorf("tag %d too long (max 32 characters)", i)
 		}
 	}
-
-	if len(m.Tags) > 10 {
-		return fmt.Errorf("too many tags (max 10)")
-	}
-
 	return nil
 }
 
