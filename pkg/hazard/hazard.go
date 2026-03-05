@@ -97,12 +97,10 @@ func (s *LegacySystem) GenerateHazards(worldMap [][]int, seed int64) {
 	s.hazards = make([]*Hazard, 0, 64)
 	localRNG := rand.New(rand.NewSource(seed))
 
-	if len(worldMap) == 0 || len(worldMap[0]) == 0 {
+	width, height, valid := mapDimensions(worldMap)
+	if !valid {
 		return
 	}
-
-	width := len(worldMap[0])
-	height := len(worldMap)
 
 	// Select hazard types based on genre
 	hazardTypes := s.getGenreHazards()
@@ -138,7 +136,13 @@ func (s *LegacySystem) GenerateHazards(worldMap [][]int, seed int64) {
 
 // getGenreHazards returns hazard types appropriate for the current genre.
 func (s *LegacySystem) getGenreHazards() []Type {
-	switch s.genre {
+	return getGenreHazardTypes(s.genre)
+}
+
+// getGenreHazardTypes returns hazard types appropriate for a genre.
+// This shared helper consolidates duplicate logic from LegacySystem and ECSSystem.
+func getGenreHazardTypes(genre string) []Type {
+	switch genre {
 	case "fantasy":
 		return []Type{TypeSpikeTrap, TypeFireGrate, TypePoisonVent, TypeFallingRocks, TypeAcidPool}
 	case "scifi":
@@ -150,6 +154,149 @@ func (s *LegacySystem) getGenreHazards() []Type {
 	default:
 		return []Type{TypeSpikeTrap, TypeFireGrate, TypeElectricFloor, TypePoisonVent}
 	}
+}
+
+// mapDimensions returns width and height from a world map, or (0,0) if empty.
+// This shared helper consolidates duplicate validation logic.
+func mapDimensions(worldMap [][]int) (width, height int, valid bool) {
+	if len(worldMap) == 0 || len(worldMap[0]) == 0 {
+		return 0, 0, false
+	}
+	return len(worldMap[0]), len(worldMap), true
+}
+
+// hazardConfig holds the base configuration for a hazard type.
+// Used to deduplicate createHazard and createHazardComponent.
+type hazardConfig struct {
+	ChargeDuration   float64
+	ActiveDuration   float64
+	CooldownDuration float64
+	BaseDamage       int
+	DamageVariance   int
+	StatusEffect     string
+	Color            uint32
+	Persistent       bool
+	State            State
+	Width            float64
+	Height           float64
+}
+
+// getHazardConfig returns the base configuration for a hazard type.
+// This shared helper consolidates duplicate configuration logic from
+// LegacySystem.createHazard and ECSSystem.createHazardComponent.
+func getHazardConfig(hType Type) hazardConfig {
+	cfg := hazardConfig{
+		State:  StateInactive,
+		Width:  1.0,
+		Height: 1.0,
+	}
+
+	switch hType {
+	case TypeSpikeTrap:
+		cfg.ChargeDuration = 0.5
+		cfg.ActiveDuration = 0.3
+		cfg.CooldownDuration = 2.0
+		cfg.BaseDamage = 15
+		cfg.DamageVariance = 10
+		cfg.Color = 0x808080
+		cfg.Persistent = false
+
+	case TypeFireGrate:
+		cfg.ChargeDuration = 1.0
+		cfg.ActiveDuration = 2.0
+		cfg.CooldownDuration = 3.0
+		cfg.BaseDamage = 5
+		cfg.StatusEffect = "burning"
+		cfg.Color = 0xFF4400
+		cfg.Persistent = true
+
+	case TypePoisonVent:
+		cfg.ChargeDuration = 0.8
+		cfg.ActiveDuration = 3.0
+		cfg.CooldownDuration = 5.0
+		cfg.BaseDamage = 3
+		cfg.StatusEffect = "poisoned"
+		cfg.Color = 0x00AA00
+		cfg.Persistent = true
+		cfg.Width = 1.5
+		cfg.Height = 1.5
+
+	case TypeElectricFloor:
+		cfg.ChargeDuration = 1.5
+		cfg.ActiveDuration = 1.0
+		cfg.CooldownDuration = 3.0
+		cfg.BaseDamage = 20
+		cfg.DamageVariance = 15
+		cfg.StatusEffect = "stunned"
+		cfg.Color = 0x00CCFF
+		cfg.Persistent = false
+
+	case TypeFallingRocks:
+		cfg.ChargeDuration = 1.0
+		cfg.ActiveDuration = 0.5
+		cfg.CooldownDuration = 8.0
+		cfg.BaseDamage = 25
+		cfg.DamageVariance = 20
+		cfg.Color = 0x885533
+		cfg.Persistent = false
+		cfg.Width = 2.0
+		cfg.Height = 2.0
+
+	case TypeAcidPool:
+		cfg.ActiveDuration = 999999.0 // Permanent
+		cfg.BaseDamage = 8
+		cfg.StatusEffect = "corroded"
+		cfg.Color = 0xAAFF00
+		cfg.Persistent = true
+		cfg.State = StateActive
+		cfg.Width = 1.2
+		cfg.Height = 1.2
+
+	case TypeLaserGrid:
+		cfg.ChargeDuration = 0.3
+		cfg.ActiveDuration = 1.5
+		cfg.CooldownDuration = 2.0
+		cfg.BaseDamage = 30
+		cfg.DamageVariance = 15
+		cfg.Color = 0xFF0000
+		cfg.Persistent = false
+		cfg.Width = 0.8
+		cfg.Height = 2.0
+
+	case TypeCryoField:
+		cfg.ChargeDuration = 1.2
+		cfg.ActiveDuration = 2.5
+		cfg.CooldownDuration = 4.0
+		cfg.BaseDamage = 10
+		cfg.StatusEffect = "slowed"
+		cfg.Color = 0x88CCFF
+		cfg.Persistent = true
+		cfg.Width = 2.0
+		cfg.Height = 2.0
+
+	case TypePlasmaJet:
+		cfg.ChargeDuration = 1.5
+		cfg.ActiveDuration = 0.8
+		cfg.CooldownDuration = 4.0
+		cfg.BaseDamage = 35
+		cfg.DamageVariance = 20
+		cfg.StatusEffect = "burning"
+		cfg.Color = 0xFF00FF
+		cfg.Persistent = false
+
+	case TypeGravityWell:
+		cfg.ChargeDuration = 2.0
+		cfg.ActiveDuration = 3.0
+		cfg.CooldownDuration = 6.0
+		cfg.BaseDamage = 5
+		cfg.StatusEffect = "pulled"
+		cfg.Color = 0x4400AA
+		cfg.Persistent = true
+		cfg.Width = 2.5
+		cfg.Height = 2.5
+	}
+
+	return cfg
 }
 
 // isValidHazardLocation checks if a map location can contain a hazard.
@@ -189,115 +336,28 @@ func (s *LegacySystem) isValidLocation(worldMap [][]int, x, y int) bool {
 	return isValidHazardLocation(worldMap, x, y)
 }
 
-// createHazard creates a hazard of the specified type.
+// createHazard creates a hazard of the specified type using shared configuration.
 func (s *LegacySystem) createHazard(hType Type, x, y float64, rng *rand.Rand) *Hazard {
+	cfg := getHazardConfig(hType)
 	h := &Hazard{
-		Type:   hType,
-		X:      x,
-		Y:      y,
-		Width:  1.0,
-		Height: 1.0,
-		State:  StateInactive,
+		Type:             hType,
+		X:                x,
+		Y:                y,
+		Width:            cfg.Width,
+		Height:           cfg.Height,
+		State:            cfg.State,
+		ChargeDuration:   cfg.ChargeDuration,
+		ActiveDuration:   cfg.ActiveDuration,
+		CooldownDuration: cfg.CooldownDuration,
+		StatusEffect:     cfg.StatusEffect,
+		Color:            cfg.Color,
+		Persistent:       cfg.Persistent,
 	}
 
-	switch hType {
-	case TypeSpikeTrap:
-		h.ChargeDuration = 0.5
-		h.ActiveDuration = 0.3
-		h.CooldownDuration = 2.0
-		h.Damage = 15 + rng.Intn(10)
-		h.Color = 0x808080
-		h.Persistent = false
-
-	case TypeFireGrate:
-		h.ChargeDuration = 1.0
-		h.ActiveDuration = 2.0
-		h.CooldownDuration = 3.0
-		h.Damage = 5
-		h.StatusEffect = "burning"
-		h.Color = 0xFF4400
-		h.Persistent = true
-
-	case TypePoisonVent:
-		h.ChargeDuration = 0.8
-		h.ActiveDuration = 3.0
-		h.CooldownDuration = 5.0
-		h.Damage = 3
-		h.StatusEffect = "poisoned"
-		h.Color = 0x00AA00
-		h.Persistent = true
-		h.Width = 1.5
-		h.Height = 1.5
-
-	case TypeElectricFloor:
-		h.ChargeDuration = 1.5
-		h.ActiveDuration = 1.0
-		h.CooldownDuration = 3.0
-		h.Damage = 20 + rng.Intn(15)
-		h.StatusEffect = "stunned"
-		h.Color = 0x00CCFF
-		h.Persistent = false
-
-	case TypeFallingRocks:
-		h.ChargeDuration = 1.0
-		h.ActiveDuration = 0.5
-		h.CooldownDuration = 8.0
-		h.Damage = 25 + rng.Intn(20)
-		h.Color = 0x885533
-		h.Persistent = false
-		h.Width = 2.0
-		h.Height = 2.0
-
-	case TypeAcidPool:
-		h.ActiveDuration = 999999.0 // Permanent
-		h.Damage = 8
-		h.StatusEffect = "corroded"
-		h.Color = 0xAAFF00
-		h.Persistent = true
-		h.State = StateActive
-		h.Width = 1.2
-		h.Height = 1.2
-
-	case TypeLaserGrid:
-		h.ChargeDuration = 0.3
-		h.ActiveDuration = 1.5
-		h.CooldownDuration = 2.0
-		h.Damage = 30 + rng.Intn(15)
-		h.Color = 0xFF0000
-		h.Persistent = false
-		h.Width = 0.8
-		h.Height = 2.0
-
-	case TypeCryoField:
-		h.ChargeDuration = 1.2
-		h.ActiveDuration = 2.5
-		h.CooldownDuration = 4.0
-		h.Damage = 10
-		h.StatusEffect = "slowed"
-		h.Color = 0x88CCFF
-		h.Persistent = true
-		h.Width = 2.0
-		h.Height = 2.0
-
-	case TypePlasmaJet:
-		h.ChargeDuration = 1.5
-		h.ActiveDuration = 0.8
-		h.CooldownDuration = 4.0
-		h.Damage = 35 + rng.Intn(20)
-		h.StatusEffect = "burning"
-		h.Color = 0xFF00FF
-		h.Persistent = false
-
-	case TypeGravityWell:
-		h.ChargeDuration = 2.0
-		h.ActiveDuration = 3.0
-		h.CooldownDuration = 6.0
-		h.Damage = 5
-		h.StatusEffect = "pulled"
-		h.Color = 0x4400AA
-		h.Persistent = true
-		h.Width = 2.5
-		h.Height = 2.5
+	// Apply damage with random variance
+	h.Damage = cfg.BaseDamage
+	if cfg.DamageVariance > 0 {
+		h.Damage += rng.Intn(cfg.DamageVariance)
 	}
 
 	h.CycleDuration = h.ChargeDuration + h.ActiveDuration + h.CooldownDuration

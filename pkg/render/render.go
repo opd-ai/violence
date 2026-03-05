@@ -264,10 +264,10 @@ func sampleWallTexture(texture image.Image, textureX float64, y, drawStart, draw
 	}
 }
 
-// renderFloor computes floor color for a given pixel.
-// If atlas is set, samples floor texture with perspective-correct coordinates.
-func (r *Renderer) renderFloor(x, y int, posX, posY, dirX, dirY, pitch float64) color.RGBA {
-	pixels := r.raycaster.CastFloorCeiling(y, posX, posY, dirX, dirY, pitch)
+// renderSurface computes a floor or ceiling color for a given pixel.
+// textureName specifies which texture to sample (e.g., "floor_main", "ceiling_main").
+// paletteIdx specifies the fallback palette color index if no texture is found.
+func (r *Renderer) renderSurface(x int, pixels []raycaster.FloorCeilPixel, textureName string, paletteIdx int) color.RGBA {
 	if x >= len(pixels) {
 		return r.palette[0]
 	}
@@ -276,14 +276,14 @@ func (r *Renderer) renderFloor(x, y int, posX, posY, dirX, dirY, pitch float64) 
 
 	// Try to sample from texture atlas if available
 	if r.atlas != nil {
-		floorTex, hasFloor := r.atlas.Get("floor_main")
-		if hasFloor {
-			baseColor = r.sampleTexture(floorTex, pixels[x].WorldX, pixels[x].WorldY)
+		tex, hasTexture := r.atlas.Get(textureName)
+		if hasTexture {
+			baseColor = r.sampleTexture(tex, pixels[x].WorldX, pixels[x].WorldY)
 		} else {
-			baseColor = r.palette[2]
+			baseColor = r.palette[paletteIdx]
 		}
 	} else {
-		baseColor = r.palette[2]
+		baseColor = r.palette[paletteIdx]
 	}
 
 	// Apply lighting if available
@@ -306,46 +306,18 @@ func (r *Renderer) renderFloor(x, y int, posX, posY, dirX, dirY, pitch float64) 
 	}
 }
 
+// renderFloor computes floor color for a given pixel.
+// If atlas is set, samples floor texture with perspective-correct coordinates.
+func (r *Renderer) renderFloor(x, y int, posX, posY, dirX, dirY, pitch float64) color.RGBA {
+	pixels := r.raycaster.CastFloorCeiling(y, posX, posY, dirX, dirY, pitch)
+	return r.renderSurface(x, pixels, "floor_main", 2)
+}
+
 // renderCeiling computes ceiling color for a given pixel.
 // If atlas is set, samples ceiling texture with perspective-correct coordinates.
 func (r *Renderer) renderCeiling(x, y int, posX, posY, dirX, dirY, pitch float64) color.RGBA {
 	pixels := r.raycaster.CastFloorCeiling(r.Height-1-y, posX, posY, dirX, dirY, pitch)
-	if x >= len(pixels) {
-		return r.palette[0]
-	}
-
-	var baseColor color.RGBA
-
-	// Try to sample from texture atlas if available
-	if r.atlas != nil {
-		ceilingTex, hasCeiling := r.atlas.Get("ceiling_main")
-		if hasCeiling {
-			baseColor = r.sampleTexture(ceilingTex, pixels[x].WorldX, pixels[x].WorldY)
-		} else {
-			baseColor = r.palette[3]
-		}
-	} else {
-		baseColor = r.palette[3]
-	}
-
-	// Apply lighting if available
-	lightMult := r.getLightMultiplier(pixels[x].WorldX, pixels[x].WorldY)
-
-	foggedColor := r.raycaster.ApplyFog(
-		[3]float64{
-			float64(baseColor.R) / 255.0 * lightMult,
-			float64(baseColor.G) / 255.0 * lightMult,
-			float64(baseColor.B) / 255.0 * lightMult,
-		},
-		pixels[x].Distance,
-	)
-
-	return color.RGBA{
-		R: uint8(foggedColor[0] * 255),
-		G: uint8(foggedColor[1] * 255),
-		B: uint8(foggedColor[2] * 255),
-		A: 255,
-	}
+	return r.renderSurface(x, pixels, "ceiling_main", 3)
 }
 
 // sampleTexture samples a texture at world coordinates with wrapping.

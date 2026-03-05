@@ -268,33 +268,7 @@ func (s *AOSystem) checkEntityOcclusion(
 	if s.spatialGrid != nil {
 		nearby := s.spatialGrid.QueryRadius(x, y, 0.5)
 		for _, other := range nearby {
-			if other == selfEntity {
-				continue
-			}
-
-			posComp, ok := w.GetComponent(other, positionType)
-			if !ok {
-				continue
-			}
-			otherPos, ok := posComp.(*PositionComponent)
-			if !ok {
-				continue
-			}
-
-			// Check if entity has AO component and casts occlusion
-			aoType := reflect.TypeOf(&AOComponent{})
-			if aoComp, found := w.GetComponent(other, aoType); found {
-				if ao, ok := aoComp.(*AOComponent); ok && !ao.CastsOcclusion {
-					continue
-				}
-			}
-
-			// Simple distance check
-			dx := otherPos.X - x
-			dy := otherPos.Y - y
-			distSq := dx*dx + dy*dy
-
-			if distSq < 0.25 { // Within 0.5 unit radius
+			if s.isOccludingEntity(w, other, selfEntity, x, y, positionType) {
 				return true
 			}
 		}
@@ -304,37 +278,49 @@ func (s *AOSystem) checkEntityOcclusion(
 	// Fallback: brute-force check all entities with position + collider
 	entities := w.Query(positionType, colliderType)
 	for _, other := range entities {
-		if other == selfEntity {
-			continue
-		}
-
-		posComp, ok := w.GetComponent(other, positionType)
-		if !ok {
-			continue
-		}
-		otherPos, ok := posComp.(*PositionComponent)
-		if !ok {
-			continue
-		}
-
-		// Check if entity has AO component and casts occlusion
-		aoType := reflect.TypeOf(&AOComponent{})
-		if aoComp, found := w.GetComponent(other, aoType); found {
-			if ao, ok := aoComp.(*AOComponent); ok && !ao.CastsOcclusion {
-				continue
-			}
-		}
-
-		dx := otherPos.X - x
-		dy := otherPos.Y - y
-		distSq := dx*dx + dy*dy
-
-		if distSq < 0.25 {
+		if s.isOccludingEntity(w, other, selfEntity, x, y, positionType) {
 			return true
 		}
 	}
 
 	return false
+}
+
+// isOccludingEntity checks if a specific entity is occluding at the given point.
+// This shared helper consolidates duplicate entity checking logic.
+func (s *AOSystem) isOccludingEntity(
+	w *engine.World,
+	other, selfEntity engine.Entity,
+	x, y float64,
+	positionType reflect.Type,
+) bool {
+	if other == selfEntity {
+		return false
+	}
+
+	posComp, ok := w.GetComponent(other, positionType)
+	if !ok {
+		return false
+	}
+	otherPos, ok := posComp.(*PositionComponent)
+	if !ok {
+		return false
+	}
+
+	// Check if entity has AO component and casts occlusion
+	aoType := reflect.TypeOf(&AOComponent{})
+	if aoComp, found := w.GetComponent(other, aoType); found {
+		if ao, ok := aoComp.(*AOComponent); ok && !ao.CastsOcclusion {
+			return false
+		}
+	}
+
+	// Simple distance check
+	dx := otherPos.X - x
+	dy := otherPos.Y - y
+	distSq := dx*dx + dy*dy
+
+	return distSq < 0.25 // Within 0.5 unit radius
 }
 
 // InvalidateAll marks all AO components as needing recalculation.
