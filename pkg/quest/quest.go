@@ -122,6 +122,9 @@ func (t *Tracker) generateBonusObjectives(r *rng.RNG, layout LevelLayout) {
 }
 
 // LevelLayout represents level structure for objective placement.
+// It is used by GenerateWithLayout to position objectives in specific
+// level regions. ExitPos is used for "find exit" objectives, and Rooms
+// are used to place objectives within room boundaries.
 type LevelLayout struct {
 	Width       int
 	Height      int
@@ -130,13 +133,16 @@ type LevelLayout struct {
 	Rooms       []Room
 }
 
-// Position represents a 2D coordinate.
+// Position represents a 2D coordinate in level space.
+// Used for objective locations and room centers.
 type Position struct {
 	X float64
 	Y float64
 }
 
 // Room represents a level room for objective placement.
+// Objectives can be positioned at room centers (computed from X, Y, Width, Height)
+// or within room bounds during layout-based generation.
 type Room struct {
 	X      int
 	Y      int

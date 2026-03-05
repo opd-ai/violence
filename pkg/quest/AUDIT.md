@@ -6,14 +6,14 @@
 Quest management package implementing procedural objective generation with genre-specific text variants. Clean implementation with excellent test coverage (97.8%) and no critical defects. Minor opportunities for API consistency improvements and documentation expansion.
 
 ## Issues Found
-- [ ] low API Design — Global `SetGenre` and `GetCurrentGenre` functions unused; instance method `SetGenre` preferred but inconsistent API surface (`quest.go:300-308`)
-- [ ] low API Design — `genreID` field unexported but accessed via instance method; consider making field exported or removing global functions (`quest.go:48`)
-- [ ] low Documentation — Missing package-level `doc.go` file with usage examples and package overview (package root)
-- [ ] low Documentation — No godoc comment for `LevelLayout` type explaining its integration with `GenerateWithLayout` (`quest.go:124`)
-- [ ] low Documentation — No godoc comment for `Position` type (`quest.go:134`)
-- [ ] low Documentation — No godoc comment for `Room` type (`quest.go:140`)
-- [ ] low Error Handling — `UpdateProgress` silently ignores unknown IDs; consider returning error or boolean for validation feedback (`quest.go:235-244`)
-- [ ] low Error Handling — `Complete` silently ignores unknown IDs; consider returning error or boolean (`quest.go:247-253`)
+- [x] low API Design — Global `SetGenre` and `GetCurrentGenre` functions unused; instance method `SetGenre` preferred but inconsistent API surface (`quest.go:300-308`) — RESOLVED: Functions actively used in genre cascade system (test/genre_cascade_test.go:47,66)
+- [x] low API Design — `genreID` field unexported but accessed via instance method; consider making field exported or removing global functions (`quest.go:48`) — RESOLVED: Proper encapsulation; field correctly unexported, global functions needed for cascade
+- [x] low Documentation — Missing package-level `doc.go` file with usage examples and package overview (package root) — RESOLVED: Added doc.go with comprehensive examples
+- [x] low Documentation — No godoc comment for `LevelLayout` type explaining its integration with `GenerateWithLayout` (`quest.go:124`) — RESOLVED: Enhanced godoc with integration details
+- [x] low Documentation — No godoc comment for `Position` type (`quest.go:134`) — RESOLVED: Added descriptive godoc
+- [x] low Documentation — No godoc comment for `Room` type (`quest.go:140`) — RESOLVED: Added descriptive godoc
+- [x] low Error Handling — `UpdateProgress` silently ignores unknown IDs; consider returning error or boolean for validation feedback (`quest.go:235-244`) — RESOLVED: Working as intended; silent ignore acceptable for game engine, changing API would break compatibility
+- [x] low Error Handling — `Complete` silently ignores unknown IDs; consider returning error or boolean (`quest.go:247-253`) — RESOLVED: Working as intended; silent ignore acceptable for game engine, changing API would break compatibility
 
 ## Test Coverage
 97.8% (target: 65%) ✓
