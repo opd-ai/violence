@@ -16,6 +16,7 @@ type System struct {
 	genre       string
 	tileSize    int
 	detailCache map[cacheKey]*ebiten.Image
+	texGen      *TextureGenerator
 	logger      *logrus.Entry
 }
 
@@ -31,6 +32,7 @@ func NewSystem(genreID string, tileSize int) *System {
 		genre:       genreID,
 		tileSize:    tileSize,
 		detailCache: make(map[cacheKey]*ebiten.Image),
+		texGen:      NewTextureGenerator(100, genreID),
 		logger: logrus.WithFields(logrus.Fields{
 			"system": "floor",
 			"genre":  genreID,
@@ -42,6 +44,7 @@ func NewSystem(genreID string, tileSize int) *System {
 func (s *System) SetGenre(genreID string) {
 	s.genre = genreID
 	s.detailCache = make(map[cacheKey]*ebiten.Image)
+	s.texGen.SetGenre(genreID)
 	s.logger = s.logger.WithField("genre", genreID)
 }
 
@@ -548,4 +551,116 @@ func (s *System) isNearWall(x, y int, tiles [][]int) bool {
 		}
 	}
 	return false
+}
+
+// GenerateFloorTiles creates base material tiles for a dungeon level.
+func (s *System) GenerateFloorTiles(tiles [][]int, seed int64) []*FloorTileComponent {
+	if len(tiles) == 0 || len(tiles[0]) == 0 {
+		return nil
+	}
+
+	rng := rand.New(rand.NewSource(seed))
+	floorTiles := make([]*FloorTileComponent, 0, len(tiles)*len(tiles[0])/2)
+
+	// Determine material distribution based on genre
+	materialDist := s.getGenreMaterialDistribution()
+
+	for y := range tiles {
+		for x := range tiles[y] {
+			// Only process floor tiles
+			if !s.isFloorTile(tiles[y][x]) {
+				continue
+			}
+
+			// Select material based on distribution
+			material := s.selectMaterial(materialDist, rng)
+			variant := rng.Intn(4) // 4 variants per material
+
+			floorTile := &FloorTileComponent{
+				X:        x,
+				Y:        y,
+				Material: material,
+				Variant:  variant,
+				Seed:     seed + int64(y*10000+x),
+				GenreID:  s.genre,
+			}
+
+			floorTiles = append(floorTiles, floorTile)
+		}
+	}
+
+	s.logger.WithFields(logrus.Fields{
+		"tiles_generated": len(floorTiles),
+		"seed":            seed,
+	}).Debug("Floor tiles generated")
+
+	return floorTiles
+}
+
+// RenderTile generates or retrieves cached texture for a floor tile.
+func (s *System) RenderTile(tile *FloorTileComponent) *ebiten.Image {
+	if tile.CachedTexture != nil {
+		return tile.CachedTexture
+	}
+
+	img := s.texGen.GetTile(tile.Material, tile.Variant, tile.Seed, s.tileSize)
+	tile.CachedTexture = img
+	return img
+}
+
+// getGenreMaterialDistribution returns material weights for the current genre.
+func (s *System) getGenreMaterialDistribution() map[MaterialType]float64 {
+	distributions := map[string]map[MaterialType]float64{
+		"fantasy": {
+			MaterialStone: 0.60,
+			MaterialWood:  0.15,
+			MaterialDirt:  0.15,
+			MaterialTile:  0.10,
+		},
+		"scifi": {
+			MaterialMetal:    0.50,
+			MaterialTile:     0.30,
+			MaterialConcrete: 0.20,
+		},
+		"horror": {
+			MaterialWood:     0.30,
+			MaterialStone:    0.25,
+			MaterialFlesh:    0.15,
+			MaterialConcrete: 0.20,
+			MaterialDirt:     0.10,
+		},
+		"cyberpunk": {
+			MaterialMetal:    0.40,
+			MaterialConcrete: 0.35,
+			MaterialTile:     0.25,
+		},
+		"postapoc": {
+			MaterialConcrete: 0.35,
+			MaterialDirt:     0.25,
+			MaterialMetal:    0.20,
+			MaterialStone:    0.20,
+		},
+	}
+
+	if dist, ok := distributions[s.genre]; ok {
+		return dist
+	}
+	// Default to fantasy
+	return distributions["fantasy"]
+}
+
+// selectMaterial chooses a material based on weighted distribution.
+func (s *System) selectMaterial(dist map[MaterialType]float64, rng *rand.Rand) MaterialType {
+	roll := rng.Float64()
+	cumulative := 0.0
+
+	for mat, weight := range dist {
+		cumulative += weight
+		if roll <= cumulative {
+			return mat
+		}
+	}
+
+	// Fallback
+	return MaterialStone
 }

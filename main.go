@@ -317,6 +317,7 @@ type Game struct {
 	// Floor detail system for procedural floor tile variation and environmental detail
 	floorDetailSystem *floor.System
 	floorDetails      []*floor.FloorDetailComponent
+	floorTiles        []*floor.FloorTileComponent
 
 	// Combat decal system for persistent visual marks from combat
 	decalSystem  *decal.System
@@ -498,6 +499,7 @@ func NewGame() *Game {
 	// Initialize floor detail system for procedural floor variation
 	g.floorDetailSystem = floor.NewSystem(g.genreID, 64)
 	g.floorDetails = make([]*floor.FloorDetailComponent, 0)
+	g.floorTiles = make([]*floor.FloorTileComponent, 0)
 
 	// Initialize combat decal system for persistent visual marks
 	g.decalSystem = decal.NewSystem(500, g.genreID, int64(seed))
@@ -867,14 +869,18 @@ func (g *Game) generateFloorDetails(tiles [][]int) {
 		return
 	}
 
+	// Generate base floor tiles using level seed
+	g.floorTiles = g.floorDetailSystem.GenerateFloorTiles(tiles, int64(g.seed))
+
 	// Generate floor details using level seed
 	g.floorDetails = g.floorDetailSystem.GenerateFloorDetails(tiles, int64(g.seed))
 
 	logrus.WithFields(logrus.Fields{
 		"system":        "floor",
+		"tiles_count":   len(g.floorTiles),
 		"details_count": len(g.floorDetails),
 		"seed":          g.seed,
-	}).Debug("Floor details generated")
+	}).Debug("Floor tiles and details generated")
 }
 
 // placeDecorativeProps places decorative props in BSP rooms.
@@ -4397,7 +4403,7 @@ func (g *Game) renderBackgroundAndWorld(screen *ebiten.Image, camX, camY float64
 
 // renderWorldEntities renders floor details, decals, corpses, props, and loot.
 func (g *Game) renderWorldEntities(screen *ebiten.Image, camX, camY float64) {
-	if g.floorDetailSystem != nil && len(g.floorDetails) > 0 {
+	if g.floorDetailSystem != nil && (len(g.floorTiles) > 0 || len(g.floorDetails) > 0) {
 		g.renderFloorDetails(screen)
 	}
 	if g.decalSystem != nil && len(g.combatDecals) > 0 {
@@ -4720,6 +4726,38 @@ func (g *Game) renderFloorDetails(screen *ebiten.Image) {
 	// Tile size for rendering (64x64 pixels per tile in this game)
 	tileSize := 64
 
+	// First, render base floor tiles with material textures
+	for _, tile := range g.floorTiles {
+		// Calculate vector from camera to tile
+		dx := float64(tile.X) + 0.5 - g.camera.X
+		dy := float64(tile.Y) + 0.5 - g.camera.Y
+
+		// Check if tile is within visible range
+		dist := dx*dx + dy*dy
+		if dist > 36 { // Render up to 6 tile radius
+			continue
+		}
+
+		// Calculate screen position relative to camera
+		screenX := int(float64(config.C.InternalWidth)/2 + dx*float64(tileSize))
+		screenY := int(float64(config.C.InternalHeight)/2 + dy*float64(tileSize))
+
+		// Skip if off-screen
+		if screenX < -tileSize || screenX > config.C.InternalWidth+tileSize ||
+			screenY < -tileSize || screenY > config.C.InternalHeight+tileSize {
+			continue
+		}
+
+		// Render the base tile texture
+		tileImg := g.floorDetailSystem.RenderTile(tile)
+		if tileImg != nil {
+			op := &ebiten.DrawImageOptions{}
+			op.GeoM.Translate(float64(screenX-tileSize/2), float64(screenY-tileSize/2))
+			screen.DrawImage(tileImg, op)
+		}
+	}
+
+	// Then, render detail overlays on top
 	for _, detail := range g.floorDetails {
 		// Calculate screen position for this floor tile
 		// Map coordinates (detail.X, detail.Y) to screen coordinates

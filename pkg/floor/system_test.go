@@ -413,3 +413,294 @@ func BenchmarkRenderDetailCached(b *testing.B) {
 		sys.RenderDetail(detail)
 	}
 }
+
+// Tests for floor tile texture generation
+
+func TestGenerateFloorTiles(t *testing.T) {
+	sys := NewSystem("fantasy", 32)
+
+	tiles := [][]int{
+		{1, 1, 1, 1, 1},
+		{1, 2, 2, 2, 1},
+		{1, 2, 2, 2, 1},
+		{1, 2, 2, 2, 1},
+		{1, 1, 1, 1, 1},
+	}
+
+	floorTiles := sys.GenerateFloorTiles(tiles, 12345)
+
+	if floorTiles == nil {
+		t.Fatal("GenerateFloorTiles returned nil")
+	}
+
+	// Should have generated one tile per floor tile
+	expectedCount := 9 // 3x3 floor area
+	if len(floorTiles) != expectedCount {
+		t.Errorf("Generated %d floor tiles, want %d", len(floorTiles), expectedCount)
+	}
+
+	// Verify each tile has valid data
+	for _, tile := range floorTiles {
+		if tile.GenreID != "fantasy" {
+			t.Errorf("Tile has genre %s, want fantasy", tile.GenreID)
+		}
+		if tile.Material < 0 || tile.Material > MaterialCrystal {
+			t.Errorf("Invalid material type: %v", tile.Material)
+		}
+		if tile.Variant < 0 || tile.Variant >= 4 {
+			t.Errorf("Invalid variant: %d", tile.Variant)
+		}
+	}
+}
+
+func TestGenerateFloorTilesGenres(t *testing.T) {
+	tiles := [][]int{
+		{1, 1, 1, 1, 1},
+		{1, 2, 2, 2, 1},
+		{1, 2, 2, 2, 1},
+		{1, 1, 1, 1, 1},
+	}
+
+	genres := []string{"fantasy", "scifi", "horror", "cyberpunk", "postapoc"}
+
+	for _, genre := range genres {
+		t.Run(genre, func(t *testing.T) {
+			sys := NewSystem(genre, 32)
+			floorTiles := sys.GenerateFloorTiles(tiles, 54321)
+
+			if len(floorTiles) == 0 {
+				t.Fatal("No floor tiles generated")
+			}
+
+			// Count materials to verify genre-appropriate distribution
+			materialCounts := make(map[MaterialType]int)
+			for _, tile := range floorTiles {
+				materialCounts[tile.Material]++
+			}
+
+			t.Logf("%s material distribution: %v", genre, materialCounts)
+
+			// Verify at least one material type is used
+			if len(materialCounts) == 0 {
+				t.Error("No materials used")
+			}
+		})
+	}
+}
+
+func TestRenderTile(t *testing.T) {
+	sys := NewSystem("fantasy", 32)
+
+	materials := []MaterialType{
+		MaterialStone,
+		MaterialMetal,
+		MaterialWood,
+		MaterialConcrete,
+		MaterialTile,
+		MaterialDirt,
+		MaterialGrass,
+		MaterialFlesh,
+		MaterialCrystal,
+	}
+
+	for _, material := range materials {
+		t.Run(material.String(), func(t *testing.T) {
+			tile := &FloorTileComponent{
+				X:        5,
+				Y:        5,
+				Material: material,
+				Variant:  0,
+				Seed:     12345,
+				GenreID:  "fantasy",
+			}
+
+			img := sys.RenderTile(tile)
+
+			if img == nil {
+				t.Fatal("RenderTile returned nil")
+			}
+
+			bounds := img.Bounds()
+			if bounds.Dx() != 32 || bounds.Dy() != 32 {
+				t.Errorf("tile size = %dx%d, want 32x32", bounds.Dx(), bounds.Dy())
+			}
+		})
+	}
+}
+
+func TestRenderTileCaching(t *testing.T) {
+	sys := NewSystem("fantasy", 32)
+
+	tile := &FloorTileComponent{
+		X:        5,
+		Y:        5,
+		Material: MaterialStone,
+		Variant:  0,
+		Seed:     12345,
+		GenreID:  "fantasy",
+	}
+
+	img1 := sys.RenderTile(tile)
+	img2 := sys.RenderTile(tile)
+
+	// Second call should return cached texture from component
+	if img1 != img2 {
+		t.Error("Second call to RenderTile should return cached texture")
+	}
+}
+
+func TestTextureGeneratorCaching(t *testing.T) {
+	gen := NewTextureGenerator(100, "fantasy")
+
+	img1 := gen.GetTile(MaterialStone, 0, 12345, 32)
+	img2 := gen.GetTile(MaterialStone, 0, 12345, 32)
+
+	if img1 != img2 {
+		t.Error("Generator should return cached tile for same parameters")
+	}
+
+	// Different seed should generate different tile
+	img3 := gen.GetTile(MaterialStone, 0, 54321, 32)
+	if img3 == img1 {
+		t.Error("Different seed should generate different tile")
+	}
+}
+
+func TestTextureGeneratorLRU(t *testing.T) {
+	gen := NewTextureGenerator(3, "fantasy") // Small cache for testing
+
+	// Fill cache
+	img1 := gen.GetTile(MaterialStone, 0, 1, 32)
+	_ = gen.GetTile(MaterialMetal, 0, 2, 32) // Will be evicted
+	img3 := gen.GetTile(MaterialWood, 0, 3, 32)
+
+	// Access img1 to move it to front
+	gen.GetTile(MaterialStone, 0, 1, 32)
+
+	// Add new item, should evict img2 (least recently used)
+	gen.GetTile(MaterialConcrete, 0, 4, 32)
+
+	// img1 and img3 should still be cached
+	cached1 := gen.GetTile(MaterialStone, 0, 1, 32)
+	if cached1 != img1 {
+		t.Error("img1 should still be cached")
+	}
+
+	cached3 := gen.GetTile(MaterialWood, 0, 3, 32)
+	if cached3 != img3 {
+		t.Error("img3 should still be cached")
+	}
+}
+
+func TestFloorTileComponent(t *testing.T) {
+	comp := &FloorTileComponent{
+		X:        10,
+		Y:        20,
+		Material: MaterialStone,
+		Variant:  2,
+		Seed:     12345,
+		GenreID:  "scifi",
+	}
+
+	if comp.Type() != "floor_tile" {
+		t.Errorf("Type() = %s, want floor_tile", comp.Type())
+	}
+}
+
+func TestMaterialDistribution(t *testing.T) {
+	sys := NewSystem("fantasy", 32)
+
+	tiles := make([][]int, 20)
+	for y := range tiles {
+		tiles[y] = make([]int, 20)
+		for x := range tiles[y] {
+			tiles[y][x] = 2 // All floor
+		}
+	}
+
+	floorTiles := sys.GenerateFloorTiles(tiles, 12345)
+
+	// Count materials
+	materialCounts := make(map[MaterialType]int)
+	for _, tile := range floorTiles {
+		materialCounts[tile.Material]++
+	}
+
+	t.Logf("Material distribution: %v", materialCounts)
+
+	// Fantasy should favor stone
+	if materialCounts[MaterialStone] == 0 {
+		t.Error("Fantasy genre should include stone tiles")
+	}
+
+	// Should have some variety
+	if len(materialCounts) < 2 {
+		t.Error("Expected multiple material types")
+	}
+}
+
+func (m MaterialType) String() string {
+	names := []string{
+		"Stone",
+		"Metal",
+		"Wood",
+		"Concrete",
+		"Tile",
+		"Dirt",
+		"Grass",
+		"Flesh",
+		"Crystal",
+	}
+	if m >= 0 && int(m) < len(names) {
+		return names[m]
+	}
+	return "Unknown"
+}
+
+func BenchmarkGenerateFloorTiles(b *testing.B) {
+	sys := NewSystem("fantasy", 32)
+
+	tiles := make([][]int, 50)
+	for y := range tiles {
+		tiles[y] = make([]int, 50)
+		for x := range tiles[y] {
+			if x == 0 || y == 0 || x == 49 || y == 49 {
+				tiles[y][x] = 1 // Wall
+			} else {
+				tiles[y][x] = 2 // Floor
+			}
+		}
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		sys.GenerateFloorTiles(tiles, int64(i))
+	}
+}
+
+func BenchmarkRenderTile(b *testing.B) {
+	sys := NewSystem("fantasy", 32)
+
+	tile := &FloorTileComponent{
+		X:        5,
+		Y:        5,
+		Material: MaterialStone,
+		Variant:  0,
+		Seed:     12345,
+		GenreID:  "fantasy",
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		sys.RenderTile(tile)
+	}
+}
+
+func BenchmarkTextureGeneration(b *testing.B) {
+	gen := NewTextureGenerator(100, "fantasy")
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		gen.GetTile(MaterialStone, i%4, int64(i), 32)
+	}
+}
