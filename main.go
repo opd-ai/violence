@@ -83,6 +83,7 @@ import (
 	"github.com/opd-ai/violence/pkg/tutorial"
 	"github.com/opd-ai/violence/pkg/ui"
 	"github.com/opd-ai/violence/pkg/upgrade"
+	"github.com/opd-ai/violence/pkg/walltex"
 	"github.com/opd-ai/violence/pkg/weapon"
 	"github.com/opd-ai/violence/pkg/weaponanim"
 	"github.com/opd-ai/violence/pkg/weather"
@@ -342,6 +343,9 @@ type Game struct {
 	// Parallax background system for multi-layer depth scrolling
 	parallaxSystem    *parallax.System
 	parallaxComponent *parallax.Component
+
+	// Wall texture variation system for enhanced environmental visuals
+	wallTexSystem *walltex.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -504,6 +508,9 @@ func NewGame() *Game {
 	g.parallaxSystem = parallax.NewSystem()
 	g.parallaxComponent = parallax.NewComponent(g.genreID, "default", int64(seed))
 
+	// Initialize wall texture variation system for procedural wall detail
+	g.wallTexSystem = walltex.NewSystem(g.genreID, 200)
+
 	// Connect sliding system to spatial index
 	g.slidingSystem.SetSpatialIndex(g.spatialSystem.GetGrid())
 
@@ -621,6 +628,9 @@ func NewGame() *Game {
 
 	// Register weapon swing animation system with the World
 	g.world.AddSystem(g.weaponAnimSystem)
+
+	// Register wall texture variation system with the World
+	g.world.AddSystem(g.wallTexSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)

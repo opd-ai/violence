@@ -124,6 +124,60 @@ func (g *Generator) Generate(size, variant int, seed uint64) *image.RGBA {
 	return img
 }
 
+// GenerateWithMaterial creates a wall texture with explicit material and weathering control.
+// This method is used by the WallTextureSystem for dynamic texture variation.
+func (g *Generator) GenerateWithMaterial(size int, material Material, variant int, weathering float64, seed uint64) *image.RGBA {
+	img := image.NewRGBA(image.Rect(0, 0, size, size))
+	r := rng.NewRNG(seed)
+
+	// Generate base material pattern
+	g.generateBaseMaterial(img, material, r)
+
+	// Add depth and lighting
+	g.applyNormalMapping(img, material, r)
+
+	// Apply custom weathering intensity
+	if weathering > 0.1 {
+		g.applyCustomWeathering(img, weathering, r)
+	}
+
+	// Add material-specific details
+	g.applyDetails(img, material, r)
+
+	// Add genre-specific effects (glow for tech materials)
+	if (material == MaterialTech || material == MaterialCrystal) && g.preset.GlowIntensity > 0 {
+		g.applyGlow(img, r)
+	}
+
+	return img
+}
+
+// applyCustomWeathering applies weathering with custom intensity.
+func (g *Generator) applyCustomWeathering(img *image.RGBA, intensity float64, r *rng.RNG) {
+	bounds := img.Bounds()
+	w, h := bounds.Dx(), bounds.Dy()
+
+	// Scale crack and stain count by intensity
+	numCracks := int(float64(w/16) * intensity)
+	for i := 0; i < numCracks; i++ {
+		crackSeed := uint64(i * 7919)
+		startX := int(hashSeed(crackSeed) % uint64(w))
+		startY := int(hashSeed(crackSeed+1) % uint64(h))
+		length := 5 + int(hashSeed(crackSeed+2)%15)
+		angle := float64(hashSeed(crackSeed+3)%360) * math.Pi / 180.0
+		g.drawCrack(img, startX, startY, length, angle)
+	}
+
+	numStains := int(float64(w/32) * intensity)
+	for i := 0; i < numStains; i++ {
+		stainSeed := uint64(i*12347 + 999)
+		stainX := int(hashSeed(stainSeed) % uint64(w))
+		stainY := int(hashSeed(stainSeed+1) % uint64(h))
+		stainSize := 3 + int(hashSeed(stainSeed+2)%8)
+		g.drawStain(img, stainX, stainY, stainSize)
+	}
+}
+
 // generateBaseMaterial creates the base material pattern.
 func (g *Generator) generateBaseMaterial(img *image.RGBA, material Material, r *rng.RNG) {
 	bounds := img.Bounds()
