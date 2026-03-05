@@ -14,12 +14,12 @@ import (
 type BodyPlan int
 
 const (
-	BodyPlanHumanoid BodyPlan = iota // Two legs, two arms, upright stance
-	BodyPlanQuadruped                // Four legs, horizontal body (wolves, bears, cats)
-	BodyPlanInsect                   // Six legs, segmented body (spiders, beetles)
-	BodyPlanSerpent                  // No legs, elongated body (snakes, worms)
-	BodyPlanFlying                   // Wings, aerial pose (bats, birds, drakes)
-	BodyPlanAmorphous                // No fixed form (slimes, oozes, elementals)
+	BodyPlanHumanoid  BodyPlan = iota // Two legs, two arms, upright stance
+	BodyPlanQuadruped                 // Four legs, horizontal body (wolves, bears, cats)
+	BodyPlanInsect                    // Six legs, segmented body (spiders, beetles)
+	BodyPlanSerpent                   // No legs, elongated body (snakes, worms)
+	BodyPlanFlying                    // Wings, aerial pose (bats, birds, drakes)
+	BodyPlanAmorphous                 // No fixed form (slimes, oozes, elementals)
 )
 
 // CreatureType defines specific creature variants within body plans.
@@ -27,36 +27,36 @@ type CreatureType string
 
 const (
 	// Quadruped variants
-	CreatureWolf        CreatureType = "wolf"
-	CreatureBear        CreatureType = "bear"
-	CreatureLion        CreatureType = "lion"
-	CreatureHound       CreatureType = "hound"
-	CreatureRaptor      CreatureType = "raptor"
+	CreatureWolf   CreatureType = "wolf"
+	CreatureBear   CreatureType = "bear"
+	CreatureLion   CreatureType = "lion"
+	CreatureHound  CreatureType = "hound"
+	CreatureRaptor CreatureType = "raptor"
 
 	// Insect variants
-	CreatureSpider      CreatureType = "spider"
-	CreatureBeetle      CreatureType = "beetle"
-	CreatureMantis      CreatureType = "mantis"
-	CreatureScorpion    CreatureType = "scorpion"
-	CreatureAnt         CreatureType = "ant"
+	CreatureSpider   CreatureType = "spider"
+	CreatureBeetle   CreatureType = "beetle"
+	CreatureMantis   CreatureType = "mantis"
+	CreatureScorpion CreatureType = "scorpion"
+	CreatureAnt      CreatureType = "ant"
 
 	// Serpent variants
-	CreatureSnake       CreatureType = "snake"
-	CreatureWorm        CreatureType = "worm"
-	CreatureSerpent     CreatureType = "serpent"
-	CreatureLamia       CreatureType = "lamia"
+	CreatureSnake   CreatureType = "snake"
+	CreatureWorm    CreatureType = "worm"
+	CreatureSerpent CreatureType = "serpent"
+	CreatureLamia   CreatureType = "lamia"
 
 	// Flying variants
-	CreatureBat         CreatureType = "bat"
-	CreatureDrake       CreatureType = "drake"
-	CreatureHarpy       CreatureType = "harpy"
-	CreatureWasp        CreatureType = "wasp"
+	CreatureBat   CreatureType = "bat"
+	CreatureDrake CreatureType = "drake"
+	CreatureHarpy CreatureType = "harpy"
+	CreatureWasp  CreatureType = "wasp"
 
 	// Amorphous variants
-	CreatureSlime       CreatureType = "slime"
-	CreatureOoze        CreatureType = "ooze"
-	CreatureElemental   CreatureType = "elemental"
-	CreatureWraith      CreatureType = "wraith"
+	CreatureSlime     CreatureType = "slime"
+	CreatureOoze      CreatureType = "ooze"
+	CreatureElemental CreatureType = "elemental"
+	CreatureWraith    CreatureType = "wraith"
 )
 
 // GetBodyPlan returns the body plan for a creature type.
@@ -294,8 +294,8 @@ func generateInsectCreature(img *image.RGBA, rng *rand.Rand, ctype CreatureType,
 		}
 	} else {
 		// Beetle/Ant/Scorpion: segmented body
-		common.FillCircle(img, centerX, centerY-8, 5, bodyColor)     // Head
-		common.FillEllipse(img, centerX, centerY, 7, 8, shellColor)  // Thorax
+		common.FillCircle(img, centerX, centerY-8, 5, bodyColor)       // Head
+		common.FillEllipse(img, centerX, centerY, 7, 8, shellColor)    // Thorax
 		common.FillEllipse(img, centerX, centerY+10, 8, 10, bodyColor) // Abdomen
 
 		if ctype == CreatureScorpion {
@@ -384,7 +384,7 @@ func generateSerpentCreature(img *image.RGBA, rng *rand.Rand, ctype CreatureType
 	// Head details
 	headY := 10
 	headX := 32 + int(math.Sin(waveOffset)*12)
-	
+
 	// Eyes
 	common.FillCircle(img, headX-2, headY, 1, eyeColor)
 	common.FillCircle(img, headX+2, headY, 1, eyeColor)
@@ -399,7 +399,7 @@ func generateSerpentCreature(img *image.RGBA, rng *rand.Rand, ctype CreatureType
 		t := float64(i) / float64(segments-1)
 		y := 10 + int(t*44)
 		x := 32 + int(math.Sin(t*math.Pi*2+waveOffset)*12)
-		
+
 		if i%2 == 0 {
 			darker := color.RGBA{
 				R: bodyColor.R - 20,
@@ -547,7 +547,7 @@ func generateAmorphousCreature(img *image.RGBA, rng *rand.Rand, ctype CreatureTy
 	for i := 0; i < numBlobs; i++ {
 		angle := (float64(i) / float64(numBlobs)) * 2 * math.Pi
 		radius := 12.0 + wobble*math.Sin(angle*3+pulsePhase*math.Pi)
-		
+
 		blobX := centerX + int(radius*0.6*math.Cos(angle))
 		blobY := centerY + int(radius*0.6*math.Sin(angle))
 		blobR := int(radius)
@@ -559,7 +559,7 @@ func generateAmorphousCreature(img *image.RGBA, rng *rand.Rand, ctype CreatureTy
 	for i := 0; i < numBlobs; i++ {
 		angle := (float64(i) / float64(numBlobs)) * 2 * math.Pi
 		radius := 10.0 + wobble*math.Sin(angle*3+pulsePhase*math.Pi)
-		
+
 		blobX := centerX + int(radius*0.5*math.Cos(angle))
 		blobY := centerY + int(radius*0.5*math.Sin(angle))
 		blobR := int(radius * 0.8)
@@ -576,10 +576,10 @@ func generateAmorphousCreature(img *image.RGBA, rng *rand.Rand, ctype CreatureTy
 		for i := 0; i < 6; i++ {
 			angle := (float64(i) / 6.0) * 2 * math.Pi
 			length := 10 + int(wobble*4*math.Sin(pulsePhase*math.Pi))
-			
+
 			tendrilX := centerX + int(float64(length)*math.Cos(angle))
 			tendrilY := centerY + int(float64(length)*math.Sin(angle))
-			
+
 			common.DrawLine(img, centerX, centerY, tendrilX, tendrilY, accentColor, 2)
 		}
 	} else if ctype == CreatureWraith {
@@ -588,7 +588,7 @@ func generateAmorphousCreature(img *image.RGBA, rng *rand.Rand, ctype CreatureTy
 			trailY := centerY + 12 + i*4
 			trailWidth := 8 - i
 			alpha := uint8(150 - i*30)
-			
+
 			trailColor := color.RGBA{R: coreColor.R, G: coreColor.G, B: coreColor.B, A: alpha}
 			common.FillEllipse(img, centerX, trailY, trailWidth, 2, trailColor)
 		}
@@ -600,7 +600,7 @@ func generateAmorphousCreature(img *image.RGBA, rng *rand.Rand, ctype CreatureTy
 	if ctype == CreatureWraith {
 		eyeGlow = color.RGBA{R: 100, G: 255, B: 255, A: 200}
 	}
-	
+
 	common.FillCircle(img, centerX-4, eyeY, 3, eyeGlow)
 	common.FillCircle(img, centerX+4, eyeY, 3, eyeGlow)
 	common.FillCircle(img, centerX-4, eyeY, 2, color.RGBA{R: 50, G: 50, B: 50, A: 255})
@@ -610,18 +610,18 @@ func generateAmorphousCreature(img *image.RGBA, rng *rand.Rand, ctype CreatureTy
 // generateSimpleHumanoid is a fallback for unknown creature types.
 func generateSimpleHumanoid(img *image.RGBA, rng *rand.Rand) {
 	bodyColor := color.RGBA{R: 100, G: 100, B: 100, A: 255}
-	
+
 	// Legs
 	common.FillRect(img, 26, 35, 30, 50, bodyColor)
 	common.FillRect(img, 34, 35, 38, 50, bodyColor)
-	
+
 	// Body
 	common.FillRect(img, 24, 18, 40, 35, bodyColor)
-	
+
 	// Arms
 	common.FillRect(img, 18, 22, 24, 32, bodyColor)
 	common.FillRect(img, 40, 22, 46, 32, bodyColor)
-	
+
 	// Head
 	common.FillCircle(img, 32, 12, 6, bodyColor)
 }
