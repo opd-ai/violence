@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/opd-ai/violence/pkg/common"
 	"github.com/opd-ai/violence/pkg/pool"
 )
 
@@ -265,7 +266,7 @@ func (g *Generator) drawCrate(img *image.RGBA, cx, cy, size int, rng *rand.Rand)
 		if i/2 == 1 {
 			cornerY = y2 - 4
 		}
-		fillRect(img, cornerX, cornerY, cornerX+4, cornerY+4, darkColor)
+		common.FillRect(img, cornerX, cornerY, cornerX+4, cornerY+4, darkColor)
 	}
 
 	for x := x1; x < x2; x++ {
@@ -306,7 +307,7 @@ func (g *Generator) drawTable(img *image.RGBA, cx, cy, size int, rng *rand.Rand)
 
 	for _, legPos := range legPositions {
 		lx, ly := legPos[0], legPos[1]
-		fillRect(img, lx, ly, lx+4, ly+size/3, legColor)
+		common.FillRect(img, lx, ly, lx+4, ly+size/3, legColor)
 	}
 }
 
@@ -320,7 +321,7 @@ func (g *Generator) drawTerminal(img *image.RGBA, cx, cy, size int, rng *rand.Ra
 	termH := size * 3 / 4
 	x1, y1 := cx-termW/2, cy-termH/2
 
-	fillRect(img, x1, y1, x1+termW, y1+termH, panelColor)
+	common.FillRect(img, x1, y1, x1+termW, y1+termH, panelColor)
 
 	screenX := x1 + termW/6
 	screenY := y1 + termH/6
@@ -342,7 +343,7 @@ func (g *Generator) drawTerminal(img *image.RGBA, cx, cy, size int, rng *rand.Ra
 	for i := 0; i < 3; i++ {
 		lx := screenX + i*screenW/4 + 4
 		ly := screenY + screenH/4
-		fillCircle(img, lx, ly, 2, glowColor)
+		common.FillCircle(img, lx, ly, 2, glowColor)
 	}
 }
 
@@ -358,10 +359,10 @@ func (g *Generator) drawBones(img *image.RGBA, cx, cy, size int, rng *rand.Rand)
 		x2 := cx + int(math.Cos(angle)*float64(length))
 		y2 := cy + int(math.Sin(angle)*float64(length))
 
-		drawThickLine(img, x1, y1, x2, y2, 2, boneColor)
+		common.DrawThickLine(img, x1, y1, x2, y2, 2, boneColor)
 	}
 
-	fillCircle(img, cx, cy, size/8, boneColor)
+	common.FillCircle(img, cx, cy, size/8, boneColor)
 }
 
 // drawPlant renders foliage with leaves.
@@ -373,7 +374,7 @@ func (g *Generator) drawPlant(img *image.RGBA, cx, cy, size int, rng *rand.Rand)
 	stemBot := cy + size/3
 	stemTop := cy - size/3
 
-	drawThickLine(img, stemX, stemBot, stemX, stemTop, 2, stemColor)
+	common.DrawThickLine(img, stemX, stemBot, stemX, stemTop, 2, stemColor)
 
 	for i := 0; i < 5; i++ {
 		leafY := stemBot - i*size/7
@@ -382,8 +383,8 @@ func (g *Generator) drawPlant(img *image.RGBA, cx, cy, size int, rng *rand.Rand)
 			leafSize = 2
 		}
 
-		fillCircle(img, stemX-leafSize, leafY, leafSize, leafColor)
-		fillCircle(img, stemX+leafSize, leafY, leafSize, leafColor)
+		common.FillCircle(img, stemX-leafSize, leafY, leafSize, leafColor)
+		common.FillCircle(img, stemX+leafSize, leafY, leafSize, leafColor)
 	}
 }
 
@@ -437,7 +438,7 @@ func (g *Generator) drawTorch(img *image.RGBA, cx, cy, size int, rng *rand.Rand,
 	handleX := cx - handleW/2
 	handleY := cy
 
-	fillRect(img, handleX, handleY, handleX+handleW, handleY+handleH, handleColor)
+	common.FillRect(img, handleX, handleY, handleX+handleW, handleY+handleH, handleColor)
 
 	flameY := cy - size/8
 	flameFlicker := int(math.Sin(float64(frame)*0.2) * 3)
@@ -450,7 +451,7 @@ func (g *Generator) drawTorch(img *image.RGBA, cx, cy, size int, rng *rand.Rand,
 		if i > flameH/2 {
 			c = glowColor
 		}
-		fillCircle(img, cx, y, flameSize, c)
+		common.FillCircle(img, cx, y, flameSize, c)
 	}
 }
 
@@ -468,7 +469,7 @@ func (g *Generator) drawDebris(img *image.RGBA, cx, cy, size int, rng *rand.Rand
 		g := uint8(float64(debrisColor.G) * shade)
 		b := uint8(float64(debrisColor.B) * shade)
 
-		fillCircle(img, cx+dx, cy+dy, dsize, color.RGBA{R: r, G: g, B: b, A: 255})
+		common.FillCircle(img, cx+dx, cy+dy, dsize, color.RGBA{R: r, G: g, B: b, A: 255})
 	}
 }
 
@@ -480,16 +481,16 @@ func (g *Generator) drawContainer(img *image.RGBA, cx, cy, size int, rng *rand.R
 	boxSize := size * 2 / 3
 	x1, y1 := cx-boxSize/2, cy-boxSize/2
 
-	fillRect(img, x1, y1, x1+boxSize, y1+boxSize, baseColor)
+	common.FillRect(img, x1, y1, x1+boxSize, y1+boxSize, baseColor)
 
 	for i := 0; i < 3; i++ {
 		stripeY := y1 + i*boxSize/4 + boxSize/8
-		fillRect(img, x1, stripeY, x1+boxSize, stripeY+2, accentColor)
+		common.FillRect(img, x1, stripeY, x1+boxSize, stripeY+2, accentColor)
 	}
 
 	handleW := boxSize / 6
 	handleY := y1 + boxSize/3
-	fillRect(img, cx-handleW/2, handleY, cx+handleW/2, handleY+4, color.RGBA{R: 100, G: 100, B: 110, A: 255})
+	common.FillRect(img, cx-handleW/2, handleY, cx+handleW/2, handleY+4, color.RGBA{R: 100, G: 100, B: 110, A: 255})
 }
 
 // generateLoreSprite creates lore item sprites.
@@ -520,11 +521,11 @@ func (g *Generator) drawNote(img *image.RGBA, cx, cy, size int, rng *rand.Rand) 
 	noteH := size * 2 / 3
 	x1, y1 := cx-noteW/2, cy-noteH/2
 
-	fillRect(img, x1, y1, x1+noteW, y1+noteH, paperColor)
+	common.FillRect(img, x1, y1, x1+noteW, y1+noteH, paperColor)
 
 	for i := 0; i < 5; i++ {
 		lineY := y1 + noteH/6 + i*noteH/8
-		fillRect(img, x1+4, lineY, x1+noteW-4, lineY+1, textColor)
+		common.FillRect(img, x1+4, lineY, x1+noteW-4, lineY+1, textColor)
 	}
 }
 
@@ -536,9 +537,9 @@ func (g *Generator) drawAudioLog(img *image.RGBA, cx, cy, size int, rng *rand.Ra
 	deviceSize := size / 2
 	x1, y1 := cx-deviceSize/2, cy-deviceSize/2
 
-	fillRect(img, x1, y1, x1+deviceSize, y1+deviceSize, deviceColor)
+	common.FillRect(img, x1, y1, x1+deviceSize, y1+deviceSize, deviceColor)
 
-	fillCircle(img, cx, cy-deviceSize/4, 3, ledColor)
+	common.FillCircle(img, cx, cy-deviceSize/4, 3, ledColor)
 }
 
 // drawGraffiti renders wall art.
@@ -549,10 +550,10 @@ func (g *Generator) drawGraffiti(img *image.RGBA, cx, cy, size int, rng *rand.Ra
 		angle := float64(i) * math.Pi / 2
 		x := cx + int(math.Cos(angle)*float64(size/4))
 		y := cy + int(math.Sin(angle)*float64(size/4))
-		fillCircle(img, x, y, 3, graffitiColor)
+		common.FillCircle(img, x, y, 3, graffitiColor)
 	}
 
-	fillCircle(img, cx, cy, size/6, graffitiColor)
+	common.FillCircle(img, cx, cy, size/6, graffitiColor)
 }
 
 // drawBodyArrangement renders skeletal arrangement.
@@ -601,8 +602,8 @@ func (g *Generator) drawHealthPickup(img *image.RGBA, cx, cy, size int, pulse fl
 	crossW := size / 3
 	crossH := size / 2
 
-	fillRect(img, cx-crossW/2, cy-crossH/2, cx+crossW/2, cy+crossH/2, healthColor)
-	fillRect(img, cx-crossH/2, cy-crossW/2, cx+crossH/2, cy+crossW/2, healthColor)
+	common.FillRect(img, cx-crossW/2, cy-crossH/2, cx+crossW/2, cy+crossH/2, healthColor)
+	common.FillRect(img, cx-crossH/2, cy-crossW/2, cx+crossH/2, cy+crossW/2, healthColor)
 }
 
 // drawAmmoPickup renders ammunition box.
@@ -610,7 +611,7 @@ func (g *Generator) drawAmmoPickup(img *image.RGBA, cx, cy, size int, pulse floa
 	ammoColor := color.RGBA{R: uint8(float64(200) * pulse), G: uint8(float64(150) * pulse), B: 0, A: 255}
 
 	boxSize := size / 2
-	fillRect(img, cx-boxSize/2, cy-boxSize/2, cx+boxSize/2, cy+boxSize/2, ammoColor)
+	common.FillRect(img, cx-boxSize/2, cy-boxSize/2, cx+boxSize/2, cy+boxSize/2, ammoColor)
 }
 
 // drawArmorPickup renders armor plate.
@@ -618,7 +619,7 @@ func (g *Generator) drawArmorPickup(img *image.RGBA, cx, cy, size int, pulse flo
 	armorColor := color.RGBA{R: uint8(float64(100) * pulse), G: uint8(float64(150) * pulse), B: uint8(float64(200) * pulse), A: 255}
 
 	shieldRadius := size / 3
-	fillCircle(img, cx, cy, shieldRadius, armorColor)
+	common.FillCircle(img, cx, cy, shieldRadius, armorColor)
 }
 
 // generateProjectileSprite creates projectile sprites.
@@ -627,7 +628,7 @@ func (g *Generator) generateProjectileSprite(img *image.RGBA, subtype string, rn
 	cx, cy := size/2, size/2
 
 	bulletColor := color.RGBA{R: 255, G: 220, B: 100, A: 255}
-	fillCircle(img, cx, cy, size/4, bulletColor)
+	common.FillCircle(img, cx, cy, size/4, bulletColor)
 }
 
 // generateEnemySprite creates enemy sprites with body plan variety.
@@ -751,7 +752,7 @@ func (g *Generator) generateHumanoidEnemy(img *image.RGBA, role string, rng *ran
 	if role == "tank" || role == "healer" {
 		accentY := bodyY + torsoH/3
 		accentH := 2
-		fillRect(img, cx-torsoW/3, accentY, cx+torsoW/3, accentY+accentH, accentColor)
+		common.FillRect(img, cx-torsoW/3, accentY, cx+torsoW/3, accentY+accentH, accentColor)
 	}
 
 	armW := legW - 1
@@ -814,12 +815,12 @@ func (g *Generator) generateHumanoidEnemy(img *image.RGBA, role string, rng *ran
 	weaponY := rightArmY + armH/2 + attackOffset
 	weaponLen := size / 5
 	if weaponType == 2 {
-		fillRect(img, weaponX, weaponY-1, weaponX+weaponLen, weaponY+1, weaponColor)
-		fillCircle(img, weaponX+weaponLen, weaponY, 2, color.RGBA{R: 100, G: 100, B: 110, A: 255})
+		common.FillRect(img, weaponX, weaponY-1, weaponX+weaponLen, weaponY+1, weaponColor)
+		common.FillCircle(img, weaponX+weaponLen, weaponY, 2, color.RGBA{R: 100, G: 100, B: 110, A: 255})
 	} else {
-		fillRect(img, weaponX, weaponY-1, weaponX+weaponLen, weaponY+1, weaponColor)
+		common.FillRect(img, weaponX, weaponY-1, weaponX+weaponLen, weaponY+1, weaponColor)
 		if weaponType == 1 {
-			fillCircle(img, weaponX+weaponLen, weaponY, 3, color.RGBA{R: 180, G: 180, B: 200, A: 255})
+			common.FillCircle(img, weaponX+weaponLen, weaponY, 3, color.RGBA{R: 180, G: 180, B: 200, A: 255})
 		}
 	}
 
@@ -839,8 +840,8 @@ func (g *Generator) generateHumanoidEnemy(img *image.RGBA, role string, rng *ran
 	if role == "healer" {
 		symbolX := cx - 2
 		symbolY := bodyY + torsoH/2 - 2
-		fillRect(img, symbolX, symbolY-4, symbolX+4, symbolY+4, accentColor)
-		fillRect(img, symbolX-4, symbolY, symbolX+8, symbolY+4, accentColor)
+		common.FillRect(img, symbolX, symbolY-4, symbolX+4, symbolY+4, accentColor)
+		common.FillRect(img, symbolX-4, symbolY, symbolX+8, symbolY+4, accentColor)
 	}
 
 	// Apply material detail for visual richness
@@ -930,7 +931,7 @@ func (g *Generator) generateQuadrupedEnemy(img *image.RGBA, rng *rand.Rand, fram
 	}
 
 	eyeColor := color.RGBA{R: 255, G: 200, B: 50, A: 255}
-	fillCircle(img, headX+headW-3, headY+headH/3, 2, eyeColor)
+	common.FillCircle(img, headX+headW-3, headY+headH/3, 2, eyeColor)
 
 	tailX := cx - bodyW/2
 	tailY := bodyY + bodyH/2
@@ -938,7 +939,7 @@ func (g *Generator) generateQuadrupedEnemy(img *image.RGBA, rng *rand.Rand, fram
 	tailLen := size / 4
 	tailEndX := tailX - int(float64(tailLen)*math.Cos(tailAngle))
 	tailEndY := tailY + int(float64(tailLen)*math.Sin(tailAngle))
-	drawThickLine(img, tailX, tailY, tailEndX, tailEndY, 2, darkColor)
+	common.DrawThickLine(img, tailX, tailY, tailEndX, tailEndY, 2, darkColor)
 
 	// Apply fur texture to body
 	bodyBounds := image.Rect(cx-bodyW/2, bodyY, cx+bodyW/2, bodyY+bodyH)
@@ -1005,17 +1006,17 @@ func (g *Generator) generateInsectEnemy(img *image.RGBA, rng *rand.Rand, frame i
 		legEndX := legMidX + side*size/12
 		legEndY := legY + size/8
 
-		drawThickLine(img, legStartX, legY, legMidX, legMidY, 1, darkColor)
-		drawThickLine(img, legMidX, legMidY, legEndX, legEndY, 1, darkColor)
+		common.DrawThickLine(img, legStartX, legY, legMidX, legMidY, 1, darkColor)
+		common.DrawThickLine(img, legMidX, legMidY, legEndX, legEndY, 1, darkColor)
 	}
 
 	headRadius := size / 8
 	headY := cy - size/6 - 2
-	fillCircle(img, cx, headY, headRadius, bodyColor)
+	common.FillCircle(img, cx, headY, headRadius, bodyColor)
 
 	eyeColor := color.RGBA{R: 255, G: 50, B: 50, A: 255}
-	fillCircle(img, cx-headRadius/2, headY, 2, eyeColor)
-	fillCircle(img, cx+headRadius/2, headY, 2, eyeColor)
+	common.FillCircle(img, cx-headRadius/2, headY, 2, eyeColor)
+	common.FillCircle(img, cx+headRadius/2, headY, 2, eyeColor)
 
 	antennaLen := size / 5
 	antennaAngle := float64(frame%8) * math.Pi / 32
@@ -1024,8 +1025,8 @@ func (g *Generator) generateInsectEnemy(img *image.RGBA, rng *rand.Rand, frame i
 	rightAntennaX := cx + headRadius/2 + int(float64(antennaLen)*math.Sin(antennaAngle))
 	rightAntennaY := headY - headRadius - int(float64(antennaLen)*math.Cos(antennaAngle))
 
-	drawThickLine(img, cx-headRadius/2, headY-headRadius, leftAntennaX, leftAntennaY, 1, darkColor)
-	drawThickLine(img, cx+headRadius/2, headY-headRadius, rightAntennaX, rightAntennaY, 1, darkColor)
+	common.DrawThickLine(img, cx-headRadius/2, headY-headRadius, leftAntennaX, leftAntennaY, 1, darkColor)
+	common.DrawThickLine(img, cx+headRadius/2, headY-headRadius, rightAntennaX, rightAntennaY, 1, darkColor)
 
 	// Apply chitin texture to all segments
 	for i := 0; i < segmentCount; i++ {
@@ -1085,8 +1086,8 @@ func (g *Generator) generateSerpentEnemy(img *image.RGBA, rng *rand.Rand, frame 
 		}
 
 		if i%2 == 0 && i < segments-1 {
-			fillCircle(img, segX-radius/2, segY, 1, scaleColor)
-			fillCircle(img, segX+radius/2, segY, 1, scaleColor)
+			common.FillCircle(img, segX-radius/2, segY, 1, scaleColor)
+			common.FillCircle(img, segX+radius/2, segY, 1, scaleColor)
 		}
 	}
 
@@ -1113,15 +1114,15 @@ func (g *Generator) generateSerpentEnemy(img *image.RGBA, rng *rand.Rand, frame 
 	}
 
 	eyeColor := color.RGBA{R: 255, G: 200, B: 0, A: 255}
-	fillCircle(img, headX-headRadius/2, headY, 2, eyeColor)
-	fillCircle(img, headX+headRadius/2, headY, 2, eyeColor)
+	common.FillCircle(img, headX-headRadius/2, headY, 2, eyeColor)
+	common.FillCircle(img, headX+headRadius/2, headY, 2, eyeColor)
 
 	tongueLen := size / 8
 	if frame%4 < 2 {
 		tongueLen = size / 12
 	}
 	tongueColor := color.RGBA{R: 200, G: 50, B: 50, A: 255}
-	drawThickLine(img, headX, headY+headRadius/2, headX, headY+headRadius/2+tongueLen, 1, tongueColor)
+	common.DrawThickLine(img, headX, headY+headRadius/2, headX, headY+headRadius/2+tongueLen, 1, tongueColor)
 
 	// Apply scale texture to body segments
 	fullBounds := image.Rect(cx-size/4, cy-size/4, cx+size/4, cy+size/2)
@@ -1196,17 +1197,17 @@ func (g *Generator) generateFlyingEnemy(img *image.RGBA, rng *rand.Rand, frame i
 
 	headRadius := size / 9
 	headY := bodyY - 2
-	fillCircle(img, cx, headY, headRadius, bodyColor)
+	common.FillCircle(img, cx, headY, headRadius, bodyColor)
 
 	eyeColor := color.RGBA{R: 255, G: 100, B: 0, A: 255}
-	fillCircle(img, cx-headRadius/2, headY, 2, eyeColor)
-	fillCircle(img, cx+headRadius/2, headY, 2, eyeColor)
+	common.FillCircle(img, cx-headRadius/2, headY, 2, eyeColor)
+	common.FillCircle(img, cx+headRadius/2, headY, 2, eyeColor)
 
 	tailY := bodyY + bodyH
 	tailLen := size / 5
 	tailEndY := tailY + tailLen
 	tailSway := int(math.Sin(float64(frame)*0.4) * 3)
-	drawThickLine(img, cx, tailY, cx+tailSway, tailEndY, 2, bodyColor)
+	common.DrawThickLine(img, cx, tailY, cx+tailSway, tailEndY, 2, bodyColor)
 
 	// Apply membrane texture to wings
 	wingBounds := image.Rect(cx-size/2, wingY, cx+size/2, wingY+wingH)
@@ -1285,14 +1286,14 @@ func (g *Generator) generateAmorphousEnemy(img *image.RGBA, rng *rand.Rand, fram
 		eyeX := cx + int(math.Cos(eyeAngle)*eyeDist)
 		eyeY := cy + int(math.Sin(eyeAngle)*eyeDist) - baseRadius/4
 
-		fillCircle(img, eyeX, eyeY, 4, eyeColor)
-		fillCircle(img, eyeX, eyeY, 2, pupilColor)
+		common.FillCircle(img, eyeX, eyeY, 4, eyeColor)
+		common.FillCircle(img, eyeX, eyeY, 2, pupilColor)
 	}
 
 	if frame%8 < 4 {
 		highlight1X := cx - baseRadius/3
 		highlight1Y := cy - baseRadius/3
-		fillCircle(img, highlight1X, highlight1Y, 3, color.RGBA{R: 255, G: 255, B: 255, A: 100})
+		common.FillCircle(img, highlight1X, highlight1Y, 3, color.RGBA{R: 255, G: 255, B: 255, A: 100})
 	}
 }
 
@@ -1371,7 +1372,7 @@ func (g *Generator) getCreatureColor(creatureType string, rng *rand.Rand) color.
 // generateDefaultSprite creates a fallback sprite.
 func (g *Generator) generateDefaultSprite(img *image.RGBA, rng *rand.Rand) {
 	size := img.Bounds().Dx()
-	fillRect(img, 0, 0, size, size, color.RGBA{R: 128, G: 128, B: 128, A: 255})
+	common.FillRect(img, 0, 0, size, size, color.RGBA{R: 128, G: 128, B: 128, A: 255})
 }
 
 // Genre-specific color helpers.
@@ -1414,69 +1415,5 @@ func (g *Generator) getGenreStoneColor() color.RGBA {
 		return color.RGBA{R: 60, G: 70, B: 80, A: 255}
 	default:
 		return color.RGBA{R: 120, G: 120, B: 130, A: 255}
-	}
-}
-
-// Primitive drawing helpers.
-
-func fillRect(img *image.RGBA, x1, y1, x2, y2 int, c color.RGBA) {
-	for y := y1; y < y2; y++ {
-		for x := x1; x < x2; x++ {
-			if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
-				img.Set(x, y, c)
-			}
-		}
-	}
-}
-
-func fillCircle(img *image.RGBA, cx, cy, radius int, c color.RGBA) {
-	for y := cy - radius; y <= cy+radius; y++ {
-		for x := cx - radius; x <= cx+radius; x++ {
-			dx := x - cx
-			dy := y - cy
-			if dx*dx+dy*dy <= radius*radius {
-				if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
-					img.Set(x, y, c)
-				}
-			}
-		}
-	}
-}
-
-func drawThickLine(img *image.RGBA, x1, y1, x2, y2, thickness int, c color.RGBA) {
-	dx := abs(x2 - x1)
-	dy := abs(y2 - y1)
-	sx := -1
-	if x1 < x2 {
-		sx = 1
-	}
-	sy := -1
-	if y1 < y2 {
-		sy = 1
-	}
-	err := dx - dy
-
-	for {
-		for dt := -thickness / 2; dt <= thickness/2; dt++ {
-			for dp := -thickness / 2; dp <= thickness/2; dp++ {
-				px, py := x1+dt, y1+dp
-				if px >= 0 && px < img.Bounds().Dx() && py >= 0 && py < img.Bounds().Dy() {
-					img.Set(px, py, c)
-				}
-			}
-		}
-
-		if x1 == x2 && y1 == y2 {
-			break
-		}
-		e2 := 2 * err
-		if e2 > -dy {
-			err -= dy
-			x1 += sx
-		}
-		if e2 < dx {
-			err += dx
-			y1 += sy
-		}
 	}
 }

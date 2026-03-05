@@ -8,6 +8,7 @@ import (
 	"reflect"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/opd-ai/violence/pkg/common"
 	"github.com/opd-ai/violence/pkg/engine"
 	"github.com/sirupsen/logrus"
 )
@@ -146,7 +147,7 @@ func (vs *VisualSystem) drawPotion(img *ebiten.Image, rarity Rarity, rng *rand.R
 			dy := y - cy
 
 			if dy < -bottleHeight/2 && dy > -bottleHeight/2-neckHeight {
-				if abs(dx) < bottleWidth/4 {
+				if common.Abs(dx) < bottleWidth/4 {
 					img.Set(x, y, glassColor)
 				}
 			} else if dy >= -bottleHeight/2 && dy < bottleHeight/2 {
@@ -156,16 +157,16 @@ func (vs *VisualSystem) drawPotion(img *ebiten.Image, rarity Rarity, rng *rand.R
 					widthAtY = int(float64(bottleWidth/2) * (1.0 - ratio*0.3))
 				}
 
-				if abs(dx) < widthAtY {
+				if common.Abs(dx) < widthAtY {
 					liquidLevel := -bottleHeight/2 + bottleHeight/4
 					if dy > liquidLevel {
-						brightness := 1.0 - float64(abs(dx))/float64(widthAtY)*0.3
+						brightness := 1.0 - float64(common.Abs(dx))/float64(widthAtY)*0.3
 						img.Set(x, y, applyShade(baseColor, brightness))
 					} else {
 						img.Set(x, y, glassColor)
 					}
 
-					if abs(dx) == widthAtY-1 || dy == -bottleHeight/2 {
+					if common.Abs(dx) == widthAtY-1 || dy == -bottleHeight/2 {
 						img.Set(x, y, color.RGBA{100, 100, 120, 255})
 					}
 				}
@@ -192,16 +193,16 @@ func (vs *VisualSystem) drawScroll(img *ebiten.Image, rarity Rarity, rng *rand.R
 			dx := x - cx
 			dy := y - cy
 
-			if abs(dy) < scrollHeight {
-				edgeDist := scrollWidth/2 - abs(dx)
+			if common.Abs(dy) < scrollHeight {
+				edgeDist := scrollWidth/2 - common.Abs(dx)
 				if edgeDist > 0 {
-					shade := 1.0 - float64(abs(dy))/float64(scrollHeight)*0.2
+					shade := 1.0 - float64(common.Abs(dy))/float64(scrollHeight)*0.2
 					if edgeDist < 3 {
 						shade *= 0.7
 					}
 					img.Set(x, y, applyShade(parchmentColor, shade))
 
-					if abs(dy) == scrollHeight-1 || edgeDist == 0 {
+					if common.Abs(dy) == scrollHeight-1 || edgeDist == 0 {
 						img.Set(x, y, shadowColor)
 					}
 				}
@@ -217,7 +218,7 @@ func (vs *VisualSystem) drawScroll(img *ebiten.Image, rarity Rarity, rng *rand.R
 
 		for dy := -runeSize; dy <= runeSize; dy++ {
 			for dx := -runeSize; dx <= runeSize; dx++ {
-				if abs(dx)+abs(dy) < runeSize {
+				if common.Abs(dx)+common.Abs(dy) < runeSize {
 					img.Set(rx+dx, ry+dy, vs.getRuneColor(rarity))
 				}
 			}
@@ -248,10 +249,10 @@ func (vs *VisualSystem) drawWeapon(img *ebiten.Image, rarity Rarity, rng *rand.R
 			alignedX := dist * math.Cos(relAngle)
 			alignedY := dist * math.Sin(relAngle)
 
-			if alignedX >= 0 && alignedX < float64(bladeLen) && abs(int(alignedY)) < bladeWidth {
+			if alignedX >= 0 && alignedX < float64(bladeLen) && common.Abs(int(alignedY)) < bladeWidth {
 				brightness := 1.0 - math.Abs(alignedY)/float64(bladeWidth)*0.4
 				img.Set(x, y, applyShade(bladeColor, brightness))
-			} else if alignedX >= float64(bladeLen) && alignedX < float64(bladeLen+handleLen) && abs(int(alignedY)) < bladeWidth+2 {
+			} else if alignedX >= float64(bladeLen) && alignedX < float64(bladeLen+handleLen) && common.Abs(int(alignedY)) < bladeWidth+2 {
 				img.Set(x, y, handleColor)
 			}
 		}
@@ -457,8 +458,8 @@ func (vs *VisualSystem) drawGeneric(img *ebiten.Image, rarity Rarity, rng *rand.
 	for y := cy - boxSize/2; y < cy+boxSize/2; y++ {
 		for x := cx - boxSize/2; x < cx+boxSize/2; x++ {
 			if x >= 0 && x < size && y >= 0 && y < size {
-				dx := abs(x - cx)
-				dy := abs(y - cy)
+				dx := common.Abs(x - cx)
+				dy := common.Abs(y - cy)
 				brightness := 1.0 - float64(dx+dy)/float64(boxSize)*0.3
 				img.Set(x, y, applyShade(itemColor, brightness))
 			}
@@ -583,13 +584,6 @@ func blendColors(base, overlay color.RGBA) color.RGBA {
 		uint8(float64(base.B)*(1-alpha) + float64(overlay.B)*alpha),
 		base.A,
 	}
-}
-
-func abs(x int) int {
-	if x < 0 {
-		return -x
-	}
-	return x
 }
 
 // CategorizeItem determines the visual category from an item ID.

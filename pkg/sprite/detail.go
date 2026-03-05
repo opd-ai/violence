@@ -6,6 +6,8 @@ import (
 	"image/color"
 	"math"
 	"math/rand"
+
+	"github.com/opd-ai/violence/pkg/common"
 )
 
 // MaterialDetail represents a procedural material texture layer.
@@ -312,7 +314,7 @@ func (g *Generator) drawArmorOverlay(img *image.RGBA, cx, cy, size int, rng *ran
 			if px >= 0 && px < img.Bounds().Dx() && py >= 0 && py < img.Bounds().Dy() {
 				existing := img.At(px, py)
 				_, _, _, ea := existing.RGBA()
-				if ea > 0 && abs(x) < size/4 {
+				if ea > 0 && common.Abs(x) < size/4 {
 					// Center highlight
 					highlight := uint8(float64(armorColor.R) * 1.2)
 					img.Set(px, py, color.RGBA{R: highlight, G: highlight, B: highlight, A: 100})
@@ -489,12 +491,4 @@ func (g *Generator) drawEnragedEffect(img *image.RGBA, bounds image.Rectangle, f
 			}
 		}
 	}
-}
-
-// abs returns absolute value of an integer.
-func abs(x int) int {
-	if x < 0 {
-		return -x
-	}
-	return x
 }

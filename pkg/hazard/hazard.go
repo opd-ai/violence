@@ -152,8 +152,9 @@ func (s *LegacySystem) getGenreHazards() []Type {
 	}
 }
 
-// isValidLocation checks if a map location can contain a hazard.
-func (s *LegacySystem) isValidLocation(worldMap [][]int, x, y int) bool {
+// isValidHazardLocation checks if a map location can contain a hazard.
+// This shared helper consolidates duplicate logic from LegacySystem and ECSSystem.
+func isValidHazardLocation(worldMap [][]int, x, y int) bool {
 	width := len(worldMap[0])
 	height := len(worldMap)
 
@@ -181,6 +182,11 @@ func (s *LegacySystem) isValidLocation(worldMap [][]int, x, y int) bool {
 
 	// Prefer locations with 2-5 adjacent walls (corridors, corners)
 	return wallCount >= 2 && wallCount <= 5
+}
+
+// isValidLocation checks if a map location can contain a hazard.
+func (s *LegacySystem) isValidLocation(worldMap [][]int, x, y int) bool {
+	return isValidHazardLocation(worldMap, x, y)
 }
 
 // createHazard creates a hazard of the specified type.

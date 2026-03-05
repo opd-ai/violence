@@ -137,33 +137,7 @@ func (s *ECSSystem) getGenreHazards() []Type {
 
 // isValidLocation checks if a map location can contain a hazard.
 func (s *ECSSystem) isValidLocation(worldMap [][]int, x, y int) bool {
-	width := len(worldMap[0])
-	height := len(worldMap)
-
-	// Must be a floor tile
-	if worldMap[y][x] != 0 {
-		return false
-	}
-
-	// Check neighbors for walls (prefer corridors and small rooms)
-	wallCount := 0
-	for dy := -1; dy <= 1; dy++ {
-		for dx := -1; dx <= 1; dx++ {
-			if dy == 0 && dx == 0 {
-				continue
-			}
-			nx, ny := x+dx, y+dy
-			if nx < 0 || nx >= width || ny < 0 || ny >= height {
-				continue
-			}
-			if worldMap[ny][nx] != 0 {
-				wallCount++
-			}
-		}
-	}
-
-	// Prefer locations with 2-5 adjacent walls (corridors, corners)
-	return wallCount >= 2 && wallCount <= 5
+	return isValidHazardLocation(worldMap, x, y)
 }
 
 // createHazardComponent creates a hazard component of the specified type.

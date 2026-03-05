@@ -3,6 +3,8 @@ package weapon
 import (
 	"image/color"
 	"testing"
+
+	"github.com/opd-ai/violence/pkg/common"
 )
 
 func TestGenerateWeaponSprite(t *testing.T) {
@@ -223,7 +225,7 @@ func TestFillRect(t *testing.T) {
 	img := GenerateWeaponSprite(1, TypeMelee, FrameIdle)
 	testColor := color.RGBA{R: 255, G: 0, B: 0, A: 255}
 
-	fillRect(img, 10, 10, 20, 20, testColor)
+	common.FillRect(img, 10, 10, 20, 20, testColor)
 
 	// Check that rectangle is filled
 	for y := 10; y < 20; y++ {
@@ -241,7 +243,7 @@ func TestFillCircle(t *testing.T) {
 	img := GenerateWeaponSprite(1, TypeMelee, FrameIdle)
 	testColor := color.RGBA{R: 0, G: 255, B: 0, A: 255}
 
-	fillCircle(img, 64, 64, 10, testColor)
+	common.FillCircle(img, 64, 64, 10, testColor)
 
 	// Check center pixel is filled
 	c := img.At(64, 64)
@@ -262,7 +264,7 @@ func TestDrawLine(t *testing.T) {
 	img := GenerateWeaponSprite(1, TypeMelee, FrameIdle)
 	testColor := color.RGBA{R: 0, G: 0, B: 255, A: 255}
 
-	drawLine(img, 10, 10, 30, 30, testColor)
+	common.DrawLine(img, 10, 10, 30, 30, testColor)
 
 	// Check that line endpoints are drawn
 	c1 := img.At(10, 10)
@@ -292,9 +294,9 @@ func TestAbsFunction(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run("", func(t *testing.T) {
-			got := abs(tt.input)
+			got := common.Abs(tt.input)
 			if got != tt.want {
-				t.Errorf("abs(%d) = %d, want %d", tt.input, got, tt.want)
+				t.Errorf("common.Abs(%d) = %d, want %d", tt.input, got, tt.want)
 			}
 		})
 	}

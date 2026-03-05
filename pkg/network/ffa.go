@@ -311,16 +311,11 @@ func (m *FFAMatch) ProcessRespawns() []uint64 {
 		return nil
 	}
 
-	now := time.Now()
 	respawned := make([]uint64, 0)
 
 	for playerID, player := range m.Players {
-		player.mu.RLock()
-		isDead := player.Dead
-		canRespawn := !player.RespawnTime.IsZero() && now.After(player.RespawnTime)
-		player.mu.RUnlock()
-
-		if isDead && canRespawn {
+		adapter := &ffaPlayerAdapter{player}
+		if canRespawn(adapter) {
 			if err := m.RespawnPlayer(playerID); err == nil {
 				respawned = append(respawned, playerID)
 			}
@@ -345,13 +340,8 @@ func (m *FFAMatch) RespawnPlayer(playerID uint64) error {
 		return fmt.Errorf("no spawn point available: %w", err)
 	}
 
-	player.mu.Lock()
-	player.Dead = false
-	player.PosX = spawn.X
-	player.PosY = spawn.Y
-	player.Health = player.MaxHealth
-	player.RespawnTime = time.Time{}
-	player.mu.Unlock()
+	adapter := &ffaPlayerAdapter{player}
+	applyRespawn(adapter, spawn)
 
 	logrus.WithFields(logrus.Fields{
 		"match_id":  m.MatchID,

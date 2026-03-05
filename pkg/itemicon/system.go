@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/opd-ai/violence/pkg/common"
 	"github.com/opd-ai/violence/pkg/pool"
 	"github.com/sirupsen/logrus"
 )
@@ -169,7 +170,7 @@ func (s *IconSystem) drawWeaponIcon(img *image.RGBA, comp *ItemIconComponent, rn
 		}
 
 		guardY := cy + bladeLen/4
-		fillRect(img, cx-size/4, guardY-2, cx+size/4, guardY+2, baseColor)
+		common.FillRect(img, cx-size/4, guardY-2, cx+size/4, guardY+2, baseColor)
 
 		for y := guardY; y < guardY+handleLen; y++ {
 			for x := cx - bladeW/2; x < cx+bladeW/2; x++ {
@@ -248,13 +249,13 @@ func (s *IconSystem) drawArmorIcon(img *image.RGBA, comp *ItemIconComponent, rng
 
 	shoulderY := cy - torsoH/2
 	shoulderR := size / 8
-	fillCircle(img, cx-torsoW/2, shoulderY, shoulderR, armorColor)
-	fillCircle(img, cx+torsoW/2, shoulderY, shoulderR, armorColor)
+	common.FillCircle(img, cx-torsoW/2, shoulderY, shoulderR, armorColor)
+	common.FillCircle(img, cx+torsoW/2, shoulderY, shoulderR, armorColor)
 
 	trimY1 := cy - torsoH/4
 	trimY2 := cy + torsoH/4
-	fillRect(img, cx-torsoW/3, trimY1, cx+torsoW/3, trimY1+2, accentColor)
-	fillRect(img, cx-torsoW/3, trimY2, cx+torsoW/3, trimY2+2, accentColor)
+	common.FillRect(img, cx-torsoW/3, trimY1, cx+torsoW/3, trimY1+2, accentColor)
+	common.FillRect(img, cx-torsoW/3, trimY2, cx+torsoW/3, trimY2+2, accentColor)
 }
 
 // drawConsumableIcon renders potion/scroll/consumable icons.
@@ -299,25 +300,25 @@ func (s *IconSystem) drawConsumableIcon(img *image.RGBA, comp *ItemIconComponent
 			}
 		}
 
-		fillRect(img, cx-neckW, cy-3, cx+neckW, cy+1, color.RGBA{R: 100, G: 60, B: 40, A: 255})
+		common.FillRect(img, cx-neckW, cy-3, cx+neckW, cy+1, color.RGBA{R: 100, G: 60, B: 40, A: 255})
 
 	case "scroll":
 		scrollW := size * 2 / 3
 		scrollH := size * 3 / 4
 		paperColor := color.RGBA{R: 230, G: 215, B: 190, A: 255}
 
-		fillRect(img, cx-scrollW/2, cy-scrollH/2, cx+scrollW/2, cy+scrollH/2, paperColor)
+		common.FillRect(img, cx-scrollW/2, cy-scrollH/2, cx+scrollW/2, cy+scrollH/2, paperColor)
 
 		for i := 0; i < 3; i++ {
 			lineY := cy - scrollH/4 + i*scrollH/6
-			fillRect(img, cx-scrollW/3, lineY, cx+scrollW/3, lineY+1, color.RGBA{R: 100, G: 80, B: 60, A: 180})
+			common.FillRect(img, cx-scrollW/3, lineY, cx+scrollW/3, lineY+1, color.RGBA{R: 100, G: 80, B: 60, A: 180})
 		}
 
 		sealR := size / 8
-		fillCircle(img, cx, cy+scrollH/3, sealR, liquidColor)
+		common.FillCircle(img, cx, cy+scrollH/3, sealR, liquidColor)
 
 	default:
-		fillCircle(img, cx, cy, size/3, liquidColor)
+		common.FillCircle(img, cx, cy, size/3, liquidColor)
 	}
 }
 
@@ -381,10 +382,10 @@ func (s *IconSystem) drawQuestIcon(img *image.RGBA, comp *ItemIconComponent, rng
 		nextX := cx + int(float64(nextR)*math.Cos(nextAngle-math.Pi/2))
 		nextY := cy + int(float64(nextR)*math.Sin(nextAngle-math.Pi/2))
 
-		drawLine(img, x, y, nextX, nextY, questColor)
+		common.DrawLine(img, x, y, nextX, nextY, questColor)
 	}
 
-	fillCircle(img, cx, cy, starR/3, questColor)
+	common.FillCircle(img, cx, cy, starR/3, questColor)
 }
 
 // drawGenericIcon renders a fallback generic icon.
@@ -393,10 +394,10 @@ func (s *IconSystem) drawGenericIcon(img *image.RGBA, comp *ItemIconComponent, r
 	cx, cy := size/2, size/2
 
 	baseColor := s.getRarityBaseColor(comp.Rarity)
-	fillRect(img, cx-size/3, cy-size/3, cx+size/3, cy+size/3, baseColor)
+	common.FillRect(img, cx-size/3, cy-size/3, cx+size/3, cy+size/3, baseColor)
 
 	outlineColor := color.RGBA{R: baseColor.R / 2, G: baseColor.G / 2, B: baseColor.B / 2, A: 255}
-	drawRect(img, cx-size/3, cy-size/3, cx+size/3, cy+size/3, outlineColor)
+	common.DrawRect(img, cx-size/3, cy-size/3, cx+size/3, cy+size/3, outlineColor)
 }
 
 // addRarityBorder adds a colored border based on rarity.
@@ -404,7 +405,7 @@ func (s *IconSystem) addRarityBorder(img *image.RGBA, rarity, size int) {
 	borderColor := s.getRarityBorderColor(rarity)
 
 	for i := 0; i < 2; i++ {
-		drawRect(img, i, i, size-1-i, size-1-i, borderColor)
+		common.DrawRect(img, i, i, size-1-i, size-1-i, borderColor)
 	}
 
 	if rarity >= 3 {
@@ -460,7 +461,7 @@ func (s *IconSystem) addWearEffect(img *image.RGBA, durability float64, size int
 	for i := 0; i < scratchCount; i++ {
 		x1, y1 := i*size/scratchCount, 0
 		x2, y2 := x1+size/5, size
-		drawLine(img, x1, y1, x2, y2, darkColor)
+		common.DrawLine(img, x1, y1, x2, y2, darkColor)
 	}
 }
 
@@ -539,86 +540,5 @@ func (s *IconSystem) getGenreEnchantColor() color.RGBA {
 		return color.RGBA{R: 100, G: 255, B: 100, A: 255}
 	default:
 		return color.RGBA{R: 200, G: 200, B: 255, A: 255}
-	}
-}
-
-// fillRect fills a rectangle with the specified color.
-func fillRect(img *image.RGBA, x1, y1, x2, y2 int, c color.RGBA) {
-	for y := y1; y < y2; y++ {
-		for x := x1; x < x2; x++ {
-			if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
-				img.Set(x, y, c)
-			}
-		}
-	}
-}
-
-// drawRect draws a rectangle outline.
-func drawRect(img *image.RGBA, x1, y1, x2, y2 int, c color.RGBA) {
-	for x := x1; x < x2; x++ {
-		if x >= 0 && x < img.Bounds().Dx() {
-			if y1 >= 0 && y1 < img.Bounds().Dy() {
-				img.Set(x, y1, c)
-			}
-			if y2-1 >= 0 && y2-1 < img.Bounds().Dy() {
-				img.Set(x, y2-1, c)
-			}
-		}
-	}
-	for y := y1; y < y2; y++ {
-		if y >= 0 && y < img.Bounds().Dy() {
-			if x1 >= 0 && x1 < img.Bounds().Dx() {
-				img.Set(x1, y, c)
-			}
-			if x2-1 >= 0 && x2-1 < img.Bounds().Dx() {
-				img.Set(x2-1, y, c)
-			}
-		}
-	}
-}
-
-// fillCircle fills a circle with the specified color.
-func fillCircle(img *image.RGBA, cx, cy, r int, c color.RGBA) {
-	for y := -r; y <= r; y++ {
-		for x := -r; x <= r; x++ {
-			if x*x+y*y <= r*r {
-				px, py := cx+x, cy+y
-				if px >= 0 && px < img.Bounds().Dx() && py >= 0 && py < img.Bounds().Dy() {
-					img.Set(px, py, c)
-				}
-			}
-		}
-	}
-}
-
-// drawLine draws a line between two points.
-func drawLine(img *image.RGBA, x1, y1, x2, y2 int, c color.RGBA) {
-	dx := math.Abs(float64(x2 - x1))
-	dy := math.Abs(float64(y2 - y1))
-	sx, sy := 1, 1
-	if x1 > x2 {
-		sx = -1
-	}
-	if y1 > y2 {
-		sy = -1
-	}
-	err := dx - dy
-
-	for {
-		if x1 >= 0 && x1 < img.Bounds().Dx() && y1 >= 0 && y1 < img.Bounds().Dy() {
-			img.Set(x1, y1, c)
-		}
-		if x1 == x2 && y1 == y2 {
-			break
-		}
-		e2 := 2 * err
-		if e2 > -dy {
-			err -= dy
-			x1 += sx
-		}
-		if e2 < dx {
-			err += dx
-			y1 += sy
-		}
 	}
 }
