@@ -138,29 +138,45 @@ func GetGenreTheme(genreID string) GenreTheme {
 // RenderMinimap draws the minimap to the screen.
 func (m *Map) RenderMinimap(screen *ebiten.Image, cfg RenderConfig) {
 	theme := GetGenreTheme(currentGenre)
+	cfg = applyDefaultRenderConfig(cfg)
 
+	centerX := cfg.X + cfg.Width/2
+	centerY := cfg.Y + cfg.Height/2
+	playerGridX := int(cfg.PlayerX)
+	playerGridY := int(cfg.PlayerY)
+	visibleRadius := int(math.Min(float64(cfg.Width), float64(cfg.Height)) / float64(cfg.CellSize) / 2)
+
+	drawMinimapBackground(screen, cfg, theme)
+	m.renderTerrainCells(screen, cfg, theme, centerX, centerY, playerGridX, playerGridY, visibleRadius)
+	m.renderAnnotations(screen, cfg, theme, centerX, centerY, playerGridX, playerGridY, visibleRadius)
+	m.renderItems(screen, cfg, theme, centerX, centerY, playerGridX, playerGridY, visibleRadius)
+	m.renderEnemies(screen, cfg, theme, centerX, centerY, playerGridX, playerGridY, visibleRadius)
+	drawPlayerIndicator(screen, cfg, theme, centerX, centerY)
+}
+
+// applyDefaultRenderConfig sets default values for missing config parameters.
+func applyDefaultRenderConfig(cfg RenderConfig) RenderConfig {
 	if cfg.CellSize == 0 {
 		cfg.CellSize = 3.0
 	}
 	if cfg.Opacity == 0 {
 		cfg.Opacity = 0.85
 	}
+	return cfg
+}
 
+// drawMinimapBackground renders background and border for the minimap.
+func drawMinimapBackground(screen *ebiten.Image, cfg RenderConfig, theme GenreTheme) {
 	bgColor := theme.Background
 	bgColor.A = uint8(float32(bgColor.A) * cfg.Opacity)
 	vector.DrawFilledRect(screen, cfg.X, cfg.Y, cfg.Width, cfg.Height, bgColor, false)
 
 	borderThickness := float32(2.0)
 	vector.StrokeRect(screen, cfg.X, cfg.Y, cfg.Width, cfg.Height, borderThickness, theme.Border, false)
+}
 
-	centerX := cfg.X + cfg.Width/2
-	centerY := cfg.Y + cfg.Height/2
-
-	playerGridX := int(cfg.PlayerX)
-	playerGridY := int(cfg.PlayerY)
-
-	visibleRadius := int(math.Min(float64(cfg.Width), float64(cfg.Height)) / float64(cfg.CellSize) / 2)
-
+// renderTerrainCells draws floor and wall cells within visible radius.
+func (m *Map) renderTerrainCells(screen *ebiten.Image, cfg RenderConfig, theme GenreTheme, centerX, centerY float32, playerGridX, playerGridY, visibleRadius int) {
 	for dy := -visibleRadius; dy <= visibleRadius; dy++ {
 		for dx := -visibleRadius; dx <= visibleRadius; dx++ {
 			gridX := playerGridX + dx
@@ -198,7 +214,10 @@ func (m *Map) RenderMinimap(screen *ebiten.Image, cfg RenderConfig) {
 			vector.DrawFilledRect(screen, screenX, screenY, cfg.CellSize, cfg.CellSize, cellColor, false)
 		}
 	}
+}
 
+// renderAnnotations draws map annotations like secrets and objectives.
+func (m *Map) renderAnnotations(screen *ebiten.Image, cfg RenderConfig, theme GenreTheme, centerX, centerY float32, playerGridX, playerGridY, visibleRadius int) {
 	for _, ann := range m.Annotations {
 		dx := ann.X - playerGridX
 		dy := ann.Y - playerGridY
@@ -232,7 +251,10 @@ func (m *Map) RenderMinimap(screen *ebiten.Image, cfg RenderConfig) {
 		markerSize := cfg.CellSize * 1.2
 		vector.DrawFilledCircle(screen, screenX+cfg.CellSize/2, screenY+cfg.CellSize/2, markerSize, markerColor, false)
 	}
+}
 
+// renderItems draws items on the minimap with rarity distinction.
+func (m *Map) renderItems(screen *ebiten.Image, cfg RenderConfig, theme GenreTheme, centerX, centerY float32, playerGridX, playerGridY, visibleRadius int) {
 	for _, item := range cfg.Items {
 		dx := int(item.X) - playerGridX
 		dy := int(item.Y) - playerGridY
@@ -262,7 +284,10 @@ func (m *Map) RenderMinimap(screen *ebiten.Image, cfg RenderConfig) {
 		vector.DrawFilledRect(screen, screenX+cfg.CellSize/2-itemSize/2, screenY+cfg.CellSize/2-itemSize/2,
 			itemSize, itemSize, itemColor, false)
 	}
+}
 
+// renderEnemies draws enemies with boss health bars.
+func (m *Map) renderEnemies(screen *ebiten.Image, cfg RenderConfig, theme GenreTheme, centerX, centerY float32, playerGridX, playerGridY, visibleRadius int) {
 	for _, enemy := range cfg.Enemies {
 		dx := int(enemy.X) - playerGridX
 		dy := int(enemy.Y) - playerGridY
@@ -296,17 +321,25 @@ func (m *Map) RenderMinimap(screen *ebiten.Image, cfg RenderConfig) {
 		vector.DrawFilledCircle(screen, screenX+cfg.CellSize/2, screenY+cfg.CellSize/2, enemySize/2, enemyColor, false)
 
 		if enemy.IsBoss && enemy.HealthPct < 1.0 {
-			barWidth := cfg.CellSize * 1.5
-			barHeight := cfg.CellSize * 0.3
-			barX := screenX + cfg.CellSize/2 - barWidth/2
-			barY := screenY - cfg.CellSize*0.5
-
-			vector.DrawFilledRect(screen, barX, barY, barWidth, barHeight, color.RGBA{R: 40, G: 40, B: 40, A: 200}, false)
-			vector.DrawFilledRect(screen, barX, barY, barWidth*float32(enemy.HealthPct), barHeight,
-				color.RGBA{R: 200, G: 50, B: 50, A: 255}, false)
+			drawBossHealthBar(screen, cfg, screenX, screenY, enemy.HealthPct)
 		}
 	}
+}
 
+// drawBossHealthBar renders a health bar for boss enemies.
+func drawBossHealthBar(screen *ebiten.Image, cfg RenderConfig, screenX, screenY float32, healthPct float64) {
+	barWidth := cfg.CellSize * 1.5
+	barHeight := cfg.CellSize * 0.3
+	barX := screenX + cfg.CellSize/2 - barWidth/2
+	barY := screenY - cfg.CellSize*0.5
+
+	vector.DrawFilledRect(screen, barX, barY, barWidth, barHeight, color.RGBA{R: 40, G: 40, B: 40, A: 200}, false)
+	vector.DrawFilledRect(screen, barX, barY, barWidth*float32(healthPct), barHeight,
+		color.RGBA{R: 200, G: 50, B: 50, A: 255}, false)
+}
+
+// drawPlayerIndicator renders the player marker and direction arrow.
+func drawPlayerIndicator(screen *ebiten.Image, cfg RenderConfig, theme GenreTheme, centerX, centerY float32) {
 	playerSize := cfg.CellSize * 1.5
 	vector.DrawFilledCircle(screen, centerX, centerY, playerSize/2, theme.Player, false)
 

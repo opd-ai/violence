@@ -1357,7 +1357,18 @@ func (g *Game) finalizeGameStart() {
 func (g *Game) setGenre(genreID string) {
 	g.genreID = genreID
 
-	// v1.0 systems
+	g.setGenreForV1Systems(genreID)
+	g.setGenreForV2Systems(genreID)
+	g.setGenreForV3Systems(genreID)
+	g.setGenreForV4Systems(genreID)
+	g.setGenreForV5Systems(genreID)
+
+	g.textureAtlas.GenerateWallSet(genreID)
+	g.textureAtlas.GenerateGenreAnimations(genreID)
+}
+
+// setGenreForV1Systems configures v1.0 systems with the specified genre.
+func (g *Game) setGenreForV1Systems(genreID string) {
 	g.world.SetGenre(genreID)
 	g.raycaster.SetGenre(genreID)
 	camera.SetGenre(genreID)
@@ -1365,8 +1376,10 @@ func (g *Game) setGenre(genreID string) {
 	tutorial.SetGenre(genreID)
 	automap.SetGenre(genreID)
 	door.SetGenre(genreID)
+}
 
-	// v2.0 systems
+// setGenreForV2Systems configures v2.0 systems with the specified genre.
+func (g *Game) setGenreForV2Systems(genreID string) {
 	g.arsenal.SetGenre(genreID)
 	ammo.SetGenre(genreID)
 	g.combatSystem.SetGenre(genreID)
@@ -1377,32 +1390,37 @@ func (g *Game) setGenre(genreID string) {
 	}
 	class.SetGenre(genreID)
 	ai.SetGenre(genreID)
+}
 
-	// v3.0 systems
+// setGenreForV3Systems configures v3.0 systems with the specified genre.
+func (g *Game) setGenreForV3Systems(genreID string) {
 	g.textureAtlas.SetGenre(genreID)
 	g.lightMap.SetGenre(genreID)
 	g.shadowSystem.SetGenre(genreID)
 	g.lightingSystem.SetGenre(genreID)
 	g.postProcessor.SetGenre(genreID)
 	g.renderer.SetGenre(genreID)
-	// WeatherEmitter doesn't have SetGenre - recreate it on genre change
+
 	if g.particleSystem != nil && len(g.currentMap) > 0 && len(g.currentMap[0]) > 0 {
 		g.weatherEmitter = particle.NewWeatherEmitter(g.particleSystem, genreID, 0, 0, float64(len(g.currentMap[0])), float64(len(g.currentMap)))
 	}
-	// ImpactEffectEmitter doesn't have SetGenre - recreate it on genre change
 	if g.particleSystem != nil {
 		g.impactEmitter = particle.NewImpactEffectEmitter(g.particleSystem, genreID)
 	}
+}
 
-	// v4.0 systems
+// setGenreForV4Systems configures v4.0 systems with the specified genre.
+func (g *Game) setGenreForV4Systems(genreID string) {
 	destruct.SetGenre(genreID)
 	squad.SetGenre(genreID)
 	if g.questTracker != nil {
 		g.questTracker.SetGenre(genreID)
 	}
 	event.SetGenre(genreID)
+}
 
-	// v5.0 systems
+// setGenreForV5Systems configures v5.0 systems with the specified genre.
+func (g *Game) setGenreForV5Systems(genreID string) {
 	shop.SetGenre(genreID)
 	if g.shopArmory != nil {
 		g.shopArmory.SetGenre(genreID)
@@ -1411,6 +1429,12 @@ func (g *Game) setGenre(genreID string) {
 	crafting.SetGenre(genreID)
 	skills.SetGenre(genreID)
 	network.SetGenre(genreID)
+
+	g.setGenreForOptionalV5Systems(genreID)
+}
+
+// setGenreForOptionalV5Systems configures optional v5.0 systems with the specified genre.
+func (g *Game) setGenreForOptionalV5Systems(genreID string) {
 	if g.propsManager != nil {
 		g.propsManager.SetGenre(genreID)
 	}
@@ -1456,10 +1480,6 @@ func (g *Game) setGenre(genreID string) {
 	if g.itemIconSystem != nil {
 		g.itemIconSystem.SetGenre(genreID)
 	}
-
-	// Generate genre-specific textures
-	g.textureAtlas.GenerateWallSet(genreID)
-	g.textureAtlas.GenerateGenreAnimations(genreID)
 }
 
 // loadGame loads a saved game state.
@@ -1848,90 +1868,7 @@ func (g *Game) processWeaponHits(hitResults []weapon.HitResult, currentWeapon we
 			continue
 		}
 
-		upgradedDamage := g.getUpgradedWeaponDamage(currentWeapon)
-
-		// Apply positional damage modifier if player has positional component
-		posMultiplier := 1.0
-		if g.playerEntity != 0 && g.positionalSystem != nil {
-			// Vector from agent to player
-			toPlayerX := g.camera.X - agent.X
-			toPlayerY := g.camera.Y - agent.Y
-			attackFromAngle := math.Atan2(toPlayerY, toPlayerX)
-
-			// Agent facing (use DirX/DirY if available, else face player)
-			agentFacing := math.Atan2(agent.DirY, agent.DirX)
-
-			// Calculate angle difference
-			angleDiff := attackFromAngle - agentFacing
-			for angleDiff > math.Pi {
-				angleDiff -= 2 * math.Pi
-			}
-			for angleDiff < -math.Pi {
-				angleDiff += 2 * math.Pi
-			}
-
-			cfg := combat.GetPositionalConfig(g.genreID)
-
-			// Check for backstab
-			if math.Abs(angleDiff-math.Pi) < cfg.BackstabAngle {
-				posMultiplier = cfg.BackstabMultiplier
-				logrus.WithFields(logrus.Fields{
-					"advantage":  "backstab",
-					"multiplier": posMultiplier,
-				}).Debug("Positional advantage: backstab")
-			} else if math.Abs(angleDiff-math.Pi/2) < cfg.FlankAngle || math.Abs(angleDiff+math.Pi/2) < cfg.FlankAngle {
-				// Check flank
-				posMultiplier = cfg.FlankMultiplier
-				logrus.WithFields(logrus.Fields{
-					"advantage":  "flank",
-					"multiplier": posMultiplier,
-				}).Debug("Positional advantage: flank")
-			}
-		}
-
-		finalDamage := upgradedDamage * posMultiplier
-		agent.Health -= finalDamage
-
-		// Determine if hit is critical
-		isCritical := g.rng.Float64() < 0.15 || posMultiplier >= 2.0 // Backstabs are always critical
-
-		// Add screen feedback for hit
-		if g.feedbackSystem != nil {
-			shakeIntensity := finalDamage / 10.0
-			if shakeIntensity > 5.0 {
-				shakeIntensity = 5.0
-			}
-			g.feedbackSystem.AddScreenShake(shakeIntensity)
-
-			g.feedbackSystem.SpawnDamageNumber(agent.X, agent.Y, int(finalDamage), isCritical)
-
-			impactType := feedback.ImpactHit
-			if isCritical {
-				impactType = feedback.ImpactCritical
-			}
-			g.feedbackSystem.SpawnImpactEffect(agent.X, agent.Y, impactType)
-		}
-
-		// Add impact particles (blood splatter for flesh hits)
-		if g.impactEmitter != nil {
-			impactAngle := math.Atan2(agent.Y-g.camera.Y, agent.X-g.camera.X)
-			impactTypeParticle := particle.ImpactMelee
-			if isCritical {
-				impactTypeParticle = particle.ImpactCritical
-			}
-			g.impactEmitter.EmitImpact(agent.X, agent.Y, impactTypeParticle, particle.MaterialFlesh, impactAngle)
-		}
-
-		// Add persistent combat decal on hit
-		if g.decalSystem != nil {
-			dirX := agent.X - g.camera.X
-			dirY := agent.Y - g.camera.Y
-			g.decalSystem.SpawnBloodSplatter(&g.combatDecals, agent.X, agent.Y, dirX, dirY)
-		}
-
-		if g.masteryManager != nil {
-			g.masteryManager.AddMasteryXP(g.arsenal.CurrentSlot, 10)
-		}
+		g.processSingleHit(agent, currentWeapon)
 
 		if agent.Health <= 0 {
 			g.handleEnemyDeath(agent.X, agent.Y)
@@ -1939,53 +1876,168 @@ func (g *Game) processWeaponHits(hitResults []weapon.HitResult, currentWeapon we
 	}
 }
 
+// processSingleHit applies damage and effects to a single enemy.
+func (g *Game) processSingleHit(agent *ai.Agent, currentWeapon weapon.Weapon) {
+	upgradedDamage := g.getUpgradedWeaponDamage(currentWeapon)
+	posMultiplier := g.calculatePositionalDamage(agent)
+	finalDamage := upgradedDamage * posMultiplier
+	agent.Health -= finalDamage
+
+	isCritical := g.rng.Float64() < 0.15 || posMultiplier >= 2.0
+
+	g.applyHitFeedback(agent, finalDamage, isCritical)
+	g.spawnHitDecal(agent)
+
+	if g.masteryManager != nil {
+		g.masteryManager.AddMasteryXP(g.arsenal.CurrentSlot, 10)
+	}
+}
+
+// calculatePositionalDamage computes damage multiplier based on attack angle.
+func (g *Game) calculatePositionalDamage(agent *ai.Agent) float64 {
+	if g.playerEntity == 0 || g.positionalSystem == nil {
+		return 1.0
+	}
+
+	toPlayerX := g.camera.X - agent.X
+	toPlayerY := g.camera.Y - agent.Y
+	attackFromAngle := math.Atan2(toPlayerY, toPlayerX)
+	agentFacing := math.Atan2(agent.DirY, agent.DirX)
+
+	angleDiff := attackFromAngle - agentFacing
+	for angleDiff > math.Pi {
+		angleDiff -= 2 * math.Pi
+	}
+	for angleDiff < -math.Pi {
+		angleDiff += 2 * math.Pi
+	}
+
+	cfg := combat.GetPositionalConfig(g.genreID)
+
+	if math.Abs(angleDiff-math.Pi) < cfg.BackstabAngle {
+		logrus.WithFields(logrus.Fields{
+			"advantage":  "backstab",
+			"multiplier": cfg.BackstabMultiplier,
+		}).Debug("Positional advantage: backstab")
+		return cfg.BackstabMultiplier
+	} else if math.Abs(angleDiff-math.Pi/2) < cfg.FlankAngle || math.Abs(angleDiff+math.Pi/2) < cfg.FlankAngle {
+		logrus.WithFields(logrus.Fields{
+			"advantage":  "flank",
+			"multiplier": cfg.FlankMultiplier,
+		}).Debug("Positional advantage: flank")
+		return cfg.FlankMultiplier
+	}
+
+	return 1.0
+}
+
+// applyHitFeedback spawns visual and audio feedback for weapon hits.
+func (g *Game) applyHitFeedback(agent *ai.Agent, damage float64, isCritical bool) {
+	if g.feedbackSystem != nil {
+		shakeIntensity := damage / 10.0
+		if shakeIntensity > 5.0 {
+			shakeIntensity = 5.0
+		}
+		g.feedbackSystem.AddScreenShake(shakeIntensity)
+		g.feedbackSystem.SpawnDamageNumber(agent.X, agent.Y, int(damage), isCritical)
+
+		impactType := feedback.ImpactHit
+		if isCritical {
+			impactType = feedback.ImpactCritical
+		}
+		g.feedbackSystem.SpawnImpactEffect(agent.X, agent.Y, impactType)
+	}
+
+	if g.impactEmitter != nil {
+		impactAngle := math.Atan2(agent.Y-g.camera.Y, agent.X-g.camera.X)
+		impactTypeParticle := particle.ImpactMelee
+		if isCritical {
+			impactTypeParticle = particle.ImpactCritical
+		}
+		g.impactEmitter.EmitImpact(agent.X, agent.Y, impactTypeParticle, particle.MaterialFlesh, impactAngle)
+	}
+}
+
+// spawnHitDecal creates a blood decal at the hit location.
+func (g *Game) spawnHitDecal(agent *ai.Agent) {
+	if g.decalSystem != nil {
+		dirX := agent.X - g.camera.X
+		dirY := agent.Y - g.camera.Y
+		g.decalSystem.SpawnBloodSplatter(&g.combatDecals, agent.X, agent.Y, dirX, dirY)
+	}
+}
+
 // handleEnemyDeath processes enemy death rewards and progression.
 func (g *Game) handleEnemyDeath(enemyX, enemyY float64) {
-	// Spawn death impact particles
+	g.spawnDeathEffects(enemyX, enemyY)
+	g.spawnEnemyCorpse(enemyX, enemyY)
+	g.grantDeathRewards(enemyX, enemyY)
+}
+
+// spawnDeathEffects creates particles and decals for enemy death.
+func (g *Game) spawnDeathEffects(enemyX, enemyY float64) {
 	if g.impactEmitter != nil {
 		impactAngle := math.Atan2(enemyY-g.camera.Y, enemyX-g.camera.X)
 		g.impactEmitter.EmitImpact(enemyX, enemyY, particle.ImpactDeath, particle.MaterialFlesh, impactAngle)
 	}
 
-	// Add larger blood decal on death
 	if g.decalSystem != nil {
 		dirX := enemyX - g.camera.X
 		dirY := enemyY - g.camera.Y
-		// Spawn extra blood splatters for dramatic effect
 		g.decalSystem.SpawnBloodSplatter(&g.combatDecals, enemyX, enemyY, dirX, dirY)
 		g.decalSystem.SpawnBloodSplatter(&g.combatDecals, enemyX, enemyY, dirX*0.8, dirY*0.8)
 	}
+}
 
-	// Spawn corpse with death visual
-	if g.corpseSystem != nil {
-		deathType := corpse.DeathNormal
-		if g.arsenal.CurrentSlot >= 0 && g.arsenal.CurrentSlot < len(g.arsenal.Weapons) {
-			wpn := g.arsenal.Weapons[g.arsenal.CurrentSlot]
-			switch wpn.Name {
-			case "Plasma Rifle", "Flamethrower":
-				deathType = corpse.DeathBurn
-			case "Railgun", "Lightning Gun":
-				deathType = corpse.DeathElectric
-			case "Rocket Launcher", "Grenade":
-				deathType = corpse.DeathExplosion
-			case "Sword", "Katana", "Blade":
-				deathType = corpse.DeathSlash
-			case "Hammer", "Mace":
-				deathType = corpse.DeathCrush
-			default:
-				if wpn.Type == weapon.TypeMelee {
-					deathType = corpse.DeathSlash
-				} else {
-					deathType = corpse.DeathNormal
-				}
-			}
-		}
-		corpseSize := 64
-		hasLoot := g.rng.Float64() < 0.3
-		corpseSeed := int64(enemyX*1000 + enemyY*1000 + float64(time.Now().UnixNano()%10000))
-		g.corpseSystem.SpawnCorpse(&g.corpses, enemyX, enemyY, corpseSeed, "enemy", "humanoid", deathType, corpseSize, hasLoot)
+// spawnEnemyCorpse creates a corpse with appropriate visual based on weapon used.
+func (g *Game) spawnEnemyCorpse(enemyX, enemyY float64) {
+	if g.corpseSystem == nil {
+		return
 	}
 
+	deathType := g.determineDeathType()
+	corpseSize := 64
+	hasLoot := g.rng.Float64() < 0.3
+	corpseSeed := int64(enemyX*1000 + enemyY*1000 + float64(time.Now().UnixNano()%10000))
+	g.corpseSystem.SpawnCorpse(&g.corpses, enemyX, enemyY, corpseSeed, "enemy", "humanoid", deathType, corpseSize, hasLoot)
+}
+
+// determineDeathType returns the death visual type based on current weapon.
+func (g *Game) determineDeathType() corpse.DeathType {
+	if g.arsenal.CurrentSlot < 0 || g.arsenal.CurrentSlot >= len(g.arsenal.Weapons) {
+		return corpse.DeathNormal
+	}
+
+	wpn := g.arsenal.Weapons[g.arsenal.CurrentSlot]
+	switch wpn.Name {
+	case "Plasma Rifle", "Flamethrower":
+		return corpse.DeathBurn
+	case "Railgun", "Lightning Gun":
+		return corpse.DeathElectric
+	case "Rocket Launcher", "Grenade":
+		return corpse.DeathExplosion
+	case "Sword", "Katana", "Blade":
+		return corpse.DeathSlash
+	case "Hammer", "Mace":
+		return corpse.DeathCrush
+	default:
+		if wpn.Type == weapon.TypeMelee {
+			return corpse.DeathSlash
+		}
+		return corpse.DeathNormal
+	}
+}
+
+// grantDeathRewards awards XP, currency, and materials for killing an enemy.
+func (g *Game) grantDeathRewards(enemyX, enemyY float64) {
+	g.grantXPReward()
+	g.grantCurrencyRewards()
+	g.updateQuestProgress()
+	g.spawnBiomeMaterialsAtDeath(enemyX, enemyY)
+}
+
+// grantXPReward adds experience and handles level-up.
+func (g *Game) grantXPReward() {
 	oldLevel := g.progression.GetLevel()
 	if err := g.progression.AddXP(50); err != nil {
 		logrus.WithError(err).Warn("Failed to add XP")
@@ -1997,17 +2049,19 @@ func (g *Game) handleEnemyDeath(enemyX, enemyY float64) {
 			g.skillManager.AddPoints(1)
 		}
 
-		// Grant stat points on level up
 		statType := reflect.TypeOf((*stats.StatAllocationComponent)(nil))
 		if statComp, ok := g.world.GetComponent(g.playerEntity, statType); ok {
 			if statsData, ok := statComp.(*stats.StatAllocationComponent); ok {
-				statsData.Attributes.AddPoints(3) // 3 stat points per level
+				statsData.Attributes.AddPoints(3)
 			}
 		}
 
 		g.hud.ShowMessage("Level Up! Skill point earned!")
 	}
+}
 
+// grantCurrencyRewards adds shop credits, upgrade tokens, and scrap.
+func (g *Game) grantCurrencyRewards() {
 	if g.shopCredits != nil {
 		g.shopCredits.Add(25)
 	}
@@ -2020,30 +2074,30 @@ func (g *Game) handleEnemyDeath(enemyX, enemyY float64) {
 		scrapName := crafting.GetScrapNameForGenre(g.genreID)
 		g.scrapStorage.Add(scrapName, 3)
 	}
+}
 
-	if g.questTracker != nil {
-		// Check if we just completed the kill objective
-		oldProgress := int64(0)
-		for i := range g.questTracker.Objectives {
-			if g.questTracker.Objectives[i].ID == "bonus_kills" && !g.questTracker.Objectives[i].Complete {
-				oldProgress = g.questTracker.Objectives[i].Progress
-				break
-			}
-		}
+// updateQuestProgress increments kill quest objectives and grants rewards.
+func (g *Game) updateQuestProgress() {
+	if g.questTracker == nil {
+		return
+	}
 
-		g.questTracker.UpdateProgress("bonus_kills", 1)
-
-		// Grant reward if objective was just completed
-		for i := range g.questTracker.Objectives {
-			obj := &g.questTracker.Objectives[i]
-			if obj.ID == "bonus_kills" && obj.Complete && oldProgress < int64(obj.Count) {
-				g.grantQuestReward("bonus_kills", "enemy", false, int(obj.Progress), obj.Count)
-			}
+	oldProgress := int64(0)
+	for i := range g.questTracker.Objectives {
+		if g.questTracker.Objectives[i].ID == "bonus_kills" && !g.questTracker.Objectives[i].Complete {
+			oldProgress = g.questTracker.Objectives[i].Progress
+			break
 		}
 	}
 
-	// Spawn biome-specific crafting materials based on location
-	g.spawnBiomeMaterialsAtDeath(enemyX, enemyY)
+	g.questTracker.UpdateProgress("bonus_kills", 1)
+
+	for i := range g.questTracker.Objectives {
+		obj := &g.questTracker.Objectives[i]
+		if obj.ID == "bonus_kills" && obj.Complete && oldProgress < int64(obj.Count) {
+			g.grantQuestReward("bonus_kills", "enemy", false, int(obj.Progress), obj.Count)
+		}
+	}
 }
 
 // spawnBiomeMaterialsAtDeath spawns biome materials when an enemy dies.

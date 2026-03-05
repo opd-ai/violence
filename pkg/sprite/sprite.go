@@ -656,9 +656,31 @@ func (g *Generator) generateHumanoidEnemy(img *image.RGBA, role string, rng *ran
 	size := img.Bounds().Dx()
 	cx, cy := size/2, size/2
 
-	var armorColor, accentColor, skinColor color.RGBA
-	var weaponType int
+	armorColor, accentColor, skinColor, weaponType := g.selectGenreColors()
+	bodyParts := g.calculateBodyPartPositions(size, cx, cy, role, frame)
 
+	g.drawLegs(img, size, cx, armorColor, bodyParts)
+	g.drawTorso(img, cx, armorColor, accentColor, role, bodyParts)
+	g.drawArms(img, size, cx, armorColor, frame, bodyParts)
+	g.drawHead(img, size, cx, skinColor, bodyParts)
+	g.drawWeapon(img, size, cx, weaponType, armorColor, frame, bodyParts)
+	g.drawRoleSpecificDecorations(img, cx, role, accentColor, bodyParts)
+	g.applyMaterialTextures(img, size, cx, armorColor, skinColor, rng, bodyParts)
+}
+
+type bodyPartPositions struct {
+	leftLegY, rightLegY int
+	leftArmY, rightArmY int
+	bodyY               int
+	torsoW, torsoH      int
+	legW, legH          int
+	armW, armH          int
+	headRadius          int
+	attackOffset        int
+}
+
+// selectGenreColors returns color scheme and weapon type based on genre.
+func (g *Generator) selectGenreColors() (armorColor, accentColor, skinColor color.RGBA, weaponType int) {
 	switch g.genreID {
 	case "scifi":
 		armorColor = color.RGBA{R: 40, G: 60, B: 80, A: 255}
@@ -686,34 +708,54 @@ func (g *Generator) generateHumanoidEnemy(img *image.RGBA, role string, rng *ran
 		skinColor = color.RGBA{R: 210, G: 180, B: 160, A: 255}
 		weaponType = 1
 	}
+	return armorColor, accentColor, skinColor, weaponType
+}
 
-	leftLegY := cy + size/6
-	rightLegY := cy + size/6
-	leftArmY := cy - size/10
-	rightArmY := cy - size/10
-	bodyY := cy - size/8
+// calculateBodyPartPositions computes positions and dimensions for all body parts with animation offsets.
+func (g *Generator) calculateBodyPartPositions(size, cx, cy int, role string, frame int) bodyPartPositions {
+	positions := bodyPartPositions{
+		leftLegY:   cy + size/6,
+		rightLegY:  cy + size/6,
+		leftArmY:   cy - size/10,
+		rightArmY:  cy - size/10,
+		bodyY:      cy - size/8,
+		torsoW:     size / 3,
+		torsoH:     size / 3,
+		legW:       size / 12,
+		legH:       size / 4,
+		headRadius: size / 10,
+	}
+
+	positions.armW = positions.legW - 1
+	positions.armH = size / 4
 
 	if frame%3 == 1 {
-		leftLegY += 2
-		rightLegY -= 2
+		positions.leftLegY += 2
+		positions.rightLegY -= 2
 	} else if frame%3 == 2 {
-		leftLegY -= 2
-		rightLegY += 2
+		positions.leftLegY -= 2
+		positions.rightLegY += 2
 	}
 
 	if role == "ambusher" && frame == 0 {
-		bodyY += 2
-		leftArmY += 2
-		rightArmY += 2
+		positions.bodyY += 2
+		positions.leftArmY += 2
+		positions.rightArmY += 2
 	}
 
-	legW := size / 12
-	legH := size / 4
+	if frame%4 == 3 {
+		positions.attackOffset = -3
+	}
 
-	for y := leftLegY; y < leftLegY+legH; y++ {
-		for x := cx - size/8 - legW/2; x < cx-size/8+legW/2; x++ {
+	return positions
+}
+
+// drawLegs renders both legs with shading.
+func (g *Generator) drawLegs(img *image.RGBA, size, cx int, armorColor color.RGBA, pos bodyPartPositions) {
+	for y := pos.leftLegY; y < pos.leftLegY+pos.legH; y++ {
+		for x := cx - size/8 - pos.legW/2; x < cx-size/8+pos.legW/2; x++ {
 			if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
-				shade := 0.7 + 0.3*float64(y-leftLegY)/float64(legH)
+				shade := 0.7 + 0.3*float64(y-pos.leftLegY)/float64(pos.legH)
 				r := uint8(float64(armorColor.R) * shade)
 				g := uint8(float64(armorColor.G) * shade)
 				b := uint8(float64(armorColor.B) * shade)
@@ -722,10 +764,10 @@ func (g *Generator) generateHumanoidEnemy(img *image.RGBA, role string, rng *ran
 		}
 	}
 
-	for y := rightLegY; y < rightLegY+legH; y++ {
-		for x := cx + size/8 - legW/2; x < cx+size/8+legW/2; x++ {
+	for y := pos.rightLegY; y < pos.rightLegY+pos.legH; y++ {
+		for x := cx + size/8 - pos.legW/2; x < cx+size/8+pos.legW/2; x++ {
 			if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
-				shade := 0.7 + 0.3*float64(y-rightLegY)/float64(legH)
+				shade := 0.7 + 0.3*float64(y-pos.rightLegY)/float64(pos.legH)
 				r := uint8(float64(armorColor.R) * shade)
 				g := uint8(float64(armorColor.G) * shade)
 				b := uint8(float64(armorColor.B) * shade)
@@ -733,14 +775,15 @@ func (g *Generator) generateHumanoidEnemy(img *image.RGBA, role string, rng *ran
 			}
 		}
 	}
+}
 
-	torsoW := size / 3
-	torsoH := size / 3
-	for y := bodyY; y < bodyY+torsoH; y++ {
-		for x := cx - torsoW/2; x < cx+torsoW/2; x++ {
+// drawTorso renders the body with optional role-specific accent stripes.
+func (g *Generator) drawTorso(img *image.RGBA, cx int, armorColor, accentColor color.RGBA, role string, pos bodyPartPositions) {
+	for y := pos.bodyY; y < pos.bodyY+pos.torsoH; y++ {
+		for x := cx - pos.torsoW/2; x < cx+pos.torsoW/2; x++ {
 			if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
 				dx := float64(x - cx)
-				shade := 1.0 - math.Abs(dx)/float64(torsoW)*0.4
+				shade := 1.0 - math.Abs(dx)/float64(pos.torsoW)*0.4
 				r := uint8(float64(armorColor.R) * shade)
 				g := uint8(float64(armorColor.G) * shade)
 				b := uint8(float64(armorColor.B) * shade)
@@ -750,17 +793,18 @@ func (g *Generator) generateHumanoidEnemy(img *image.RGBA, role string, rng *ran
 	}
 
 	if role == "tank" || role == "healer" {
-		accentY := bodyY + torsoH/3
+		accentY := pos.bodyY + pos.torsoH/3
 		accentH := 2
-		common.FillRect(img, cx-torsoW/3, accentY, cx+torsoW/3, accentY+accentH, accentColor)
+		common.FillRect(img, cx-pos.torsoW/3, accentY, cx+pos.torsoW/3, accentY+accentH, accentColor)
 	}
+}
 
-	armW := legW - 1
-	armH := size / 4
-	for y := leftArmY; y < leftArmY+armH; y++ {
-		for x := cx - torsoW/2 - armW; x < cx-torsoW/2; x++ {
+// drawArms renders both arms with animation offset for attack frames.
+func (g *Generator) drawArms(img *image.RGBA, size, cx int, armorColor color.RGBA, frame int, pos bodyPartPositions) {
+	for y := pos.leftArmY; y < pos.leftArmY+pos.armH; y++ {
+		for x := cx - pos.torsoW/2 - pos.armW; x < cx-pos.torsoW/2; x++ {
 			if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
-				shade := 0.8 + 0.2*float64(y-leftArmY)/float64(armH)
+				shade := 0.8 + 0.2*float64(y-pos.leftArmY)/float64(pos.armH)
 				r := uint8(float64(armorColor.R) * shade)
 				g := uint8(float64(armorColor.G) * shade)
 				b := uint8(float64(armorColor.B) * shade)
@@ -769,15 +813,10 @@ func (g *Generator) generateHumanoidEnemy(img *image.RGBA, role string, rng *ran
 		}
 	}
 
-	attackOffset := 0
-	if frame%4 == 3 {
-		attackOffset = -3
-	}
-
-	for y := rightArmY + attackOffset; y < rightArmY+armH+attackOffset; y++ {
-		for x := cx + torsoW/2; x < cx+torsoW/2+armW; x++ {
+	for y := pos.rightArmY + pos.attackOffset; y < pos.rightArmY+pos.armH+pos.attackOffset; y++ {
+		for x := cx + pos.torsoW/2; x < cx+pos.torsoW/2+pos.armW; x++ {
 			if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
-				shade := 0.8 + 0.2*float64(y-rightArmY-attackOffset)/float64(armH)
+				shade := 0.8 + 0.2*float64(y-pos.rightArmY-pos.attackOffset)/float64(pos.armH)
 				r := uint8(float64(armorColor.R) * shade)
 				g := uint8(float64(armorColor.G) * shade)
 				b := uint8(float64(armorColor.B) * shade)
@@ -785,16 +824,18 @@ func (g *Generator) generateHumanoidEnemy(img *image.RGBA, role string, rng *ran
 			}
 		}
 	}
+}
 
-	headRadius := size / 10
-	for y := -headRadius; y <= headRadius; y++ {
-		for x := -headRadius; x <= headRadius; x++ {
-			if x*x+y*y <= headRadius*headRadius {
+// drawHead renders a circular head with gradient shading.
+func (g *Generator) drawHead(img *image.RGBA, size, cx int, skinColor color.RGBA, pos bodyPartPositions) {
+	for y := -pos.headRadius; y <= pos.headRadius; y++ {
+		for x := -pos.headRadius; x <= pos.headRadius; x++ {
+			if x*x+y*y <= pos.headRadius*pos.headRadius {
 				px := cx + x
-				py := bodyY - size/16 + y
+				py := pos.bodyY - size/16 + y
 				if px >= 0 && px < img.Bounds().Dx() && py >= 0 && py < img.Bounds().Dy() {
 					dist := math.Sqrt(float64(x*x + y*y))
-					shade := 1.0 - (dist / float64(headRadius) * 0.3)
+					shade := 1.0 - (dist / float64(pos.headRadius) * 0.3)
 					r := uint8(math.Min(255, float64(skinColor.R)*shade))
 					g := uint8(math.Min(255, float64(skinColor.G)*shade))
 					b := uint8(math.Min(255, float64(skinColor.B)*shade))
@@ -803,7 +844,10 @@ func (g *Generator) generateHumanoidEnemy(img *image.RGBA, role string, rng *ran
 			}
 		}
 	}
+}
 
+// drawWeapon renders weapon based on type with animation offset.
+func (g *Generator) drawWeapon(img *image.RGBA, size, cx, weaponType int, armorColor color.RGBA, frame int, pos bodyPartPositions) {
 	weaponColor := color.RGBA{R: 200, G: 200, B: 220, A: 255}
 	if weaponType == 2 {
 		weaponColor = color.RGBA{R: 60, G: 60, B: 70, A: 255}
@@ -811,9 +855,10 @@ func (g *Generator) generateHumanoidEnemy(img *image.RGBA, role string, rng *ran
 		weaponColor = color.RGBA{R: 120, G: 100, B: 80, A: 255}
 	}
 
-	weaponX := cx + torsoW/2 + armW
-	weaponY := rightArmY + armH/2 + attackOffset
+	weaponX := cx + pos.torsoW/2 + pos.armW
+	weaponY := pos.rightArmY + pos.armH/2 + pos.attackOffset
 	weaponLen := size / 5
+
 	if weaponType == 2 {
 		common.FillRect(img, weaponX, weaponY-1, weaponX+weaponLen, weaponY+1, weaponColor)
 		common.FillCircle(img, weaponX+weaponLen, weaponY, 2, color.RGBA{R: 100, G: 100, B: 110, A: 255})
@@ -823,11 +868,14 @@ func (g *Generator) generateHumanoidEnemy(img *image.RGBA, role string, rng *ran
 			common.FillCircle(img, weaponX+weaponLen, weaponY, 3, color.RGBA{R: 180, G: 180, B: 200, A: 255})
 		}
 	}
+}
 
+// drawRoleSpecificDecorations adds visual indicators for tank and healer roles.
+func (g *Generator) drawRoleSpecificDecorations(img *image.RGBA, cx int, role string, accentColor color.RGBA, pos bodyPartPositions) {
 	if role == "tank" {
-		shieldX := cx - torsoW/2 - armW - 2
-		shieldY := leftArmY + armH/4
-		shieldH := armH / 2
+		shieldX := cx - pos.torsoW/2 - pos.armW - 2
+		shieldY := pos.leftArmY + pos.armH/4
+		shieldH := pos.armH / 2
 		for y := shieldY; y < shieldY+shieldH; y++ {
 			for x := shieldX - 4; x < shieldX; x++ {
 				if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
@@ -839,17 +887,18 @@ func (g *Generator) generateHumanoidEnemy(img *image.RGBA, role string, rng *ran
 
 	if role == "healer" {
 		symbolX := cx - 2
-		symbolY := bodyY + torsoH/2 - 2
+		symbolY := pos.bodyY + pos.torsoH/2 - 2
 		common.FillRect(img, symbolX, symbolY-4, symbolX+4, symbolY+4, accentColor)
 		common.FillRect(img, symbolX-4, symbolY, symbolX+8, symbolY+4, accentColor)
 	}
+}
 
-	// Apply material detail for visual richness
-	armorBounds := image.Rect(cx-torsoW/2, bodyY, cx+torsoW/2, bodyY+torsoH)
+// applyMaterialTextures applies material detail to armor and skin.
+func (g *Generator) applyMaterialTextures(img *image.RGBA, size, cx int, armorColor, skinColor color.RGBA, rng *rand.Rand, pos bodyPartPositions) {
+	armorBounds := image.Rect(cx-pos.torsoW/2, pos.bodyY, cx+pos.torsoW/2, pos.bodyY+pos.torsoH)
 	g.applyMaterialDetail(img, armorBounds, MaterialMetal, rng.Int63(), 1.0, armorColor)
 
-	// Add skin texture to head
-	headBounds := image.Rect(cx-headRadius, bodyY-size/8-headRadius, cx+headRadius, bodyY-size/8+headRadius)
+	headBounds := image.Rect(cx-pos.headRadius, pos.bodyY-size/8-pos.headRadius, cx+pos.headRadius, pos.bodyY-size/8+pos.headRadius)
 	g.applyMaterialDetail(img, headBounds, MaterialLeather, rng.Int63(), 0.5, skinColor)
 }
 
