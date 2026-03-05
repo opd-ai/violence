@@ -24,6 +24,7 @@ import (
 	"github.com/opd-ai/violence/pkg/biome"
 	"github.com/opd-ai/violence/pkg/bsp"
 	"github.com/opd-ai/violence/pkg/camera"
+	"github.com/opd-ai/violence/pkg/camerafx"
 	"github.com/opd-ai/violence/pkg/chat"
 	"github.com/opd-ai/violence/pkg/class"
 	"github.com/opd-ai/violence/pkg/collision"
@@ -356,6 +357,9 @@ type Game struct {
 
 	// Weapon visual enhancement system for material-based rendering
 	weaponVisualSystem *weapon.VisualSystem
+
+	// Camera effects system for enhanced visual feedback (shake, flash, zoom, chromatic aberration)
+	cameraFXSystem *camerafx.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -529,6 +533,9 @@ func NewGame() *Game {
 
 	// Initialize weapon visual enhancement system for material-based rendering
 	g.weaponVisualSystem = weapon.NewVisualSystem()
+
+	// Initialize camera effects system for enhanced visual feedback
+	g.cameraFXSystem = camerafx.NewSystem(g.genreID, int64(seed))
 
 	// Connect sliding system to spatial index
 	g.slidingSystem.SetSpatialIndex(g.spatialSystem.GetGrid())
@@ -1505,6 +1512,9 @@ func (g *Game) setGenreForVisualSystems(genreID string) {
 	if g.feedbackSystem != nil {
 		g.feedbackSystem.SetGenre(genreID)
 	}
+	if g.cameraFXSystem != nil {
+		g.cameraFXSystem.SetGenre(genreID)
+	}
 	if g.spriteGenerator != nil {
 		g.spriteGenerator.SetGenre(genreID)
 	}
@@ -1618,6 +1628,11 @@ func (g *Game) loadGame(slot int) {
 func (g *Game) updatePlaying() error {
 	if handled := g.handleMenuActions(); handled {
 		return nil
+	}
+
+	// Update camera effects (shake, flash, zoom, chromatic aberration)
+	if g.cameraFXSystem != nil {
+		g.cameraFXSystem.Update(1.0 / 60.0)
 	}
 
 	// Record replay input if recording is active
@@ -2024,6 +2039,20 @@ func (g *Game) applyHitFeedback(agent *ai.Agent, damage float64, isCritical bool
 		g.feedbackSystem.SpawnImpactEffect(agent.X, agent.Y, impactType)
 	}
 
+	// Enhanced camera effects for hits
+	if g.cameraFXSystem != nil {
+		shakeAmount := damage / 20.0
+		if isCritical {
+			shakeAmount *= 2.0
+			fr, fg, fb, fa := camerafx.Flash.Orange()
+			g.cameraFXSystem.TriggerFlash(fr, fg, fb, fa*0.6)
+		} else {
+			fr, fg, fb, fa := camerafx.Flash.White()
+			g.cameraFXSystem.TriggerFlash(fr, fg, fb, fa*0.3)
+		}
+		g.cameraFXSystem.TriggerShake(shakeAmount)
+	}
+
 	if g.impactEmitter != nil {
 		impactAngle := math.Atan2(agent.Y-g.camera.Y, agent.X-g.camera.X)
 		impactTypeParticle := particle.ImpactMelee
@@ -2343,6 +2372,17 @@ func (g *Game) handleAgentAttack(agent *ai.Agent) {
 		}
 		g.feedbackSystem.AddScreenShake(shakeIntensity)
 		g.feedbackSystem.AddHitFlash(0.3 + (healthDamage / 100.0))
+	}
+
+	// Trigger enhanced camera effects for player damage
+	if g.cameraFXSystem != nil {
+		shakeIntensity := healthDamage / 10.0
+		g.cameraFXSystem.TriggerShake(shakeIntensity)
+		fr, fg, fb, fa := camerafx.Flash.Red()
+		g.cameraFXSystem.TriggerFlash(fr, fg, fb, fa*(healthDamage/50.0))
+		if healthDamage > 30 {
+			g.cameraFXSystem.TriggerChromatic(0.3)
+		}
 	}
 
 	if g.hud.Health <= 0 {
@@ -4276,11 +4316,21 @@ func (g *Game) drawPlaying(screen *ebiten.Image) {
 // applyCameraShake calculates camera position with shake offset.
 func (g *Game) applyCameraShake() (float64, float64) {
 	camX, camY := g.camera.X, g.camera.Y
+
+	// Apply feedback system shake (legacy)
 	if g.feedbackSystem != nil {
 		shakeX, shakeY := g.feedbackSystem.GetScreenShakeOffset()
 		camX += shakeX * 0.01
 		camY += shakeY * 0.01
 	}
+
+	// Apply enhanced camera FX shake
+	if g.cameraFXSystem != nil {
+		fxShakeX, fxShakeY := g.cameraFXSystem.GetShakeOffset()
+		camX += fxShakeX * 0.01
+		camY += fxShakeY * 0.01
+	}
+
 	return camX, camY
 }
 
@@ -4382,10 +4432,25 @@ func (g *Game) renderOverlaysAndHUD(screen *ebiten.Image, camX, camY float64) {
 
 // renderHitFlashOverlay applies screen flash effect when player is hit.
 func (g *Game) renderHitFlashOverlay(screen *ebiten.Image) {
+	// Legacy feedback system flash
 	if g.feedbackSystem != nil {
 		intensity := g.feedbackSystem.GetHitFlashIntensity()
 		if intensity > 0.01 {
 			flashColor := g.feedbackSystem.GetHitFlashColor()
+			vector.DrawFilledRect(screen, 0, 0, float32(config.C.InternalWidth), float32(config.C.InternalHeight), flashColor, false)
+		}
+	}
+
+	// Enhanced camera FX flash with color support
+	if g.cameraFXSystem != nil {
+		fr, fg, fb, fa := g.cameraFXSystem.GetFlashColor()
+		if fa > 0.01 {
+			flashColor := color.RGBA{
+				R: uint8(fr * 255),
+				G: uint8(fg * 255),
+				B: uint8(fb * 255),
+				A: uint8(fa * 255),
+			}
 			vector.DrawFilledRect(screen, 0, 0, float32(config.C.InternalWidth), float32(config.C.InternalHeight), flashColor, false)
 		}
 	}
