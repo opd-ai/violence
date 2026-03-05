@@ -4801,108 +4801,131 @@ func (g *Game) renderShadows(screen *ebiten.Image) {
 // renderHazards draws environmental hazards as floor sprites in world space.
 func (g *Game) renderHazards(screen *ebiten.Image) {
 	hazards := g.hazardECSSystem.GetHazardsForRendering(g.world)
-
-	// Calculate camera plane for sprite projection
-	planeX := 0.0
-	planeY := 0.66
-	if g.camera.DirX != 0 || g.camera.DirY != 0 {
-		planeX = -g.camera.DirY * 0.66
-		planeY = g.camera.DirX * 0.66
-	}
+	planeX, planeY := calculateCameraPlane(g.camera)
 
 	for _, h := range hazards {
-		dx := h.X - g.camera.X
-		dy := h.Y - g.camera.Y
-
-		// Simple distance culling
-		distSq := dx*dx + dy*dy
-		if distSq > 400 {
+		if !shouldRenderHazard(h, g.camera) {
 			continue
 		}
 
-		// Transform to camera space
-		invDet := 1.0 / (planeX*g.camera.DirY - g.camera.DirX*planeY)
-		transformX := invDet * (g.camera.DirY*dx - g.camera.DirX*dy)
-		transformY := invDet * (-planeY*dx + planeX*dy)
-
-		// Skip hazards behind camera
+		transformX, transformY := transformToCameraSpace(h.X, h.Y, g.camera, planeX, planeY)
 		if transformY <= 0.1 {
 			continue
 		}
 
-		// Calculate screen position
-		spriteScreenX := int((float64(config.C.InternalWidth) / 2.0) * (1.0 + transformX/transformY))
-
-		// Calculate size based on distance and hazard dimensions
-		spriteHeight := int(float64(config.C.InternalHeight) / transformY * h.Height)
-		spriteWidth := int(float64(config.C.InternalWidth) / transformY * h.Width)
-
-		// Draw bounds
-		drawStartX := spriteScreenX - spriteWidth/2
-		drawEndX := spriteScreenX + spriteWidth/2
-		drawStartY := config.C.InternalHeight/2 + spriteHeight/4 // Offset down for floor effect
-		drawEndY := config.C.InternalHeight/2 + spriteHeight/4 + spriteHeight/2
-
-		// Clip to screen bounds
-		if drawEndX < 0 || drawStartX >= config.C.InternalWidth {
+		drawBounds := calculateHazardDrawBounds(transformX, transformY, h)
+		if !isVisibleOnScreen(drawBounds) {
 			continue
 		}
-		if drawStartX < 0 {
-			drawStartX = 0
-		}
-		if drawEndX >= config.C.InternalWidth {
-			drawEndX = config.C.InternalWidth - 1
-		}
-		if drawStartY < 0 {
-			drawStartY = 0
-		}
-		if drawEndY >= config.C.InternalHeight {
-			drawEndY = config.C.InternalHeight - 1
-		}
 
-		// Determine visual representation based on state
-		var hazardColor color.RGBA
-		alpha := uint8(180)
+		clippedBounds := clipToScreenBounds(drawBounds)
+		hazardColor := determineHazardColor(h)
 
-		// Extract RGB from color
-		r := uint8((h.Color >> 16) & 0xFF)
-		g := uint8((h.Color >> 8) & 0xFF)
-		b := uint8(h.Color & 0xFF)
-
-		switch h.State {
-		case hazard.StateInactive:
-			alpha = 60
-			hazardColor = color.RGBA{r / 2, g / 2, b / 2, alpha}
-		case hazard.StateCharging:
-			// Pulsate warning (use frame counter for animation)
-			ticker := (time.Now().UnixMilli() / 3) % 100
-			alpha = uint8(100 + ticker)
-			hazardColor = color.RGBA{r, g, b, alpha}
-		case hazard.StateActive:
-			// Full brightness when active
-			alpha = 220
-			hazardColor = color.RGBA{r, g, b, alpha}
-		case hazard.StateCooldown:
-			alpha = 100
-			hazardColor = color.RGBA{r / 2, g / 2, b / 2, alpha}
-		}
-
-		// Draw hazard sprite
-		vector.DrawFilledRect(screen,
-			float32(drawStartX), float32(drawStartY),
-			float32(drawEndX-drawStartX), float32(drawEndY-drawStartY),
-			hazardColor, false)
-
-		// Draw warning indicator when charging
-		if h.State == hazard.StateCharging {
-			ticker := (time.Now().UnixMilli() / 2) % 100
-			warningColor := color.RGBA{255, 255, 0, uint8(150 + ticker)}
-			vector.StrokeRect(screen,
-				float32(drawStartX), float32(drawStartY),
-				float32(drawEndX-drawStartX), float32(drawEndY-drawStartY),
-				2, warningColor, false)
-		}
+		renderHazardSprite(screen, clippedBounds, hazardColor)
+		renderHazardWarning(screen, clippedBounds, h)
 	}
+}
+
+// shouldRenderHazard checks if a hazard is within rendering distance.
+func shouldRenderHazard(h hazard.HazardRenderData, cam *camera.Camera) bool {
+	dx := h.X - cam.X
+	dy := h.Y - cam.Y
+	distSq := dx*dx + dy*dy
+	return distSq <= 400
+}
+
+// transformToCameraSpace converts world coordinates to camera space.
+func transformToCameraSpace(x, y float64, cam *camera.Camera, planeX, planeY float64) (float64, float64) {
+	dx := x - cam.X
+	dy := y - cam.Y
+	invDet := 1.0 / (planeX*cam.DirY - cam.DirX*planeY)
+	transformX := invDet * (cam.DirY*dx - cam.DirX*dy)
+	transformY := invDet * (-planeY*dx + planeX*dy)
+	return transformX, transformY
+}
+
+// hazardDrawBounds represents the screen-space rectangle for rendering.
+type hazardDrawBounds struct {
+	startX, endX, startY, endY int
+}
+
+// calculateHazardDrawBounds computes screen-space draw bounds for a hazard.
+func calculateHazardDrawBounds(transformX, transformY float64, h hazard.HazardRenderData) hazardDrawBounds {
+	spriteScreenX := int((float64(config.C.InternalWidth) / 2.0) * (1.0 + transformX/transformY))
+	spriteHeight := int(float64(config.C.InternalHeight) / transformY * h.Height)
+	spriteWidth := int(float64(config.C.InternalWidth) / transformY * h.Width)
+
+	return hazardDrawBounds{
+		startX: spriteScreenX - spriteWidth/2,
+		endX:   spriteScreenX + spriteWidth/2,
+		startY: config.C.InternalHeight/2 + spriteHeight/4,
+		endY:   config.C.InternalHeight/2 + spriteHeight/4 + spriteHeight/2,
+	}
+}
+
+// isVisibleOnScreen checks if draw bounds intersect the screen.
+func isVisibleOnScreen(bounds hazardDrawBounds) bool {
+	return !(bounds.endX < 0 || bounds.startX >= config.C.InternalWidth)
+}
+
+// clipToScreenBounds clamps draw bounds to screen dimensions.
+func clipToScreenBounds(bounds hazardDrawBounds) hazardDrawBounds {
+	if bounds.startX < 0 {
+		bounds.startX = 0
+	}
+	if bounds.endX >= config.C.InternalWidth {
+		bounds.endX = config.C.InternalWidth - 1
+	}
+	if bounds.startY < 0 {
+		bounds.startY = 0
+	}
+	if bounds.endY >= config.C.InternalHeight {
+		bounds.endY = config.C.InternalHeight - 1
+	}
+	return bounds
+}
+
+// determineHazardColor calculates color based on hazard state.
+func determineHazardColor(h hazard.HazardRenderData) color.RGBA {
+	r := uint8((h.Color >> 16) & 0xFF)
+	g := uint8((h.Color >> 8) & 0xFF)
+	b := uint8(h.Color & 0xFF)
+
+	switch h.State {
+	case hazard.StateInactive:
+		return color.RGBA{r / 2, g / 2, b / 2, 60}
+	case hazard.StateCharging:
+		ticker := (time.Now().UnixMilli() / 3) % 100
+		return color.RGBA{r, g, b, uint8(100 + ticker)}
+	case hazard.StateActive:
+		return color.RGBA{r, g, b, 220}
+	case hazard.StateCooldown:
+		return color.RGBA{r / 2, g / 2, b / 2, 100}
+	default:
+		return color.RGBA{r, g, b, 180}
+	}
+}
+
+// renderHazardSprite draws the hazard sprite to the screen.
+func renderHazardSprite(screen *ebiten.Image, bounds hazardDrawBounds, col color.RGBA) {
+	vector.DrawFilledRect(screen,
+		float32(bounds.startX), float32(bounds.startY),
+		float32(bounds.endX-bounds.startX), float32(bounds.endY-bounds.startY),
+		col, false)
+}
+
+// renderHazardWarning draws warning indicator for charging hazards.
+func renderHazardWarning(screen *ebiten.Image, bounds hazardDrawBounds, h hazard.HazardRenderData) {
+	if h.State != hazard.StateCharging {
+		return
+	}
+
+	ticker := (time.Now().UnixMilli() / 2) % 100
+	warningColor := color.RGBA{255, 255, 0, uint8(150 + ticker)}
+	vector.StrokeRect(screen,
+		float32(bounds.startX), float32(bounds.startY),
+		float32(bounds.endX-bounds.startX), float32(bounds.endY-bounds.startY),
+		2, warningColor, false)
 }
 
 // renderFeedbackEffects renders damage numbers and impact effects.
