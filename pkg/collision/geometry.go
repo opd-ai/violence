@@ -112,37 +112,48 @@ func (ge *GeometryExtractor) ExtractBoundingBox(sprite *ebiten.Image) (width, he
 		return 0, 0
 	}
 
-	minX, minY := w, h
-	maxX, maxY := 0, 0
-
-	img := sprite
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
-			_, _, _, a := img.At(x, y).RGBA()
-			alpha := uint8(a >> 8)
-			if alpha >= ge.alphaThreshold {
-				if x < minX {
-					minX = x
-				}
-				if x > maxX {
-					maxX = x
-				}
-				if y < minY {
-					minY = y
-				}
-				if y > maxY {
-					maxY = y
-				}
-			}
-		}
-	}
+	minX, minY, maxX, maxY := findSolidPixelBounds(sprite, w, h, ge.alphaThreshold)
 
 	if maxX < minX || maxY < minY {
-		// No solid pixels found, use full bounds
 		return float64(w), float64(h)
 	}
 
 	return float64(maxX - minX + 1), float64(maxY - minY + 1)
+}
+
+// findSolidPixelBounds scans the sprite to find the tight bounding box of solid pixels.
+func findSolidPixelBounds(sprite *ebiten.Image, w, h int, alphaThreshold uint8) (minX, minY, maxX, maxY int) {
+	minX, minY = w, h
+	maxX, maxY = 0, 0
+
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			if isSolidPixel(sprite, x, y, alphaThreshold) {
+				minX, maxX = updateMinMax(minX, maxX, x)
+				minY, maxY = updateMinMax(minY, maxY, y)
+			}
+		}
+	}
+
+	return minX, minY, maxX, maxY
+}
+
+// isSolidPixel checks if a pixel is solid based on alpha threshold.
+func isSolidPixel(img *ebiten.Image, x, y int, alphaThreshold uint8) bool {
+	_, _, _, a := img.At(x, y).RGBA()
+	alpha := uint8(a >> 8)
+	return alpha >= alphaThreshold
+}
+
+// updateMinMax updates min and max values with a new value.
+func updateMinMax(min, max, val int) (int, int) {
+	if val < min {
+		min = val
+	}
+	if val > max {
+		max = val
+	}
+	return min, max
 }
 
 // GenerateAttackArc creates a polygon representing a weapon swing arc.

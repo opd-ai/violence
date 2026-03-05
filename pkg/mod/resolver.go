@@ -269,7 +269,19 @@ func CheckConflicts(manifest *Manifest, installed []string) error {
 
 // SortTopological orders mods by dependency (dependencies before dependents).
 func SortTopological(manifests []*Manifest) ([]*Manifest, error) {
-	// Build dependency graph
+	graph, inDegree, modMap := buildDependencyGraph(manifests)
+	queue := initializeQueue(inDegree)
+	result := processTopologicalSort(queue, graph, inDegree, modMap)
+
+	if len(result) != len(manifests) {
+		return nil, fmt.Errorf("circular dependency detected")
+	}
+
+	return result, nil
+}
+
+// buildDependencyGraph constructs the dependency graph and calculates in-degrees.
+func buildDependencyGraph(manifests []*Manifest) (map[string][]string, map[string]int, map[string]*Manifest) {
 	graph := make(map[string][]string)
 	inDegree := make(map[string]int)
 	modMap := make(map[string]*Manifest)
@@ -280,23 +292,31 @@ func SortTopological(manifests []*Manifest) ([]*Manifest, error) {
 			inDegree[m.Name] = 0
 		}
 		for _, dep := range m.Dependencies {
-			if dep.Optional {
-				continue
+			if !dep.Optional {
+				graph[dep.Name] = append(graph[dep.Name], m.Name)
+				inDegree[m.Name]++
 			}
-			graph[dep.Name] = append(graph[dep.Name], m.Name)
-			inDegree[m.Name]++
 		}
 	}
 
-	// Kahn's algorithm
+	return graph, inDegree, modMap
+}
+
+// initializeQueue creates the initial queue with zero-dependency nodes.
+func initializeQueue(inDegree map[string]int) []string {
 	var queue []string
 	for name, degree := range inDegree {
 		if degree == 0 {
 			queue = append(queue, name)
 		}
 	}
+	return queue
+}
 
+// processTopologicalSort performs Kahn's algorithm to topologically sort the graph.
+func processTopologicalSort(queue []string, graph map[string][]string, inDegree map[string]int, modMap map[string]*Manifest) []*Manifest {
 	var result []*Manifest
+
 	for len(queue) > 0 {
 		current := queue[0]
 		queue = queue[1:]
@@ -313,9 +333,5 @@ func SortTopological(manifests []*Manifest) ([]*Manifest, error) {
 		}
 	}
 
-	if len(result) != len(manifests) {
-		return nil, fmt.Errorf("circular dependency detected")
-	}
-
-	return result, nil
+	return result
 }

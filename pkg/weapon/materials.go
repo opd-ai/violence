@@ -91,83 +91,110 @@ func EnhancedGenerateWeaponSprite(spec WeaponVisualSpec) *image.RGBA {
 
 // enhancedMeleeWeapon generates melee weapons with material shading.
 func enhancedMeleeWeapon(img *image.RGBA, rng *rand.Rand, spec WeaponVisualSpec) {
-	// Blade with material-specific rendering
 	bladeColors := getMaterialColors(spec.BladeMat)
 	handleColors := getMaterialColors(spec.HandleMat)
 
-	// Blade shape (tapered from guard to tip)
+	drawBlade(img, bladeColors)
+	drawMetallicEdgeHighlights(img, spec.BladeMat, bladeColors)
+	drawCrossguard(img, handleColors)
+	drawHandle(img, rng, spec.HandleMat, handleColors)
+	drawPommel(img, spec.Rarity, handleColors)
+}
+
+// drawBlade renders the tapered blade with material-specific shading.
+func drawBlade(img *image.RGBA, bladeColors MaterialColors) {
 	for y := 25; y < 88; y++ {
 		progress := float64(y-25) / 63.0
-		width := 16.0 - progress*12.0
-		if width < 3 {
-			width = 3
-		}
-
+		width := calculateBladeWidth(progress)
 		x1 := int(64 - width/2)
 		x2 := int(64 + width/2)
 
 		for x := x1; x <= x2; x++ {
-			// Distance from blade center for shading
-			distFromCenter := math.Abs(float64(x) - 64.0)
-			normalizedDist := distFromCenter / (width / 2)
-
-			// Apply material shading
-			col := blendMaterialShading(bladeColors, normalizedDist, float64(y)/128.0)
+			col := calculateBladePixelColor(x, y, width, bladeColors)
 			img.Set(x, y, col)
 		}
 	}
+}
 
-	// Edge highlight for metallic materials
-	if isMetallic(spec.BladeMat) {
-		highlightCol := lightenColor(bladeColors.base, 0.4)
-		for y := 25; y < 88; y++ {
-			progress := float64(y-25) / 63.0
-			width := 16.0 - progress*12.0
-			centerX := 64
-			offsetX := int(width / 4)
+// calculateBladeWidth computes blade width at a given progress along the blade.
+func calculateBladeWidth(progress float64) float64 {
+	width := 16.0 - progress*12.0
+	if width < 3 {
+		return 3
+	}
+	return width
+}
 
-			img.Set(centerX-offsetX, y, highlightCol)
-			img.Set(centerX+offsetX, y, darkenColor(bladeColors.base, 0.2))
-		}
+// calculateBladePixelColor computes color for a blade pixel based on distance from center.
+func calculateBladePixelColor(x, y int, width float64, bladeColors MaterialColors) color.Color {
+	distFromCenter := math.Abs(float64(x) - 64.0)
+	normalizedDist := distFromCenter / (width / 2)
+	return blendMaterialShading(bladeColors, normalizedDist, float64(y)/128.0)
+}
+
+// drawMetallicEdgeHighlights adds edge highlights for metallic blade materials.
+func drawMetallicEdgeHighlights(img *image.RGBA, bladeMat Material, bladeColors MaterialColors) {
+	if !isMetallic(bladeMat) {
+		return
 	}
 
-	// Guard (crossguard)
+	highlightCol := lightenColor(bladeColors.base, 0.4)
+	shadowCol := darkenColor(bladeColors.base, 0.2)
+
+	for y := 25; y < 88; y++ {
+		progress := float64(y-25) / 63.0
+		width := calculateBladeWidth(progress)
+		offsetX := int(width / 4)
+
+		img.Set(64-offsetX, y, highlightCol)
+		img.Set(64+offsetX, y, shadowCol)
+	}
+}
+
+// drawCrossguard renders the weapon guard with decorative gradient.
+func drawCrossguard(img *image.RGBA, handleColors MaterialColors) {
 	guardY := 88
 	common.FillRect(img, 35, guardY, 93, guardY+8, handleColors.base)
-	// Guard detail with gradient
+
 	for x := 35; x < 93; x++ {
-		distFromCenter := math.Abs(float64(x) - 64.0)
-		if distFromCenter < 4 {
+		if math.Abs(float64(x)-64.0) < 4 {
 			img.Set(x, guardY+1, lightenColor(handleColors.base, 0.3))
 		}
 	}
+}
 
-	// Handle with wood grain or leather wrapping
-	handleY1 := 96
-	handleY2 := 122
-	if spec.HandleMat == MaterialLeather {
+// drawHandle renders the weapon handle with material-specific textures.
+func drawHandle(img *image.RGBA, rng *rand.Rand, handleMat Material, handleColors MaterialColors) {
+	handleY1, handleY2 := 96, 122
+
+	switch handleMat {
+	case MaterialLeather:
 		drawLeatherWrap(img, 56, handleY1, 72, handleY2, handleColors, rng)
-	} else if spec.HandleMat == MaterialWood {
+	case MaterialWood:
 		drawWoodGrain(img, 56, handleY1, 72, handleY2, handleColors, rng)
-	} else {
-		// Metal or other solid handle
-		common.FillRect(img, 56, handleY1, 72, handleY2, handleColors.base)
-		// Grip ridges
-		for y := handleY1 + 4; y < handleY2; y += 6 {
-			common.FillRect(img, 56, y, 72, y+2, darkenColor(handleColors.base, 0.15))
-		}
+	default:
+		drawMetalHandle(img, handleY1, handleY2, handleColors)
 	}
+}
 
-	// Pommel with decorative detail
+// drawMetalHandle renders a metal handle with grip ridges.
+func drawMetalHandle(img *image.RGBA, handleY1, handleY2 int, handleColors MaterialColors) {
+	common.FillRect(img, 56, handleY1, 72, handleY2, handleColors.base)
+	for y := handleY1 + 4; y < handleY2; y += 6 {
+		common.FillRect(img, 56, y, 72, y+2, darkenColor(handleColors.base, 0.15))
+	}
+}
+
+// drawPommel renders the weapon pommel with rarity-specific jewel.
+func drawPommel(img *image.RGBA, rarity Rarity, handleColors MaterialColors) {
 	pommelY := 124
 	pommelRadius := 7
 	common.FillCircle(img, 64, pommelY, pommelRadius, handleColors.shadow)
 	common.FillCircle(img, 64, pommelY, pommelRadius-1, handleColors.base)
 	common.FillCircle(img, 64, pommelY, pommelRadius-3, handleColors.highlight)
 
-	// Rarity-specific pommel jewel
-	if spec.Rarity >= RarityRare {
-		jewelCol := getRarityJewelColor(spec.Rarity)
+	if rarity >= RarityRare {
+		jewelCol := getRarityJewelColor(rarity)
 		common.FillCircle(img, 64, pommelY, 3, jewelCol)
 	}
 }

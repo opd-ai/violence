@@ -1400,62 +1400,111 @@ func (g *Generator) generateAmorphousEnemy(img *image.RGBA, rng *rand.Rand, fram
 	cx, cy := size/2, size/2
 
 	bodyColor := g.getCreatureColor("amorphous", rng)
-	innerColor := color.RGBA{
+	innerColor := calculateInnerColor(bodyColor)
+	pulseAmount := calculatePulseAmount(frame)
+	baseRadius := int(float64(size) / 3 * pulseAmount)
+
+	radiusVariation := generateBlobShape(rng, 12)
+	drawAmorphousBody(img, cx, cy, baseRadius, bodyColor, innerColor, radiusVariation)
+	drawAmorphousEyes(img, cx, cy, baseRadius, rng)
+	drawAmorphousHighlight(img, cx, cy, baseRadius, frame)
+}
+
+// calculateInnerColor computes a brighter inner color from the base body color.
+func calculateInnerColor(bodyColor color.RGBA) color.RGBA {
+	return color.RGBA{
 		R: uint8(math.Min(255, float64(bodyColor.R)*1.3)),
 		G: uint8(math.Min(255, float64(bodyColor.G)*1.3)),
 		B: uint8(math.Min(255, float64(bodyColor.B)*1.3)),
 		A: 255,
 	}
+}
 
+// calculatePulseAmount computes the pulsing animation scale factor.
+func calculatePulseAmount(frame int) float64 {
 	pulsePhase := float64(frame) * 0.2
-	pulseAmount := 1.0 + math.Sin(pulsePhase)*0.15
+	return 1.0 + math.Sin(pulsePhase)*0.15
+}
 
-	baseRadius := int(float64(size) / 3 * pulseAmount)
-
-	blobPoints := 12
+// generateBlobShape creates random radius variations for blob points.
+func generateBlobShape(rng *rand.Rand, blobPoints int) []float64 {
 	radiusVariation := make([]float64, blobPoints)
 	for i := 0; i < blobPoints; i++ {
 		radiusVariation[i] = 0.8 + rng.Float64()*0.4
 	}
+	return radiusVariation
+}
+
+// drawAmorphousBody renders the amorphous blob body with shading.
+func drawAmorphousBody(img *image.RGBA, cx, cy, baseRadius int, bodyColor, innerColor color.RGBA, radiusVariation []float64) {
+	blobPoints := len(radiusVariation)
 
 	for y := -baseRadius; y <= baseRadius; y++ {
 		for x := -baseRadius; x <= baseRadius; x++ {
-			angle := math.Atan2(float64(y), float64(x))
-			if angle < 0 {
-				angle += 2 * math.Pi
-			}
-			pointIdx := int(angle / (2 * math.Pi / float64(blobPoints)))
-			if pointIdx >= blobPoints {
-				pointIdx = blobPoints - 1
-			}
-
+			angle := normalizeAngle(math.Atan2(float64(y), float64(x)))
+			pointIdx := angleToPointIndex(angle, blobPoints)
 			maxDist := float64(baseRadius) * radiusVariation[pointIdx]
 			dist := math.Sqrt(float64(x*x + y*y))
 
 			if dist <= maxDist {
-				px := cx + x
-				py := cy + y
-				if px >= 0 && px < img.Bounds().Dx() && py >= 0 && py < img.Bounds().Dy() {
-					distRatio := dist / maxDist
-					shade := 1.0 - distRatio*0.6
-
-					c := bodyColor
-					if distRatio < 0.3 {
-						blend := distRatio / 0.3
-						c.R = uint8(float64(innerColor.R)*(1-blend) + float64(bodyColor.R)*blend)
-						c.G = uint8(float64(innerColor.G)*(1-blend) + float64(bodyColor.G)*blend)
-						c.B = uint8(float64(innerColor.B)*(1-blend) + float64(bodyColor.B)*blend)
-					}
-
-					r := uint8(math.Min(255, float64(c.R)*shade))
-					g := uint8(math.Min(255, float64(c.G)*shade))
-					b := uint8(math.Min(255, float64(c.B)*shade))
-					img.Set(px, py, color.RGBA{R: r, G: g, B: b, A: 255})
-				}
+				drawBlobPixel(img, cx+x, cy+y, dist, maxDist, bodyColor, innerColor)
 			}
 		}
 	}
+}
 
+// normalizeAngle converts angle to 0-2π range.
+func normalizeAngle(angle float64) float64 {
+	if angle < 0 {
+		return angle + 2*math.Pi
+	}
+	return angle
+}
+
+// angleToPointIndex maps an angle to a blob point index.
+func angleToPointIndex(angle float64, blobPoints int) int {
+	pointIdx := int(angle / (2 * math.Pi / float64(blobPoints)))
+	if pointIdx >= blobPoints {
+		pointIdx = blobPoints - 1
+	}
+	return pointIdx
+}
+
+// drawBlobPixel draws a single pixel of the blob with gradient shading.
+func drawBlobPixel(img *image.RGBA, px, py int, dist, maxDist float64, bodyColor, innerColor color.RGBA) {
+	if px < 0 || px >= img.Bounds().Dx() || py < 0 || py >= img.Bounds().Dy() {
+		return
+	}
+
+	distRatio := dist / maxDist
+	shade := 1.0 - distRatio*0.6
+	c := blendInnerToBody(bodyColor, innerColor, distRatio)
+
+	img.Set(px, py, color.RGBA{
+		R: uint8(math.Min(255, float64(c.R)*shade)),
+		G: uint8(math.Min(255, float64(c.G)*shade)),
+		B: uint8(math.Min(255, float64(c.B)*shade)),
+		A: 255,
+	})
+}
+
+// blendInnerToBody blends inner color to body color based on distance ratio.
+func blendInnerToBody(bodyColor, innerColor color.RGBA, distRatio float64) color.RGBA {
+	if distRatio >= 0.3 {
+		return bodyColor
+	}
+
+	blend := distRatio / 0.3
+	return color.RGBA{
+		R: uint8(float64(innerColor.R)*(1-blend) + float64(bodyColor.R)*blend),
+		G: uint8(float64(innerColor.G)*(1-blend) + float64(bodyColor.G)*blend),
+		B: uint8(float64(innerColor.B)*(1-blend) + float64(bodyColor.B)*blend),
+		A: 255,
+	}
+}
+
+// drawAmorphousEyes renders multiple eyes on the amorphous creature.
+func drawAmorphousEyes(img *image.RGBA, cx, cy, baseRadius int, rng *rand.Rand) {
 	eyeCount := 2 + rng.Intn(3)
 	eyeColor := color.RGBA{R: 255, G: 255, B: 255, A: 255}
 	pupilColor := color.RGBA{R: 0, G: 0, B: 0, A: 255}
@@ -1469,12 +1518,17 @@ func (g *Generator) generateAmorphousEnemy(img *image.RGBA, rng *rand.Rand, fram
 		common.FillCircle(img, eyeX, eyeY, 4, eyeColor)
 		common.FillCircle(img, eyeX, eyeY, 2, pupilColor)
 	}
+}
 
-	if frame%8 < 4 {
-		highlight1X := cx - baseRadius/3
-		highlight1Y := cy - baseRadius/3
-		common.FillCircle(img, highlight1X, highlight1Y, 3, color.RGBA{R: 255, G: 255, B: 255, A: 100})
+// drawAmorphousHighlight adds animated highlight to the amorphous creature.
+func drawAmorphousHighlight(img *image.RGBA, cx, cy, baseRadius, frame int) {
+	if frame%8 >= 4 {
+		return
 	}
+
+	highlight1X := cx - baseRadius/3
+	highlight1Y := cy - baseRadius/3
+	common.FillCircle(img, highlight1X, highlight1Y, 3, color.RGBA{R: 255, G: 255, B: 255, A: 100})
 }
 
 // getCreatureColor returns genre and creature-type specific colors.

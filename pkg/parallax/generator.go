@@ -559,38 +559,51 @@ func generateBuildings(rng *rand.Rand, width, height int, baseColor color.RGBA) 
 	x := 0
 	for x < width {
 		buildingWidth := 40 + rng.Intn(60)
-
-		// Draw building
-		for bx := x; bx < x+buildingWidth && bx < width; bx++ {
-			for by := 0; by < height; by++ {
-				shade := 0.5 + 0.3*(1.0-float64(by)/float64(height))
-				r := uint8(float64(baseColor.R) * shade)
-				g := uint8(float64(baseColor.G) * shade)
-				b := uint8(float64(baseColor.B) * shade)
-				img.Set(bx, by, color.RGBA{R: r, G: g, B: b, A: baseColor.A})
-			}
-		}
-
-		// Add windows
-		for wy := 20; wy < height-20; wy += 25 {
-			for wx := x + 5; wx < x+buildingWidth-5; wx += 12 {
-				if wx+8 < width {
-					windowColor := color.RGBA{R: 200, G: 180, B: 100, A: 200}
-					for wdy := 0; wdy < 15; wdy++ {
-						for wdx := 0; wdx < 8; wdx++ {
-							if wy+wdy < height && rng.Float64() > 0.3 {
-								img.Set(wx+wdx, wy+wdy, windowColor)
-							}
-						}
-					}
-				}
-			}
-		}
-
+		drawSingleBuilding(img, x, buildingWidth, width, height, baseColor)
+		drawBuildingWindows(img, x, buildingWidth, width, height, rng)
 		x += buildingWidth + rng.Intn(15)
 	}
 
 	return ebiten.NewImageFromImage(img)
+}
+
+// drawSingleBuilding renders a single building silhouette with vertical gradient.
+func drawSingleBuilding(img *image.RGBA, x, buildingWidth, width, height int, baseColor color.RGBA) {
+	for bx := x; bx < x+buildingWidth && bx < width; bx++ {
+		for by := 0; by < height; by++ {
+			shade := 0.5 + 0.3*(1.0-float64(by)/float64(height))
+			img.Set(bx, by, color.RGBA{
+				R: uint8(float64(baseColor.R) * shade),
+				G: uint8(float64(baseColor.G) * shade),
+				B: uint8(float64(baseColor.B) * shade),
+				A: baseColor.A,
+			})
+		}
+	}
+}
+
+// drawBuildingWindows adds illuminated windows to a building.
+func drawBuildingWindows(img *image.RGBA, x, buildingWidth, width, height int, rng *rand.Rand) {
+	windowColor := color.RGBA{R: 200, G: 180, B: 100, A: 200}
+
+	for wy := 20; wy < height-20; wy += 25 {
+		for wx := x + 5; wx < x+buildingWidth-5; wx += 12 {
+			if wx+8 < width {
+				drawSingleWindow(img, wx, wy, height, windowColor, rng)
+			}
+		}
+	}
+}
+
+// drawSingleWindow renders a single window with random lit pixels.
+func drawSingleWindow(img *image.RGBA, wx, wy, height int, windowColor color.RGBA, rng *rand.Rand) {
+	for wdy := 0; wdy < 15; wdy++ {
+		for wdx := 0; wdx < 8; wdx++ {
+			if wy+wdy < height && rng.Float64() > 0.3 {
+				img.Set(wx+wdx, wy+wdy, windowColor)
+			}
+		}
+	}
 }
 
 // generateRuins creates ruined building silhouettes.

@@ -145,61 +145,87 @@ func (g *Generator) drawBloodSplatter(buf *image.RGBA, size, subtype int, rng *r
 	baseColor := g.getBloodColor()
 	centerX, centerY := size/2, size/2
 
-	// Main splatter blob
+	drawMainBloodBlob(buf, size, centerX, centerY, baseColor, rng)
+	drawBloodStreaks(buf, size, centerX, centerY, subtype, baseColor, rng)
+}
+
+// drawMainBloodBlob renders the central blood splatter blob.
+func drawMainBloodBlob(buf *image.RGBA, size, centerX, centerY int, baseColor color.RGBA, rng *rand.Rand) {
 	blobRadius := float64(size) * (0.3 + rng.Float64()*0.2)
+
 	for y := 0; y < size; y++ {
 		for x := 0; x < size; x++ {
-			dx := float64(x - centerX)
-			dy := float64(y - centerY)
-			dist := math.Sqrt(dx*dx + dy*dy)
-
-			if dist < blobRadius {
-				// Irregular edge
-				edgeNoise := rng.Float64() * 0.3
-				opacity := math.Max(0, math.Min(1, (blobRadius-dist)/blobRadius+edgeNoise))
-
-				// Darken towards edges
-				brightness := 0.6 + opacity*0.4
-				c := color.RGBA{
-					R: uint8(float64(baseColor.R) * brightness),
-					G: uint8(float64(baseColor.G) * brightness),
-					B: uint8(float64(baseColor.B) * brightness),
-					A: uint8(float64(baseColor.A) * opacity),
-				}
-				buf.Set(x, y, c)
+			if col, ok := calculateBloodBlobPixel(x, y, centerX, centerY, blobRadius, baseColor, rng); ok {
+				buf.Set(x, y, col)
 			}
 		}
 	}
+}
 
-	// Splatter drips/streaks
+// calculateBloodBlobPixel computes the color for a blood blob pixel if within radius.
+func calculateBloodBlobPixel(x, y, centerX, centerY int, blobRadius float64, baseColor color.RGBA, rng *rand.Rand) (color.RGBA, bool) {
+	dx := float64(x - centerX)
+	dy := float64(y - centerY)
+	dist := math.Sqrt(dx*dx + dy*dy)
+
+	if dist >= blobRadius {
+		return color.RGBA{}, false
+	}
+
+	edgeNoise := rng.Float64() * 0.3
+	opacity := math.Max(0, math.Min(1, (blobRadius-dist)/blobRadius+edgeNoise))
+	brightness := 0.6 + opacity*0.4
+
+	return color.RGBA{
+		R: uint8(float64(baseColor.R) * brightness),
+		G: uint8(float64(baseColor.G) * brightness),
+		B: uint8(float64(baseColor.B) * brightness),
+		A: uint8(float64(baseColor.A) * opacity),
+	}, true
+}
+
+// drawBloodStreaks renders radiating blood streaks from the center.
+func drawBloodStreaks(buf *image.RGBA, size, centerX, centerY, subtype int, baseColor color.RGBA, rng *rand.Rand) {
 	numStreaks := 3 + subtype*2
+
 	for i := 0; i < numStreaks; i++ {
 		angle := rng.Float64() * 2 * math.Pi
 		length := 5.0 + rng.Float64()*float64(size)*0.3
 		thickness := 1.0 + rng.Float64()*2.0
 
-		for t := 0.0; t < length; t++ {
-			px := centerX + int(math.Cos(angle)*t)
-			py := centerY + int(math.Sin(angle)*t)
+		drawSingleStreak(buf, size, centerX, centerY, angle, length, thickness, baseColor)
+	}
+}
 
-			if px >= 0 && px < size && py >= 0 && py < size {
-				opacity := math.Max(0, 1.0-t/length)
-				c := color.RGBA{
-					R: uint8(float64(baseColor.R) * 0.7),
-					G: uint8(float64(baseColor.G) * 0.7),
-					B: uint8(float64(baseColor.B) * 0.7),
-					A: uint8(float64(baseColor.A) * opacity),
-				}
+// drawSingleStreak draws a single blood streak with gradual opacity falloff.
+func drawSingleStreak(buf *image.RGBA, size, centerX, centerY int, angle, length, thickness float64, baseColor color.RGBA) {
+	for t := 0.0; t < length; t++ {
+		px := centerX + int(math.Cos(angle)*t)
+		py := centerY + int(math.Sin(angle)*t)
 
-				// Apply thickness
-				for dy := -int(thickness); dy <= int(thickness); dy++ {
-					for dx := -int(thickness); dx <= int(thickness); dx++ {
-						nx, ny := px+dx, py+dy
-						if nx >= 0 && nx < size && ny >= 0 && ny < size {
-							buf.Set(nx, ny, c)
-						}
-					}
-				}
+		if px < 0 || px >= size || py < 0 || py >= size {
+			continue
+		}
+
+		opacity := math.Max(0, 1.0-t/length)
+		c := color.RGBA{
+			R: uint8(float64(baseColor.R) * 0.7),
+			G: uint8(float64(baseColor.G) * 0.7),
+			B: uint8(float64(baseColor.B) * 0.7),
+			A: uint8(float64(baseColor.A) * opacity),
+		}
+
+		applyStreakThickness(buf, size, px, py, int(thickness), c)
+	}
+}
+
+// applyStreakThickness applies thickness to a streak pixel.
+func applyStreakThickness(buf *image.RGBA, size, px, py, thickness int, c color.RGBA) {
+	for dy := -thickness; dy <= thickness; dy++ {
+		for dx := -thickness; dx <= thickness; dx++ {
+			nx, ny := px+dx, py+dy
+			if nx >= 0 && nx < size && ny >= 0 && ny < size {
+				buf.Set(nx, ny, c)
 			}
 		}
 	}

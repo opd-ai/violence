@@ -220,43 +220,75 @@ func (vs *VisualSystem) drawScroll(img *ebiten.Image, rarity Rarity, rng *rand.R
 	parchmentColor := color.RGBA{220, 200, 160, 255}
 	shadowColor := color.RGBA{140, 120, 90, 255}
 
+	drawScrollParchment(img, size, parchmentColor, shadowColor)
+	drawScrollRunes(img, size, rarity, rng, vs)
+}
+
+// drawScrollParchment renders the scroll parchment background.
+func drawScrollParchment(img *ebiten.Image, size int, parchmentColor, shadowColor color.RGBA) {
 	cx, cy := size/2, size/2
 	scrollWidth := size * 2 / 3
 	scrollHeight := size / 2
 
 	for y := 0; y < size; y++ {
 		for x := 0; x < size; x++ {
-			dx := x - cx
-			dy := y - cy
-
-			if common.Abs(dy) < scrollHeight {
-				edgeDist := scrollWidth/2 - common.Abs(dx)
-				if edgeDist > 0 {
-					shade := 1.0 - float64(common.Abs(dy))/float64(scrollHeight)*0.2
-					if edgeDist < 3 {
-						shade *= 0.7
-					}
-					img.Set(x, y, applyShade(parchmentColor, shade))
-
-					if common.Abs(dy) == scrollHeight-1 || edgeDist == 0 {
-						img.Set(x, y, shadowColor)
-					}
+			if col, hasBorder := calculateScrollPixel(x, y, cx, cy, scrollWidth, scrollHeight, parchmentColor, shadowColor); col != nil {
+				if hasBorder {
+					img.Set(x, y, shadowColor)
+				} else {
+					img.Set(x, y, *col)
 				}
 			}
 		}
 	}
+}
 
+// calculateScrollPixel computes color for a scroll pixel if within bounds.
+func calculateScrollPixel(x, y, cx, cy, scrollWidth, scrollHeight int, parchmentColor, shadowColor color.RGBA) (*color.RGBA, bool) {
+	dx := x - cx
+	dy := y - cy
+
+	if common.Abs(dy) >= scrollHeight {
+		return nil, false
+	}
+
+	edgeDist := scrollWidth/2 - common.Abs(dx)
+	if edgeDist <= 0 {
+		return nil, false
+	}
+
+	isBorder := common.Abs(dy) == scrollHeight-1 || edgeDist == 0
+	shade := 1.0 - float64(common.Abs(dy))/float64(scrollHeight)*0.2
+	if edgeDist < 3 {
+		shade *= 0.7
+	}
+
+	col := applyShade(parchmentColor, shade)
+	return &col, isBorder
+}
+
+// drawScrollRunes renders decorative runes on the scroll.
+func drawScrollRunes(img *ebiten.Image, size int, rarity Rarity, rng *rand.Rand, vs *VisualSystem) {
+	cx, cy := size/2, size/2
+	scrollWidth := size * 2 / 3
+	scrollHeight := size / 2
 	runeCount := 4 + int(rarity)*2
+
 	for i := 0; i < runeCount; i++ {
 		rx := cx - scrollWidth/3 + rng.Intn(scrollWidth*2/3)
 		ry := cy - scrollHeight/2 + rng.Intn(scrollHeight)
 		runeSize := 2 + rng.Intn(2)
 
-		for dy := -runeSize; dy <= runeSize; dy++ {
-			for dx := -runeSize; dx <= runeSize; dx++ {
-				if common.Abs(dx)+common.Abs(dy) < runeSize {
-					img.Set(rx+dx, ry+dy, vs.getRuneColor(rarity))
-				}
+		drawSingleRune(img, rx, ry, runeSize, vs.getRuneColor(rarity))
+	}
+}
+
+// drawSingleRune renders a single rune symbol.
+func drawSingleRune(img *ebiten.Image, rx, ry, runeSize int, runeColor color.RGBA) {
+	for dy := -runeSize; dy <= runeSize; dy++ {
+		for dx := -runeSize; dx <= runeSize; dx++ {
+			if common.Abs(dx)+common.Abs(dy) < runeSize {
+				img.Set(rx+dx, ry+dy, runeColor)
 			}
 		}
 	}

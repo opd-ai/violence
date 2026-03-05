@@ -126,132 +126,171 @@ func (s *SlidingSystem) applySlidingMovement(
 	sliding *SlidingComponent,
 	deltaTime float64,
 ) {
-	// Calculate desired movement
 	moveX := vel.X * deltaTime
 	moveY := vel.Y * deltaTime
-
-	// Multi-iteration sliding to handle corners and complex geometry
-	remainingX := moveX
-	remainingY := moveY
+	remainingX, remainingY := moveX, moveY
 
 	for iteration := 0; iteration < s.maxIterations; iteration++ {
-		// Check if we still have movement to apply
-		if math.Abs(remainingX) < 0.001 && math.Abs(remainingY) < 0.001 {
+		if s.shouldStopMovement(remainingX, remainingY) {
 			break
 		}
 
-		// Try to move to target position
-		targetX := pos.X + remainingX
-		targetY := pos.Y + remainingY
-
-		// Update collider position for test
+		targetX, targetY := pos.X+remainingX, pos.Y+remainingY
 		originalX, originalY := collider.X, collider.Y
-		collider.X = targetX
-		collider.Y = targetY
 
-		// Find collisions
-		collision := s.findFirstCollision(w, entity, collider)
-
-		if collision == nil {
-			// No collision, move freely
-			pos.X = targetX
-			pos.Y = targetY
+		if s.tryDirectMovement(w, entity, pos, collider, targetX, targetY, originalX, originalY) {
 			break
 		}
 
-		// Restore original collider position
-		collider.X = originalX
-		collider.Y = originalY
-
-		// Get collision normal
-		nx, ny := GetCollisionNormal(collider, collision)
-		if nx == 0 && ny == 0 {
-			// Unable to compute normal, stop movement
-			if s.debugLogging {
-				logrus.WithFields(logrus.Fields{
-					"system": "SlidingSystem",
-					"entity": entity,
-				}).Debug("Unable to compute collision normal, stopping")
-			}
+		nx, ny := GetCollisionNormal(collider, s.findCollisionAt(w, entity, collider, targetX, targetY, originalX, originalY))
+		if s.shouldStopOnInvalidNormal(entity, nx, ny) {
 			break
 		}
 
-		// Check if surface is too steep to slide
-		velocityAngle := math.Atan2(remainingY, remainingX)
-		normalAngle := math.Atan2(ny, nx)
-		angleDiff := math.Abs(normalAngle - velocityAngle)
-		if angleDiff > math.Pi {
-			angleDiff = 2*math.Pi - angleDiff
-		}
-
-		if angleDiff > sliding.MaxSlideAngle {
-			if sliding.BounceOnSteep {
-				// Bounce off steep surface
-				dot := remainingX*nx + remainingY*ny
-				bounceX := remainingX - 2*dot*nx
-				bounceY := remainingY - 2*dot*ny
-				remainingX = bounceX * sliding.BounceRestitution
-				remainingY = bounceY * sliding.BounceRestitution
-
-				// Update velocity for bounce
-				vel.X = (remainingX / deltaTime) * sliding.BounceRestitution
-				vel.Y = (remainingY / deltaTime) * sliding.BounceRestitution
-			}
+		if s.handleSteepSurface(sliding, &remainingX, &remainingY, vel, nx, ny, deltaTime) {
 			break
 		}
 
-		// Compute slide vector
-		slideX, slideY := SlideVector(remainingX, remainingY, nx, ny)
-
-		// Apply friction to slide
-		frictionFactor := 1.0 - sliding.Friction
-		slideX *= frictionFactor
-		slideY *= frictionFactor
-
-		// Move along the surface
-		slideDistance := math.Sqrt(slideX*slideX + slideY*slideY)
-		if slideDistance < 0.001 {
-			// Slide distance too small, stop
+		slideX, slideY := s.computeFrictionalSlide(remainingX, remainingY, nx, ny, sliding)
+		if s.shouldStopOnSmallSlide(slideX, slideY) {
 			break
 		}
 
-		// Try sliding movement
-		collider.X = pos.X + slideX
-		collider.Y = pos.Y + slideY
-
-		// Check if sliding movement also collides
-		slideCollision := s.findFirstCollision(w, entity, collider)
-		collider.X = originalX
-		collider.Y = originalY
-
-		if slideCollision == nil {
-			// Sliding worked, apply it
-			pos.X += slideX
-			pos.Y += slideY
-
-			// Update remaining movement (project onto slide direction)
-			remainingDist := math.Sqrt(remainingX*remainingX + remainingY*remainingY)
-			if remainingDist > 0 {
-				slideNormX := slideX / slideDistance
-				slideNormY := slideY / slideDistance
-				projectedDist := remainingX*slideNormX + remainingY*slideNormY
-
-				// Remaining movement is what we haven't slid yet
-				remainingX = slideNormX * math.Max(0, projectedDist-slideDistance)
-				remainingY = slideNormY * math.Max(0, projectedDist-slideDistance)
-			} else {
-				remainingX = 0
-				remainingY = 0
-			}
-		} else {
-			// Even sliding hits something, stop here
+		if !s.applySlidingIfPossible(w, entity, pos, collider, slideX, slideY, originalX, originalY, &remainingX, &remainingY) {
 			break
 		}
 	}
 
-	// Update collider to final position
 	collider.X = pos.X
 	collider.Y = pos.Y
+}
+
+// shouldStopMovement checks if remaining movement is negligible.
+func (s *SlidingSystem) shouldStopMovement(remainingX, remainingY float64) bool {
+	return math.Abs(remainingX) < 0.001 && math.Abs(remainingY) < 0.001
+}
+
+// tryDirectMovement attempts to move directly to target if no collision occurs.
+func (s *SlidingSystem) tryDirectMovement(w *engine.World, entity engine.Entity, pos *PositionComponent, collider *Collider, targetX, targetY, originalX, originalY float64) bool {
+	collider.X = targetX
+	collider.Y = targetY
+
+	if s.findFirstCollision(w, entity, collider) == nil {
+		pos.X = targetX
+		pos.Y = targetY
+		return true
+	}
+
+	collider.X = originalX
+	collider.Y = originalY
+	return false
+}
+
+// findCollisionAt tests collision at a specific position and returns the collider.
+func (s *SlidingSystem) findCollisionAt(w *engine.World, entity engine.Entity, collider *Collider, targetX, targetY, originalX, originalY float64) *Collider {
+	collider.X = targetX
+	collider.Y = targetY
+	collision := s.findFirstCollision(w, entity, collider)
+	collider.X = originalX
+	collider.Y = originalY
+	return collision
+}
+
+// shouldStopOnInvalidNormal checks if collision normal is invalid and logs if debugging.
+func (s *SlidingSystem) shouldStopOnInvalidNormal(entity engine.Entity, nx, ny float64) bool {
+	if nx == 0 && ny == 0 {
+		if s.debugLogging {
+			logrus.WithFields(logrus.Fields{
+				"system": "SlidingSystem",
+				"entity": entity,
+			}).Debug("Unable to compute collision normal, stopping")
+		}
+		return true
+	}
+	return false
+}
+
+// handleSteepSurface checks surface angle and applies bounce or stops movement.
+func (s *SlidingSystem) handleSteepSurface(sliding *SlidingComponent, remainingX, remainingY *float64, vel *VelocityComponent, nx, ny, deltaTime float64) bool {
+	angleDiff := calculateNormalizedAngleDiff(*remainingX, *remainingY, nx, ny)
+
+	if angleDiff > sliding.MaxSlideAngle {
+		if sliding.BounceOnSteep {
+			applyBounce(remainingX, remainingY, vel, nx, ny, sliding.BounceRestitution, deltaTime)
+		}
+		return true
+	}
+	return false
+}
+
+// calculateNormalizedAngleDiff computes the normalized angle difference between velocity and normal.
+func calculateNormalizedAngleDiff(remainingX, remainingY, nx, ny float64) float64 {
+	velocityAngle := math.Atan2(remainingY, remainingX)
+	normalAngle := math.Atan2(ny, nx)
+	angleDiff := math.Abs(normalAngle - velocityAngle)
+	if angleDiff > math.Pi {
+		angleDiff = 2*math.Pi - angleDiff
+	}
+	return angleDiff
+}
+
+// applyBounce computes bounce vector and updates remaining movement and velocity.
+func applyBounce(remainingX, remainingY *float64, vel *VelocityComponent, nx, ny, restitution, deltaTime float64) {
+	dot := (*remainingX)*nx + (*remainingY)*ny
+	bounceX := *remainingX - 2*dot*nx
+	bounceY := *remainingY - 2*dot*ny
+	*remainingX = bounceX * restitution
+	*remainingY = bounceY * restitution
+	vel.X = (*remainingX / deltaTime) * restitution
+	vel.Y = (*remainingY / deltaTime) * restitution
+}
+
+// computeFrictionalSlide calculates slide vector with friction applied.
+func (s *SlidingSystem) computeFrictionalSlide(remainingX, remainingY, nx, ny float64, sliding *SlidingComponent) (float64, float64) {
+	slideX, slideY := SlideVector(remainingX, remainingY, nx, ny)
+	frictionFactor := 1.0 - sliding.Friction
+	return slideX * frictionFactor, slideY * frictionFactor
+}
+
+// shouldStopOnSmallSlide checks if slide distance is too small to continue.
+func (s *SlidingSystem) shouldStopOnSmallSlide(slideX, slideY float64) bool {
+	slideDistance := math.Sqrt(slideX*slideX + slideY*slideY)
+	return slideDistance < 0.001
+}
+
+// applySlidingIfPossible attempts sliding movement and updates remaining movement if successful.
+func (s *SlidingSystem) applySlidingIfPossible(w *engine.World, entity engine.Entity, pos *PositionComponent, collider *Collider, slideX, slideY, originalX, originalY float64, remainingX, remainingY *float64) bool {
+	collider.X = pos.X + slideX
+	collider.Y = pos.Y + slideY
+
+	slideCollision := s.findFirstCollision(w, entity, collider)
+	collider.X = originalX
+	collider.Y = originalY
+
+	if slideCollision == nil {
+		pos.X += slideX
+		pos.Y += slideY
+		updateRemainingMovement(remainingX, remainingY, slideX, slideY)
+		return true
+	}
+	return false
+}
+
+// updateRemainingMovement projects remaining movement onto the slide direction.
+func updateRemainingMovement(remainingX, remainingY *float64, slideX, slideY float64) {
+	slideDistance := math.Sqrt(slideX*slideX + slideY*slideY)
+	remainingDist := math.Sqrt((*remainingX)*(*remainingX) + (*remainingY)*(*remainingY))
+
+	if remainingDist > 0 {
+		slideNormX := slideX / slideDistance
+		slideNormY := slideY / slideDistance
+		projectedDist := (*remainingX)*slideNormX + (*remainingY)*slideNormY
+		*remainingX = slideNormX * math.Max(0, projectedDist-slideDistance)
+		*remainingY = slideNormY * math.Max(0, projectedDist-slideDistance)
+	} else {
+		*remainingX = 0
+		*remainingY = 0
+	}
 }
 
 // findFirstCollision finds the first colliding entity using spatial indexing.
