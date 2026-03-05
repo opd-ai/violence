@@ -49,7 +49,7 @@
    - **Dependencies**: Existing `pkg/save/` cross-platform local saves
 
    **Sub-tasks**:
-   4.1. Define cloud save API interface (upload, download, list, delete, conflict resolution)
+   4.1. [x] Define cloud save API interface (upload, download, list, delete, conflict resolution) — COMPLETE (2026-03-05): Implemented comprehensive cloud save interfaces in `pkg/save/cloud/`. Created `Provider` interface with upload/download/list/delete/metadata methods, `SaveMetadata` struct with checksum validation, `ConflictResolution` enum (KeepLocal/KeepCloud/KeepBoth), and `Syncer` for synchronization with checksum verification and conflict detection. Test coverage: 88.0% (exceeds 82% target).
    4.2. Implement S3-compatible backend (works with AWS, MinIO, Backblaze B2)
    4.3. Implement WebDAV backend for self-hosted cloud storage
    4.4. Add save conflict resolution UI (keep local, keep cloud, merge)
