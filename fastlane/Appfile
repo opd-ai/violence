@@ -13,3 +13,9 @@ itc_team_id(ENV["ITC_TEAM_ID"] || ENV["TEAM_ID"] || "YOUR_TEAM_ID")
 #   issuer_id: ENV["ASC_ISSUER_ID"],
 #   key_content: ENV["ASC_KEY_CONTENT"]
 # )
+
+# Android Configuration
+for_platform :android do
+  package_name(ENV["ANDROID_PACKAGE_NAME"] || "ai.opd.violence")
+  json_key_file(ENV["GOOGLE_PLAY_JSON_KEY_PATH"] || "../android/google-play-api-key.json")
+end

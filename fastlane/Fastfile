@@ -111,3 +111,142 @@ platform :ios do
     )
   end
 end
+
+platform :android do
+  desc "Build and sign Android .aab for distribution"
+  lane :build do
+    # Build the violence.aar using gomobile
+    sh("cd .. && gomobile bind -target=android -o violence.aar")
+    
+    # Create Android project wrapper if it doesn't exist
+    unless File.exist?("../android/app/build.gradle")
+      UI.user_error!("Android project not found. Run 'fastlane android setup' first.")
+    end
+    
+    # Build the .aab (Android App Bundle)
+    gradle(
+      project_dir: "../android",
+      task: "bundle",
+      build_type: "Release",
+      properties: {
+        "android.injected.signing.store.file" => ENV["ANDROID_KEYSTORE_PATH"],
+        "android.injected.signing.store.password" => ENV["ANDROID_KEYSTORE_PASSWORD"],
+        "android.injected.signing.key.alias" => ENV["ANDROID_KEY_ALIAS"],
+        "android.injected.signing.key.password" => ENV["ANDROID_KEY_PASSWORD"]
+      }
+    )
+    
+    UI.success("Successfully built Violence.aab")
+  end
+
+  desc "Upload to Google Play Internal Track"
+  lane :internal do
+    # Build the app
+    build
+    
+    # Upload to Google Play Internal Testing track
+    upload_to_play_store(
+      track: "internal",
+      aab: "../android/app/build/outputs/bundle/release/app-release.aab",
+      package_name: ENV["ANDROID_PACKAGE_NAME"] || "ai.opd.violence",
+      json_key: ENV["GOOGLE_PLAY_JSON_KEY_PATH"],
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+    
+    UI.success("Uploaded to Google Play Internal Testing track")
+  end
+
+  desc "Upload to Google Play Beta Track"
+  lane :beta do
+    # Build the app
+    build
+    
+    # Upload to Google Play Beta track
+    upload_to_play_store(
+      track: "beta",
+      aab: "../android/app/build/outputs/bundle/release/app-release.aab",
+      package_name: ENV["ANDROID_PACKAGE_NAME"] || "ai.opd.violence",
+      json_key: ENV["GOOGLE_PLAY_JSON_KEY_PATH"],
+      skip_upload_metadata: false,
+      skip_upload_images: false,
+      skip_upload_screenshots: false
+    )
+    
+    UI.success("Uploaded to Google Play Beta track")
+  end
+
+  desc "Submit to Google Play Production with staged rollout"
+  lane :release do
+    # Build the app
+    build
+    
+    # Upload to Google Play Production with 10% rollout
+    upload_to_play_store(
+      track: "production",
+      rollout: "0.1",
+      aab: "../android/app/build/outputs/bundle/release/app-release.aab",
+      package_name: ENV["ANDROID_PACKAGE_NAME"] || "ai.opd.violence",
+      json_key: ENV["GOOGLE_PLAY_JSON_KEY_PATH"],
+      skip_upload_metadata: false,
+      skip_upload_images: false,
+      skip_upload_screenshots: false
+    )
+    
+    UI.success("Uploaded to Google Play Production (10% rollout)")
+  end
+
+  desc "Promote rollout to 100% in production"
+  lane :promote do
+    upload_to_play_store(
+      track: "production",
+      rollout: "1.0",
+      package_name: ENV["ANDROID_PACKAGE_NAME"] || "ai.opd.violence",
+      json_key: ENV["GOOGLE_PLAY_JSON_KEY_PATH"],
+      skip_upload_aab: true,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+    
+    UI.success("Promoted to 100% rollout")
+  end
+
+  desc "Initial setup for Android project structure"
+  lane :setup do
+    UI.message("Creating Android project structure...")
+    
+    # Create Android directory structure
+    sh("mkdir -p ../android/app/src/main/java")
+    sh("mkdir -p ../android/app/libs")
+    sh("mkdir -p ../android/app/src/main/res")
+    
+    UI.success("Android project structure created.")
+    UI.message("Next steps:")
+    UI.message("1. Create Android Gradle project in android/ directory")
+    UI.message("2. Copy violence.aar to android/app/libs/")
+    UI.message("3. Configure package name and signing in build.gradle")
+    UI.message("4. Generate signing keystore with 'keytool'")
+    UI.message("5. Set environment variables in .env file")
+  end
+
+  desc "Run Android instrumentation tests"
+  lane :test do
+    gradle(
+      project_dir: "../android",
+      task: "connectedAndroidTest"
+    )
+  end
+
+  desc "Generate signing keystore for Android"
+  lane :generate_keystore do
+    keystore_path = ENV["ANDROID_KEYSTORE_PATH"] || "../android/violence-release.keystore"
+    key_alias = ENV["ANDROID_KEY_ALIAS"] || "violence"
+    
+    sh("keytool -genkey -v -keystore #{keystore_path} -alias #{key_alias} -keyalg RSA -keysize 2048 -validity 10000")
+    
+    UI.success("Keystore generated at #{keystore_path}")
+    UI.message("Store the keystore password and key password in your .env file")
+  end
+end
