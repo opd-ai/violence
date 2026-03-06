@@ -1,0 +1,41 @@
+Experience the thrill of classic first-person shooter action reimagined for modern platforms. VIOLENCE is a raycasting FPS that pays homage to the golden age of corridor shooters while introducing innovative procedural generation and cross-platform multiplayer.
+
+KEY FEATURES:
+
+• Five Unique Genres: Choose from Fantasy, Sci-Fi, Horror, Cyberpunk, or Post-Apocalyptic themes—each with distinct visual atmosphere and thematic elements
+
+• Procedurally Generated Levels: Every playthrough offers new challenges with seed-based deterministic generation ensuring reproducible experiences
+
+• Classic Raycasting Engine: Authentic Wolfenstein-style rendering with modern enhancements including floor/ceiling casting, sprite billboarding, and atmospheric distance fog
+
+• Multiplayer Modes: Engage in cooperative missions or competitive deathmatch with cross-platform federation
+
+• Complete Customization: Remap controls, adjust FOV and sensitivity, select your preferred genre theme
+
+• Cloud Save Sync: Continue your progress across devices with encrypted cloud save support for S3 and WebDAV backends
+
+• Mod Support: Extend gameplay with WASM-based mods featuring secure sandboxing
+
+• Achievement System: Track your progress across multiple difficulty levels and game modes
+
+• Leaderboards: Compete globally with anti-cheat protected rankings
+
+• Replay System: Record and share your best runs with deterministic playback
+
+PROCEDURALLY GENERATED UNIVERSE:
+
+All gameplay assets—including audio, visuals, and narrative elements—are generated at runtime using deterministic algorithms. No pre-rendered content means infinite variety within each thematic genre.
+
+GAMEPLAY MODES:
+
+Single-Player Campaign: Navigate procedurally generated levels, collect keycards, discover secrets, and master each genre's unique atmosphere.
+
+Co-op: Team up with friends for shared adventures in any genre setting.
+
+Deathmatch: Compete against other players in fast-paced arena combat.
+
+TECHNICAL EXCELLENCE:
+
+Built with performance in mind, VIOLENCE maintains smooth framerates even on older devices while delivering rich atmospheric experiences through efficient raycasting technology.
+
+Join the VIOLENCE community and experience FPS gaming that combines retro charm with modern innovation!

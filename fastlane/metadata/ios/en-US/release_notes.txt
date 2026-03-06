@@ -1,0 +1,8 @@
+• Initial release
+• Five thematic genres (Fantasy, Sci-Fi, Horror, Cyberpunk, Post-Apocalyptic)
+• Procedurally generated levels
+• Cross-platform multiplayer (co-op and deathmatch)
+• Cloud save sync support
+• Mod marketplace integration
+• Achievement and leaderboard systems
+• Replay recording and playback
