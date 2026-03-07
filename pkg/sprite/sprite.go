@@ -49,6 +49,7 @@ type Generator struct {
 	maxEntries int
 	mu         sync.RWMutex
 	genreID    string
+	lightCfg   LightConfig
 }
 
 // NewGenerator creates a sprite generator with LRU cache.
@@ -58,6 +59,7 @@ func NewGenerator(maxCacheEntries int) *Generator {
 		lruList:    list.New(),
 		maxEntries: maxCacheEntries,
 		genreID:    "fantasy",
+		lightCfg:   DefaultLightConfig(),
 	}
 }
 
@@ -212,6 +214,10 @@ func (g *Generator) drawBarrel(img *image.RGBA, cx, cy, size int, rng *rand.Rand
 			}
 		}
 	}
+
+	// Apply PBR shading for realistic wood and metal rendering
+	barrelBounds := image.Rect(cx-radius, cy-height/2, cx+radius, cy+height/2)
+	g.ApplyPBRShadingToRegion(img, barrelBounds, MaterialLeather, "cylindrical", g.lightCfg)
 }
 
 // drawCrate renders a wooden crate with planks and corner reinforcements.
@@ -277,6 +283,10 @@ func (g *Generator) drawCrate(img *image.RGBA, cx, cy, size int, rng *rand.Rand)
 		img.Set(x1, y, darkColor)
 		img.Set(x2-1, y, darkColor)
 	}
+
+	// Apply PBR shading for realistic wood rendering
+	crateBounds := image.Rect(x1, y1, x2, y2)
+	g.ApplyPBRShadingToRegion(img, crateBounds, MaterialLeather, "planar", g.lightCfg)
 }
 
 // drawTable renders a table sprite with perspective.
@@ -666,6 +676,27 @@ func (g *Generator) generateHumanoidEnemy(img *image.RGBA, role string, rng *ran
 	g.drawWeapon(img, size, cx, weaponType, armorColor, frame, bodyParts)
 	g.drawRoleSpecificDecorations(img, cx, role, accentColor, bodyParts)
 	g.applyMaterialTextures(img, size, cx, armorColor, skinColor, rng, bodyParts)
+
+	// Apply PBR shading to each body part for realistic lighting
+	// Legs (cylindrical geometry)
+	leftLegBounds := image.Rect(cx-size/8-bodyParts.legW/2, bodyParts.leftLegY, cx-size/8+bodyParts.legW/2, bodyParts.leftLegY+bodyParts.legH)
+	g.ApplyPBRShadingToRegion(img, leftLegBounds, MaterialMetal, "cylindrical", g.lightCfg)
+	rightLegBounds := image.Rect(cx+size/8-bodyParts.legW/2, bodyParts.rightLegY, cx+size/8+bodyParts.legW/2, bodyParts.rightLegY+bodyParts.legH)
+	g.ApplyPBRShadingToRegion(img, rightLegBounds, MaterialMetal, "cylindrical", g.lightCfg)
+
+	// Torso (cylindrical geometry)
+	torsoBounds := image.Rect(cx-bodyParts.torsoW/2, bodyParts.bodyY, cx+bodyParts.torsoW/2, bodyParts.bodyY+bodyParts.torsoH)
+	g.ApplyPBRShadingToRegion(img, torsoBounds, MaterialMetal, "cylindrical", g.lightCfg)
+
+	// Arms (cylindrical geometry)
+	leftArmBounds := image.Rect(cx-bodyParts.torsoW/2-bodyParts.armW, bodyParts.leftArmY, cx-bodyParts.torsoW/2, bodyParts.leftArmY+bodyParts.armH)
+	g.ApplyPBRShadingToRegion(img, leftArmBounds, MaterialMetal, "cylindrical", g.lightCfg)
+	rightArmBounds := image.Rect(cx+bodyParts.torsoW/2, bodyParts.rightArmY+bodyParts.attackOffset, cx+bodyParts.torsoW/2+bodyParts.armW, bodyParts.rightArmY+bodyParts.armH+bodyParts.attackOffset)
+	g.ApplyPBRShadingToRegion(img, rightArmBounds, MaterialMetal, "cylindrical", g.lightCfg)
+
+	// Head (spherical geometry)
+	headBounds := image.Rect(cx-bodyParts.headRadius, bodyParts.bodyY-size/8-bodyParts.headRadius, cx+bodyParts.headRadius, bodyParts.bodyY-size/8+bodyParts.headRadius)
+	g.ApplyPBRShadingToRegion(img, headBounds, MaterialLeather, "spherical", g.lightCfg)
 }
 
 type bodyPartPositions struct {
@@ -922,6 +953,17 @@ func (g *Generator) generateQuadrupedEnemy(img *image.RGBA, rng *rand.Rand, fram
 
 	bodyBounds := image.Rect(cx-bodyW/2, bodyY, cx+bodyW/2, bodyY+bodyH)
 	g.applyMaterialDetail(img, bodyBounds, MaterialFur, rng.Int63(), 0.8, bodyColor)
+
+	// Apply PBR shading for realistic fur rendering
+	g.ApplyPBRShadingToRegion(img, bodyBounds, MaterialFur, "cylindrical", g.lightCfg)
+
+	// Head with spherical shading
+	headW := bodyW / 3
+	headH := size / 5
+	headX := cx + bodyW/2
+	headY := bodyY - headH/2
+	headBounds := image.Rect(headX, headY, headX+headW, headY+headH)
+	g.ApplyPBRShadingToRegion(img, headBounds, MaterialFur, "spherical", g.lightCfg)
 }
 
 // calculateDarkerColor creates a darker version of a color.
@@ -1045,6 +1087,10 @@ func (g *Generator) generateInsectEnemy(img *image.RGBA, rng *rand.Rand, frame i
 	g.drawInsectLegs(img, cx, cy, size, frame, bodyColor, darkColor)
 	g.drawInsectHead(img, cx, cy, size, frame, bodyColor, darkColor)
 	g.applyInsectTexture(img, cx, cy, size, bodyColor, rng)
+
+	// Apply PBR shading for realistic chitin rendering
+	bodyBounds := image.Rect(cx-size/4, cy-size/6, cx+size/4, cy+size/3)
+	g.ApplyPBRShadingToRegion(img, bodyBounds, MaterialChitin, "cylindrical", g.lightCfg)
 }
 
 // createDarkColor generates a darker variant of the given color.
