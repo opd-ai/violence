@@ -41,6 +41,9 @@ func TestNewRenderer(t *testing.T) {
 			if r.palette == nil {
 				t.Error("Palette is nil")
 			}
+			if r.fbImage == nil {
+				t.Error("fbImage is nil")
+			}
 		})
 	}
 }
