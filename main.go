@@ -33,6 +33,7 @@ import (
 	"github.com/opd-ai/violence/pkg/config"
 	"github.com/opd-ai/violence/pkg/corpse"
 	"github.com/opd-ai/violence/pkg/crafting"
+	"github.com/opd-ai/violence/pkg/crosshair"
 	"github.com/opd-ai/violence/pkg/damagenumber"
 	"github.com/opd-ai/violence/pkg/damagestate"
 	"github.com/opd-ai/violence/pkg/decal"
@@ -380,6 +381,9 @@ type Game struct {
 
 	// Player sprite rendering system for character visuals with equipment
 	playerSpriteSystem *playersprite.System
+
+	// Crosshair system for aiming reticle and weapon feedback
+	crosshairSystem *crosshair.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -569,6 +573,9 @@ func NewGame() *Game {
 	// Initialize player sprite rendering system for character visuals
 	g.playerSpriteSystem = playersprite.NewSystem(g.genreID)
 
+	// Initialize crosshair system for aiming reticle
+	g.crosshairSystem = crosshair.NewSystem(g.genreID)
+
 	// Connect sliding system to spatial index
 	g.slidingSystem.SetSpatialIndex(g.spatialSystem.GetGrid())
 
@@ -710,6 +717,9 @@ func NewGame() *Game {
 
 	// Register player sprite rendering system with the World
 	g.world.AddSystem(g.playerSpriteSystem)
+
+	// Register crosshair system with the World
+	g.world.AddSystem(g.crosshairSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
@@ -1373,6 +1383,11 @@ func (g *Game) initializePlayer() {
 	// Add player behavior profile for adaptive AI
 	playerProfile := ai.NewPlayerBehaviorProfile()
 	g.world.AddComponent(g.playerEntity, &ai.PlayerProfileComponent{Profile: playerProfile})
+
+	// Add crosshair component to player for aiming feedback
+	crosshairComp := crosshair.NewComponent()
+	crosshairComp.WeaponType = "ranged" // Default to ranged crosshair
+	g.world.AddComponent(g.playerEntity, crosshairComp)
 }
 
 // findSpawnPosition finds a safe starting position for the player.
@@ -1764,6 +1779,41 @@ func (g *Game) syncPlayerFacing() {
 
 	posComp := comp.(*combat.PositionalComponent)
 	posComp.SetFacingFromDirection(g.camera.DirX, g.camera.DirY)
+
+	// Update crosshair aim direction
+	g.syncPlayerCrosshair()
+}
+
+// syncPlayerCrosshair updates the crosshair aim direction to match camera direction.
+func (g *Game) syncPlayerCrosshair() {
+	if g.playerEntity == 0 {
+		return
+	}
+
+	crosshairType := reflect.TypeOf(&crosshair.Component{})
+	comp, ok := g.world.GetComponent(g.playerEntity, crosshairType)
+	if !ok {
+		return
+	}
+
+	ch := comp.(*crosshair.Component)
+	ch.AimX = g.camera.DirX
+	ch.AimY = g.camera.DirY
+
+	// Update weapon type based on current weapon
+	if g.arsenal != nil && len(g.arsenal.Weapons) > 0 {
+		currentWeapon := g.arsenal.GetCurrentWeapon()
+		switch currentWeapon.Type {
+		case weapon.TypeMelee:
+			ch.WeaponType = "melee"
+		case weapon.TypeHitscan:
+			ch.WeaponType = "ranged"
+		case weapon.TypeProjectile:
+			ch.WeaponType = "ranged"
+		default:
+			ch.WeaponType = "ranged"
+		}
+	}
 }
 
 // recordReplayInput captures current input state to the replay recorder.
@@ -4491,6 +4541,12 @@ func (g *Game) renderOverlaysAndHUD(screen *ebiten.Image, camX, camY float64) {
 	if g.automapVisible && g.automap != nil {
 		g.drawAutomap(screen)
 	}
+
+	// Render crosshair for player aiming
+	if g.crosshairSystem != nil {
+		g.crosshairSystem.Render(screen, g.world, camX, camY, config.C.InternalWidth, config.C.InternalHeight)
+	}
+
 	g.hud.Update()
 	ui.DrawHUD(screen, g.hud)
 	if g.questTracker != nil {
