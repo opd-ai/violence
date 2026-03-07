@@ -38,6 +38,16 @@
   <div id="loading">Loading...</div>
   <script src="wasm_exec.js"></script>
   <script>
+    // wasm_exec.js defines globalThis.process with getuid, getgid, etc.
+    // but process.cwd() and process.chdir() throw ENOSYS which causes panics
+    // when Go's os.Getwd() or filepath.Abs() are called (used by viper config).
+    // Override these to return safe defaults for browser execution.
+    if (globalThis.process) {
+      globalThis.process.cwd = () => "/";
+      globalThis.process.chdir = () => {};
+    }
+  </script>
+  <script>
     if (!WebAssembly.instantiateStreaming) {
       WebAssembly.instantiateStreaming = async (resp, importObject) => {
         const source = await (await resp).arrayBuffer();
