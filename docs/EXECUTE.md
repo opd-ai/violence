@@ -16,6 +16,8 @@ The UI actively harms gameplay. These must be fixed:
 4. **POOR INFORMATION HIERARCHY**: All UI elements have the same visual weight. Critical information (player health, imminent threats, interactive prompts) should be visually prominent. Secondary information (distant enemy health, ambient status effects, passive buffs) should be subtle or hidden until relevant. Use size, brightness, saturation, and animation to establish a clear reading order.
 5. **UNRESPONSIVE UI FEEDBACK**: Buttons, menus, and interactive elements lack hover states, click feedback, and transition animations. The UI feels dead. Add hover highlights, press animations, smooth transitions between states, and audio-adjacent feedback (screen flash, brief shake) for significant UI actions.
 6. **MINIMAP AND NAVIGATION**: The minimap (if present) either takes too much space or provides too little information. It should be compact, semi-transparent, show only relevant markers, and collapse/expand on demand. Navigation cues should exist in-world (subtle directional hints) rather than solely in UI overlays.
+7. **UN-RENDERED TEXT**: Text elements (damage numbers, entity names, tooltips, status labels, dialogue) fail to render or appear as invisible/blank. All text must be drawn using a bundled or procedurally generated bitmap font. Verify that every text element actually appears on-screen with correct positioning, color, and size. No text should silently fail to render — if a font or glyph is unavailable, fall back to a guaranteed-available alternative. Test with damage numbers, entity labels, and HUD readouts simultaneously visible.
+8. **NO CROSSHAIR OR WEAPON FEEDBACK ANIMATION**: The player has no visible crosshair or aiming reticle, and weapon attacks produce no feedback animation (swing arc, muzzle flash, impact burst). The player cannot tell where they are aiming or confirm that an attack occurred. Add a clear crosshair/reticle that tracks the aim direction, and add weapon feedback animations — melee weapons show a swing arc or slash trail, ranged weapons show a projectile or muzzle flash, and all hits produce a visible impact animation at the point of contact. These feedback elements are essential for an action-RPG to feel responsive.
 
 STEP 1 — DISCOVER (spend ≤5 minutes here):
 - Run `git log --oneline -20` to avoid duplicating recent work.
@@ -36,11 +38,13 @@ STEP 1 — DISCOVER (spend ≤5 minutes here):
         - **Information hierarchy redesign** — size, brightness, and animation budget proportional to importance. Player vitals: large, bright, always visible. Active threats: highlighted, animated. Passive info: small, dim, or hidden until hovered/relevant. Implement a priority tier system for all UI elements.
         - **Interactive UI polish** — hover states, press feedback, smooth transitions (ease-in-out, 150ms), focus indicators, and micro-animations on all clickable/interactive elements. Menus slide, panels fade, buttons depress. Every interaction should feel physically responsive.
         - **Compact navigation UI** — small semi-transparent minimap with auto-collapse, in-world subtle directional cues, waypoint system that uses world-space markers rather than HUD overlays, fog-of-war on minimap matching explored state.
+        - **Text rendering guarantee** — ensure all text elements (damage numbers, entity names, tooltips, HUD labels) actually render on screen using a bundled or procedurally generated bitmap font. Implement fallback font rendering, verify glyph availability, and test that no text is silently invisible.
+        - **Crosshair and weapon feedback** — add a visible aiming reticle that tracks player aim direction, melee swing arc / slash trail animations, ranged weapon muzzle flash or projectile visuals, and impact burst animations at hit locations. Every attack must produce visible confirmation feedback.
     - **Technical improvements supporting visuals/UI (roll of 20 — lower priority):**
         - **Sprite render pipeline optimization** — batch draw calls by material type, cache composed sprites with LRU eviction, pool image buffers by size, eliminate per-frame allocations in render path. Visual improvements must not drop below 60 FPS.
         - **UI layout engine** — constraint-based layout solver for HUD elements, automatic reflow on window resize, spatial hash for overlap detection, dirty-flag rendering to avoid unnecessary redraws.
 
-- If multiple candidates exist within your category, pick the one that most improves visual realism or UI/UX quality. Within visual realism: material-realistic sprite rendering, weathered environments, and realistic lighting are highest-value. Within UI/UX: overlap elimination and screen real estate maximization are highest-value.
+- If multiple candidates exist within your category, pick the one that most improves visual realism or UI/UX quality. Within visual realism: material-realistic sprite rendering, weathered environments, and realistic lighting are highest-value. Within UI/UX: overlap elimination, screen real estate maximization, text rendering guarantee, and crosshair/weapon feedback are highest-value.
 
 STEP 2 — IMPLEMENT (this is the bulk of the work):
 Follow these rules strictly. Violations are build failures.
@@ -81,6 +85,8 @@ UI/UX Standards:
 - **Responsive interactions**: Every clickable/hoverable UI element must have distinct idle, hover, and pressed visual states. State transitions use easing (ease-out, 100-200ms). Focus/selection must be clearly indicated. No "dead" buttons that give no feedback on interaction.
 - **Screen-edge awareness**: Tooltips, popup menus, and floating indicators must detect screen boundaries and reposition to stay fully visible. No element may be clipped by the screen edge.
 - **Scalability**: UI must remain functional and non-overlapping at different window sizes and entity counts. Test at minimum with 20+ visible entities and 10+ simultaneous damage numbers.
+- **Text must render**: Every text element must be visually confirmed to appear on screen. Use a bundled bitmap font or procedurally generated glyphs. If primary font fails, fall back to a guaranteed renderer. No silent text rendering failures — if text cannot be drawn, log a warning and draw a placeholder rectangle. Test damage numbers, entity labels, and HUD text simultaneously.
+- **Crosshair and weapon feedback are mandatory**: The player must always have a visible aiming reticle. Every attack action must produce a visible feedback animation (swing arc, projectile trail, impact burst). The player must never be uncertain about where they are aiming or whether their attack registered. Crosshair style should adapt to weapon type (melee vs. ranged).
 
 Integration (mandatory — this is where past attempts fail):
 - Register the new system in the system initialization function.
@@ -106,4 +112,3 @@ STEP 4 — REPORT (keep concise):
 4. **Verification**: How to observe the improvement in-game — what should look more realistic, or what UI problem is now fixed.
 
 STOP when the report is written and builds pass. Do not refactor unrelated code. Do not write documentation files. Do not suggest follow-up work.
-

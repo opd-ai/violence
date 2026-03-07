@@ -58,6 +58,7 @@ import (
 	"github.com/opd-ai/violence/pkg/lore"
 	"github.com/opd-ai/violence/pkg/minigame"
 	"github.com/opd-ai/violence/pkg/mod"
+	"github.com/opd-ai/violence/pkg/motion"
 	"github.com/opd-ai/violence/pkg/network"
 	"github.com/opd-ai/violence/pkg/outline"
 	"github.com/opd-ai/violence/pkg/parallax"
@@ -232,6 +233,9 @@ type Game struct {
 
 	// Animation system for state-based sprite animation
 	animationSystem *animation.AnimationSystem
+
+	// Organic motion system for realistic animation with easing, squash/stretch, and secondary motion
+	motionSystem *motion.System
 
 	// Room decoration and environmental storytelling system
 	decorationSystem *decoration.System
@@ -448,6 +452,7 @@ func NewGame() *Game {
 		roleBasedAISystem:   ai.NewRoleBasedAISystem(),
 		spatialSystem:       spatial.NewSystem(64.0), // 64-unit cells for typical 10-50 unit queries
 		animationSystem:     animation.NewAnimationSystem("fantasy"),
+		motionSystem:        motion.NewSystem(),
 		comboSystem:         combat.NewComboSystem("fantasy", int64(seed)),
 		lootDropSystem:      loot.NewLootDropSystem(int64(seed)),
 		feedbackSystem:      feedback.NewFeedbackSystem(int64(seed)),
@@ -572,6 +577,9 @@ func NewGame() *Game {
 
 	// Register animation system with the World
 	g.world.AddSystem(g.animationSystem)
+
+	// Register organic motion system with the World
+	g.world.AddSystem(g.motionSystem)
 
 	// Register status effect system with the World
 	g.world.AddSystem(g.statusSystem)
