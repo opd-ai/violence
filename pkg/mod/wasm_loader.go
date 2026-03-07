@@ -1,3 +1,5 @@
+//go:build !js
+
 // Package mod provides WASM-based mod runtime with sandboxing.
 package mod
 
