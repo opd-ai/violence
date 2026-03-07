@@ -1,4 +1,4 @@
-//go:build !js
+//go:build !js && !windows
 
 // Package mod provides WASM-based mod runtime with sandboxing.
 package mod

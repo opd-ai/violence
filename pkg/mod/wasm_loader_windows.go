@@ -1,14 +1,14 @@
-//go:build js
+//go:build windows
 
 // Package mod provides WASM-based mod runtime with sandboxing.
-// This file is the js/wasm stub: wasmer-go requires CGO and cannot be used
-// when the game itself is compiled to WebAssembly. Mod loading is therefore
-// unsupported on the browser target; all methods return ErrNotSupported.
+// This file is the Windows stub: wasmer-go depends on open_memstream, a POSIX
+// function that is not available on Windows. Mod loading is therefore
+// unsupported on the Windows target; all methods return ErrNotSupported.
 package mod
 
 import "errors"
 
-// ErrNotSupported is returned by all WASMLoader methods on the js/wasm target.
+// ErrNotSupported is returned by all WASMLoader methods on the Windows target.
 var ErrNotSupported = errors.New("WASM mod loading is not supported on this platform")
 
 // WASMConfig defines security constraints for WASM module execution.
@@ -31,7 +31,7 @@ func DefaultWASMConfig() WASMConfig {
 	}
 }
 
-// WASMLoader is a no-op loader for the js/wasm target.
+// WASMLoader is a no-op loader for the Windows target.
 type WASMLoader struct {
 	config  WASMConfig
 	modules map[string]*WASMModule
@@ -47,48 +47,48 @@ func NewWASMLoaderWithConfig(config WASMConfig) *WASMLoader {
 	return &WASMLoader{config: config, modules: make(map[string]*WASMModule)}
 }
 
-// WASMModule represents a loaded WASM module (stub on js/wasm target).
+// WASMModule represents a loaded WASM module (stub on Windows target).
 type WASMModule struct {
 	Name string
 	Path string
 }
 
-// LoadWASM always returns ErrNotSupported on the js/wasm target.
+// LoadWASM always returns ErrNotSupported on the Windows target.
 func (wl *WASMLoader) LoadWASM(_ string) (*WASMModule, error) {
 	return nil, ErrNotSupported
 }
 
-// LoadWASMFromBytes always returns ErrNotSupported on the js/wasm target.
+// LoadWASMFromBytes always returns ErrNotSupported on the Windows target.
 func (wl *WASMLoader) LoadWASMFromBytes(_ string, _ []byte) (*WASMModule, error) {
 	return nil, ErrNotSupported
 }
 
-// UnloadWASM always returns ErrNotSupported on the js/wasm target.
+// UnloadWASM always returns ErrNotSupported on the Windows target.
 func (wl *WASMLoader) UnloadWASM(_ string) error {
 	return ErrNotSupported
 }
 
-// GetModule always returns ErrNotSupported on the js/wasm target.
+// GetModule always returns ErrNotSupported on the Windows target.
 func (wl *WASMLoader) GetModule(_ string) (*WASMModule, error) {
 	return nil, ErrNotSupported
 }
 
-// ListModules always returns an empty slice on the js/wasm target (no modules can be loaded).
+// ListModules always returns an empty slice on the Windows target (no modules can be loaded).
 func (wl *WASMLoader) ListModules() []string {
 	return []string{}
 }
 
-// isPathAllowed always returns false on the js/wasm target.
+// isPathAllowed always returns false on the Windows target.
 func (wl *WASMLoader) isPathAllowed(_ string) bool {
 	return false
 }
 
-// Call always returns ErrNotSupported on the js/wasm target.
+// Call always returns ErrNotSupported on the Windows target.
 func (wm *WASMModule) Call(_ string, _ ...interface{}) (interface{}, error) {
 	return nil, ErrNotSupported
 }
 
-// HasExport always returns false on the js/wasm target.
+// HasExport always returns false on the Windows target.
 func (wm *WASMModule) HasExport(_ string) bool {
 	return false
 }
