@@ -33,16 +33,19 @@ type TextureGenerator struct {
 	maxEntries int
 	mu         sync.RWMutex
 	genreID    string
+	weathering WeatheringConfig
 }
 
 // NewTextureGenerator creates a floor tile texture generator with caching.
 func NewTextureGenerator(maxCacheEntries int, genreID string) *TextureGenerator {
-	return &TextureGenerator{
+	gen := &TextureGenerator{
 		cache:      make(map[TileKey]*list.Element),
 		lruList:    list.New(),
 		maxEntries: maxCacheEntries,
 		genreID:    genreID,
 	}
+	gen.weathering = gen.getGenreWeathering(genreID)
+	return gen
 }
 
 // SetGenre updates the genre and clears cache.
@@ -50,6 +53,7 @@ func (g *TextureGenerator) SetGenre(genreID string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.genreID = genreID
+	g.weathering = g.getGenreWeathering(genreID)
 	g.cache = make(map[TileKey]*list.Element)
 	g.lruList = list.New()
 }
@@ -126,6 +130,9 @@ func (g *TextureGenerator) generateTile(material MaterialType, variant int, seed
 	default:
 		g.drawStoneTile(rawImg, size, variant, rng)
 	}
+
+	// Apply weathering effects to make surfaces look lived-in
+	g.ApplyWeathering(rawImg, material, g.weathering, seed+1000)
 
 	return ebiten.NewImageFromImage(rawImg)
 }
@@ -651,4 +658,52 @@ func clamp(v float64) float64 {
 
 func lerp(a, b, t float64) float64 {
 	return a + (b-a)*t
+}
+
+// getGenreWeathering returns weathering configuration appropriate for a genre.
+func (g *TextureGenerator) getGenreWeathering(genreID string) WeatheringConfig {
+	switch genreID {
+	case "fantasy":
+		// Ancient dungeons: heavy wear, moss, dampness
+		return WeatheringConfig{
+			EdgeDamage:       0.5,
+			WearIntensity:    0.6,
+			AgeVariation:     0.7,
+			MoistureLevel:    0.4,
+			OrganicGrowth:    0.5,
+			ColorTemperature: -0.1, // Slightly cool (torchlight in distance)
+		}
+	case "scifi", "cyberpunk":
+		// Worn industrial spaces: rust, corrosion, minimal organic growth
+		return WeatheringConfig{
+			EdgeDamage:       0.3,
+			WearIntensity:    0.7,
+			AgeVariation:     0.5,
+			MoistureLevel:    0.3,
+			OrganicGrowth:    0.1,
+			ColorTemperature: 0.15, // Warm (artificial lighting)
+		}
+	case "horror":
+		// Decaying environment: heavy organic growth, moisture, age
+		return WeatheringConfig{
+			EdgeDamage:       0.6,
+			WearIntensity:    0.5,
+			AgeVariation:     0.8,
+			MoistureLevel:    0.6,
+			OrganicGrowth:    0.7,
+			ColorTemperature: -0.2, // Cool and sickly
+		}
+	case "postapoc":
+		// Abandoned, weathered: everything shows age
+		return WeatheringConfig{
+			EdgeDamage:       0.7,
+			WearIntensity:    0.6,
+			AgeVariation:     0.9,
+			MoistureLevel:    0.5,
+			OrganicGrowth:    0.6,
+			ColorTemperature: 0.1, // Dusty warm tones
+		}
+	default:
+		return DefaultWeatheringConfig()
+	}
 }
