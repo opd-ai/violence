@@ -39,9 +39,11 @@ import (
 	"github.com/opd-ai/violence/pkg/decal"
 	"github.com/opd-ai/violence/pkg/decoration"
 	"github.com/opd-ai/violence/pkg/destruct"
+	"github.com/opd-ai/violence/pkg/dialogue"
 	"github.com/opd-ai/violence/pkg/dmgfx"
 	"github.com/opd-ai/violence/pkg/door"
 	"github.com/opd-ai/violence/pkg/engine"
+	"github.com/opd-ai/violence/pkg/entitylabel"
 	"github.com/opd-ai/violence/pkg/equipment"
 	"github.com/opd-ai/violence/pkg/event"
 	"github.com/opd-ai/violence/pkg/faction"
@@ -387,6 +389,9 @@ type Game struct {
 
 	// UI layout manager for preventing element overlap
 	uiLayoutManager *ui.LayoutManager
+
+	// Entity label system for rendering entity names with guaranteed text display
+	entityLabelSystem *entitylabel.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -498,6 +503,9 @@ func NewGame() *Game {
 
 	// Initialize status system with the registry
 	g.statusSystem = status.NewSystem(g.statusReg)
+
+	// Initialize entity label system for guaranteed text rendering
+	g.entityLabelSystem = entitylabel.NewSystem(g.genreID)
 
 	// Initialize BSP generator
 	var err error
@@ -726,6 +734,9 @@ func NewGame() *Game {
 
 	// Register crosshair system with the World
 	g.world.AddSystem(g.crosshairSystem)
+
+	// Register entity label system for guaranteed text rendering
+	g.world.AddSystem(g.entityLabelSystem)
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
@@ -987,6 +998,10 @@ func (g *Game) spawnEnemies() {
 	g.aiAgents = make([]*ai.Agent, 0)
 	ai.SetGenre(g.genreID)
 	rooms := bsp.GetRooms(g.currentBSPTree)
+
+	// Use dialogue name generator for enemy names
+	nameGen := dialogue.NewNameGenerator()
+
 	for i := 0; i < 3; i++ {
 		var spawnX, spawnY float64
 		if i+1 < len(rooms) {
@@ -1017,6 +1032,19 @@ func (g *Game) spawnEnemies() {
 			ShowWhenFull: false,
 			ThreatLevel:  1,
 		})
+
+		// Generate a procedural name for the enemy
+		enemySeed := int64(g.seed) + int64(enemyEntity*100)
+		enemyName := nameGen.Generate(g.genreID, dialogue.SpeakerHostile, enemySeed)
+		enemyLabel := entitylabel.NewEnemyLabel(enemyName)
+		g.world.AddComponent(enemyEntity, enemyLabel)
+
+		logrus.WithFields(logrus.Fields{
+			"entity_id": enemyEntity,
+			"name":      enemyName,
+			"x":         spawnX,
+			"y":         spawnY,
+		}).Debug("Spawned enemy with label")
 	}
 
 	// Spawn a boss enemy in the last room (1 in 3 chance)
@@ -1071,13 +1099,21 @@ func (g *Game) spawnBoss(room *bsp.Room) {
 	// Add positional component for backstab/flank vulnerability
 	g.positionalSystem.AddPositionalComponent(g.world, bossEntity, 0, 0)
 
+	// Generate boss name and add label
+	nameGen := dialogue.NewNameGenerator()
+	bossSeed := int64(g.seed) + int64(bossEntity*1000)
+	bossName := nameGen.Generate(g.genreID, dialogue.SpeakerHostile, bossSeed)
+	bossLabel := entitylabel.NewBossLabel(bossName)
+	g.world.AddComponent(bossEntity, bossLabel)
+
 	logrus.WithFields(logrus.Fields{
 		"entity_id":   bossEntity,
+		"name":        bossName,
 		"x":           spawnX,
 		"y":           spawnY,
 		"genre":       g.genreID,
 		"phase_count": len(phases),
-	}).Info("Boss spawned with phase transitions")
+	}).Info("Boss spawned with phase transitions and label")
 }
 
 // spawnDestructibles spawns destructible objects like barrels and crates.
@@ -4546,6 +4582,11 @@ func (g *Game) renderCombatEffects(screen *ebiten.Image, camX, camY float64) {
 		g.damageNumberSystem.RenderWithLayout(g.world, screen, camX, camY, g.uiLayoutManager)
 	} else if g.damageNumberSystem != nil {
 		g.damageNumberSystem.Render(g.world, screen, camX, camY)
+	}
+	if g.entityLabelSystem != nil && g.uiLayoutManager != nil {
+		g.entityLabelSystem.RenderWithLayout(g.world, screen, camX, camY, g.uiLayoutManager)
+	} else if g.entityLabelSystem != nil {
+		g.entityLabelSystem.Render(g.world, screen, camX, camY)
 	}
 	if g.statusFXSystem != nil {
 		g.statusFXSystem.Render(screen, g.world, camX, camY)
