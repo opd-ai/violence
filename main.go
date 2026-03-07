@@ -392,6 +392,9 @@ type Game struct {
 
 	// Entity label system for rendering entity names with guaranteed text display
 	entityLabelSystem *entitylabel.System
+
+	// Interactive UI system for hover states, press feedback, and smooth transitions
+	interactiveUI *ui.InteractiveSystem
 }
 
 // NewGame creates and initializes a new game instance.
@@ -506,6 +509,9 @@ func NewGame() *Game {
 
 	// Initialize entity label system for guaranteed text rendering
 	g.entityLabelSystem = entitylabel.NewSystem(g.genreID)
+
+	// Initialize interactive UI system for menu polish with hover/press feedback
+	g.interactiveUI = ui.NewInteractiveSystem()
 
 	// Initialize BSP generator
 	var err error
@@ -787,6 +793,14 @@ func (g *Game) Update() error {
 
 // updateMenu handles menu navigation and actions.
 func (g *Game) updateMenu() error {
+	// Update interactive UI with mouse position
+	mouseX, mouseY := ebiten.CursorPosition()
+	mousePressed := ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft)
+	if g.interactiveUI != nil {
+		g.interactiveUI.Update(mouseX, mouseY, mousePressed)
+	}
+
+	// Keyboard navigation (existing)
 	if g.input.IsJustPressed(input.ActionMoveForward) {
 		g.menuManager.MoveUp()
 	}
@@ -4463,6 +4477,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 // drawMenu renders the menu screen.
 func (g *Game) drawMenu(screen *ebiten.Image) {
 	ui.DrawMenu(screen, g.menuManager)
+	// Draw interactive UI on top for smooth transitions and hover effects
+	if g.interactiveUI != nil {
+		g.interactiveUI.Draw(screen)
+	}
 }
 
 // drawPlaying renders the game world and HUD.
