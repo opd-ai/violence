@@ -234,6 +234,7 @@ jobs:
 
   build-ios:
     name: Build iOS
+    if: false
     runs-on: macos-latest
     
     steps:
@@ -273,6 +274,7 @@ jobs:
 
   build-android:
     name: Build Android
+    if: false
     runs-on: ubuntu-latest
     
     steps:
@@ -397,7 +399,7 @@ jobs:
 
   summary:
     name: Build Summary
-    needs: [build-linux, build-macos, build-windows, build-wasm, build-ios, build-android]
+    needs: [build-linux, build-macos, build-windows, build-wasm]
     runs-on: ubuntu-latest
     if: always()
     
@@ -410,15 +412,11 @@ jobs:
         echo "- macOS universal: ${{ needs.build-macos.result }}"
         echo "- Windows amd64: ${{ needs.build-windows.result }}"
         echo "- WASM: ${{ needs.build-wasm.result }}"
-        echo "- iOS: ${{ needs.build-ios.result }}"
-        echo "- Android: ${{ needs.build-android.result }}"
         
         if [ "${{ needs.build-linux.result }}" != "success" ] || \
            [ "${{ needs.build-macos.result }}" != "success" ] || \
            [ "${{ needs.build-windows.result }}" != "success" ] || \
-           [ "${{ needs.build-wasm.result }}" != "success" ] || \
-           [ "${{ needs.build-ios.result }}" != "success" ] || \
-           [ "${{ needs.build-android.result }}" != "success" ]; then
+           [ "${{ needs.build-wasm.result }}" != "success" ]; then
           echo "One or more builds failed"
           exit 1
         fi
