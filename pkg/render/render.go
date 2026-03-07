@@ -29,6 +29,7 @@ type Renderer struct {
 	Width         int
 	Height        int
 	framebuffer   []byte
+	fbImage       *ebiten.Image // Pre-allocated image reused every frame to avoid WebGL texture leaks
 	raycaster     *raycaster.Raycaster
 	palette       map[int]color.RGBA
 	genreID       string
@@ -44,6 +45,7 @@ func NewRenderer(width, height int, rc *raycaster.Raycaster) *Renderer {
 		Width:         width,
 		Height:        height,
 		framebuffer:   make([]byte, width*height*4),
+		fbImage:       ebiten.NewImage(width, height),
 		raycaster:     rc,
 		palette:       getDefaultPalette(),
 		genreID:       "fantasy",
@@ -130,13 +132,12 @@ func (r *Renderer) applyPostProcessing() {
 	}
 }
 
-// displayFramebuffer converts the framebuffer to an image and draws it to screen.
+// displayFramebuffer writes the framebuffer to the pre-allocated fbImage and draws it to screen.
+// Using WritePixels on a persistent image avoids allocating a new WebGL texture every frame,
+// which would exhaust GPU memory in browsers and cause an all-black rendering output.
 func (r *Renderer) displayFramebuffer(screen *ebiten.Image) {
-	img := ebiten.NewImageFromImageWithOptions(
-		&frameImage{data: r.framebuffer, width: r.Width, height: r.Height},
-		&ebiten.NewImageFromImageOptions{Unmanaged: true},
-	)
-	screen.DrawImage(img, nil)
+	r.fbImage.WritePixels(r.framebuffer)
+	screen.DrawImage(r.fbImage, nil)
 }
 
 // renderWall computes wall color for a given column and row.
