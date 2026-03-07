@@ -9,6 +9,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/opd-ai/violence/pkg/engine"
+	"github.com/opd-ai/violence/pkg/ui"
 	"github.com/sirupsen/logrus"
 )
 
@@ -506,4 +507,111 @@ func (s *StatusIconsComponent) Clear() {
 // poolImage gets a reusable image from the pool.
 func (s *System) poolImage(width, height int) *image.RGBA {
 	return image.NewRGBA(image.Rect(0, 0, width, height))
+}
+
+// RenderHealthBarsWithLayout draws health bars using layout manager to prevent overlap.
+func (s *System) RenderHealthBarsWithLayout(screen *ebiten.Image, w *engine.World, cameraX, cameraY, cameraDirX, cameraDirY float64, screenWidth, screenHeight int, layoutMgr *ui.LayoutManager) {
+	healthType := reflect.TypeOf(&engine.Health{})
+	barType := reflect.TypeOf(&Component{})
+	posType := reflect.TypeOf(&engine.Position{})
+
+	entities := w.Query(healthType)
+
+	// First pass: collect visible health bars and prioritize by distance
+	type barRenderInfo struct {
+		eid       engine.Entity
+		screenX   float32
+		screenY   float32
+		health    *engine.Health
+		bar       *Component
+		healthPct float64
+		distance  float64
+	}
+
+	visibleBars := make([]barRenderInfo, 0, len(entities))
+
+	for _, eid := range entities {
+		healthComp, ok := w.GetComponent(eid, healthType)
+		if !ok {
+			continue
+		}
+		health := healthComp.(*engine.Health)
+
+		barComp, hasBar := w.GetComponent(eid, barType)
+		if !hasBar {
+			continue
+		}
+		bar := barComp.(*Component)
+
+		if !bar.Visible {
+			continue
+		}
+
+		healthPct := float64(health.Current) / float64(health.Max)
+		if healthPct >= 1.0 && !bar.ShowWhenFull && bar.LastDamageAge > s.fadeDelay {
+			continue
+		}
+
+		posComp, hasPos := w.GetComponent(eid, posType)
+		if !hasPos {
+			continue
+		}
+		pos := posComp.(*engine.Position)
+
+		screenX, screenY, visible := s.worldToScreen(pos.X, pos.Y, cameraX, cameraY, cameraDirX, cameraDirY, screenWidth, screenHeight)
+		if !visible {
+			continue
+		}
+
+		// Calculate distance from camera for priority
+		dx := pos.X - cameraX
+		dy := pos.Y - cameraY
+		distance := math.Sqrt(dx*dx + dy*dy)
+
+		visibleBars = append(visibleBars, barRenderInfo{
+			eid:       eid,
+			screenX:   screenX,
+			screenY:   screenY,
+			health:    health,
+			bar:       bar,
+			healthPct: healthPct,
+			distance:  distance,
+		})
+	}
+
+	// Second pass: render with layout manager, closer entities get higher priority
+	for _, info := range visibleBars {
+		barY := info.screenY - info.bar.OffsetY
+		barX := info.screenX - info.bar.Width/2
+
+		// Determine priority based on distance
+		priority := ui.PrioritySecondary
+		if info.distance < 3.0 {
+			priority = ui.PriorityCritical
+		} else if info.distance < 8.0 {
+			priority = ui.PriorityImportant
+		}
+
+		// Reserve space for health bar
+		adjustedX, adjustedY, visible := layoutMgr.Reserve(
+			"healthbar",
+			barX,
+			barY,
+			info.bar.Width,
+			info.bar.Height+8, // Extra space for status icons
+			priority,
+			true, // Health bars can move to avoid overlap
+		)
+
+		if !visible {
+			// Too much clutter, skip this health bar
+			continue
+		}
+
+		// Draw health bar at adjusted position
+		s.drawHealthBar(screen, adjustedX, adjustedY, info.bar.Width, info.bar.Height, info.healthPct, info.bar)
+
+		// Draw status icons above health bar
+		s.drawStatusIcons(screen, w, info.eid, adjustedX+info.bar.Width/2, adjustedY-4)
+	}
 }

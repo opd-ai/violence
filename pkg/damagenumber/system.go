@@ -10,6 +10,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text"
 	"github.com/opd-ai/violence/pkg/engine"
+	"github.com/opd-ai/violence/pkg/ui"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/basicfont"
@@ -128,6 +129,81 @@ func (s *System) Render(w *engine.World, screen *ebiten.Image, cameraX, cameraY 
 			screen.DrawImage(tmpImg, opts)
 		} else {
 			text.Draw(screen, textStr, s.font, drawX, drawY+textHeight, renderColor)
+		}
+	}
+}
+
+// RenderWithLayout draws damage numbers using layout manager to prevent overlap.
+func (s *System) RenderWithLayout(w *engine.World, screen *ebiten.Image, cameraX, cameraY float64, layoutMgr *ui.LayoutManager) {
+	compType := reflect.TypeOf((*Component)(nil))
+	entities := w.Query(compType)
+
+	for _, ent := range entities {
+		comp, found := w.GetComponent(ent, compType)
+		if !found {
+			continue
+		}
+
+		dmg, ok := comp.(*Component)
+		if !ok {
+			continue
+		}
+
+		screenX := float32(dmg.X - cameraX)
+		screenY := float32(dmg.Y - cameraY)
+
+		textStr := fmt.Sprintf("%d", dmg.Value)
+		if dmg.IsCritical {
+			textStr += "!"
+		}
+
+		bounds := text.BoundString(s.font, textStr)
+		textWidth := float32(bounds.Dx())
+		textHeight := float32(bounds.Dy())
+
+		// Reserve space with layout manager - damage numbers stack vertically
+		priority := ui.PriorityImportant
+		if dmg.IsCritical {
+			priority = ui.PriorityCritical
+		}
+
+		adjustedX, adjustedY, visible := layoutMgr.ReserveDamageNumber(
+			fmt.Sprintf("dmg_%d", ent),
+			screenX-textWidth/2,
+			screenY-textHeight/2,
+			textWidth*2,  // Extra width for scaling
+			textHeight*2, // Extra height for scaling
+			priority,
+		)
+
+		if !visible {
+			continue
+		}
+
+		drawX := int(adjustedX + textWidth/2)
+		drawY := int(adjustedY + textHeight/2)
+
+		renderColor := dmg.Color
+		renderColor.A = uint8(dmg.Alpha * 255)
+
+		if dmg.IsCritical {
+			scaleModulation := 1.0 + 0.15*math.Sin(dmg.Age*15.0)
+			dmg.Scale *= scaleModulation
+		}
+
+		if math.Abs(dmg.Scale-1.0) > 0.01 {
+			opts := &ebiten.DrawImageOptions{}
+			opts.GeoM.Translate(float64(-textWidth/2), float64(-textHeight/2))
+			opts.GeoM.Scale(dmg.Scale, dmg.Scale)
+			opts.GeoM.Translate(float64(drawX), float64(drawY))
+
+			tmpImg := ebiten.NewImage(int(textWidth)+4, int(textHeight)+4)
+			text.Draw(tmpImg, textStr, s.font, 2, int(textHeight), renderColor)
+
+			opts.ColorScale.ScaleAlpha(float32(dmg.Alpha))
+			screen.DrawImage(tmpImg, opts)
+		} else {
+			text.Draw(screen, textStr, s.font, drawX-int(textWidth/2), drawY+int(textHeight/2), renderColor)
 		}
 	}
 }

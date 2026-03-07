@@ -384,6 +384,9 @@ type Game struct {
 
 	// Crosshair system for aiming reticle and weapon feedback
 	crosshairSystem *crosshair.System
+
+	// UI layout manager for preventing element overlap
+	uiLayoutManager *ui.LayoutManager
 }
 
 // NewGame creates and initializes a new game instance.
@@ -575,6 +578,9 @@ func NewGame() *Game {
 
 	// Initialize crosshair system for aiming reticle
 	g.crosshairSystem = crosshair.NewSystem(g.genreID)
+
+	// Initialize UI layout manager for preventing element overlap
+	g.uiLayoutManager = ui.NewLayoutManager(config.C.InternalWidth, config.C.InternalHeight)
 
 	// Connect sliding system to spatial index
 	g.slidingSystem.SetSpatialIndex(g.spatialSystem.GetGrid())
@@ -4524,10 +4530,21 @@ func (g *Game) renderCombatEffects(screen *ebiten.Image, camX, camY float64) {
 	if g.telegraphSystem != nil {
 		g.telegraphSystem.Render(screen, g.world, camX, camY)
 	}
-	if g.healthBarSystem != nil {
+
+	// Clear UI layout manager at start of frame
+	if g.uiLayoutManager != nil {
+		g.uiLayoutManager.Clear()
+	}
+
+	// Render UI elements with overlap prevention
+	if g.healthBarSystem != nil && g.uiLayoutManager != nil {
+		g.healthBarSystem.RenderHealthBarsWithLayout(screen, g.world, camX, camY, g.camera.DirX, g.camera.DirY, config.C.InternalWidth, config.C.InternalHeight, g.uiLayoutManager)
+	} else if g.healthBarSystem != nil {
 		g.healthBarSystem.RenderHealthBars(screen, g.world, camX, camY, g.camera.DirX, g.camera.DirY, config.C.InternalWidth, config.C.InternalHeight)
 	}
-	if g.damageNumberSystem != nil {
+	if g.damageNumberSystem != nil && g.uiLayoutManager != nil {
+		g.damageNumberSystem.RenderWithLayout(g.world, screen, camX, camY, g.uiLayoutManager)
+	} else if g.damageNumberSystem != nil {
 		g.damageNumberSystem.Render(g.world, screen, camX, camY)
 	}
 	if g.statusFXSystem != nil {
@@ -6162,6 +6179,10 @@ func (g *Game) findExitPosition(rooms []*bsp.Room, playerX, playerY float64) *qu
 
 // Layout returns the game's internal resolution.
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
+	// Update UI layout manager screen size if dimensions changed
+	if g.uiLayoutManager != nil {
+		g.uiLayoutManager.SetScreenSize(config.C.InternalWidth, config.C.InternalHeight)
+	}
 	return config.C.InternalWidth, config.C.InternalHeight
 }
 
