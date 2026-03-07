@@ -258,6 +258,9 @@ type Game struct {
 	// Dynamic lighting system for entity-attached lights
 	lightingSystem *lighting.LightingSystem
 
+	// Atmospheric lighting system for realistic shadows, fog, and color temperature
+	atmosphericLighting *lighting.AtmosphericLightingSystem
+
 	// Boss phase transition system for multi-phase boss encounters
 	bossPhaseSystem *combat.BossPhaseSystem
 
@@ -454,6 +457,7 @@ func NewGame() *Game {
 		roomDecorations:     make(map[int]*decoration.RoomDecor),
 		collisionGeometry:   collision.NewCollisionGeometrySystem(),
 		lightingSystem:      lighting.NewLightingSystem("fantasy"),
+		atmosphericLighting: lighting.NewAtmosphericLightingSystem("fantasy"),
 		bossPhaseSystem:     combat.NewBossPhaseSystem(),
 		statSystem:          stats.NewSystem(),
 		weatherSystem:       weather.NewSystem(2000, int64(seed), "fantasy"),
