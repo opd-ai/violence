@@ -221,7 +221,7 @@ jobs:
         CGO_ENABLED: 0
       run: |
         go build -v -o violence.wasm .
-        cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" .
+        cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" .
     
     - name: Upload artifacts
       uses: actions/upload-artifact@v4

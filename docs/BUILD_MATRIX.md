@@ -128,7 +128,7 @@ GOOS=windows GOARCH=amd64 CGO_ENABLED=1 go build -v -o violence-windows-amd64.ex
 
 # WASM
 GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -v -o violence.wasm .
-cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" .
+cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" .
 
 # iOS (requires macOS)
 go install golang.org/x/mobile/cmd/gomobile@latest

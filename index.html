@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Violence</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: monospace;
+      color: #ccc;
+    }
+    #loading {
+      font-size: 1.2em;
+      color: #aaa;
+      margin-bottom: 1em;
+    }
+    canvas {
+      display: block;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      max-width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div id="loading">Loading...</div>
+  <script src="wasm_exec.js"></script>
+  <script>
+    if (!WebAssembly.instantiateStreaming) {
+      WebAssembly.instantiateStreaming = async (resp, importObject) => {
+        const source = await (await resp).arrayBuffer();
+        return await WebAssembly.instantiate(source, importObject);
+      };
+    }
+
+    const go = new Go();
+    WebAssembly.instantiateStreaming(fetch("violence.wasm"), go.importObject)
+      .then((result) => {
+        document.getElementById("loading").style.display = "none";
+        go.run(result.instance);
+      })
+      .catch((err) => {
+        document.getElementById("loading").textContent = "Error loading game: " + err;
+        console.error(err);
+      });
+  </script>
+</body>
+</html>
