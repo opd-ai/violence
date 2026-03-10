@@ -42,13 +42,12 @@ func main() {
 			fmt.Printf("Failed to create %s: %v\n", filename, err)
 			continue
 		}
+		defer f.Close()
 
 		if err := png.Encode(f, img); err != nil {
 			fmt.Printf("Failed to encode %s: %v\n", filename, err)
-			f.Close()
 			continue
 		}
-		f.Close()
 
 		fmt.Printf("Generated %s: %s (body plan: %v)\n", c.name, filename, ai.GetBodyPlan(c.ctype))
 	}

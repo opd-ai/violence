@@ -281,6 +281,15 @@ func TestDetermineTierFromObjective(t *testing.T) {
 			timeTarget:   100,
 			expectedTier: TierStandard,
 		},
+		{
+			name:         "zero count edge case",
+			isMain:       false,
+			progress:     5,
+			count:        0,
+			timeElapsed:  0,
+			timeTarget:   0,
+			expectedTier: TierStandard,
+		},
 	}
 
 	for _, tt := range tests {

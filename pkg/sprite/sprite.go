@@ -1377,6 +1377,9 @@ func (g *Generator) generateFlyingEnemy(img *image.RGBA, rng *rand.Rand, frame i
 
 	wingSpan := size / 2
 	wingH := size / 4
+	if wingH == 0 {
+		return
+	}
 	wingY := cy + hoverOffset - wingH/2
 
 	wingAngle := 0.0
@@ -1393,12 +1396,14 @@ func (g *Generator) generateFlyingEnemy(img *image.RGBA, rng *rand.Rand, frame i
 			rotatedY := int(yOffset*math.Cos(wingAngle)) + wingY + wingH/2
 			wingWidth := int(float64(wingSpan) * (1.0 - float64(y)/float64(wingH)))
 
-			for x := 0; x < wingWidth; x++ {
-				px := wingCenterX + side*x
-				py := rotatedY
-				if px >= 0 && px < img.Bounds().Dx() && py >= 0 && py < img.Bounds().Dy() {
-					alpha := uint8(200 - uint8(float64(x)/float64(wingWidth)*150))
-					img.Set(px, py, color.RGBA{R: wingColor.R, G: wingColor.G, B: wingColor.B, A: alpha})
+			if wingWidth > 0 {
+				for x := 0; x < wingWidth; x++ {
+					px := wingCenterX + side*x
+					py := rotatedY
+					if px >= 0 && px < img.Bounds().Dx() && py >= 0 && py < img.Bounds().Dy() {
+						alpha := uint8(200 - uint8(float64(x)/float64(wingWidth)*150))
+						img.Set(px, py, color.RGBA{R: wingColor.R, G: wingColor.G, B: wingColor.B, A: alpha})
+					}
 				}
 			}
 		}

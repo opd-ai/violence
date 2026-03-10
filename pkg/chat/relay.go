@@ -28,6 +28,7 @@ type RelayServer struct {
 	messages       chan EncryptedMessage
 	done           chan struct{}
 	mu             sync.RWMutex
+	stopOnce       sync.Once
 	logger         *logrus.Entry
 	readTimeout    time.Duration
 	messageTimeout time.Duration
@@ -211,15 +212,19 @@ func (rs *RelayServer) sendMessage(conn net.Conn, msg EncryptedMessage) {
 
 // Stop gracefully shuts down the relay server.
 func (rs *RelayServer) Stop() error {
-	close(rs.done)
+	var err error
+	rs.stopOnce.Do(func() {
+		close(rs.done)
 
-	rs.mu.Lock()
-	for _, conn := range rs.clients {
-		conn.Close()
-	}
-	rs.mu.Unlock()
+		rs.mu.Lock()
+		for _, conn := range rs.clients {
+			conn.Close()
+		}
+		rs.mu.Unlock()
 
-	return rs.listener.Close()
+		err = rs.listener.Close()
+	})
+	return err
 }
 
 // GetClientCount returns the number of connected clients.

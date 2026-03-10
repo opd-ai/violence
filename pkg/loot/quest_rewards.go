@@ -304,6 +304,9 @@ func (g *QuestRewardGenerator) genreText(fantasy, scifi, horror, cyberpunk, post
 
 // DetermineTierFromObjective calculates reward tier based on objective completion quality.
 func DetermineTierFromObjective(isMain bool, progress, count int, timeElapsed, timeTarget float64) QuestRewardTier {
+	if count == 0 {
+		return TierStandard
+	}
 	completionRatio := float64(progress) / float64(count)
 
 	if isMain {

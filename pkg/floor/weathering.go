@@ -103,7 +103,7 @@ func (g *TextureGenerator) applyAgeVariation(img *image.RGBA, size int, material
 
 // applyEdgeDamage adds chipping and erosion along tile edges.
 func (g *TextureGenerator) applyEdgeDamage(img *image.RGBA, size int, material MaterialType, intensity float64, rng *rand.Rand) {
-	if intensity <= 0 {
+	if intensity <= 0 || size < 2 {
 		return
 	}
 
