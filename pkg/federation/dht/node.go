@@ -107,6 +107,7 @@ func NewNode(ctx context.Context, cfg Config) (*Node, error) {
 
 	// Bootstrap the DHT
 	if err := kdht.Bootstrap(nodeCtx); err != nil {
+		kdht.Close()
 		h.Close()
 		cancel()
 		return nil, fmt.Errorf("failed to bootstrap DHT: %w", err)

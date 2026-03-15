@@ -162,7 +162,10 @@ func (s *InteractiveSystem) Draw(screen *ebiten.Image) {
 // drawButton renders a button with state-based colors and press animation.
 func (s *InteractiveSystem) drawButton(screen *ebiten.Image, btn *Button) {
 	// Calculate transition progress
-	t := float64(btn.Transition.CurrentTime) / float64(btn.Transition.Duration)
+	t := 0.0
+	if btn.Transition.Duration > 0 {
+		t = float64(btn.Transition.CurrentTime) / float64(btn.Transition.Duration)
+	}
 	if t > 1.0 {
 		t = 1.0
 	}
@@ -209,7 +212,10 @@ func (s *InteractiveSystem) drawButton(screen *ebiten.Image, btn *Button) {
 // drawPanel renders a panel with slide/fade transition.
 func (s *InteractiveSystem) drawPanel(screen *ebiten.Image, panel *Panel) {
 	// Calculate transition progress
-	t := float64(panel.Transition.CurrentTime) / float64(panel.Transition.Duration)
+	t := 0.0
+	if panel.Transition.Duration > 0 {
+		t = float64(panel.Transition.CurrentTime) / float64(panel.Transition.Duration)
+	}
 	if t > 1.0 {
 		t = 1.0
 	}

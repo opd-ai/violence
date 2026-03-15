@@ -144,6 +144,10 @@ func (s *System) RenderHealthBars(screen *ebiten.Image, w *engine.World, cameraX
 			continue
 		}
 
+		if health.Max == 0 {
+			continue
+		}
+
 		healthPct := float64(health.Current) / float64(health.Max)
 		if healthPct >= 1.0 && !bar.ShowWhenFull && bar.LastDamageAge > s.fadeDelay {
 			continue
@@ -544,6 +548,10 @@ func (s *System) RenderHealthBarsWithLayout(screen *ebiten.Image, w *engine.Worl
 		bar := barComp.(*Component)
 
 		if !bar.Visible {
+			continue
+		}
+
+		if health.Max == 0 {
 			continue
 		}
 

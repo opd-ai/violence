@@ -189,14 +189,15 @@ func atomicWrite(path string, data []byte) error {
 		return fmt.Errorf("failed to sync temp file: %w", err)
 	}
 
-	if err := f.Close(); err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("failed to close temp file: %w", err)
-	}
+	closeErr := f.Close()
 
 	if err := os.Rename(tmpPath, path); err != nil {
 		os.Remove(tmpPath)
 		return fmt.Errorf("failed to rename temp file: %w", err)
+	}
+
+	if closeErr != nil {
+		return fmt.Errorf("file saved but close failed: %w", closeErr)
 	}
 
 	return nil
