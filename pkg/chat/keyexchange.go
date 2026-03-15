@@ -41,14 +41,15 @@ func PerformKeyExchange(conn net.Conn) ([]byte, error) {
 	// Get our public key bytes
 	ourPublicKey := privateKey.PublicKey().Bytes()
 
-	// Send our public key to peer
-	if err := sendPublicKey(conn, ourPublicKey); err != nil {
-		return nil, err
-	}
+	// Send and receive concurrently to avoid deadlock on synchronous connections.
+	sendErr := make(chan error, 1)
+	go func() { sendErr <- sendPublicKey(conn, ourPublicKey) }()
 
-	// Receive peer's public key
 	peerPublicKeyBytes, err := receivePublicKey(conn)
 	if err != nil {
+		return nil, err
+	}
+	if err := <-sendErr; err != nil {
 		return nil, err
 	}
 
