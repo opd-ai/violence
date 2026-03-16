@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/ecdh"
@@ -10,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"time"
 
 	"golang.org/x/crypto/hkdf"
 	"golang.org/x/crypto/sha3"

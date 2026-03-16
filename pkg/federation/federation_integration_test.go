@@ -1,3 +1,5 @@
+//go:build integration
+
 // Package federation provides server federation and matchmaking.
 package federation
 

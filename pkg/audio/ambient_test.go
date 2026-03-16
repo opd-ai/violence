@@ -5,6 +5,10 @@ import (
 	"testing"
 )
 
+// testDuration is a short soundscape duration used in unit tests to keep them fast.
+// The full 60-second loop is only used in production; 2 seconds exercises all code paths.
+const testDuration = sampleRate * 2
+
 func TestNewAmbientSoundscape(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -55,6 +59,7 @@ func TestAmbientSoundscape_Generate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ambient := NewAmbientSoundscape(tt.genreID, tt.seed)
+			ambient.duration = testDuration // use short duration for test speed
 			ambient.Generate()
 
 			if ambient.loopData == nil {
@@ -86,6 +91,7 @@ func TestAmbientSoundscape_Generate(t *testing.T) {
 func TestAmbientSoundscape_GetLoopData(t *testing.T) {
 	t.Run("generates on first call", func(t *testing.T) {
 		ambient := NewAmbientSoundscape("fantasy", 7777)
+		ambient.duration = testDuration
 
 		data := ambient.GetLoopData()
 		if data == nil {
@@ -98,6 +104,7 @@ func TestAmbientSoundscape_GetLoopData(t *testing.T) {
 
 	t.Run("returns cached data on subsequent calls", func(t *testing.T) {
 		ambient := NewAmbientSoundscape("scifi", 8888)
+		ambient.duration = testDuration
 
 		data1 := ambient.GetLoopData()
 		data2 := ambient.GetLoopData()
@@ -116,6 +123,7 @@ func TestAmbientSoundscape_GetLoopData(t *testing.T) {
 func TestAmbientSoundscape_SetGenre(t *testing.T) {
 	t.Run("changes genre and clears cache", func(t *testing.T) {
 		ambient := NewAmbientSoundscape("fantasy", 9999)
+		ambient.duration = testDuration
 		ambient.Generate()
 
 		if ambient.loopData == nil {
@@ -134,6 +142,7 @@ func TestAmbientSoundscape_SetGenre(t *testing.T) {
 
 	t.Run("same genre does not clear cache", func(t *testing.T) {
 		ambient := NewAmbientSoundscape("horror", 1234)
+		ambient.duration = testDuration
 		ambient.Generate()
 
 		originalData := ambient.loopData
@@ -164,7 +173,9 @@ func TestAmbientSoundscape_Determinism(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ambient1 := NewAmbientSoundscape(tt.genreID, tt.seed)
+			ambient1.duration = testDuration
 			ambient2 := NewAmbientSoundscape(tt.genreID, tt.seed)
+			ambient2.duration = testDuration
 
 			data1 := ambient1.GetLoopData()
 			data2 := ambient2.GetLoopData()
@@ -188,6 +199,7 @@ func TestAmbientSoundscape_GenreUniqueness(t *testing.T) {
 
 	for _, genre := range genres {
 		ambient := NewAmbientSoundscape(genre, seed)
+		ambient.duration = testDuration
 		genreData[genre] = ambient.GetLoopData()
 	}
 
@@ -210,6 +222,7 @@ func TestAmbientSoundscape_GenreUniqueness(t *testing.T) {
 
 func TestAmbientSoundscape_DungeonEcho(t *testing.T) {
 	ambient := NewAmbientSoundscape("fantasy", 12345)
+	ambient.duration = testDuration
 	data := ambient.GetLoopData()
 
 	if len(data) < 44 {
@@ -231,6 +244,7 @@ func TestAmbientSoundscape_DungeonEcho(t *testing.T) {
 
 func TestAmbientSoundscape_StationHum(t *testing.T) {
 	ambient := NewAmbientSoundscape("scifi", 23456)
+	ambient.duration = testDuration
 	data := ambient.GetLoopData()
 
 	if len(data) < 44 {
@@ -251,6 +265,7 @@ func TestAmbientSoundscape_StationHum(t *testing.T) {
 
 func TestAmbientSoundscape_HospitalSilence(t *testing.T) {
 	ambient := NewAmbientSoundscape("horror", 34567)
+	ambient.duration = testDuration
 	data := ambient.GetLoopData()
 
 	if len(data) < 44 {
@@ -271,6 +286,7 @@ func TestAmbientSoundscape_HospitalSilence(t *testing.T) {
 
 func TestAmbientSoundscape_ServerDrone(t *testing.T) {
 	ambient := NewAmbientSoundscape("cyberpunk", 45678)
+	ambient.duration = testDuration
 	data := ambient.GetLoopData()
 
 	if len(data) < 44 {
@@ -291,6 +307,7 @@ func TestAmbientSoundscape_ServerDrone(t *testing.T) {
 
 func TestAmbientSoundscape_Wind(t *testing.T) {
 	ambient := NewAmbientSoundscape("postapoc", 56789)
+	ambient.duration = testDuration
 	data := ambient.GetLoopData()
 
 	if len(data) < 44 {

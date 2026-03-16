@@ -3,6 +3,7 @@ package audio
 
 import (
 	"bytes"
+	"context"
 	"math"
 	"math/rand"
 )
@@ -30,7 +31,13 @@ func NewAmbientSoundscape(genreID string, seed uint64) *AmbientSoundscape {
 // Generate creates the ambient audio loop data.
 // Must be called before GetLoopData().
 func (a *AmbientSoundscape) Generate() {
-	a.loopData = a.generateLoop()
+	a.GenerateWithContext(context.Background())
+}
+
+// GenerateWithContext creates the ambient audio loop data, respecting ctx for cancellation.
+// If ctx is cancelled before generation completes, the remaining samples are zero-filled.
+func (a *AmbientSoundscape) GenerateWithContext(ctx context.Context) {
+	a.loopData = a.generateLoop(ctx)
 }
 
 // GetLoopData returns the generated audio loop as WAV data.
@@ -49,14 +56,22 @@ func (a *AmbientSoundscape) SetGenre(genreID string) {
 	}
 }
 
-// generateLoop creates a genre-specific ambient loop.
-func (a *AmbientSoundscape) generateLoop() []byte {
+// generateLoop creates a genre-specific ambient loop, checking ctx.Done() every
+// sampleRate samples so that generation can be cancelled cleanly.
+func (a *AmbientSoundscape) generateLoop(ctx context.Context) []byte {
 	rng := rand.New(rand.NewSource(int64(a.seed)))
 
 	buf := &bytes.Buffer{}
 	writeWAVHeader(buf, a.duration)
 
 	pcmData := make([]int16, a.duration*2)
+
+	select {
+	case <-ctx.Done():
+		writeZeroPCM(buf, len(pcmData))
+		return buf.Bytes()
+	default:
+	}
 
 	switch a.genreID {
 	case "fantasy":
@@ -73,12 +88,34 @@ func (a *AmbientSoundscape) generateLoop() []byte {
 		a.generateGenericAmbient(pcmData, rng)
 	}
 
-	// Write PCM data
-	for i := 0; i < len(pcmData); i++ {
-		writeInt16(buf, pcmData[i])
+	// Write PCM data in chunks, yielding to ctx cancellation each second.
+	const chunkSize = sampleRate
+	for i := 0; i < len(pcmData); i += chunkSize {
+		select {
+		case <-ctx.Done():
+			for ; i < len(pcmData); i++ {
+				writeInt16(buf, 0)
+			}
+			return buf.Bytes()
+		default:
+		}
+		end := i + chunkSize
+		if end > len(pcmData) {
+			end = len(pcmData)
+		}
+		for j := i; j < end; j++ {
+			writeInt16(buf, pcmData[j])
+		}
 	}
 
 	return buf.Bytes()
+}
+
+// writeZeroPCM writes n silent int16 PCM samples to buf.
+func writeZeroPCM(buf *bytes.Buffer, n int) {
+	for i := 0; i < n; i++ {
+		writeInt16(buf, 0)
+	}
 }
 
 // generateDungeonEcho creates fantasy dungeon atmosphere with water drips and distant echoes.
