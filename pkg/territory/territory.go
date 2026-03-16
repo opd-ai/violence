@@ -307,13 +307,15 @@ func (s *ControlSystem) updateTerritoryGrid(territory *Territory) {
 	gridX := int(territory.CenterX) / s.gridSize
 	gridY := int(territory.CenterY) / s.gridSize
 
-	radius := int(territory.Radius) / s.gridSize
+	// Ceiling division so a territory always covers at least one grid cell past center.
+	radius := (int(territory.Radius) + s.gridSize - 1) / s.gridSize
 	for dy := -radius; dy <= radius; dy++ {
 		for dx := -radius; dx <= radius; dx++ {
 			gx := gridX + dx
 			gy := gridY + dy
 			if gx >= 0 && gx < len(s.territoryGrid[0]) && gy >= 0 && gy < len(s.territoryGrid) {
-				dist := math.Sqrt(float64(dx*dx + dy*dy))
+				// Use Chebyshev distance so corners are included (square coverage).
+				dist := math.Max(math.Abs(float64(dx)), math.Abs(float64(dy)))
 				if dist <= float64(radius) {
 					s.territoryGrid[gy][gx] = territory.ID
 				}

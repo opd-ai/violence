@@ -69,7 +69,7 @@ func TestUpdateRange(t *testing.T) {
 	profile := NewPlayerBehaviorProfile()
 
 	// First observation should set the range
-	profile.ObservationCount = 1
+	profile.ObservationCount = 0
 	profile.UpdateRange(5.0)
 	if profile.AverageEngagementRange != 5.0 {
 		t.Errorf("Expected range 5.0, got %f", profile.AverageEngagementRange)
@@ -108,7 +108,7 @@ func TestGetDominantTacticCoverBased(t *testing.T) {
 	profile.ObservationCount = 10
 
 	// Simulate cover usage
-	for i := 0; i < 8; i++ {
+	for i := 0; i < 9; i++ {
 		profile.RecordObservation(TacticObservation{
 			Tactic:     TacticCoverBased,
 			Timestamp:  float64(i),

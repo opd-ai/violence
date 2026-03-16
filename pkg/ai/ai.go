@@ -171,6 +171,9 @@ type Context struct {
 	LastShotTick int
 	CurrentTick  int
 	RNG          *rng.RNG
+	// Extension holds an optional specialized context (e.g. *TelegraphAttackContext)
+	// that embeds this Context, allowing type-safe access to extra fields in actions.
+	Extension interface{}
 }
 
 // BehaviorTree represents an AI decision tree.

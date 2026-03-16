@@ -44,12 +44,12 @@ func TestAdaptiveAISystemUpdate(t *testing.T) {
 			MaxRange:       15.0,
 		},
 	})
-	w.AddComponent(enemy, &engine.Position{X: 15.0, Y: 10.0})
+	w.AddComponent(enemy, &engine.Position{X: 25.0, Y: 10.0})
 	w.AddComponent(enemy, &engine.Health{Current: 50, Max: 50})
 
 	// Run update cycles
-	for i := 0; i < 200; i++ {
-		sys.Update(w) // 20 seconds total at 60 FPS
+	for i := 0; i < 700; i++ {
+		sys.Update(w) // ~11.67 seconds at 60 FPS
 	}
 
 	// Verify profile was updated
@@ -61,7 +61,7 @@ func TestAdaptiveAISystemUpdate(t *testing.T) {
 	adaptType := reflect.TypeOf(&AdaptationComponent{})
 	adaptComp, hasAdapt := w.GetComponent(enemy, adaptType)
 	if !hasAdapt {
-		t.Error("Expected enemy to have AdaptationComponent")
+		t.Fatal("Expected enemy to have AdaptationComponent")
 	}
 
 	// Verify adaptation was applied
@@ -311,7 +311,7 @@ func TestAdaptiveAISystemIntegration(t *testing.T) {
 				MaxRange:       15.0,
 			},
 		})
-		w.AddComponent(enemy, &engine.Position{X: 10.0 + float64(i)*2, Y: 10.0})
+		w.AddComponent(enemy, &engine.Position{X: 25.0 + float64(i)*2, Y: 10.0})
 		w.AddComponent(enemy, &engine.Health{Current: 50, Max: 50})
 	}
 

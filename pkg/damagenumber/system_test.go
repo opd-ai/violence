@@ -36,11 +36,8 @@ func TestSpawn(t *testing.T) {
 			w := engine.NewWorld()
 			ent := Spawn(w, tt.value, tt.x, tt.y, tt.damageType, tt.isCritical, tt.isHeal)
 
-			if ent == 0 {
-				t.Fatal("Spawn() returned zero entity")
-			}
-
-			comp, found := w.GetComponent(ent, nil)
+			compType := reflect.TypeOf((*Component)(nil))
+			comp, found := w.GetComponent(ent, compType)
 			if !found {
 				t.Fatal("Spawn() did not add component to entity")
 			}

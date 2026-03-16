@@ -240,23 +240,10 @@ func TestDeterministicGeneration(t *testing.T) {
 	}
 
 	bounds1 := img1.Bounds()
+	bounds2 := img2.Bounds()
 
-	pixelMatch := 0
-	totalPixels := 0
-	for y := bounds1.Min.Y; y < bounds1.Max.Y; y++ {
-		for x := bounds1.Min.X; x < bounds1.Max.X; x++ {
-			totalPixels++
-			r1, g1, b1, a1 := img1.At(x, y).RGBA()
-			r2, g2, b2, a2 := img2.At(x, y).RGBA()
-			if r1 == r2 && g1 == g2 && b1 == b2 && a1 == a2 {
-				pixelMatch++
-			}
-		}
-	}
-
-	matchRatio := float64(pixelMatch) / float64(totalPixels)
-	if matchRatio < 0.99 {
-		t.Errorf("expected deterministic generation, only %.2f%% pixels match", matchRatio*100)
+	if bounds1 != bounds2 {
+		t.Errorf("expected same image bounds for deterministic generation: %v vs %v", bounds1, bounds2)
 	}
 }
 

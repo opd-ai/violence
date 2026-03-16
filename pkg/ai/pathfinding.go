@@ -23,6 +23,13 @@ func (n *astarNode) f() float64 {
 
 // FindPathCoord uses A* algorithm to find a path from start to goal on a TileMap.
 func FindPathCoord(grid level.TileMap, start, goal Coord) []Coord {
+	if start.X == goal.X && start.Y == goal.Y {
+		if grid.InBounds(start.X, start.Y) && grid.IsWalkable(start.X, start.Y) {
+			return []Coord{start}
+		}
+		return []Coord{}
+	}
+
 	if !validateCoordPathInput(grid, start, goal) {
 		return []Coord{}
 	}

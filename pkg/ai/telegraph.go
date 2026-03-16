@@ -18,30 +18,31 @@ type TelegraphAttackContext struct {
 
 // checkCanTelegraphAttack checks if entity can initiate a telegraph attack.
 func checkCanTelegraphAttack(agent *Agent, ctx *Context) bool {
-	// Check if we have a TelegraphAttackContext
-	if tCtx, ok := interface{}(ctx).(*TelegraphAttackContext); ok {
-		// Find entity by agent ID
-		entity := findEntityByAgent(tCtx.World, agent)
-		if entity == 0 {
-			return false
-		}
-
-		// Check if telegraph component exists and is not active
-		telegraphType := reflect.TypeOf(&telegraph.Component{})
-		comp, ok := tCtx.World.GetComponent(entity, telegraphType)
-		if !ok {
-			return true // No component yet, can create one
-		}
-
-		tc := comp.(*telegraph.Component)
-		return !tc.Active // Can attack if not already telegraphing
+	// Check if we have a TelegraphAttackContext via the Extension back-reference
+	tCtx, ok := ctx.Extension.(*TelegraphAttackContext)
+	if !ok {
+		return false
 	}
-	return false
+	// Find entity by agent ID
+	entity := findEntityByAgent(tCtx.World, agent)
+	if entity == 0 {
+		return false
+	}
+
+	// Check if telegraph component exists and is not active
+	telegraphType := reflect.TypeOf(&telegraph.Component{})
+	comp, ok := tCtx.World.GetComponent(entity, telegraphType)
+	if !ok {
+		return true // No component yet, can create one
+	}
+
+	tc := comp.(*telegraph.Component)
+	return !tc.Active // Can attack if not already telegraphing
 }
 
 // actionTelegraphAttack initiates a telegraph attack toward the player.
 func actionTelegraphAttack(agent *Agent, ctx *Context) NodeStatus {
-	tCtx, ok := interface{}(ctx).(*TelegraphAttackContext)
+	tCtx, ok := ctx.Extension.(*TelegraphAttackContext)
 	if !ok {
 		return StatusFailure
 	}

@@ -38,15 +38,22 @@ func (s *System) SetGenre(genreID string) {
 // Update implements the System interface.
 func (s *System) Update(w *engine.World) {
 	deltaTime := 1.0 / 60.0
-	it := w.QueryWithBitmask(engine.ComponentIDPosition)
 
 	swingTriggerType := reflect.TypeOf(&SwingTriggerComponent{})
 	weaponAnimType := reflect.TypeOf(&WeaponAnimComponent{})
 	posType := reflect.TypeOf(&PositionComponent{})
 	velType := reflect.TypeOf(&VelocityComponent{})
 
-	for it.Next() {
-		entity := it.Entity()
+	// Union of entities with active animations or pending swing triggers
+	entitySet := make(map[engine.Entity]struct{})
+	for _, e := range w.Query(weaponAnimType) {
+		entitySet[e] = struct{}{}
+	}
+	for _, e := range w.Query(swingTriggerType) {
+		entitySet[e] = struct{}{}
+	}
+
+	for entity := range entitySet {
 		s.processPendingSwingTrigger(w, entity, swingTriggerType, weaponAnimType, velType)
 		s.processActiveAnimation(w, entity, weaponAnimType, posType, deltaTime)
 	}
@@ -121,9 +128,6 @@ func (s *System) processActiveAnimation(w *engine.World, entity engine.Entity, w
 	}
 
 	anim := animComp.(*WeaponAnimComponent)
-	if !anim.Active {
-		return
-	}
 
 	posComp, hasPos := w.GetComponent(entity, posType)
 	if !hasPos {
@@ -131,8 +135,13 @@ func (s *System) processActiveAnimation(w *engine.World, entity engine.Entity, w
 	}
 	pos := posComp.(*PositionComponent)
 
-	s.updateAnimation(anim, pos, deltaTime)
-	s.updateTrail(anim, pos, deltaTime)
+	if anim.Active {
+		s.updateAnimation(anim, pos, deltaTime)
+	}
+	// Age trail points even when animation is inactive so they fade after completion.
+	if anim.Active || len(anim.TrailPoints) > 0 {
+		s.updateTrail(anim, pos, deltaTime)
+	}
 }
 
 // updateAnimation progresses the swing animation.

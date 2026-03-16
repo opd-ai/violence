@@ -1,0 +1,371 @@
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence	0.055s
+ok  	github.com/opd-ai/violence/cmd/federation-hub	1.549s
+?   	github.com/opd-ai/violence/cmd/mod-registry	[no test files]
+time="2026-03-15T20:27:28-04:00" level=info msg="Starting game server" system_name=gameserver tick_rate=20
+time="2026-03-15T20:27:28-04:00" level=info msg="Stopping game server" system_name=gameserver
+time="2026-03-15T20:27:28-04:00" level=info msg="Starting game server" system_name=gameserver tick_rate=20
+time="2026-03-15T20:27:28-04:00" level=info msg="Player connected" player_id=0 system_name=gameserver
+time="2026-03-15T20:27:28-04:00" level=info msg="Stopping game server" system_name=gameserver
+time="2026-03-15T20:27:28-04:00" level=info msg="Player disconnected" player_id=0 system_name=gameserver
+time="2026-03-15T20:27:28-04:00" level=info msg="Starting game server" system_name=gameserver tick_rate=20
+time="2026-03-15T20:27:28-04:00" level=info msg="Player connected" player_id=0 system_name=gameserver
+time="2026-03-15T20:27:28-04:00" level=info msg="Stopping game server" system_name=gameserver
+time="2026-03-15T20:27:28-04:00" level=error msg="Failed to decode command" error="read tcp [::1]:42359->[::1]:35666: read: connection reset by peer"
+time="2026-03-15T20:27:28-04:00" level=info msg="Player disconnected" player_id=0 system_name=gameserver
+time="2026-03-15T20:27:28-04:00" level=info msg="Starting game server" system_name=gameserver tick_rate=20
+time="2026-03-15T20:27:28-04:00" level=info msg="Player connected" player_id=0 system_name=gameserver
+time="2026-03-15T20:27:28-04:00" level=info msg="Player connected" player_id=1 system_name=gameserver
+time="2026-03-15T20:27:28-04:00" level=info msg="Player connected" player_id=2 system_name=gameserver
+time="2026-03-15T20:27:28-04:00" level=error msg="Failed to decode command" error="read tcp [::1]:39265->[::1]:57218: read: connection reset by peer"
+time="2026-03-15T20:27:28-04:00" level=error msg="Failed to decode command" error="read tcp [::1]:39265->[::1]:57208: read: connection reset by peer"
+time="2026-03-15T20:27:28-04:00" level=info msg="Player disconnected" player_id=2 system_name=gameserver
+time="2026-03-15T20:27:28-04:00" level=error msg="Failed to decode command" error="read tcp [::1]:39265->[::1]:57194: read: connection reset by peer"
+time="2026-03-15T20:27:28-04:00" level=info msg="Stopping game server" system_name=gameserver
+time="2026-03-15T20:27:28-04:00" level=info msg="Player disconnected" player_id=1 system_name=gameserver
+time="2026-03-15T20:27:28-04:00" level=info msg="Player disconnected" player_id=0 system_name=gameserver
+time="2026-03-15T20:27:28-04:00" level=info msg="Starting game server" system_name=gameserver tick_rate=20
+time="2026-03-15T20:27:28-04:00" level=info msg="Player connected" player_id=0 system_name=gameserver
+time="2026-03-15T20:27:29-04:00" level=info msg="Stopping game server" system_name=gameserver
+time="2026-03-15T20:27:29-04:00" level=error msg="Failed to decode command" error="read tcp [::1]:34635->[::1]:51558: use of closed network connection"
+--- FAIL: TestServerGracefulShutdown (0.05s)
+    main_test.go:178: Expected connection to be closed
+time="2026-03-15T20:27:29-04:00" level=info msg="Starting game server" system_name=gameserver tick_rate=20
+time="2026-03-15T20:27:29-04:00" level=info msg="Stopping game server" system_name=gameserver
+time="2026-03-15T20:27:29-04:00" level=info msg="Starting game server" system_name=gameserver tick_rate=20
+time="2026-03-15T20:27:29-04:00" level=info msg="Stopping game server" system_name=gameserver
+FAIL
+FAIL	github.com/opd-ai/violence/cmd/server	0.533s
+ok  	github.com/opd-ai/violence/pkg/achievements	1.042s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/ai	0.053s
+ok  	github.com/opd-ai/violence/pkg/ammo	1.021s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/animation	0.048s
+ok  	github.com/opd-ai/violence/pkg/attackanim	1.022s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/attacktrail	0.049s
+ok  	github.com/opd-ai/violence/pkg/audio	5.804s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/automap	0.052s
+ok  	github.com/opd-ai/violence/pkg/biome	1.030s
+ok  	github.com/opd-ai/violence/pkg/bsp	1.746s
+ok  	github.com/opd-ai/violence/pkg/camera	1.026s
+ok  	github.com/opd-ai/violence/pkg/camerafx	1.026s
+ok  	github.com/opd-ai/violence/pkg/chat	11.682s
+ok  	github.com/opd-ai/violence/pkg/class	1.015s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/collision	0.036s
+?   	github.com/opd-ai/violence/pkg/collision/example	[no test files]
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/combat	0.040s
+ok  	github.com/opd-ai/violence/pkg/common	1.018s
+ok  	github.com/opd-ai/violence/pkg/config	4.131s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/corpse	0.033s
+ok  	github.com/opd-ai/violence/pkg/crafting	1.015s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/crosshair	0.041s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/damagenumber	0.055s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/damagestate	0.050s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/decal	0.050s
+ok  	github.com/opd-ai/violence/pkg/decoration	1.021s
+ok  	github.com/opd-ai/violence/pkg/destruct	1.021s
+ok  	github.com/opd-ai/violence/pkg/dialogue	1.063s
+?   	github.com/opd-ai/violence/pkg/dialogue/example	[no test files]
+ok  	github.com/opd-ai/violence/pkg/dmgfx	1.019s
+ok  	github.com/opd-ai/violence/pkg/door	1.019s
+ok  	github.com/opd-ai/violence/pkg/economy	1.025s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/engine	0.047s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/entitylabel	0.043s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/equipment	0.041s
+ok  	github.com/opd-ai/violence/pkg/event	1.039s
+ok  	github.com/opd-ai/violence/pkg/faction	1.015s
+ok  	github.com/opd-ai/violence/pkg/federation	4.487s
+ok  	github.com/opd-ai/violence/pkg/federation/dht	1.033s
+ok  	github.com/opd-ai/violence/pkg/feedback	1.017s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/floor	0.039s
+ok  	github.com/opd-ai/violence/pkg/fog	1.016s
+ok  	github.com/opd-ai/violence/pkg/hazard	1.020s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/healthbar	0.048s
+ok  	github.com/opd-ai/violence/pkg/iap	1.014s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/input	0.051s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/integration	0.044s
+ok  	github.com/opd-ai/violence/pkg/inventory	1.019s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/itemicon	0.040s
+ok  	github.com/opd-ai/violence/pkg/leaderboard	1.256s
+ok  	github.com/opd-ai/violence/pkg/level	1.015s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/lighting	0.040s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/loot	0.041s
+?   	github.com/opd-ai/violence/pkg/loot/example	[no test files]
+ok  	github.com/opd-ai/violence/pkg/lore	1.053s
+ok  	github.com/opd-ai/violence/pkg/minigame	1.019s
+ok  	github.com/opd-ai/violence/pkg/mod	1.062s
+ok  	github.com/opd-ai/violence/pkg/mod/registry	1.270s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/motion	0.043s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/network	0.053s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/outline	0.049s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/parallax	0.052s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/particle	0.053s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/playersprite	0.053s
+ok  	github.com/opd-ai/violence/pkg/pool	1.234s
+ok  	github.com/opd-ai/violence/pkg/procgen/genre	1.019s
+ok  	github.com/opd-ai/violence/pkg/progression	1.022s
+ok  	github.com/opd-ai/violence/pkg/projectile	1.020s
+ok  	github.com/opd-ai/violence/pkg/props	1.021s
+ok  	github.com/opd-ai/violence/pkg/quest	1.020s
+ok  	github.com/opd-ai/violence/pkg/raycaster	1.033s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/render	0.046s
+ok  	github.com/opd-ai/violence/pkg/replay	1.051s
+ok  	github.com/opd-ai/violence/pkg/rng	1.013s
+ok  	github.com/opd-ai/violence/pkg/save	1.133s
+ok  	github.com/opd-ai/violence/pkg/save/cloud	7.132s
+ok  	github.com/opd-ai/violence/pkg/secret	1.016s
+ok  	github.com/opd-ai/violence/pkg/shop	1.015s
+ok  	github.com/opd-ai/violence/pkg/skills	1.018s
+ok  	github.com/opd-ai/violence/pkg/spatial	1.046s
+?   	github.com/opd-ai/violence/pkg/spatial/example	[no test files]
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/sprite	0.048s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/squad	0.058s
+ok  	github.com/opd-ai/violence/pkg/stats	1.023s
+ok  	github.com/opd-ai/violence/pkg/status	12.278s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/statusfx	0.044s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/telegraph	0.047s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/territory	0.045s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/testutil	0.051s
+ok  	github.com/opd-ai/violence/pkg/texture	2.084s
+ok  	github.com/opd-ai/violence/pkg/trap	1.018s
+ok  	github.com/opd-ai/violence/pkg/tutorial	1.025s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/ui	0.044s
+ok  	github.com/opd-ai/violence/pkg/upgrade	1.016s
+ok  	github.com/opd-ai/violence/pkg/walltex	1.821s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/weapon	0.044s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/pkg/weaponanim	0.040s
+ok  	github.com/opd-ai/violence/pkg/weather	1.025s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.8.8/internal/ui/ui.go:100 +0x9b
+FAIL	github.com/opd-ai/violence/test	0.043s
+FAIL

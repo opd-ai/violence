@@ -51,16 +51,20 @@ func TestTelegraphBehaviorTree_Integration(t *testing.T) {
 		tileMap[i] = make([]int, 20)
 	}
 
+	baseCtx := &Context{
+		TileMap: tileMap,
+		PlayerX: 130,
+		PlayerY: 100,
+		RNG:     rng.NewRNG(42),
+	}
+
 	ctx := &TelegraphAttackContext{
-		Context: &Context{
-			TileMap: tileMap,
-			PlayerX: 130,
-			PlayerY: 100,
-			RNG:     rng.NewRNG(42),
-		},
+		Context:         baseCtx,
 		World:           w,
 		TelegraphSystem: sys,
 	}
+	// Set back-reference so actionTelegraphAttack can recover ctx via ctx.Context.Extension.
+	baseCtx.Extension = ctx
 
 	tree := NewTelegraphBehaviorTree()
 
