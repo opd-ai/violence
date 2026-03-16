@@ -415,16 +415,6 @@ func (mb *ModBrowser) Refresh() {
 	go mb.RefreshModList()
 }
 
-func (mb *ModBrowser) updateBrowse(im *input.Manager) error {
-	// Deprecated: Use NavigateDown, NavigateUp, Confirm, Cancel instead
-	return nil
-}
-
-func (mb *ModBrowser) updateDetails(im *input.Manager) error {
-	// Deprecated: Use NavigateDown, NavigateUp, Confirm, Cancel instead
-	return nil
-}
-
 // Draw renders the mod browser UI.
 func (mb *ModBrowser) Draw(screen *ebiten.Image) {
 	if !mb.visible {

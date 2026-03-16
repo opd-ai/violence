@@ -406,3 +406,56 @@ func TestFilterLongMessage(t *testing.T) {
 		t.Error("Filter failed to detect profanity in long message")
 	}
 }
+
+// TestProfanityFilterVariants validates that homoglyph and leet-speak evasions are caught.
+func TestProfanityFilterVariants(t *testing.T) {
+	filter := NewProfanityFilter()
+	if err := filter.LoadLanguage("en"); err != nil {
+		t.Fatalf("LoadLanguage: %v", err)
+	}
+
+	// These evasions must be detected by the normalizeForFilter logic.
+	tests := []struct {
+		name    string
+		message string
+		want    bool
+	}{
+		{"plain", "shit", true},
+		{"leet 5h1t", "5h1t", true},        // normalizes to "shit"
+		{"cyrillic-a in ass", "а$$", true}, // Cyrillic 'а' + dollar-signs → "ass"
+		{"full-width fuck", "ｆｕｃｋ", true},  // full-width chars → "fuck"
+		{"clean", "hello world", false},
+		{"cyrillic-p in piss", "рiss", true}, // Cyrillic 'р' maps to 'p' → "piss"
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := filter.Filter(tt.message, "en")
+			if got != tt.want {
+				t.Errorf("Filter(%q) = %v, want %v", tt.message, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestNormalizeForFilter validates the normalisation helper directly.
+func TestNormalizeForFilter(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"hello", "hello"},
+		{"ｈｅｌｌｏ", "hello"},   // full-width
+		{"аssert", "assert"}, // Cyrillic 'а'
+		{"ρass", "pass"},     // Greek 'ρ' → 'p'
+		{"HELLO", "hello"},   // uppercase folded via ToLower
+		{"а$$", "ass"},       // Cyrillic 'а' + leet dollar-signs
+		{"5h1t", "shit"},     // leet-speak reverse
+	}
+	for _, tt := range tests {
+		got := normalizeForFilter(tt.input)
+		if got != tt.want {
+			t.Errorf("normalizeForFilter(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}

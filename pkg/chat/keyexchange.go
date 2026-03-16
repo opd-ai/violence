@@ -17,8 +17,13 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
-// KeyExchange performs ECDH key exchange over a network connection
+// defaultKeyExchangeTimeout is the default deadline applied when no context deadline is set.
+const defaultKeyExchangeTimeout = 10 * time.Second
+
+// PerformKeyExchange performs ECDH key exchange over a network connection
 // and derives an AES-256-GCM key for encrypted chat communication.
+// It uses a default 10-second deadline. Use PerformKeyExchangeWithContext for
+// caller-controlled timeouts.
 //
 // Protocol:
 // 1. Generate ephemeral ECDH P-256 keypair
@@ -29,9 +34,26 @@ import (
 //
 // Returns 32-byte AES key on success.
 func PerformKeyExchange(conn net.Conn) ([]byte, error) {
+	return PerformKeyExchangeWithContext(context.Background(), conn)
+}
+
+// PerformKeyExchangeWithContext performs ECDH key exchange using a context for
+// deadline/cancellation. If the context carries a deadline, it is applied to
+// the connection; otherwise a default 10-second deadline is used.
+func PerformKeyExchangeWithContext(ctx context.Context, conn net.Conn) ([]byte, error) {
 	if conn == nil {
 		return nil, errors.New("connection is nil")
 	}
+
+	// Apply deadline from context, or fall back to default timeout.
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		deadline = time.Now().Add(defaultKeyExchangeTimeout)
+	}
+	if err := conn.SetDeadline(deadline); err != nil {
+		return nil, fmt.Errorf("failed to set connection deadline: %w", err)
+	}
+	defer conn.SetDeadline(time.Time{}) //nolint:errcheck // best-effort reset
 
 	// Generate ephemeral ECDH keypair using P-256 curve
 	curve := ecdh.P256()

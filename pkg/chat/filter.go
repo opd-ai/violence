@@ -4,7 +4,54 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+
+	"golang.org/x/text/unicode/norm"
 )
+
+// homoglyphMap maps common Unicode homoglyphs (Cyrillic, Greek, etc.) to their
+// Latin ASCII equivalents for normalization before profanity matching.
+var homoglyphMap = map[rune]rune{
+	// Cyrillic lookalikes
+	'а': 'a', 'е': 'e', 'о': 'o', 'р': 'p', 'с': 'c', 'х': 'x',
+	'А': 'a', 'В': 'b', 'Е': 'e', 'К': 'k', 'М': 'm', 'Н': 'h',
+	'О': 'o', 'Р': 'p', 'С': 'c', 'Т': 't', 'Х': 'x',
+	// Greek lookalikes
+	'α': 'a', 'β': 'b', 'ε': 'e', 'ο': 'o', 'ρ': 'p', 'υ': 'u',
+	'ν': 'v', 'χ': 'x',
+	// Full-width ASCII
+	'ａ': 'a', 'ｂ': 'b', 'ｃ': 'c', 'ｄ': 'd', 'ｅ': 'e',
+	'ｆ': 'f', 'ｇ': 'g', 'ｈ': 'h', 'ｉ': 'i', 'ｊ': 'j',
+	'ｋ': 'k', 'ｌ': 'l', 'ｍ': 'm', 'ｎ': 'n', 'ｏ': 'o',
+	'ｐ': 'p', 'ｑ': 'q', 'ｒ': 'r', 'ｓ': 's', 'ｔ': 't',
+	'ｕ': 'u', 'ｖ': 'v', 'ｗ': 'w', 'ｘ': 'x', 'ｙ': 'y', 'ｚ': 'z',
+	// Leet-speak reverse: normalize digits/symbols to letters so that
+	// "а$$" (Cyrillic а + double-dollar) is detected as "ass".
+	'4': 'a', '@': 'a',
+	'3': 'e',
+	'1': 'i', '!': 'i',
+	'0': 'o',
+	'5': 's', '$': 's',
+	'7': 't',
+}
+
+// normalizeForFilter applies Unicode NFC normalization, homoglyph substitution,
+// and lowercasing so that evasion attempts using lookalike characters are caught.
+func normalizeForFilter(s string) string {
+	// NFC normalization decomposes and recomposes combining characters
+	s = norm.NFC.String(s)
+	s = strings.ToLower(s)
+
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		if latin, ok := homoglyphMap[r]; ok {
+			b.WriteRune(latin)
+		} else {
+			b.WriteRune(r) // preserve unknown chars (ß, é, ü, etc.)
+		}
+	}
+	return b.String()
+}
 
 // ProfanityFilter filters profane language from chat messages
 type ProfanityFilter struct {
@@ -81,8 +128,8 @@ func (pf *ProfanityFilter) Filter(message, language string) bool {
 		}
 	}
 
-	// Normalize message (lowercase for case-insensitive matching)
-	normalizedMsg := strings.ToLower(message)
+	// Normalize message: NFC + homoglyph substitution + lowercase
+	normalizedMsg := normalizeForFilter(message)
 
 	// Check each word in the profanity list
 	for _, word := range words {
@@ -107,14 +154,24 @@ func (pf *ProfanityFilter) Sanitize(message, language string) string {
 		}
 	}
 
+	// sanitized starts as the original to preserve casing for non-leet text.
 	sanitized := message
-	normalizedMsg := strings.ToLower(message)
+	normalizedMsg := normalizeForFilter(message)
 
 	// Replace each profane word with asterisks
 	for _, word := range words {
-		if strings.Contains(normalizedMsg, word) {
-			// Find case-insensitive match and replace
-			sanitized = replaceCaseInsensitive(sanitized, word, strings.Repeat("*", len(word)))
+		if !strings.Contains(normalizedMsg, word) {
+			continue
+		}
+		asterisks := strings.Repeat("*", len(word))
+		// Try replacing in original first (preserves casing).
+		replaced := replaceCaseInsensitive(sanitized, word, asterisks)
+		if replaced != sanitized {
+			sanitized = replaced
+		} else {
+			// Word exists only in normalized form (leet/homoglyph evasion).
+			sanitized = replaceCaseInsensitive(normalizedMsg, word, asterisks)
+			normalizedMsg = sanitized
 		}
 	}
 

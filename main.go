@@ -3476,14 +3476,6 @@ func (g *Game) buildShopState() *ui.ShopState {
 	}
 }
 
-// getUpgradeTokenCount returns the current upgrade token count for display.
-func (g *Game) getUpgradeTokenCount() int {
-	if g.upgradeManager == nil {
-		return 0
-	}
-	return g.upgradeManager.GetTokens().GetCount()
-}
-
 // drawCrafting renders the crafting overlay screen.
 func (g *Game) drawCrafting(screen *ebiten.Image) {
 	// Draw frozen game world

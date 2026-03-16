@@ -91,11 +91,11 @@ VIOLENCE is a raycasting first-person shooter built with Go and Ebitengine. The 
 
 ### MEDIUM
 
-- [ ] **`PerformKeyExchange` lacks connection deadline / context support** — `pkg/chat/keyexchange.go:29` — Even after fixing the deadlock, `PerformKeyExchange` has no timeout parameter. A slow or malicious peer can hold a connection open indefinitely during the handshake phase. The existing `TestKeyExchangeTimeout` test works by setting a `net.Conn` deadline externally, but callers in production code do not set deadlines.
+- [x] **`PerformKeyExchange` lacks connection deadline / context support** — `pkg/chat/keyexchange.go:29` — Even after fixing the deadlock, `PerformKeyExchange` has no timeout parameter. A slow or malicious peer can hold a connection open indefinitely during the handshake phase. The existing `TestKeyExchangeTimeout` test works by setting a `net.Conn` deadline externally, but callers in production code do not set deadlines.
   - **Remediation:** Change the signature to `PerformKeyExchange(ctx context.Context, conn net.Conn) ([]byte, error)` and apply `conn.SetDeadline(time.Now().Add(10 * time.Second))` inside using the context deadline if set.
   - **Validation:** `go test -race -timeout 30s ./pkg/chat/...` passes; no blocking in `TestPerformKeyExchange`.
 
-- [ ] **Profanity filter l33t-speak detection incomplete** — `pkg/chat/filter.go` — The wordlist generator produces basic single-character substitutions (a→4, e→3, etc.) but does not handle: double substitutions (`@@` for `aa`), Unicode homoglyphs (Cyrillic `а` for Latin `a`), or phonetic evasions. Acknowledged in the existing GAPS.md but not resolved. Chat content moderation is a stated safety feature.
+- [x] **Profanity filter l33t-speak detection incomplete** — `pkg/chat/filter.go` — The wordlist generator produces basic single-character substitutions (a→4, e→3, etc.) but does not handle: double substitutions (`@@` for `aa`), Unicode homoglyphs (Cyrillic `а` for Latin `a`), or phonetic evasions. Acknowledged in the existing GAPS.md but not resolved. Chat content moderation is a stated safety feature.
   - **Remediation:** Extend `generateLeetSpeakVariants()` to include a Unicode normalisation step (`golang.org/x/text/unicode/norm`) before matching, and add a homoglyph-replacement map covering the most common Cyrillic/Greek lookalikes. Add test cases covering `sh1t`, `f@ck`, `а$$` (Cyrillic a), etc.
   - **Validation:** `go test -race ./pkg/chat/...` includes a `TestProfanityFilterVariants` case that catches the above examples.
 
