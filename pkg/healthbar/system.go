@@ -515,23 +515,29 @@ func (s *System) poolImage(width, height int) *image.RGBA {
 
 // RenderHealthBarsWithLayout draws health bars using layout manager to prevent overlap.
 func (s *System) RenderHealthBarsWithLayout(screen *ebiten.Image, w *engine.World, cameraX, cameraY, cameraDirX, cameraDirY float64, screenWidth, screenHeight int, layoutMgr *ui.LayoutManager) {
+	visibleBars := s.collectVisibleHealthBars(w, cameraX, cameraY, cameraDirX, cameraDirY, screenWidth, screenHeight)
+	s.renderBarsWithLayout(screen, w, visibleBars, layoutMgr)
+}
+
+// barRenderInfo holds pre-computed screen-space data for a single health bar.
+type barRenderInfo struct {
+	eid       engine.Entity
+	screenX   float32
+	screenY   float32
+	health    *engine.Health
+	bar       *Component
+	healthPct float64
+	distance  float64
+}
+
+// collectVisibleHealthBars queries the world for entities whose health bars should be drawn
+// and returns screen-space render info for each visible bar.
+func (s *System) collectVisibleHealthBars(w *engine.World, cameraX, cameraY, cameraDirX, cameraDirY float64, screenWidth, screenHeight int) []barRenderInfo {
 	healthType := reflect.TypeOf(&engine.Health{})
 	barType := reflect.TypeOf(&Component{})
 	posType := reflect.TypeOf(&engine.Position{})
 
 	entities := w.Query(healthType)
-
-	// First pass: collect visible health bars and prioritize by distance
-	type barRenderInfo struct {
-		eid       engine.Entity
-		screenX   float32
-		screenY   float32
-		health    *engine.Health
-		bar       *Component
-		healthPct float64
-		distance  float64
-	}
-
 	visibleBars := make([]barRenderInfo, 0, len(entities))
 
 	for _, eid := range entities {
@@ -571,11 +577,8 @@ func (s *System) RenderHealthBarsWithLayout(screen *ebiten.Image, w *engine.Worl
 			continue
 		}
 
-		// Calculate distance from camera for priority
 		dx := pos.X - cameraX
 		dy := pos.Y - cameraY
-		distance := math.Sqrt(dx*dx + dy*dy)
-
 		visibleBars = append(visibleBars, barRenderInfo{
 			eid:       eid,
 			screenX:   screenX,
@@ -583,43 +586,48 @@ func (s *System) RenderHealthBarsWithLayout(screen *ebiten.Image, w *engine.Worl
 			health:    health,
 			bar:       bar,
 			healthPct: healthPct,
-			distance:  distance,
+			distance:  math.Sqrt(dx*dx + dy*dy),
 		})
 	}
+	return visibleBars
+}
 
-	// Second pass: render with layout manager, closer entities get higher priority
-	for _, info := range visibleBars {
+// renderBarsWithLayout renders collected health bars through the layout manager,
+// giving closer entities higher draw priority to reduce overlap.
+func (s *System) renderBarsWithLayout(screen *ebiten.Image, w *engine.World, bars []barRenderInfo, layoutMgr *ui.LayoutManager) {
+	for _, info := range bars {
 		barY := info.screenY - info.bar.OffsetY
 		barX := info.screenX - info.bar.Width/2
 
-		// Determine priority based on distance
-		priority := ui.PrioritySecondary
-		if info.distance < 3.0 {
-			priority = ui.PriorityCritical
-		} else if info.distance < 8.0 {
-			priority = ui.PriorityImportant
-		}
+		priority := layoutPriority(info.distance)
 
-		// Reserve space for health bar
 		adjustedX, adjustedY, visible := layoutMgr.Reserve(
 			"healthbar",
 			barX,
 			barY,
 			info.bar.Width,
-			info.bar.Height+8, // Extra space for status icons
+			info.bar.Height+8,
 			priority,
-			true, // Health bars can move to avoid overlap
+			true,
 		)
 
 		if !visible {
-			// Too much clutter, skip this health bar
 			continue
 		}
 
-		// Draw health bar at adjusted position
 		s.drawHealthBar(screen, adjustedX, adjustedY, info.bar.Width, info.bar.Height, info.healthPct, info.bar)
-
-		// Draw status icons above health bar
 		s.drawStatusIcons(screen, w, info.eid, adjustedX+info.bar.Width/2, adjustedY-4)
+	}
+}
+
+// layoutPriority maps distance to a UI layout priority.
+func layoutPriority(distance float64) ui.Priority {
+	switch {
+	case distance < 3.0:
+		return ui.PriorityCritical
+	case distance < 8.0:
+		return ui.PriorityImportant
+	default:
+		return ui.PrioritySecondary
 	}
 }

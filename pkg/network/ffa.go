@@ -199,13 +199,7 @@ func (m *FFAMatch) StartMatch() error {
 	if len(m.SpawnPoints) > 0 {
 		for playerID, player := range m.Players {
 			spawnIdx := int(playerID) % len(m.SpawnPoints)
-			spawn := m.SpawnPoints[spawnIdx]
-			player.mu.Lock()
-			player.PosX = spawn.X
-			player.PosY = spawn.Y
-			player.Health = player.MaxHealth
-			player.Dead = false
-			player.mu.Unlock()
+			applyRespawn(&ffaPlayerAdapter{player}, m.SpawnPoints[spawnIdx])
 		}
 	}
 

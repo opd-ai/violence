@@ -126,8 +126,9 @@ func (r *Registry) loadDefaultEffects(genreID string) {
 }
 
 // Apply adds a status effect to an entity.
+//
+// Deprecated: Use ApplyToEntity instead to specify the target entity and ECS world.
 func (r *Registry) Apply(name string) {
-	// Deprecated - use ApplyToEntity instead
 }
 
 // ApplyToEntity applies a status effect to an entity in the ECS world.
@@ -180,8 +181,9 @@ func (r *Registry) ApplyToEntity(w *engine.World, entity engine.Entity, effectNa
 }
 
 // Tick advances all active effects by one tick.
+//
+// Deprecated: Use System.Update instead to process effects within the ECS.
 func (r *Registry) Tick() {
-	// Deprecated - use System.Update instead
 }
 
 // System processes all entities with status effects each frame.

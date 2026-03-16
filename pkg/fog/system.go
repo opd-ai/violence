@@ -93,12 +93,8 @@ func (s *System) applyGenrePreset(genreID string) {
 
 	default:
 		s.logger.Warnf("unknown genre %s, using fantasy defaults", genreID)
-		s.fogStart = 7.0
-		s.fogEnd = 18.0
-		s.fogColor = color.RGBA{40, 35, 50, 255}
-		s.fogDensity = 0.65
-		s.falloffType = "exponential"
-		s.enabled = true
+		s.applyGenrePreset("fantasy")
+		return
 	}
 
 	s.logger.Debugf("fog preset: start=%.1f, end=%.1f, density=%.2f, falloff=%s",

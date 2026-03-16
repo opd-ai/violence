@@ -4576,30 +4576,58 @@ func (g *Game) renderCombatEffects(screen *ebiten.Image, camX, camY float64) {
 	if g.telegraphSystem != nil {
 		g.telegraphSystem.Render(screen, g.world, camX, camY)
 	}
+	g.renderCombatUI(screen, camX, camY)
+}
 
+// renderCombatUI renders in-world UI elements with overlap prevention via layout manager.
+func (g *Game) renderCombatUI(screen *ebiten.Image, camX, camY float64) {
 	// Clear UI layout manager at start of frame
 	if g.uiLayoutManager != nil {
 		g.uiLayoutManager.Clear()
 	}
 
-	// Render UI elements with overlap prevention
-	if g.healthBarSystem != nil && g.uiLayoutManager != nil {
-		g.healthBarSystem.RenderHealthBarsWithLayout(screen, g.world, camX, camY, g.camera.DirX, g.camera.DirY, config.C.InternalWidth, config.C.InternalHeight, g.uiLayoutManager)
-	} else if g.healthBarSystem != nil {
-		g.healthBarSystem.RenderHealthBars(screen, g.world, camX, camY, g.camera.DirX, g.camera.DirY, config.C.InternalWidth, config.C.InternalHeight)
-	}
-	if g.damageNumberSystem != nil && g.uiLayoutManager != nil {
-		g.damageNumberSystem.RenderWithLayout(g.world, screen, camX, camY, g.uiLayoutManager)
-	} else if g.damageNumberSystem != nil {
-		g.damageNumberSystem.Render(g.world, screen, camX, camY)
-	}
-	if g.entityLabelSystem != nil && g.uiLayoutManager != nil {
-		g.entityLabelSystem.RenderWithLayout(g.world, screen, camX, camY, g.uiLayoutManager)
-	} else if g.entityLabelSystem != nil {
-		g.entityLabelSystem.Render(g.world, screen, camX, camY)
-	}
+	g.renderHealthBars(screen, camX, camY)
+	g.renderECSDamageNumbers(screen, camX, camY)
+	g.renderEntityLabels(screen, camX, camY)
+
 	if g.statusFXSystem != nil {
 		g.statusFXSystem.Render(screen, g.world, camX, camY)
+	}
+}
+
+// renderHealthBars renders health bars for all entities with layout support.
+func (g *Game) renderHealthBars(screen *ebiten.Image, camX, camY float64) {
+	if g.healthBarSystem == nil {
+		return
+	}
+	if g.uiLayoutManager != nil {
+		g.healthBarSystem.RenderHealthBarsWithLayout(screen, g.world, camX, camY, g.camera.DirX, g.camera.DirY, config.C.InternalWidth, config.C.InternalHeight, g.uiLayoutManager)
+	} else {
+		g.healthBarSystem.RenderHealthBars(screen, g.world, camX, camY, g.camera.DirX, g.camera.DirY, config.C.InternalWidth, config.C.InternalHeight)
+	}
+}
+
+// renderECSDamageNumbers renders floating damage numbers with layout support.
+func (g *Game) renderECSDamageNumbers(screen *ebiten.Image, camX, camY float64) {
+	if g.damageNumberSystem == nil {
+		return
+	}
+	if g.uiLayoutManager != nil {
+		g.damageNumberSystem.RenderWithLayout(g.world, screen, camX, camY, g.uiLayoutManager)
+	} else {
+		g.damageNumberSystem.Render(g.world, screen, camX, camY)
+	}
+}
+
+// renderEntityLabels renders entity name labels with layout support.
+func (g *Game) renderEntityLabels(screen *ebiten.Image, camX, camY float64) {
+	if g.entityLabelSystem == nil {
+		return
+	}
+	if g.uiLayoutManager != nil {
+		g.entityLabelSystem.RenderWithLayout(g.world, screen, camX, camY, g.uiLayoutManager)
+	} else {
+		g.entityLabelSystem.Render(g.world, screen, camX, camY)
 	}
 }
 

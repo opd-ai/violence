@@ -245,13 +245,7 @@ func (m *TeamMatch) StartMatch() error {
 		spawnPoints := m.SpawnPoints[team]
 		if len(spawnPoints) > 0 {
 			spawnIdx := int(playerID) % len(spawnPoints)
-			spawn := spawnPoints[spawnIdx]
-			player.mu.Lock()
-			player.PosX = spawn.X
-			player.PosY = spawn.Y
-			player.Health = player.MaxHealth
-			player.Dead = false
-			player.mu.Unlock()
+			applyRespawn(&teamPlayerAdapter{player}, spawnPoints[spawnIdx])
 		}
 	}
 

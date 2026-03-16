@@ -66,13 +66,18 @@ func (a *AmbientSoundscape) generateLoop(ctx context.Context) []byte {
 
 	pcmData := make([]int16, a.duration*2)
 
-	select {
-	case <-ctx.Done():
+	if ctx.Err() != nil {
 		writeZeroPCM(buf, len(pcmData))
 		return buf.Bytes()
-	default:
 	}
 
+	a.generateGenreAudio(pcmData, rng)
+	writePCMWithContext(ctx, buf, pcmData)
+	return buf.Bytes()
+}
+
+// generateGenreAudio fills pcmData according to the soundscape's genre.
+func (a *AmbientSoundscape) generateGenreAudio(pcmData []int16, rng *rand.Rand) {
 	switch a.genreID {
 	case "fantasy":
 		a.generateDungeonEcho(pcmData, rng)
@@ -87,17 +92,16 @@ func (a *AmbientSoundscape) generateLoop(ctx context.Context) []byte {
 	default:
 		a.generateGenericAmbient(pcmData, rng)
 	}
+}
 
-	// Write PCM data in chunks, yielding to ctx cancellation each second.
+// writePCMWithContext writes pcmData to buf in sampleRate-sized chunks, padding
+// the remainder with silence if ctx is cancelled mid-write.
+func writePCMWithContext(ctx context.Context, buf *bytes.Buffer, pcmData []int16) {
 	const chunkSize = sampleRate
 	for i := 0; i < len(pcmData); i += chunkSize {
-		select {
-		case <-ctx.Done():
-			for ; i < len(pcmData); i++ {
-				writeInt16(buf, 0)
-			}
-			return buf.Bytes()
-		default:
+		if ctx.Err() != nil {
+			writeZeroPCM(buf, len(pcmData)-i)
+			return
 		}
 		end := i + chunkSize
 		if end > len(pcmData) {
@@ -107,8 +111,6 @@ func (a *AmbientSoundscape) generateLoop(ctx context.Context) []byte {
 			writeInt16(buf, pcmData[j])
 		}
 	}
-
-	return buf.Bytes()
 }
 
 // writeZeroPCM writes n silent int16 PCM samples to buf.

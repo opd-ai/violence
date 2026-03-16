@@ -313,7 +313,8 @@ func (l *Loader) GetModsDir() string {
 
 // PluginManager returns the plugin manager for this loader.
 // This provides access to hooks and generators registered by plugins.
-// DEPRECATED: Use WASMLoader() for safe mod execution.
+//
+// Deprecated: Use WASMLoader() for safe mod execution in sandboxed environments.
 func (l *Loader) PluginManager() *PluginManager {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
@@ -330,8 +331,9 @@ func (l *Loader) WASMLoader() *WASMLoader {
 
 // RegisterPlugin registers a plugin with the loader's plugin manager.
 // The plugin is loaded immediately and its lifecycle managed by the loader.
-// DEPRECATED: This is unsafe for untrusted mods. Use WASM mods instead.
 // Requires EnableUnsafePlugins flag to be set.
+//
+// Deprecated: Unsafe for untrusted mods. Use WASM mods via WASMLoader() instead.
 func (l *Loader) RegisterPlugin(p Plugin) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()

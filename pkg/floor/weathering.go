@@ -102,20 +102,47 @@ func (g *TextureGenerator) applyAgeVariation(img *image.RGBA, size int, material
 }
 
 // applyEdgeDamage adds chipping and erosion along tile edges.
+// edgeDamageDepth returns the chip depth for a material, or -1 for materials that don't chip.
+func edgeDamageDepth(material MaterialType) int {
+	switch material {
+	case MaterialDirt, MaterialGrass:
+		return -1 // Soft materials don't chip
+	case MaterialMetal, MaterialCrystal:
+		return 1 // Hard materials chip shallowly
+	default:
+		return 2
+	}
+}
+
+// applyEdgeDamagePixels paints a single damage mark at (x,y) inward from an edge.
+func (g *TextureGenerator) applyEdgeDamagePixels(img *image.RGBA, size, x, y, depth, width, edgePos int, horizontal bool, damageColor color.Color) {
+	for d := 0; d < depth; d++ {
+		for w := 0; w < width; w++ {
+			var px, py int
+			if horizontal {
+				px = x + w - width/2
+				py = y + d*(2*edgePos/(size-1)-1)
+			} else {
+				px = x + d*(2*edgePos/(size-1)-1)
+				py = y + w - width/2
+			}
+			if px >= 0 && px < size && py >= 0 && py < size {
+				img.Set(px, py, damageColor)
+			}
+		}
+	}
+}
+
 func (g *TextureGenerator) applyEdgeDamage(img *image.RGBA, size int, material MaterialType, intensity float64, rng *rand.Rand) {
 	if intensity <= 0 || size < 2 {
 		return
 	}
 
-	// Determine damage characteristics by material
-	damageDepth := 2
-	if material == MaterialMetal || material == MaterialCrystal {
-		damageDepth = 1 // Harder materials chip less
-	} else if material == MaterialDirt || material == MaterialGrass {
-		return // Soft materials don't chip
+	damageDepth := edgeDamageDepth(material)
+	if damageDepth < 0 {
+		return
 	}
 
-	// Damage along edges
 	edges := []struct {
 		isHorizontal bool
 		position     int
@@ -142,28 +169,10 @@ func (g *TextureGenerator) applyEdgeDamage(img *image.RGBA, size int, material M
 				y = rng.Intn(size)
 			}
 
-			// Create irregular damage
 			depth := rng.Intn(damageDepth) + 1
 			width := 1 + rng.Intn(3)
-
 			damageColor := g.getDamageColor(img, x, y, material)
-
-			for d := 0; d < depth; d++ {
-				for w := 0; w < width; w++ {
-					var px, py int
-					if edge.isHorizontal {
-						px = x + w - width/2
-						py = y + d*(2*edge.position/(size-1)-1) // Inward from edge
-					} else {
-						px = x + d*(2*edge.position/(size-1)-1)
-						py = y + w - width/2
-					}
-
-					if px >= 0 && px < size && py >= 0 && py < size {
-						img.Set(px, py, damageColor)
-					}
-				}
-			}
+			g.applyEdgeDamagePixels(img, size, x, y, depth, width, edge.position, edge.isHorizontal, damageColor)
 		}
 	}
 }

@@ -254,10 +254,6 @@ func (s *Shop) getShopInventory() ShopInventory {
 	return inv
 }
 
-func (s *Shop) getDefaultItems() []Item {
-	return s.getShopInventory().GetAllItems()
-}
-
 // GetItem finds an item in the shop by ID.
 func (s *Shop) GetItem(id string) *Item {
 	if s.Items == nil {

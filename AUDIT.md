@@ -99,15 +99,15 @@ VIOLENCE is a raycasting first-person shooter built with Go and Ebitengine. The 
   - **Remediation:** Extend `generateLeetSpeakVariants()` to include a Unicode normalisation step (`golang.org/x/text/unicode/norm`) before matching, and add a homoglyph-replacement map covering the most common Cyrillic/Greek lookalikes. Add test cases covering `sh1t`, `f@ck`, `а$$` (Cyrillic a), etc.
   - **Validation:** `go test -race ./pkg/chat/...` includes a `TestProfanityFilterVariants` case that catches the above examples.
 
-- [ ] **54 dead/unreferenced exported functions** — various packages — `go-stats-generator` reports 54 unreferenced functions across the codebase. Dead exported functions cannot be verified for correctness, inflate the public API surface, and may mislead future contributors into depending on untested code paths.
+- [x] **54 dead/unreferenced exported functions** — various packages — `go-stats-generator` reports 54 unreferenced functions across the codebase. Dead exported functions cannot be verified for correctness, inflate the public API surface, and may mislead future contributors into depending on untested code paths.
   - **Remediation:** Run `go-stats-generator analyze . --format json | jq '.maintenance.dead_code'` to enumerate the list. For each: unexport it if not intended as a public API, or add a test that exercises the function.
   - **Validation:** `go-stats-generator analyze . --skip-tests | grep "Dead Code"` reports 0 unreferenced functions.
 
-- [ ] **Deprecated public APIs still exported** — `pkg/mod/mod.go:316,333`, `pkg/status/status.go:130,184`, `pkg/ui/mod_browser.go:419,424` — Six functions/methods are marked `DEPRECATED` in their doc comments but remain exported. This bloats the public API and may be mistakenly used by mod authors.
+- [x] **Deprecated public APIs still exported** — `pkg/mod/mod.go:316,333`, `pkg/status/status.go:130,184`, `pkg/ui/mod_browser.go:419,424` — Six functions/methods are marked `DEPRECATED` in their doc comments but remain exported. This bloats the public API and may be mistakenly used by mod authors.
   - **Remediation:** Add a `//go:deprecated` annotation (Go 1.21+) to each deprecated identifier so that `go vet` and IDEs surface the warning at call sites. Provide a migration guide in a `MIGRATION.md` or inline doc comment pointing to the replacement.
   - **Validation:** `go vet ./...` emits deprecation hints for callers of these functions.
 
-- [ ] **High-complexity rendering functions** — `main.go:renderCombatEffects` (cyclomatic 21.8), `pkg/healthbar/system.go:RenderHealthBarsWithLayout` (18.4), `pkg/floor/weathering.go:applyEdgeDamage` (18.1) — Functions with cyclomatic complexity >15 are statistically correlated with latent bugs and are difficult to unit test.
+- [x] **High-complexity rendering functions** — `main.go:renderCombatEffects` (cyclomatic 21.8), `pkg/healthbar/system.go:RenderHealthBarsWithLayout` (18.4), `pkg/floor/weathering.go:applyEdgeDamage` (18.1) — Functions with cyclomatic complexity >15 are statistically correlated with latent bugs and are difficult to unit test.
   - **Remediation:** Decompose `renderCombatEffects` into `renderDamageNumbers()`, `renderHitMarkers()`, and `renderBloodEffects()`. Extract the layout calculation in `RenderHealthBarsWithLayout` into a `LayoutCalculator` helper type. Each extracted function should not exceed complexity 8.
   - **Validation:** `go-stats-generator analyze . --skip-tests | grep "High Complexity"` reports 0 functions with cyclomatic > 15.
 
@@ -123,7 +123,7 @@ VIOLENCE is a raycasting first-person shooter built with Go and Ebitengine. The 
   - **Remediation:** Define named constants in domain packages (e.g., `pkg/combat/constants.go`) for tuning parameters like damage multipliers, speed limits, and FOV values. Focus first on constants that appear in multiple files.
   - **Validation:** After one pass, `go-stats-generator` should report a meaningful reduction in magic numbers in the targeted packages.
 
-- [ ] **2.12% code duplication — 81 clone pairs** — `pkg/network/ffa.go:203-208` ≡ `pkg/network/team.go:249-254`; `pkg/fog/system.go:51-56` ≡ `pkg/fog/system.go:96-101`; `pkg/floor/texture.go:248-253` ≡ `pkg/parallax/generator.go:349-355` — Exact and renamed clone pairs indicate missed helper-function extractions. The network duplication is especially notable given that `ffa.go` and `team.go` share the same update logic.
+- [x] **2.12% code duplication — 81 clone pairs** — `pkg/network/ffa.go:203-208` ≡ `pkg/network/team.go:249-254`; `pkg/fog/system.go:51-56` ≡ `pkg/fog/system.go:96-101`; `pkg/floor/texture.go:248-253` ≡ `pkg/parallax/generator.go:349-355` — Exact and renamed clone pairs indicate missed helper-function extractions. The network duplication is especially notable given that `ffa.go` and `team.go` share the same update logic. Fixed: network spawn inlined with applyRespawn; fog default delegates to fantasy preset; floor/parallax cross-package duplication left (different semantics).
   - **Remediation:** Extract the duplicated network logic in `ffa.go`/`team.go` into a shared `pkg/network/common.go` helper. Deduplicate the fog update pattern into a `pkg/fog/updateCells()` helper.
   - **Validation:** `go-stats-generator analyze . --skip-tests | grep "Duplication Ratio"` shows < 1.5%.
 
