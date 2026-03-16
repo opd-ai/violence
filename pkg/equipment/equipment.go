@@ -18,15 +18,15 @@ import (
 type Slot int
 
 const (
-	SlotWeapon    Slot = iota // SlotWeapon is the primary weapon slot.
-	SlotHelmet                // SlotHelmet covers head protection.
-	SlotChest                 // SlotChest covers torso armor.
-	SlotLegs                  // SlotLegs covers leg armor.
-	SlotBoots                 // SlotBoots covers footwear.
-	SlotGloves                // SlotGloves covers hand protection.
-	SlotAccessory1            // SlotAccessory1 is the first accessory slot.
-	SlotAccessory2            // SlotAccessory2 is the second accessory slot.
-	SlotCount                 // SlotCount is the total number of equipment slots.
+	SlotWeapon     Slot = iota // SlotWeapon is the primary weapon slot.
+	SlotHelmet                 // SlotHelmet covers head protection.
+	SlotChest                  // SlotChest covers torso armor.
+	SlotLegs                   // SlotLegs covers leg armor.
+	SlotBoots                  // SlotBoots covers footwear.
+	SlotGloves                 // SlotGloves covers hand protection.
+	SlotAccessory1             // SlotAccessory1 is the first accessory slot.
+	SlotAccessory2             // SlotAccessory2 is the second accessory slot.
+	SlotCount                  // SlotCount is the total number of equipment slots.
 )
 
 // Material defines the visual texture and shading of equipment.
