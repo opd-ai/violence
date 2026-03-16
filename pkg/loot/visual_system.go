@@ -25,6 +25,7 @@ type VisualComponent struct {
 	SpawnTime float64
 }
 
+// Type returns the component type identifier for ECS registration.
 func (vc *VisualComponent) Type() string { return "LootVisual" }
 
 // ItemCategory defines the visual category of a loot item.

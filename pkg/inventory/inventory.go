@@ -28,6 +28,8 @@ type Grenade struct {
 	Radius float64
 }
 
+// Use activates the grenade for the given user entity.
+// The actual explosion effect is handled by the caller.
 func (g *Grenade) Use(user *Entity) error {
 	if user == nil {
 		return fmt.Errorf("cannot use grenade: nil user")
@@ -36,7 +38,10 @@ func (g *Grenade) Use(user *Entity) error {
 	return nil
 }
 
-func (g *Grenade) GetID() string   { return g.ID }
+// GetID returns the grenade's unique identifier.
+func (g *Grenade) GetID() string { return g.ID }
+
+// GetName returns the grenade's display name.
 func (g *Grenade) GetName() string { return g.Name }
 
 // ProximityMine is a placeable explosive trap.
@@ -47,6 +52,8 @@ type ProximityMine struct {
 	TriggerRange float64
 }
 
+// Use places the proximity mine at the user's position.
+// The actual mine entity spawning is handled by the caller.
 func (p *ProximityMine) Use(user *Entity) error {
 	if user == nil {
 		return fmt.Errorf("cannot use proximity mine: nil user")
@@ -55,7 +62,10 @@ func (p *ProximityMine) Use(user *Entity) error {
 	return nil
 }
 
-func (p *ProximityMine) GetID() string   { return p.ID }
+// GetID returns the mine's unique identifier.
+func (p *ProximityMine) GetID() string { return p.ID }
+
+// GetName returns the mine's display name.
 func (p *ProximityMine) GetName() string { return p.Name }
 
 // Medkit is a healing consumable.
@@ -66,6 +76,8 @@ type Medkit struct {
 	PercentHeal float64 // If > 0, heals percentage of max health instead of fixed amount
 }
 
+// Use applies the medkit's healing effect to the user entity.
+// Heals either a fixed amount or percentage of max health.
 func (m *Medkit) Use(user *Entity) error {
 	if user == nil {
 		return fmt.Errorf("cannot use medkit: nil user")
@@ -84,7 +96,10 @@ func (m *Medkit) Use(user *Entity) error {
 	return nil
 }
 
-func (m *Medkit) GetID() string   { return m.ID }
+// GetID returns the medkit's unique identifier.
+func (m *Medkit) GetID() string { return m.ID }
+
+// GetName returns the medkit's display name.
 func (m *Medkit) GetName() string { return m.Name }
 
 // Item represents an inventory item.

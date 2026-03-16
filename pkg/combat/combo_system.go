@@ -402,6 +402,7 @@ type SwingTriggerComponent struct {
 	Pending   bool
 }
 
+// Type returns the component type identifier for ECS registration.
 func (s *SwingTriggerComponent) Type() string {
 	return "swing_trigger"
 }

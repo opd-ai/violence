@@ -195,26 +195,52 @@ func (s *System) GetVignette() float64 {
 // ShakePresets provides common shake intensities.
 type ShakePresets struct{}
 
+// Shake provides convenient access to common camera shake intensity presets.
 var Shake = ShakePresets{}
 
-func (ShakePresets) Tiny() float64        { return 0.5 }
-func (ShakePresets) Light() float64       { return 1.5 }
-func (ShakePresets) Medium() float64      { return 3.0 }
-func (ShakePresets) Heavy() float64       { return 6.0 }
-func (ShakePresets) Massive() float64     { return 12.0 }
+// Tiny returns a minimal shake intensity (0.5) for subtle feedback.
+func (ShakePresets) Tiny() float64 { return 0.5 }
+
+// Light returns a light shake intensity (1.5) for minor impacts.
+func (ShakePresets) Light() float64 { return 1.5 }
+
+// Medium returns a medium shake intensity (3.0) for standard hits.
+func (ShakePresets) Medium() float64 { return 3.0 }
+
+// Heavy returns a heavy shake intensity (6.0) for powerful impacts.
+func (ShakePresets) Heavy() float64 { return 6.0 }
+
+// Massive returns a massive shake intensity (12.0) for explosions.
+func (ShakePresets) Massive() float64 { return 12.0 }
+
+// Cataclysmic returns an extreme shake intensity (20.0) for catastrophic events.
 func (ShakePresets) Cataclysmic() float64 { return 20.0 }
 
 // FlashPresets provides common flash colors.
 type FlashPresets struct{}
 
+// Flash provides convenient access to common screen flash color presets.
 var Flash = FlashPresets{}
 
-func (FlashPresets) White() (r, g, b, a float64)  { return 1.0, 1.0, 1.0, 0.6 }
-func (FlashPresets) Red() (r, g, b, a float64)    { return 1.0, 0.2, 0.2, 0.5 }
+// White returns a white flash (RGBA values) for bright impacts.
+func (FlashPresets) White() (r, g, b, a float64) { return 1.0, 1.0, 1.0, 0.6 }
+
+// Red returns a red flash (RGBA values) for damage taken.
+func (FlashPresets) Red() (r, g, b, a float64) { return 1.0, 0.2, 0.2, 0.5 }
+
+// Orange returns an orange flash (RGBA values) for fire effects.
 func (FlashPresets) Orange() (r, g, b, a float64) { return 1.0, 0.6, 0.2, 0.5 }
-func (FlashPresets) Blue() (r, g, b, a float64)   { return 0.2, 0.5, 1.0, 0.5 }
-func (FlashPresets) Green() (r, g, b, a float64)  { return 0.3, 1.0, 0.3, 0.4 }
+
+// Blue returns a blue flash (RGBA values) for energy effects.
+func (FlashPresets) Blue() (r, g, b, a float64) { return 0.2, 0.5, 1.0, 0.5 }
+
+// Green returns a green flash (RGBA values) for healing effects.
+func (FlashPresets) Green() (r, g, b, a float64) { return 0.3, 1.0, 0.3, 0.4 }
+
+// Purple returns a purple flash (RGBA values) for magic effects.
 func (FlashPresets) Purple() (r, g, b, a float64) { return 0.8, 0.3, 1.0, 0.5 }
+
+// Yellow returns a yellow flash (RGBA values) for electric effects.
 func (FlashPresets) Yellow() (r, g, b, a float64) { return 1.0, 1.0, 0.3, 0.5 }
 
 func clamp(val, min, max float64) float64 {

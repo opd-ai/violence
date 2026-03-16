@@ -21,4 +21,5 @@ type Component struct {
 	Color      color.RGBA
 }
 
+// Type returns the component type identifier for ECS registration.
 func (c *Component) Type() string { return "DamageNumber" }

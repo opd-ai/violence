@@ -192,6 +192,7 @@ type PositionComponent struct {
 	X, Y float64
 }
 
+// Type returns the component type identifier for ECS registration.
 func (p *PositionComponent) Type() string {
 	return "position"
 }
@@ -201,6 +202,7 @@ type VelocityComponent struct {
 	VX, VY float64
 }
 
+// Type returns the component type identifier for ECS registration.
 func (v *VelocityComponent) Type() string {
 	return "velocity"
 }
@@ -211,6 +213,7 @@ type SwingTriggerComponent struct {
 	Pending   bool
 }
 
+// Type returns the component type identifier for ECS registration.
 func (s *SwingTriggerComponent) Type() string {
 	return "swing_trigger"
 }
