@@ -17,11 +17,14 @@ const (
 	CurrentVersion = "1.0"
 )
 
-var (
-	ErrInvalidSlot         = errors.New("invalid save slot")
-	ErrSlotEmpty           = errors.New("save slot is empty")
-	ErrIncompatibleVersion = errors.New("save file version is incompatible with current game version")
-)
+// ErrInvalidSlot is returned when the save slot is invalid.
+var ErrInvalidSlot = errors.New("invalid save slot")
+
+// ErrSlotEmpty is returned when the save slot is empty.
+var ErrSlotEmpty = errors.New("save slot is empty")
+
+// ErrIncompatibleVersion is returned when the save file version is incompatible.
+var ErrIncompatibleVersion = errors.New("save file version is incompatible with current game version")
 
 // GameState represents the complete serializable game state.
 type GameState struct {

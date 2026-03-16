@@ -46,11 +46,11 @@ type SFXParams struct {
 type WaveformType int
 
 const (
-	WaveformSine WaveformType = iota
-	WaveformSquare
-	WaveformSawtooth
-	WaveformTriangle
-	WaveformNoise
+	WaveformSine     WaveformType = iota // WaveformSine is a sine wave.
+	WaveformSquare                       // WaveformSquare is a square wave.
+	WaveformSawtooth                     // WaveformSawtooth is a sawtooth wave.
+	WaveformTriangle                     // WaveformTriangle is a triangle wave.
+	WaveformNoise                        // WaveformNoise is white noise.
 )
 
 // EnvelopeParams defines ADSR envelope parameters (seconds).
@@ -74,14 +74,14 @@ type MusicParams struct {
 type ScaleType int
 
 const (
-	ScaleMinor ScaleType = iota
-	ScaleMajor
-	ScaleDorian
-	ScalePhrygian
-	ScaleLydian
-	ScaleMixolydian
-	ScaleAeolian
-	ScaleLocrian
+	ScaleMinor      ScaleType = iota // ScaleMinor is a minor scale.
+	ScaleMajor                       // ScaleMajor is a major scale.
+	ScaleDorian                      // ScaleDorian is a Dorian mode scale.
+	ScalePhrygian                    // ScalePhrygian is a Phrygian mode scale.
+	ScaleLydian                      // ScaleLydian is a Lydian mode scale.
+	ScaleMixolydian                  // ScaleMixolydian is a Mixolydian mode scale.
+	ScaleAeolian                     // ScaleAeolian is an Aeolian mode scale.
+	ScaleLocrian                     // ScaleLocrian is a Locrian mode scale.
 )
 
 // DefaultFantasyParams returns the default parameter set for Fantasy genre.

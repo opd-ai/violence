@@ -12,10 +12,14 @@ import (
 type Priority int
 
 const (
-	PriorityAmbient   Priority = 1 // Background info, distant entity status
-	PrioritySecondary Priority = 2 // Mid-range entity info
-	PriorityImportant Priority = 3 // Nearby entities, tooltips
-	PriorityCritical  Priority = 4 // Player vitals, active threats
+	// PriorityAmbient is the lowest priority for background info.
+	PriorityAmbient Priority = 1
+	// PrioritySecondary is the priority for mid-range info.
+	PrioritySecondary Priority = 2
+	// PriorityImportant is the priority for nearby entities.
+	PriorityImportant Priority = 3
+	// PriorityCritical is the highest priority for vital info.
+	PriorityCritical Priority = 4
 )
 
 // Rect represents a screen-space rectangle.

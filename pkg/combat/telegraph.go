@@ -14,20 +14,28 @@ import (
 type TelegraphShape int
 
 const (
-	ShapeCone   TelegraphShape = iota // Directional cone (melee swipe, flamethrower)
-	ShapeCircle                       // Radial AoE (slam, explosion)
-	ShapeLine                         // Beam/charge attack
-	ShapeRing                         // Donut-shaped zone
+	// ShapeCone is a directional cone attack area.
+	ShapeCone TelegraphShape = iota
+	// ShapeCircle is a radial AoE attack area.
+	ShapeCircle
+	// ShapeLine is a beam/charge attack area.
+	ShapeLine
+	// ShapeRing is a donut-shaped attack zone.
+	ShapeRing
 )
 
 // TelegraphPhase tracks the attack state machine.
 type TelegraphPhase int
 
 const (
-	PhaseInactive TelegraphPhase = iota // Idle, waiting to attack
-	PhaseWindup                         // Charging/warning
-	PhaseActive                         // Damage window
-	PhaseCooldown                       // Recovery before next attack
+	// PhaseInactive is the idle phase before attacking.
+	PhaseInactive TelegraphPhase = iota
+	// PhaseWindup is the charging/warning phase.
+	PhaseWindup
+	// PhaseActive is the damage dealing phase.
+	PhaseActive
+	// PhaseCooldown is the recovery phase.
+	PhaseCooldown
 )
 
 // AttackPattern defines a repeatable enemy attack behavior.

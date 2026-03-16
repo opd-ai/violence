@@ -18,28 +18,28 @@ import (
 type AnimationState int
 
 const (
-	StateIdle AnimationState = iota
-	StateWalk
-	StateRun
-	StateAttack
-	StateHurt
-	StateDeath
-	StateCast
-	StateBlock
+	StateIdle   AnimationState = iota // StateIdle is the idle animation.
+	StateWalk                         // StateWalk is the walking animation.
+	StateRun                          // StateRun is the running animation.
+	StateAttack                       // StateAttack is the attack animation.
+	StateHurt                         // StateHurt is the hurt animation.
+	StateDeath                        // StateDeath is the death animation.
+	StateCast                         // StateCast is the spell casting animation.
+	StateBlock                        // StateBlock is the blocking animation.
 )
 
 // Direction represents the cardinal direction an entity is facing.
 type Direction int
 
 const (
-	DirNorth Direction = iota
-	DirNorthEast
-	DirEast
-	DirSouthEast
-	DirSouth
-	DirSouthWest
-	DirWest
-	DirNorthWest
+	DirNorth     Direction = iota // DirNorth is facing north.
+	DirNorthEast                  // DirNorthEast is facing northeast.
+	DirEast                       // DirEast is facing east.
+	DirSouthEast                  // DirSouthEast is facing southeast.
+	DirSouth                      // DirSouth is facing south.
+	DirSouthWest                  // DirSouthWest is facing southwest.
+	DirWest                       // DirWest is facing west.
+	DirNorthWest                  // DirNorthWest is facing northwest.
 )
 
 // AnimationComponent holds animation state for an entity.

@@ -26,37 +26,54 @@ const (
 type CreatureType string
 
 const (
-	// Quadruped variants
-	CreatureWolf   CreatureType = "wolf"
-	CreatureBear   CreatureType = "bear"
-	CreatureLion   CreatureType = "lion"
-	CreatureHound  CreatureType = "hound"
+	// CreatureWolf is a wolf quadruped.
+	CreatureWolf CreatureType = "wolf"
+	// CreatureBear is a bear quadruped.
+	CreatureBear CreatureType = "bear"
+	// CreatureLion is a lion quadruped.
+	CreatureLion CreatureType = "lion"
+	// CreatureHound is a hound quadruped.
+	CreatureHound CreatureType = "hound"
+	// CreatureRaptor is a raptor quadruped.
 	CreatureRaptor CreatureType = "raptor"
 
-	// Insect variants
-	CreatureSpider   CreatureType = "spider"
-	CreatureBeetle   CreatureType = "beetle"
-	CreatureMantis   CreatureType = "mantis"
+	// CreatureSpider is an insect spider.
+	CreatureSpider CreatureType = "spider"
+	// CreatureBeetle is an insect beetle.
+	CreatureBeetle CreatureType = "beetle"
+	// CreatureMantis is an insect mantis.
+	CreatureMantis CreatureType = "mantis"
+	// CreatureScorpion is an insect scorpion.
 	CreatureScorpion CreatureType = "scorpion"
-	CreatureAnt      CreatureType = "ant"
+	// CreatureAnt is an insect ant.
+	CreatureAnt CreatureType = "ant"
 
-	// Serpent variants
-	CreatureSnake   CreatureType = "snake"
-	CreatureWorm    CreatureType = "worm"
+	// CreatureSnake is a serpent snake.
+	CreatureSnake CreatureType = "snake"
+	// CreatureWorm is a serpent worm.
+	CreatureWorm CreatureType = "worm"
+	// CreatureSerpent is a large serpent.
 	CreatureSerpent CreatureType = "serpent"
-	CreatureLamia   CreatureType = "lamia"
+	// CreatureLamia is a humanoid serpent.
+	CreatureLamia CreatureType = "lamia"
 
-	// Flying variants
-	CreatureBat   CreatureType = "bat"
+	// CreatureBat is a flying bat.
+	CreatureBat CreatureType = "bat"
+	// CreatureDrake is a flying drake.
 	CreatureDrake CreatureType = "drake"
+	// CreatureHarpy is a flying harpy.
 	CreatureHarpy CreatureType = "harpy"
-	CreatureWasp  CreatureType = "wasp"
+	// CreatureWasp is a flying wasp.
+	CreatureWasp CreatureType = "wasp"
 
-	// Amorphous variants
-	CreatureSlime     CreatureType = "slime"
-	CreatureOoze      CreatureType = "ooze"
+	// CreatureSlime is an amorphous slime.
+	CreatureSlime CreatureType = "slime"
+	// CreatureOoze is an amorphous ooze.
+	CreatureOoze CreatureType = "ooze"
+	// CreatureElemental is an amorphous elemental.
 	CreatureElemental CreatureType = "elemental"
-	CreatureWraith    CreatureType = "wraith"
+	// CreatureWraith is an amorphous wraith.
+	CreatureWraith CreatureType = "wraith"
 )
 
 // GetBodyPlan returns the body plan for a creature type.

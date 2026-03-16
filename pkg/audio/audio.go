@@ -908,14 +908,17 @@ func newLocalRNG(seed uint64) *localRNG {
 	return &localRNG{state: seed}
 }
 
+// Intn returns a random integer in [0, n).
 func (r *localRNG) Intn(n int) int {
 	return int(r.Uint64() % uint64(n))
 }
 
+// Float64 returns a random float64 in [0, 1).
 func (r *localRNG) Float64() float64 {
 	return float64(r.Uint64()&0xFFFFFFF) / float64(0xFFFFFFF)
 }
 
+// Uint64 returns a random uint64 using xorshift.
 func (r *localRNG) Uint64() uint64 {
 	r.state ^= r.state << 13
 	r.state ^= r.state >> 7

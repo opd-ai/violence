@@ -25,11 +25,11 @@ func (c *Component) Type() string {
 type AnimationState int
 
 const (
-	AnimIdle AnimationState = iota
-	AnimWalk
-	AnimAttack
-	AnimHurt
-	AnimDeath
-	AnimDodge
-	AnimCast
+	AnimIdle   AnimationState = iota // AnimIdle is the idle animation state.
+	AnimWalk                         // AnimWalk is the walking animation state.
+	AnimAttack                       // AnimAttack is the attack animation state.
+	AnimHurt                         // AnimHurt is the hurt animation state.
+	AnimDeath                        // AnimDeath is the death animation state.
+	AnimDodge                        // AnimDodge is the dodge animation state.
+	AnimCast                         // AnimCast is the casting animation state.
 )

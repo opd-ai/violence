@@ -5,21 +5,30 @@ package door
 type DoorState int
 
 const (
-	StateClosed  DoorState = iota // Door is fully closed
-	StateOpening                  // Door is animating open
-	StateOpen                     // Door is fully open
-	StateClosing                  // Door is animating closed
+	// StateClosed means the door is fully closed.
+	StateClosed DoorState = iota
+	// StateOpening means the door is animating open.
+	StateOpening
+	// StateOpen means the door is fully open.
+	StateOpen
+	// StateClosing means the door is animating closed.
+	StateClosing
 )
 
 // DoorType defines the visual style of a door.
 type DoorType int
 
 const (
-	TypeSwing        DoorType = iota // Swinging door (fantasy)
-	TypeSliding                      // Sliding bulkhead (scifi)
-	TypePortcullis                   // Vertical gate (fantasy)
-	TypeShutter                      // Mechanical shutter (cyberpunk)
-	TypeLaserBarrier                 // Energy barrier (scifi)
+	// TypeSwing is a swinging door.
+	TypeSwing DoorType = iota
+	// TypeSliding is a sliding bulkhead door.
+	TypeSliding
+	// TypePortcullis is a vertical gate door.
+	TypePortcullis
+	// TypeShutter is a mechanical shutter door.
+	TypeShutter
+	// TypeLaserBarrier is an energy barrier door.
+	TypeLaserBarrier
 )
 
 // Door represents a door entity in the game world.

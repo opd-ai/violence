@@ -15,10 +15,10 @@ import (
 type ElementState int
 
 const (
-	StateIdle ElementState = iota
-	StateHover
-	StatePressed
-	StateFocused
+	StateIdle    ElementState = iota // StateIdle is the idle UI element state.
+	StateHover                       // StateHover is the hovered UI element state.
+	StatePressed                     // StatePressed is the pressed UI element state.
+	StateFocused                     // StateFocused is the focused UI element state.
 )
 
 // TransitionConfig holds easing and timing parameters.

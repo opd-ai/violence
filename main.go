@@ -104,17 +104,17 @@ import (
 type GameState int
 
 const (
-	StateMenu GameState = iota
-	StatePlaying
-	StatePaused
-	StateLoading
-	StateShop
-	StateCrafting
-	StateSkills
-	StateMods
-	StateMultiplayer
-	StateCodex
-	StateMinigame
+	StateMenu        GameState = iota // StateMenu is the main menu state.
+	StatePlaying                      // StatePlaying is the active gameplay state.
+	StatePaused                       // StatePaused is the paused game state.
+	StateLoading                      // StateLoading is the loading screen state.
+	StateShop                         // StateShop is the shop menu state.
+	StateCrafting                     // StateCrafting is the crafting menu state.
+	StateSkills                       // StateSkills is the skills menu state.
+	StateMods                         // StateMods is the mods menu state.
+	StateMultiplayer                  // StateMultiplayer is the multiplayer menu state.
+	StateCodex                        // StateCodex is the codex menu state.
+	StateMinigame                     // StateMinigame is the minigame state.
 )
 
 // Game implements ebiten.Game for the VIOLENCE raycasting FPS.

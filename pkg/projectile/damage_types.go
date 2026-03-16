@@ -4,14 +4,14 @@ package projectile
 type DamageType int
 
 const (
-	DamagePhysical DamageType = iota
-	DamageFire
-	DamageIce
-	DamageLightning
-	DamagePoison
-	DamageHoly
-	DamageShadow
-	DamageArcane
+	DamagePhysical  DamageType = iota // DamagePhysical is physical damage.
+	DamageFire                        // DamageFire is fire damage.
+	DamageIce                         // DamageIce is ice damage.
+	DamageLightning                   // DamageLightning is lightning damage.
+	DamagePoison                      // DamagePoison is poison damage.
+	DamageHoly                        // DamageHoly is holy damage.
+	DamageShadow                      // DamageShadow is shadow damage.
+	DamageArcane                      // DamageArcane is arcane damage.
 )
 
 // DamageTypeNames provides string names for damage types.

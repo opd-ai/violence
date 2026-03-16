@@ -30,12 +30,12 @@ type Decal struct {
 type DecalType int
 
 const (
-	DecalBlood DecalType = iota
-	DecalScorch
-	DecalSlash
-	DecalBulletHole
-	DecalMagicBurn
-	DecalAcid
-	DecalFreeze
-	DecalElectric
+	DecalBlood      DecalType = iota // DecalBlood is a blood splatter decal.
+	DecalScorch                      // DecalScorch is a scorch mark decal.
+	DecalSlash                       // DecalSlash is a slash mark decal.
+	DecalBulletHole                  // DecalBulletHole is a bullet hole decal.
+	DecalMagicBurn                   // DecalMagicBurn is a magic burn decal.
+	DecalAcid                        // DecalAcid is an acid burn decal.
+	DecalFreeze                      // DecalFreeze is a frost decal.
+	DecalElectric                    // DecalElectric is an electric burn decal.
 )

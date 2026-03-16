@@ -13,16 +13,16 @@ import (
 type Type int
 
 const (
-	TypeSpikeTrap Type = iota
-	TypeFireGrate
-	TypePoisonVent
-	TypeElectricFloor
-	TypeFallingRocks
-	TypeAcidPool
-	TypeLaserGrid
-	TypeCryoField
-	TypePlasmaJet
-	TypeGravityWell
+	TypeSpikeTrap     Type = iota // TypeSpikeTrap is a spike trap hazard.
+	TypeFireGrate                 // TypeFireGrate is a fire grate hazard.
+	TypePoisonVent                // TypePoisonVent is a poison vent hazard.
+	TypeElectricFloor             // TypeElectricFloor is an electric floor hazard.
+	TypeFallingRocks              // TypeFallingRocks is a falling rocks hazard.
+	TypeAcidPool                  // TypeAcidPool is an acid pool hazard.
+	TypeLaserGrid                 // TypeLaserGrid is a laser grid hazard.
+	TypeCryoField                 // TypeCryoField is a cryo field hazard.
+	TypePlasmaJet                 // TypePlasmaJet is a plasma jet hazard.
+	TypeGravityWell               // TypeGravityWell is a gravity well hazard.
 )
 
 // String returns a string representation of the hazard type.
@@ -42,10 +42,10 @@ func (t Type) String() string {
 type State int
 
 const (
-	StateInactive State = iota
-	StateCharging
-	StateActive
-	StateCooldown
+	StateInactive State = iota // StateInactive means the hazard is dormant.
+	StateCharging              // StateCharging means the hazard is charging up.
+	StateActive                // StateActive means the hazard is dealing damage.
+	StateCooldown              // StateCooldown means the hazard is cooling down.
 )
 
 // Hazard represents an environmental hazard in the game world.

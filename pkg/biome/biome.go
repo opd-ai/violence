@@ -13,18 +13,18 @@ import (
 type BiomeType int
 
 const (
-	BiomeForestDungeon BiomeType = iota
-	BiomeDeepCavern
-	BiomeCrypt
-	BiomeLavaShrine
-	BiomeFrozenCaves
-	BiomeCrystalMine
-	BiomeAbandonedLab
-	BiomeAlienHive
-	BiomeCorpTower
-	BiomeWasteland
-	BiomeRadZone
-	BiomeUnderground
+	BiomeForestDungeon BiomeType = iota // BiomeForestDungeon is a forest dungeon biome.
+	BiomeDeepCavern                     // BiomeDeepCavern is a deep cavern biome.
+	BiomeCrypt                          // BiomeCrypt is a crypt biome.
+	BiomeLavaShrine                     // BiomeLavaShrine is a lava shrine biome.
+	BiomeFrozenCaves                    // BiomeFrozenCaves is a frozen caves biome.
+	BiomeCrystalMine                    // BiomeCrystalMine is a crystal mine biome.
+	BiomeAbandonedLab                   // BiomeAbandonedLab is an abandoned lab biome.
+	BiomeAlienHive                      // BiomeAlienHive is an alien hive biome.
+	BiomeCorpTower                      // BiomeCorpTower is a corporate tower biome.
+	BiomeWasteland                      // BiomeWasteland is a wasteland biome.
+	BiomeRadZone                        // BiomeRadZone is a radiation zone biome.
+	BiomeUnderground                    // BiomeUnderground is an underground biome.
 )
 
 // BiomeComponent marks a map region with a biome type.

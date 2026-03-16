@@ -10,25 +10,25 @@ import (
 type ImpactType int
 
 const (
-	ImpactMelee ImpactType = iota
-	ImpactProjectile
-	ImpactExplosion
-	ImpactMagic
-	ImpactCritical
-	ImpactBlock
-	ImpactDeath
+	ImpactMelee      ImpactType = iota // ImpactMelee is a melee weapon impact.
+	ImpactProjectile                   // ImpactProjectile is a projectile impact.
+	ImpactExplosion                    // ImpactExplosion is an explosion impact.
+	ImpactMagic                        // ImpactMagic is a magical impact.
+	ImpactCritical                     // ImpactCritical is a critical hit impact.
+	ImpactBlock                        // ImpactBlock is a blocked attack impact.
+	ImpactDeath                        // ImpactDeath is a death effect impact.
 )
 
 // MaterialType defines the surface material being hit.
 type MaterialType int
 
 const (
-	MaterialFlesh MaterialType = iota
-	MaterialMetal
-	MaterialStone
-	MaterialWood
-	MaterialEnergy
-	MaterialEthereal
+	MaterialFlesh    MaterialType = iota // MaterialFlesh is organic flesh material.
+	MaterialMetal                        // MaterialMetal is metallic material.
+	MaterialStone                        // MaterialStone is stone material.
+	MaterialWood                         // MaterialWood is wooden material.
+	MaterialEnergy                       // MaterialEnergy is energy-based material.
+	MaterialEthereal                     // MaterialEthereal is ethereal material.
 )
 
 // ImpactEffectEmitter spawns genre-appropriate particles for combat impacts.

@@ -7,11 +7,16 @@ import "fmt"
 type MasteryMilestone int
 
 const (
+	// MilestoneNone is no milestone achieved.
 	MilestoneNone MasteryMilestone = iota
-	Milestone250                   // Headshot damage +10%
-	Milestone500                   // Reload speed +15%
-	Milestone750                   // Accuracy +10%
-	Milestone1000                  // Critical chance +5%
+	// Milestone250 grants +10% headshot damage.
+	Milestone250
+	// Milestone500 grants +15% reload speed.
+	Milestone500
+	// Milestone750 grants +10% accuracy.
+	Milestone750
+	// Milestone1000 grants +5% critical chance.
+	Milestone1000
 )
 
 // MasteryBonus represents passive bonuses at each milestone.

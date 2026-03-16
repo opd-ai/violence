@@ -11,26 +11,26 @@ import (
 type RoomType int
 
 const (
-	RoomGeneric RoomType = iota
-	RoomArmory
-	RoomLibrary
-	RoomShrine
-	RoomTreasure
-	RoomPrison
-	RoomBarracks
-	RoomLaboratory
-	RoomStorage
-	RoomBoss
+	RoomGeneric    RoomType = iota // RoomGeneric is a generic room.
+	RoomArmory                     // RoomArmory is a weapon storage room.
+	RoomLibrary                    // RoomLibrary is a book/scroll storage room.
+	RoomShrine                     // RoomShrine is a religious/magical room.
+	RoomTreasure                   // RoomTreasure is a treasure room.
+	RoomPrison                     // RoomPrison is a prison cell area.
+	RoomBarracks                   // RoomBarracks is a soldiers' quarters.
+	RoomLaboratory                 // RoomLaboratory is a research room.
+	RoomStorage                    // RoomStorage is a storage room.
+	RoomBoss                       // RoomBoss is a boss encounter room.
 )
 
 // DecoType defines decoration element types.
 type DecoType int
 
 const (
-	DecoFurniture DecoType = iota
-	DecoObstacle
-	DecoDetail
-	DecoLandmark
+	DecoFurniture DecoType = iota // DecoFurniture is furniture decoration.
+	DecoObstacle                  // DecoObstacle is an obstacle decoration.
+	DecoDetail                    // DecoDetail is a small detail decoration.
+	DecoLandmark                  // DecoLandmark is a notable landmark decoration.
 )
 
 // Decoration represents a decorative element in a room.

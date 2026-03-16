@@ -12,16 +12,16 @@ import (
 type PropType int
 
 const (
-	PropBarrel PropType = iota
-	PropCrate
-	PropTable
-	PropTerminal
-	PropBones
-	PropPlant
-	PropPillar
-	PropTorch
-	PropDebris
-	PropContainer
+	PropBarrel    PropType = iota // PropBarrel is a barrel prop.
+	PropCrate                     // PropCrate is a crate prop.
+	PropTable                     // PropTable is a table prop.
+	PropTerminal                  // PropTerminal is a terminal prop.
+	PropBones                     // PropBones is a bones prop.
+	PropPlant                     // PropPlant is a plant prop.
+	PropPillar                    // PropPillar is a pillar prop.
+	PropTorch                     // PropTorch is a torch prop.
+	PropDebris                    // PropDebris is a debris prop.
+	PropContainer                 // PropContainer is a container prop.
 )
 
 // Prop represents a decorative sprite in the game world.

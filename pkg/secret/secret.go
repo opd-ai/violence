@@ -20,10 +20,10 @@ const (
 type Direction int
 
 const (
-	DirNorth Direction = iota
-	DirSouth
-	DirEast
-	DirWest
+	DirNorth Direction = iota // DirNorth is the north direction.
+	DirSouth                  // DirSouth is the south direction.
+	DirEast                   // DirEast is the east direction.
+	DirWest                   // DirWest is the west direction.
 )
 
 // SecretWall represents a push-wall that slides open when triggered.

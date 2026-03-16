@@ -45,16 +45,16 @@ import (
 type DetailType int
 
 const (
-	DetailNone DetailType = iota
-	DetailCrack
-	DetailStain
-	DetailDebris
-	DetailScorch
-	DetailWear
-	DetailGraffiti
-	DetailBlood
-	DetailRust
-	DetailCorrode
+	DetailNone    DetailType = iota // DetailNone represents no detail.
+	DetailCrack                     // DetailCrack is a surface crack.
+	DetailStain                     // DetailStain is a liquid stain.
+	DetailDebris                    // DetailDebris is scattered debris.
+	DetailScorch                    // DetailScorch is burn marks.
+	DetailWear                      // DetailWear is surface wear.
+	DetailGraffiti                  // DetailGraffiti is wall markings.
+	DetailBlood                     // DetailBlood is blood splatter.
+	DetailRust                      // DetailRust is metal corrosion.
+	DetailCorrode                   // DetailCorrode is chemical damage.
 )
 
 // FloorDetailComponent stores visual variation data for a floor tile.
@@ -76,15 +76,15 @@ func (f *FloorDetailComponent) Type() string {
 type MaterialType int
 
 const (
-	MaterialStone MaterialType = iota
-	MaterialMetal
-	MaterialWood
-	MaterialConcrete
-	MaterialTile
-	MaterialDirt
-	MaterialGrass
-	MaterialFlesh
-	MaterialCrystal
+	MaterialStone    MaterialType = iota // MaterialStone is natural stone.
+	MaterialMetal                        // MaterialMetal is metallic surface.
+	MaterialWood                         // MaterialWood is wooden planks.
+	MaterialConcrete                     // MaterialConcrete is poured concrete.
+	MaterialTile                         // MaterialTile is ceramic tile.
+	MaterialDirt                         // MaterialDirt is packed earth.
+	MaterialGrass                        // MaterialGrass is grassy ground.
+	MaterialFlesh                        // MaterialFlesh is organic tissue.
+	MaterialCrystal                      // MaterialCrystal is crystalline surface.
 )
 
 // FloorTileComponent stores base material texture data for a floor tile.

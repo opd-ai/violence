@@ -43,24 +43,24 @@ import (
 type FactionID string
 
 const (
-	FactionMercenaries FactionID = "mercenaries"
-	FactionTechCorp    FactionID = "techcorp"
-	FactionCult        FactionID = "cult"
-	FactionRebels      FactionID = "rebels"
-	FactionSyndicate   FactionID = "syndicate"
+	FactionMercenaries FactionID = "mercenaries" // FactionMercenaries is the mercenary faction.
+	FactionTechCorp    FactionID = "techcorp"    // FactionTechCorp is the tech corporation faction.
+	FactionCult        FactionID = "cult"        // FactionCult is the cult faction.
+	FactionRebels      FactionID = "rebels"      // FactionRebels is the rebel faction.
+	FactionSyndicate   FactionID = "syndicate"   // FactionSyndicate is the syndicate faction.
 )
 
 // Standing represents reputation levels with a faction.
 type Standing int
 
 const (
-	StandingHated    Standing = -3
-	StandingHostile  Standing = -2
-	StandingUnfriend Standing = -1
-	StandingNeutral  Standing = 0
-	StandingFriendly Standing = 1
-	StandingRespect  Standing = 2
-	StandingExalted  Standing = 3
+	StandingHated    Standing = -3 // StandingHated is the hated reputation level.
+	StandingHostile  Standing = -2 // StandingHostile is the hostile reputation level.
+	StandingUnfriend Standing = -1 // StandingUnfriend is the unfriendly reputation level.
+	StandingNeutral  Standing = 0  // StandingNeutral is the neutral reputation level.
+	StandingFriendly Standing = 1  // StandingFriendly is the friendly reputation level.
+	StandingRespect  Standing = 2  // StandingRespect is the respected reputation level.
+	StandingExalted  Standing = 3  // StandingExalted is the exalted reputation level.
 )
 
 // String returns standing name.

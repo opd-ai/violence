@@ -10,20 +10,28 @@ import (
 type WeaponType int
 
 const (
-	TypeHitscan    WeaponType = iota // Instant ray-cast hit
-	TypeProjectile                   // In-world projectile simulation
-	TypeMelee                        // Short-range melee attack
+	// TypeHitscan is an instant ray-cast hit weapon.
+	TypeHitscan WeaponType = iota
+	// TypeProjectile spawns an in-world projectile.
+	TypeProjectile
+	// TypeMelee is a short-range melee attack.
+	TypeMelee
 )
 
 // AnimState represents weapon animation state.
 type AnimState int
 
 const (
-	AnimIdle   AnimState = iota // Weapon ready, idle bobbing
-	AnimRaise                   // Weapon being raised
-	AnimLower                   // Weapon being lowered
-	AnimFire                    // Weapon firing
-	AnimReload                  // Weapon reloading
+	// AnimIdle is the idle weapon state.
+	AnimIdle AnimState = iota
+	// AnimRaise is the raising weapon state.
+	AnimRaise
+	// AnimLower is the lowering weapon state.
+	AnimLower
+	// AnimFire is the firing weapon state.
+	AnimFire
+	// AnimReload is the reloading weapon state.
+	AnimReload
 )
 
 // Weapon represents a player weapon.

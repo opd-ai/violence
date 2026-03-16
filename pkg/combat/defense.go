@@ -9,20 +9,24 @@ import (
 type DefenseType int
 
 const (
-	DefenseNone DefenseType = iota
-	DefenseDodge
-	DefenseParry
-	DefenseBlock
+	DefenseNone  DefenseType = iota // DefenseNone is no defensive maneuver.
+	DefenseDodge                    // DefenseDodge is a dodge maneuver.
+	DefenseParry                    // DefenseParry is a parry maneuver.
+	DefenseBlock                    // DefenseBlock is a block maneuver.
 )
 
 // DefenseState represents the state of a defensive maneuver.
 type DefenseState int
 
 const (
+	// DefenseInactive is the idle defense state.
 	DefenseInactive DefenseState = iota
-	DefenseWindup                // Startup frames before active
-	DefenseActive                // Active defense window
-	DefenseRecovery              // Post-action cooldown
+	// DefenseWindup is the startup frames state.
+	DefenseWindup
+	// DefenseActive is the active defense window state.
+	DefenseActive
+	// DefenseRecovery is the post-action cooldown state.
+	DefenseRecovery
 )
 
 // DefenseComponent stores defensive maneuver state.

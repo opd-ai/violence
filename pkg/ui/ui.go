@@ -34,35 +34,35 @@ type HUD struct {
 type MenuType int
 
 const (
-	MenuTypeMain MenuType = iota
-	MenuTypeDifficulty
-	MenuTypeGenre
-	MenuTypePause
-	MenuTypeSettings
-	MenuTypeShop
-	MenuTypeCrafting
-	MenuTypeSkills
-	MenuTypeMods
-	MenuTypeMultiplayer
+	MenuTypeMain        MenuType = iota // MenuTypeMain is the main menu.
+	MenuTypeDifficulty                  // MenuTypeDifficulty is difficulty selection.
+	MenuTypeGenre                       // MenuTypeGenre is genre selection.
+	MenuTypePause                       // MenuTypePause is the pause menu.
+	MenuTypeSettings                    // MenuTypeSettings is the settings menu.
+	MenuTypeShop                        // MenuTypeShop is the shop menu.
+	MenuTypeCrafting                    // MenuTypeCrafting is the crafting menu.
+	MenuTypeSkills                      // MenuTypeSkills is the skills menu.
+	MenuTypeMods                        // MenuTypeMods is the mods menu.
+	MenuTypeMultiplayer                 // MenuTypeMultiplayer is multiplayer menu.
 )
 
 // DifficultyLevel represents game difficulty.
 type DifficultyLevel int
 
 const (
-	DifficultyEasy DifficultyLevel = iota
-	DifficultyNormal
-	DifficultyHard
-	DifficultyNightmare
+	DifficultyEasy      DifficultyLevel = iota // DifficultyEasy is easiest difficulty.
+	DifficultyNormal                           // DifficultyNormal is standard difficulty.
+	DifficultyHard                             // DifficultyHard is challenging difficulty.
+	DifficultyNightmare                        // DifficultyNightmare is extreme difficulty.
 )
 
 // SettingsCategory represents different settings sections.
 type SettingsCategory int
 
 const (
-	SettingsCategoryVideo SettingsCategory = iota
-	SettingsCategoryAudio
-	SettingsCategoryControls
+	SettingsCategoryVideo    SettingsCategory = iota // SettingsCategoryVideo is video settings.
+	SettingsCategoryAudio                            // SettingsCategoryAudio is audio settings.
+	SettingsCategoryControls                         // SettingsCategoryControls is controls settings.
 )
 
 // MenuManager manages menu screens and navigation.

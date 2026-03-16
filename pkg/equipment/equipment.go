@@ -18,52 +18,52 @@ import (
 type Slot int
 
 const (
-	SlotWeapon Slot = iota
-	SlotHelmet
-	SlotChest
-	SlotLegs
-	SlotBoots
-	SlotGloves
-	SlotAccessory1
-	SlotAccessory2
-	SlotCount
+	SlotWeapon    Slot = iota // SlotWeapon is the primary weapon slot.
+	SlotHelmet                // SlotHelmet covers head protection.
+	SlotChest                 // SlotChest covers torso armor.
+	SlotLegs                  // SlotLegs covers leg armor.
+	SlotBoots                 // SlotBoots covers footwear.
+	SlotGloves                // SlotGloves covers hand protection.
+	SlotAccessory1            // SlotAccessory1 is the first accessory slot.
+	SlotAccessory2            // SlotAccessory2 is the second accessory slot.
+	SlotCount                 // SlotCount is the total number of equipment slots.
 )
 
 // Material defines the visual texture and shading of equipment.
 type Material int
 
 const (
-	MaterialIron Material = iota
-	MaterialSteel
-	MaterialMithril
-	MaterialLeather
-	MaterialCloth
-	MaterialDragonscale
-	MaterialCrystal
-	MaterialNanofiber
-	MaterialBiotech
-	MaterialPlasma
+	MaterialIron        Material = iota // MaterialIron is basic forged iron.
+	MaterialSteel                       // MaterialSteel is refined steel alloy.
+	MaterialMithril                     // MaterialMithril is lightweight magical metal.
+	MaterialLeather                     // MaterialLeather is tanned animal hide.
+	MaterialCloth                       // MaterialCloth is woven fabric.
+	MaterialDragonscale                 // MaterialDragonscale is armored dragon hide.
+	MaterialCrystal                     // MaterialCrystal is crystalline material.
+	MaterialNanofiber                   // MaterialNanofiber is advanced synthetic fiber.
+	MaterialBiotech                     // MaterialBiotech is organic living armor.
+	MaterialPlasma                      // MaterialPlasma is energy-based material.
 )
 
 // Rarity affects visual complexity and enchantment effects.
 type Rarity int
 
 const (
-	RarityCommon Rarity = iota
-	RarityUncommon
-	RarityRare
-	RarityEpic
-	RarityLegendary
+	RarityCommon    Rarity = iota // RarityCommon is basic quality gear.
+	RarityUncommon                // RarityUncommon is slightly enhanced gear.
+	RarityRare                    // RarityRare is exceptional gear.
+	RarityEpic                    // RarityEpic is powerful heroic gear.
+	RarityLegendary               // RarityLegendary is the most powerful gear.
 )
 
 // DamageState represents equipment wear level.
 type DamageState int
 
 const (
-	StatePristine DamageState = iota
-	StateWorn
-	StateDamaged
-	StateBroken
+	StatePristine DamageState = iota // StatePristine is undamaged condition.
+	StateWorn                        // StateWorn is lightly used condition.
+	StateDamaged                     // StateDamaged is significantly worn condition.
+	StateBroken                      // StateBroken is non-functional condition.
 )
 
 // Equipment represents a single equipped item.

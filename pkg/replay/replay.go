@@ -25,17 +25,17 @@ const (
 type InputFlags uint16
 
 const (
-	InputNone      InputFlags = 0
-	InputMoveUp    InputFlags = 1 << 0
-	InputMoveDown  InputFlags = 1 << 1
-	InputMoveLeft  InputFlags = 1 << 2
-	InputMoveRight InputFlags = 1 << 3
-	InputFire      InputFlags = 1 << 4
-	InputUse       InputFlags = 1 << 5
-	InputReload    InputFlags = 1 << 6
-	InputSprint    InputFlags = 1 << 7
-	InputCrouch    InputFlags = 1 << 8
-	InputJump      InputFlags = 1 << 9
+	InputNone      InputFlags = 0      // InputNone represents no input.
+	InputMoveUp    InputFlags = 1 << 0 // InputMoveUp is the move up input.
+	InputMoveDown  InputFlags = 1 << 1 // InputMoveDown is the move down input.
+	InputMoveLeft  InputFlags = 1 << 2 // InputMoveLeft is the move left input.
+	InputMoveRight InputFlags = 1 << 3 // InputMoveRight is the move right input.
+	InputFire      InputFlags = 1 << 4 // InputFire is the fire weapon input.
+	InputUse       InputFlags = 1 << 5 // InputUse is the use/interact input.
+	InputReload    InputFlags = 1 << 6 // InputReload is the reload input.
+	InputSprint    InputFlags = 1 << 7 // InputSprint is the sprint input.
+	InputCrouch    InputFlags = 1 << 8 // InputCrouch is the crouch input.
+	InputJump      InputFlags = 1 << 9 // InputJump is the jump input.
 )
 
 // ReplayHeader contains metadata for a replay file.

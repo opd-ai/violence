@@ -24,10 +24,10 @@ var (
 type Category string
 
 const (
-	CategoryCombat      Category = "combat"
-	CategoryExploration Category = "exploration"
-	CategorySurvival    Category = "survival"
-	CategorySocial      Category = "social"
+	CategoryCombat      Category = "combat"      // CategoryCombat is the combat achievement category.
+	CategoryExploration Category = "exploration" // CategoryExploration is the exploration achievement category.
+	CategorySurvival    Category = "survival"    // CategorySurvival is the survival achievement category.
+	CategorySocial      Category = "social"      // CategorySocial is the social achievement category.
 )
 
 // PlayerStats contains all player statistics tracked for achievement conditions

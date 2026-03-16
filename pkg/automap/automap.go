@@ -11,10 +11,10 @@ import (
 type AnnotationType int
 
 const (
-	AnnotationNone AnnotationType = iota
-	AnnotationSecret
-	AnnotationObjective
-	AnnotationItem
+	AnnotationNone      AnnotationType = iota // AnnotationNone is no annotation.
+	AnnotationSecret                          // AnnotationSecret is a secret location annotation.
+	AnnotationObjective                       // AnnotationObjective is an objective annotation.
+	AnnotationItem                            // AnnotationItem is an item annotation.
 )
 
 // Annotation represents a special marker on the automap.

@@ -14,15 +14,15 @@ import (
 type MaterialDetail int
 
 const (
-	MaterialScales MaterialDetail = iota
-	MaterialFur
-	MaterialChitin
-	MaterialMembrane
-	MaterialMetal
-	MaterialCloth
-	MaterialLeather
-	MaterialCrystal
-	MaterialSlime
+	MaterialScales   MaterialDetail = iota // MaterialScales is a scales material.
+	MaterialFur                            // MaterialFur is a fur material.
+	MaterialChitin                         // MaterialChitin is a chitin material.
+	MaterialMembrane                       // MaterialMembrane is a membrane material.
+	MaterialMetal                          // MaterialMetal is a metal material.
+	MaterialCloth                          // MaterialCloth is a cloth material.
+	MaterialLeather                        // MaterialLeather is a leather material.
+	MaterialCrystal                        // MaterialCrystal is a crystal material.
+	MaterialSlime                          // MaterialSlime is a slime material.
 )
 
 // DetailLayer applies procedural material detail to a sprite region.

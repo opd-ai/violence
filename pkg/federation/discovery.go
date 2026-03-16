@@ -19,13 +19,13 @@ import (
 type Region string
 
 const (
-	RegionUSEast  Region = "us-east"
-	RegionUSWest  Region = "us-west"
-	RegionEUWest  Region = "eu-west"
-	RegionEUEast  Region = "eu-east"
-	RegionAsiaPac Region = "asia-pac"
-	RegionSouthAm Region = "south-am"
-	RegionUnknown Region = "unknown"
+	RegionUSEast  Region = "us-east"  // RegionUSEast is the US East region.
+	RegionUSWest  Region = "us-west"  // RegionUSWest is the US West region.
+	RegionEUWest  Region = "eu-west"  // RegionEUWest is the EU West region.
+	RegionEUEast  Region = "eu-east"  // RegionEUEast is the EU East region.
+	RegionAsiaPac Region = "asia-pac" // RegionAsiaPac is the Asia Pacific region.
+	RegionSouthAm Region = "south-am" // RegionSouthAm is the South America region.
+	RegionUnknown Region = "unknown"  // RegionUnknown is an unknown region.
 )
 
 // ServerAnnouncement is sent from game servers to the federation hub.

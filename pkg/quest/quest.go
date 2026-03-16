@@ -11,21 +11,21 @@ import (
 type ObjectiveType int
 
 const (
-	ObjFindExit ObjectiveType = iota
-	ObjKillAll
-	ObjFindItem
-	ObjDestroyTarget
-	ObjSurvive
-	ObjRetrieveItem
-	ObjRescueHostage
+	ObjFindExit      ObjectiveType = iota // ObjFindExit is a find exit objective.
+	ObjKillAll                            // ObjKillAll is a kill all enemies objective.
+	ObjFindItem                           // ObjFindItem is a find item objective.
+	ObjDestroyTarget                      // ObjDestroyTarget is a destroy target objective.
+	ObjSurvive                            // ObjSurvive is a survival objective.
+	ObjRetrieveItem                       // ObjRetrieveItem is a retrieve item objective.
+	ObjRescueHostage                      // ObjRescueHostage is a rescue hostage objective.
 )
 
 // ObjectiveCategory indicates if objective is main or bonus.
 type ObjectiveCategory int
 
 const (
-	CategoryMain ObjectiveCategory = iota
-	CategoryBonus
+	CategoryMain  ObjectiveCategory = iota // CategoryMain is a main objective.
+	CategoryBonus                          // CategoryBonus is a bonus objective.
 )
 
 // Objective represents a single quest objective.

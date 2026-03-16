@@ -14,37 +14,37 @@ import (
 type Material int
 
 const (
-	MaterialSteel Material = iota
-	MaterialIron
-	MaterialWood
-	MaterialLeather
-	MaterialGold
-	MaterialCrystal
-	MaterialBone
-	MaterialObsidian
-	MaterialMithril
-	MaterialDemonic
+	MaterialSteel    Material = iota // MaterialSteel is refined steel.
+	MaterialIron                     // MaterialIron is raw iron.
+	MaterialWood                     // MaterialWood is carved wood.
+	MaterialLeather                  // MaterialLeather is tanned leather.
+	MaterialGold                     // MaterialGold is precious gold.
+	MaterialCrystal                  // MaterialCrystal is magical crystal.
+	MaterialBone                     // MaterialBone is carved bone.
+	MaterialObsidian                 // MaterialObsidian is volcanic glass.
+	MaterialMithril                  // MaterialMithril is legendary alloy.
+	MaterialDemonic                  // MaterialDemonic is infernal material.
 )
 
 // Rarity affects visual complexity and effects.
 type Rarity int
 
 const (
-	RarityCommon Rarity = iota
-	RarityUncommon
-	RarityRare
-	RarityEpic
-	RarityLegendary
+	RarityCommon    Rarity = iota // RarityCommon is basic quality.
+	RarityUncommon                // RarityUncommon is enhanced quality.
+	RarityRare                    // RarityRare is exceptional quality.
+	RarityEpic                    // RarityEpic is heroic quality.
+	RarityLegendary               // RarityLegendary is mythical quality.
 )
 
 // DamageState represents weapon condition.
 type DamageState int
 
 const (
-	DamagePristine DamageState = iota
-	DamageScratched
-	DamageWorn
-	DamageBroken
+	DamagePristine  DamageState = iota // DamagePristine is undamaged.
+	DamageScratched                    // DamageScratched is lightly scratched.
+	DamageWorn                         // DamageWorn is heavily used.
+	DamageBroken                       // DamageBroken is unusable.
 )
 
 // WeaponVisualSpec defines all visual parameters for weapon generation.

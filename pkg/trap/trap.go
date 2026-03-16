@@ -13,27 +13,44 @@ import (
 type TrapType int
 
 const (
-	// Trigger mechanisms
+	// TrapTypePressurePlate is a floor-triggered pressure plate.
 	TrapTypePressurePlate TrapType = iota
+	// TrapTypeTripwire is a wire that triggers when crossed.
 	TrapTypeTripwire
+	// TrapTypeProximity triggers when entities approach.
 	TrapTypeProximity
+	// TrapTypeButton is manually activated.
 	TrapTypeButton
+	// TrapTypeLever is a two-state switch mechanism.
 	TrapTypeLever
 
-	// Effects
+	// TrapTypeDartWall shoots darts from the wall.
 	TrapTypeDartWall
+	// TrapTypeArrowSlit fires arrows through a slot.
 	TrapTypeArrowSlit
+	// TrapTypeFlameThrower emits a stream of fire.
 	TrapTypeFlameThrower
+	// TrapTypeSpikePit drops victims onto spikes.
 	TrapTypeSpikePit
+	// TrapTypeSwingingBlade is a pendulum blade trap.
 	TrapTypeSwingingBlade
+	// TrapTypeRollingBoulder releases a crushing boulder.
 	TrapTypeRollingBoulder
+	// TrapTypeElectricShock delivers an electric discharge.
 	TrapTypeElectricShock
+	// TrapTypePoisonDart shoots a poisoned dart.
 	TrapTypePoisonDart
+	// TrapTypeNetCatcher ensnares targets in a net.
 	TrapTypeNetCatcher
+	// TrapTypeBearTrap is a spring-loaded jaw trap.
 	TrapTypeBearTrap
+	// TrapTypeExplosive detonates on activation.
 	TrapTypeExplosive
+	// TrapTypeTeleporter transports victims elsewhere.
 	TrapTypeTeleporter
+	// TrapTypeIllusionWall hides a dangerous passage.
 	TrapTypeIllusionWall
+	// TrapTypeCollapseCeiling drops debris from above.
 	TrapTypeCollapseCeiling
 )
 
@@ -41,12 +58,12 @@ const (
 type TrapState int
 
 const (
-	StateHidden TrapState = iota
-	StateDetected
-	StateTriggered
-	StateDisarmed
-	StateCooldown
-	StateBroken
+	StateHidden    TrapState = iota // StateHidden means the trap is not yet discovered.
+	StateDetected                   // StateDetected means the trap has been spotted.
+	StateTriggered                  // StateTriggered means the trap has been activated.
+	StateDisarmed                   // StateDisarmed means the trap has been safely disabled.
+	StateCooldown                   // StateCooldown means the trap is resetting.
+	StateBroken                     // StateBroken means the trap is permanently disabled.
 )
 
 // Trap represents an interactive trap in the dungeon.

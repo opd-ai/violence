@@ -12,12 +12,12 @@ import (
 type PromptType string
 
 const (
-	PromptMovement PromptType = "movement"
-	PromptShoot    PromptType = "shoot"
-	PromptPickup   PromptType = "pickup"
-	PromptDoor     PromptType = "door"
-	PromptAutomap  PromptType = "automap"
-	PromptWeapon   PromptType = "weapon"
+	PromptMovement PromptType = "movement" // PromptMovement is the movement tutorial prompt.
+	PromptShoot    PromptType = "shoot"    // PromptShoot is the shooting tutorial prompt.
+	PromptPickup   PromptType = "pickup"   // PromptPickup is the pickup tutorial prompt.
+	PromptDoor     PromptType = "door"     // PromptDoor is the door tutorial prompt.
+	PromptAutomap  PromptType = "automap"  // PromptAutomap is the automap tutorial prompt.
+	PromptWeapon   PromptType = "weapon"   // PromptWeapon is the weapon tutorial prompt.
 )
 
 // Tutorial manages tutorial prompt state with suppression persistence.

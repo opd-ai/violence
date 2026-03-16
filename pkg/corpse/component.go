@@ -33,13 +33,13 @@ type Corpse struct {
 type DeathType int
 
 const (
-	DeathNormal DeathType = iota
-	DeathBurn
-	DeathFreeze
-	DeathElectric
-	DeathAcid
-	DeathExplosion
-	DeathSlash
-	DeathCrush
-	DeathDisintegrate
+	DeathNormal      DeathType = iota // DeathNormal is a standard death.
+	DeathBurn                         // DeathBurn is a fire death.
+	DeathFreeze                       // DeathFreeze is a cold death.
+	DeathElectric                     // DeathElectric is an electric death.
+	DeathAcid                         // DeathAcid is an acid death.
+	DeathExplosion                    // DeathExplosion is an explosive death.
+	DeathSlash                        // DeathSlash is a slashing death.
+	DeathCrush                        // DeathCrush is a crushing death.
+	DeathDisintegrate                 // DeathDisintegrate is a disintegration death.
 )

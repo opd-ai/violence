@@ -9,11 +9,11 @@ import (
 type UpgradeType int
 
 const (
-	UpgradeDamage UpgradeType = iota
-	UpgradeFireRate
-	UpgradeClipSize
-	UpgradeAccuracy
-	UpgradeRange
+	UpgradeDamage   UpgradeType = iota // UpgradeDamage is a damage upgrade.
+	UpgradeFireRate                    // UpgradeFireRate is a fire rate upgrade.
+	UpgradeClipSize                    // UpgradeClipSize is a clip size upgrade.
+	UpgradeAccuracy                    // UpgradeAccuracy is an accuracy upgrade.
+	UpgradeRange                       // UpgradeRange is a range upgrade.
 )
 
 // UpgradeToken represents a collectible currency for upgrades.

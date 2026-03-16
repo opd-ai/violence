@@ -14,28 +14,28 @@ import (
 type DialogueType int
 
 const (
-	DialogueGreeting DialogueType = iota
-	DialogueMissionBriefing
-	DialogueMissionComplete
-	DialogueIdle
-	DialogueWarning
-	DialogueTrade
-	DialogueRumor
-	DialogueQuest
+	DialogueGreeting        DialogueType = iota // DialogueGreeting is a greeting conversation.
+	DialogueMissionBriefing                     // DialogueMissionBriefing is a mission briefing.
+	DialogueMissionComplete                     // DialogueMissionComplete is a mission complete dialogue.
+	DialogueIdle                                // DialogueIdle is idle chatter.
+	DialogueWarning                             // DialogueWarning is a warning dialogue.
+	DialogueTrade                               // DialogueTrade is a trade conversation.
+	DialogueRumor                               // DialogueRumor is a rumor dialogue.
+	DialogueQuest                               // DialogueQuest is a quest dialogue.
 )
 
 // SpeakerType represents the category of NPC.
 type SpeakerType int
 
 const (
-	SpeakerGuard SpeakerType = iota
-	SpeakerMerchant
-	SpeakerCommander
-	SpeakerCivilian
-	SpeakerTechnician
-	SpeakerMystic
-	SpeakerHostile
-	SpeakerAlly
+	SpeakerGuard      SpeakerType = iota // SpeakerGuard is a guard NPC.
+	SpeakerMerchant                      // SpeakerMerchant is a merchant NPC.
+	SpeakerCommander                     // SpeakerCommander is a commander NPC.
+	SpeakerCivilian                      // SpeakerCivilian is a civilian NPC.
+	SpeakerTechnician                    // SpeakerTechnician is a technician NPC.
+	SpeakerMystic                        // SpeakerMystic is a mystic NPC.
+	SpeakerHostile                       // SpeakerHostile is a hostile NPC.
+	SpeakerAlly                          // SpeakerAlly is an ally NPC.
 )
 
 // Dialogue represents a single dialogue exchange.

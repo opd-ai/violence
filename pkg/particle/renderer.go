@@ -14,14 +14,14 @@ import (
 type ParticleShape int
 
 const (
-	ShapeCircle ParticleShape = iota
-	ShapeSquare
-	ShapeDiamond
-	ShapeStar
-	ShapeLine
-	ShapeGlow
-	ShapeSpark
-	ShapeSmoke
+	ShapeCircle  ParticleShape = iota // ShapeCircle is a circular particle.
+	ShapeSquare                       // ShapeSquare is a square particle.
+	ShapeDiamond                      // ShapeDiamond is a diamond particle.
+	ShapeStar                         // ShapeStar is a star particle.
+	ShapeLine                         // ShapeLine is a line particle.
+	ShapeGlow                         // ShapeGlow is a glowing particle.
+	ShapeSpark                        // ShapeSpark is a spark particle.
+	ShapeSmoke                        // ShapeSmoke is a smoke particle.
 )
 
 // RenderSystem provides enhanced particle rendering with multiple shapes and effects.

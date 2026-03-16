@@ -23,18 +23,18 @@ func (c *Component) Type() string {
 type StatusIconType int
 
 const (
-	IconPoison StatusIconType = iota
-	IconBurn
-	IconFreeze
-	IconStun
-	IconBleed
-	IconRegen
-	IconShield
-	IconHaste
-	IconSlow
-	IconWeak
-	IconBerserk
-	IconInvisible
+	IconPoison    StatusIconType = iota // IconPoison is the poison status icon.
+	IconBurn                            // IconBurn is the burning status icon.
+	IconFreeze                          // IconFreeze is the frozen status icon.
+	IconStun                            // IconStun is the stunned status icon.
+	IconBleed                           // IconBleed is the bleeding status icon.
+	IconRegen                           // IconRegen is the regeneration status icon.
+	IconShield                          // IconShield is the shielded status icon.
+	IconHaste                           // IconHaste is the haste status icon.
+	IconSlow                            // IconSlow is the slowed status icon.
+	IconWeak                            // IconWeak is the weakened status icon.
+	IconBerserk                         // IconBerserk is the berserk status icon.
+	IconInvisible                       // IconInvisible is the invisible status icon.
 )
 
 // StatusIcon represents a single status effect icon to display.

@@ -25,10 +25,10 @@ import (
 type ModBrowserState int
 
 const (
-	ModBrowserStateBrowse ModBrowserState = iota
-	ModBrowserStateDetails
-	ModBrowserStateInstalling
-	ModBrowserStateUpdating
+	ModBrowserStateBrowse     ModBrowserState = iota // ModBrowserStateBrowse is the browsing state.
+	ModBrowserStateDetails                           // ModBrowserStateDetails is the details view state.
+	ModBrowserStateInstalling                        // ModBrowserStateInstalling is the installing state.
+	ModBrowserStateUpdating                          // ModBrowserStateUpdating is the updating state.
 )
 
 // ModBrowser manages mod browsing, installation, and auto-updates.

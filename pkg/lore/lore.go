@@ -24,10 +24,10 @@ type Entry struct {
 type LoreItemType int
 
 const (
-	LoreItemNote LoreItemType = iota
-	LoreItemAudioLog
-	LoreItemGraffiti
-	LoreItemBodyArrangement
+	LoreItemNote            LoreItemType = iota // LoreItemNote is a written note.
+	LoreItemAudioLog                            // LoreItemAudioLog is an audio recording.
+	LoreItemGraffiti                            // LoreItemGraffiti is wall graffiti.
+	LoreItemBodyArrangement                     // LoreItemBodyArrangement is environmental storytelling via bodies.
 )
 
 // LoreItem represents an environmental storytelling element placed in the world.
@@ -46,24 +46,24 @@ type LoreItem struct {
 type ContextType string
 
 const (
-	ContextCombat   ContextType = "combat"
-	ContextLab      ContextType = "lab"
-	ContextQuarters ContextType = "quarters"
-	ContextStorage  ContextType = "storage"
-	ContextEscape   ContextType = "escape"
-	ContextGeneral  ContextType = "general"
+	ContextCombat   ContextType = "combat"   // ContextCombat is a combat area.
+	ContextLab      ContextType = "lab"      // ContextLab is a laboratory area.
+	ContextQuarters ContextType = "quarters" // ContextQuarters is a living quarters area.
+	ContextStorage  ContextType = "storage"  // ContextStorage is a storage area.
+	ContextEscape   ContextType = "escape"   // ContextEscape is an escape route area.
+	ContextGeneral  ContextType = "general"  // ContextGeneral is a general area.
 )
 
 // BackstoryType represents different types of world backstory entries.
 type BackstoryType string
 
 const (
-	BackstoryWorld     BackstoryType = "world"
-	BackstoryFaction   BackstoryType = "faction"
-	BackstoryCharacter BackstoryType = "character"
-	BackstoryLocation  BackstoryType = "location"
-	BackstoryEvent     BackstoryType = "event"
-	BackstoryArtifact  BackstoryType = "artifact"
+	BackstoryWorld     BackstoryType = "world"     // BackstoryWorld is world-level backstory.
+	BackstoryFaction   BackstoryType = "faction"   // BackstoryFaction is faction-level backstory.
+	BackstoryCharacter BackstoryType = "character" // BackstoryCharacter is character-level backstory.
+	BackstoryLocation  BackstoryType = "location"  // BackstoryLocation is location-level backstory.
+	BackstoryEvent     BackstoryType = "event"     // BackstoryEvent is event-level backstory.
+	BackstoryArtifact  BackstoryType = "artifact"  // BackstoryArtifact is artifact-level backstory.
 )
 
 // Codex holds discovered lore entries.

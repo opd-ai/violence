@@ -11,26 +11,26 @@ import (
 type Layer uint32
 
 const (
-	LayerNone        Layer = 0
-	LayerPlayer      Layer = 1 << 0 // Player entities
-	LayerEnemy       Layer = 1 << 1 // Enemy entities
-	LayerProjectile  Layer = 1 << 2 // Projectile entities
-	LayerTerrain     Layer = 1 << 3 // Static terrain (walls, obstacles)
-	LayerEnvironment Layer = 1 << 4 // Props and decorations
-	LayerEthereal    Layer = 1 << 5 // Ghost/ethereal entities (pass through most)
-	LayerInteractive Layer = 1 << 6 // Doors, chests, switches
-	LayerTrigger     Layer = 1 << 7 // Trigger zones
-	LayerAll         Layer = 0xFFFFFFFF
+	LayerNone        Layer = 0          // LayerNone represents no collision layer.
+	LayerPlayer      Layer = 1 << 0     // LayerPlayer is the player entity layer.
+	LayerEnemy       Layer = 1 << 1     // LayerEnemy is the enemy entity layer.
+	LayerProjectile  Layer = 1 << 2     // LayerProjectile is the projectile layer.
+	LayerTerrain     Layer = 1 << 3     // LayerTerrain is the static terrain layer.
+	LayerEnvironment Layer = 1 << 4     // LayerEnvironment is the props layer.
+	LayerEthereal    Layer = 1 << 5     // LayerEthereal is the ghost entity layer.
+	LayerInteractive Layer = 1 << 6     // LayerInteractive is the interactive object layer.
+	LayerTrigger     Layer = 1 << 7     // LayerTrigger is the trigger zone layer.
+	LayerAll         Layer = 0xFFFFFFFF // LayerAll includes all collision layers.
 )
 
 // Shape defines collision shape types.
 type Shape int
 
 const (
-	ShapeCircle  Shape = iota // Circle (x, y, radius)
-	ShapeCapsule              // Capsule (x1, y1, x2, y2, radius)
-	ShapeAABB                 // Axis-aligned bounding box (x, y, w, h)
-	ShapePolygon              // Convex polygon (vertices)
+	ShapeCircle  Shape = iota // ShapeCircle is a circular collision shape.
+	ShapeCapsule              // ShapeCapsule is a capsule collision shape.
+	ShapeAABB                 // ShapeAABB is an axis-aligned bounding box.
+	ShapePolygon              // ShapePolygon is a convex polygon shape.
 )
 
 // Collider stores collision geometry and layer information.

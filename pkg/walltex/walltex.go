@@ -13,13 +13,13 @@ import (
 type Material int
 
 const (
-	MaterialStone Material = iota
-	MaterialMetal
-	MaterialWood
-	MaterialConcrete
-	MaterialOrganic
-	MaterialCrystal
-	MaterialTech
+	MaterialStone    Material = iota // MaterialStone is stone wall material.
+	MaterialMetal                    // MaterialMetal is metal wall material.
+	MaterialWood                     // MaterialWood is wooden wall material.
+	MaterialConcrete                 // MaterialConcrete is concrete wall material.
+	MaterialOrganic                  // MaterialOrganic is organic wall material.
+	MaterialCrystal                  // MaterialCrystal is crystal wall material.
+	MaterialTech                     // MaterialTech is tech wall material.
 )
 
 // GenrePreset defines material distribution and weathering for each genre.

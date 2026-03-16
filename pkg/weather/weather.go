@@ -11,14 +11,14 @@ import (
 type WeatherType int
 
 const (
-	WeatherNone WeatherType = iota
-	WeatherRain
-	WeatherSnow
-	WeatherEmbers
-	WeatherDust
-	WeatherAsh
-	WeatherFog
-	WeatherNeonGlitch
+	WeatherNone       WeatherType = iota // WeatherNone is no weather effect.
+	WeatherRain                          // WeatherRain is rain weather.
+	WeatherSnow                          // WeatherSnow is snow weather.
+	WeatherEmbers                        // WeatherEmbers is ember weather.
+	WeatherDust                          // WeatherDust is dust weather.
+	WeatherAsh                           // WeatherAsh is ash weather.
+	WeatherFog                           // WeatherFog is fog weather.
+	WeatherNeonGlitch                    // WeatherNeonGlitch is neon glitch weather.
 )
 
 // EnvironmentalParticle represents a single atmospheric particle.

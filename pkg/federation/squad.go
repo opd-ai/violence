@@ -16,15 +16,26 @@ const (
 	MaxTagLength    = 4
 )
 
-var (
-	ErrSquadFull      = errors.New("squad is full")
-	ErrNotInSquad     = errors.New("player not in squad")
-	ErrAlreadyInSquad = errors.New("player already in squad")
-	ErrInvalidSquadID = errors.New("invalid squad ID")
-	ErrNoInvite       = errors.New("no pending invite")
-	ErrSelfInvite     = errors.New("cannot invite self")
-	ErrInvalidTag     = errors.New("squad tag exceeds maximum length")
-)
+// ErrSquadFull is returned when the squad is full.
+var ErrSquadFull = errors.New("squad is full")
+
+// ErrNotInSquad is returned when the player is not in a squad.
+var ErrNotInSquad = errors.New("player not in squad")
+
+// ErrAlreadyInSquad is returned when the player is already in a squad.
+var ErrAlreadyInSquad = errors.New("player already in squad")
+
+// ErrInvalidSquadID is returned when the squad ID is invalid.
+var ErrInvalidSquadID = errors.New("invalid squad ID")
+
+// ErrNoInvite is returned when there is no pending invite.
+var ErrNoInvite = errors.New("no pending invite")
+
+// ErrSelfInvite is returned when trying to invite oneself.
+var ErrSelfInvite = errors.New("cannot invite self")
+
+// ErrInvalidTag is returned when the squad tag is too long.
+var ErrInvalidTag = errors.New("squad tag exceeds maximum length")
 
 // SquadMember represents a member in a squad.
 type SquadMember struct {

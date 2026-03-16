@@ -9,13 +9,13 @@ import (
 type PlayerTactic int
 
 const (
-	TacticUnknown PlayerTactic = iota
-	TacticRushMelee
-	TacticKiteRanged
-	TacticCoverBased
-	TacticStealthy
-	TacticExplosives
-	TacticHitAndRun
+	TacticUnknown    PlayerTactic = iota // TacticUnknown is an unrecognized tactic.
+	TacticRushMelee                      // TacticRushMelee is aggressive melee rushing.
+	TacticKiteRanged                     // TacticKiteRanged is kiting while using ranged.
+	TacticCoverBased                     // TacticCoverBased is using cover strategically.
+	TacticStealthy                       // TacticStealthy is stealthy approach.
+	TacticExplosives                     // TacticExplosives is heavy explosive use.
+	TacticHitAndRun                      // TacticHitAndRun is hit and run tactics.
 )
 
 // TacticObservation records a single observation of player behavior.

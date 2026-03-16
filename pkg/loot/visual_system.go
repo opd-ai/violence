@@ -32,14 +32,14 @@ func (vc *VisualComponent) Type() string { return "LootVisual" }
 type ItemCategory int
 
 const (
-	CategoryPotion ItemCategory = iota
-	CategoryScroll
-	CategoryWeapon
-	CategoryArmor
-	CategoryGold
-	CategoryGear
-	CategoryArtifact
-	CategoryConsumable
+	CategoryPotion     ItemCategory = iota // CategoryPotion is a potion item.
+	CategoryScroll                         // CategoryScroll is a scroll item.
+	CategoryWeapon                         // CategoryWeapon is a weapon item.
+	CategoryArmor                          // CategoryArmor is an armor item.
+	CategoryGold                           // CategoryGold is gold currency.
+	CategoryGear                           // CategoryGear is equipment gear.
+	CategoryArtifact                       // CategoryArtifact is an artifact item.
+	CategoryConsumable                     // CategoryConsumable is a consumable item.
 )
 
 // VisualSystem handles rendering of loot items in the world.

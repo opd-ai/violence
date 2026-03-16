@@ -24,28 +24,58 @@ type ffaPlayerAdapter struct {
 	*FFAPlayerState
 }
 
-func (p *ffaPlayerAdapter) GetMutex() *sync.RWMutex   { return &p.mu }
-func (p *ffaPlayerAdapter) IsDead() bool              { return p.Dead }
+// GetMutex returns the player's mutex for thread-safe access.
+func (p *ffaPlayerAdapter) GetMutex() *sync.RWMutex { return &p.mu }
+
+// IsDead returns whether the player is dead.
+func (p *ffaPlayerAdapter) IsDead() bool { return p.Dead }
+
+// GetRespawnTime returns the player's respawn time.
 func (p *ffaPlayerAdapter) GetRespawnTime() time.Time { return p.RespawnTime }
-func (p *ffaPlayerAdapter) SetDead(dead bool)         { p.Dead = dead }
-func (p *ffaPlayerAdapter) SetPosition(x, y float64)  { p.PosX, p.PosY = x, y }
-func (p *ffaPlayerAdapter) SetHealth(health float64)  { p.Health = health }
-func (p *ffaPlayerAdapter) GetMaxHealth() float64     { return p.MaxHealth }
-func (p *ffaPlayerAdapter) ClearRespawnTime()         { p.RespawnTime = time.Time{} }
+
+// SetDead sets the player's death state.
+func (p *ffaPlayerAdapter) SetDead(dead bool) { p.Dead = dead }
+
+// SetPosition sets the player's position.
+func (p *ffaPlayerAdapter) SetPosition(x, y float64) { p.PosX, p.PosY = x, y }
+
+// SetHealth sets the player's health.
+func (p *ffaPlayerAdapter) SetHealth(health float64) { p.Health = health }
+
+// GetMaxHealth returns the player's maximum health.
+func (p *ffaPlayerAdapter) GetMaxHealth() float64 { return p.MaxHealth }
+
+// ClearRespawnTime clears the player's respawn time.
+func (p *ffaPlayerAdapter) ClearRespawnTime() { p.RespawnTime = time.Time{} }
 
 // teamPlayerAdapter provides PlayerState interface for TeamPlayerState.
 type teamPlayerAdapter struct {
 	*TeamPlayerState
 }
 
-func (p *teamPlayerAdapter) GetMutex() *sync.RWMutex   { return &p.mu }
-func (p *teamPlayerAdapter) IsDead() bool              { return p.Dead }
+// GetMutex returns the player's mutex for thread-safe access.
+func (p *teamPlayerAdapter) GetMutex() *sync.RWMutex { return &p.mu }
+
+// IsDead returns whether the player is dead.
+func (p *teamPlayerAdapter) IsDead() bool { return p.Dead }
+
+// GetRespawnTime returns the player's respawn time.
 func (p *teamPlayerAdapter) GetRespawnTime() time.Time { return p.RespawnTime }
-func (p *teamPlayerAdapter) SetDead(dead bool)         { p.Dead = dead }
-func (p *teamPlayerAdapter) SetPosition(x, y float64)  { p.PosX, p.PosY = x, y }
-func (p *teamPlayerAdapter) SetHealth(health float64)  { p.Health = health }
-func (p *teamPlayerAdapter) GetMaxHealth() float64     { return p.MaxHealth }
-func (p *teamPlayerAdapter) ClearRespawnTime()         { p.RespawnTime = time.Time{} }
+
+// SetDead sets the player's death state.
+func (p *teamPlayerAdapter) SetDead(dead bool) { p.Dead = dead }
+
+// SetPosition sets the player's position.
+func (p *teamPlayerAdapter) SetPosition(x, y float64) { p.PosX, p.PosY = x, y }
+
+// SetHealth sets the player's health.
+func (p *teamPlayerAdapter) SetHealth(health float64) { p.Health = health }
+
+// GetMaxHealth returns the player's maximum health.
+func (p *teamPlayerAdapter) GetMaxHealth() float64 { return p.MaxHealth }
+
+// ClearRespawnTime clears the player's respawn time.
+func (p *teamPlayerAdapter) ClearRespawnTime() { p.RespawnTime = time.Time{} }
 
 // canRespawn checks if a player is ready to respawn based on their state.
 // This shared helper consolidates duplicate logic from FFAMatch.ProcessRespawns

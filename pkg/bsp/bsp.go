@@ -9,36 +9,53 @@ import (
 )
 
 const (
-	TileEmpty  = 0
-	TileWall   = 1
-	TileFloor  = 2
-	TileDoor   = 3
+	// TileEmpty is an empty/void tile.
+	TileEmpty = 0
+	// TileWall is a solid wall tile.
+	TileWall = 1
+	// TileFloor is a walkable floor tile.
+	TileFloor = 2
+	// TileDoor is a door tile.
+	TileDoor = 3
+	// TileSecret is a hidden secret tile.
 	TileSecret = 4
 
-	// Genre-specific wall tile variants (for texture selection)
-	TileWallStone    = 10 // Fantasy - stone walls
-	TileWallHull     = 11 // SciFi - metal hull
-	TileWallPlaster  = 12 // Horror - cracked plaster
-	TileWallConcrete = 13 // Cyberpunk - glass/concrete
-	TileWallRust     = 14 // PostApoc - rusted metal/rubble
+	// TileWallStone is fantasy stone wall.
+	TileWallStone = 10
+	// TileWallHull is scifi metal hull.
+	TileWallHull = 11
+	// TileWallPlaster is horror cracked plaster.
+	TileWallPlaster = 12
+	// TileWallConcrete is cyberpunk concrete wall.
+	TileWallConcrete = 13
+	// TileWallRust is post-apocalyptic rusted wall.
+	TileWallRust = 14
 
-	// Genre-specific floor tile variants
-	TileFloorStone    = 20 // Fantasy - stone floor
-	TileFloorHull     = 21 // SciFi - metal grating
-	TileFloorWood     = 22 // Horror - wooden floor
-	TileFloorConcrete = 23 // Cyberpunk - polished concrete
-	TileFloorDirt     = 24 // PostApoc - dirt/debris
+	// TileFloorStone is fantasy stone floor.
+	TileFloorStone = 20
+	// TileFloorHull is scifi metal grating.
+	TileFloorHull = 21
+	// TileFloorWood is horror wooden floor.
+	TileFloorWood = 22
+	// TileFloorConcrete is cyberpunk polished concrete.
+	TileFloorConcrete = 23
+	// TileFloorDirt is post-apocalyptic dirt floor.
+	TileFloorDirt = 24
 
-	// Input validation bounds
-	MinLevelSize = 16   // Minimum level dimension (must fit at least 2-3 rooms)
-	MaxLevelSize = 1024 // Maximum level dimension (performance limit)
+	// MinLevelSize is the minimum level dimension.
+	MinLevelSize = 16
+	// MaxLevelSize is the maximum level dimension.
+	MaxLevelSize = 1024
 )
 
-var (
-	ErrInvalidWidth  = errors.New("width must be > 0 and <= 1024")
-	ErrInvalidHeight = errors.New("height must be > 0 and <= 1024")
-	ErrNilRNG        = errors.New("rng cannot be nil")
-)
+// ErrInvalidWidth is returned when width is invalid.
+var ErrInvalidWidth = errors.New("width must be > 0 and <= 1024")
+
+// ErrInvalidHeight is returned when height is invalid.
+var ErrInvalidHeight = errors.New("height must be > 0 and <= 1024")
+
+// ErrNilRNG is returned when rng is nil.
+var ErrNilRNG = errors.New("rng cannot be nil")
 
 // Node represents a BSP tree node used during level generation.
 type Node struct {

@@ -31,10 +31,10 @@ type Component struct {
 type AttackState int
 
 const (
-	StateIdle AttackState = iota
-	StateWindup
-	StateStrike
-	StateRecovery
+	StateIdle     AttackState = iota // StateIdle is the idle attack state.
+	StateWindup                      // StateWindup is the windup attack state.
+	StateStrike                      // StateStrike is the strike attack state.
+	StateRecovery                    // StateRecovery is the recovery attack state.
 )
 
 // Type returns the component type identifier.
