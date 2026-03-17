@@ -506,14 +506,14 @@ func TestIntensityCalculation(t *testing.T) {
 		minIntensity  float64
 		maxIntensity  float64
 	}{
-		{10.0, 0.99, 1.01},  // Full intensity
-		{5.0, 0.99, 1.01},   // Full intensity
-		{2.0, 0.99, 1.01},   // Full intensity (boundary)
-		{1.5, 0.74, 0.76},   // Fading
-		{1.0, 0.49, 0.51},   // Fading
-		{0.5, 0.24, 0.26},   // Almost gone
-		{0.0, 0.0, 0.01},    // Expired
-		{-1.0, 0.0, 0.01},   // Past expiration
+		{10.0, 0.99, 1.01}, // Full intensity
+		{5.0, 0.99, 1.01},  // Full intensity
+		{2.0, 0.99, 1.01},  // Full intensity (boundary)
+		{1.5, 0.74, 0.76},  // Fading
+		{1.0, 0.49, 0.51},  // Fading
+		{0.5, 0.24, 0.26},  // Almost gone
+		{0.0, 0.0, 0.01},   // Expired
+		{-1.0, 0.0, 0.01},  // Past expiration
 	}
 
 	for _, tt := range tests {
