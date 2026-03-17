@@ -49,6 +49,7 @@ import (
 	"github.com/opd-ai/violence/pkg/faction"
 	"github.com/opd-ai/violence/pkg/federation"
 	"github.com/opd-ai/violence/pkg/feedback"
+	"github.com/opd-ai/violence/pkg/flicker"
 	"github.com/opd-ai/violence/pkg/floor"
 	"github.com/opd-ai/violence/pkg/fog"
 	"github.com/opd-ai/violence/pkg/hazard"
@@ -407,6 +408,10 @@ type Game struct {
 	// Impact burst rendering system for visually realistic combat impact effects
 	impactBurstSystem   *impactburst.System
 	impactBurstRenderer *impactburst.Renderer
+
+	// Realistic flame flicker system for physics-based torch/fire lighting
+	flickerBridge *flicker.LightFlickerBridge
+	flickerTick   int // Frame counter for flicker animation
 }
 
 // NewGame creates and initializes a new game instance.
@@ -613,6 +618,9 @@ func NewGame() *Game {
 	g.impactBurstSystem = impactburst.NewSystem(g.genreID, int64(seed))
 	g.impactBurstRenderer = impactburst.NewRenderer(g.genreID)
 
+	// Initialize realistic flame flicker system for physics-based torch/fire lighting
+	g.flickerBridge = flicker.NewLightFlickerBridge(g.genreID)
+
 	// Initialize UI layout manager for preventing element overlap
 	g.uiLayoutManager = ui.NewLayoutManager(config.C.InternalWidth, config.C.InternalHeight)
 
@@ -777,6 +785,9 @@ func NewGame() *Game {
 func (g *Game) Update() error {
 	// Update input manager
 	g.input.Update()
+
+	// Increment flicker tick for physics-based flame animation
+	g.flickerTick++
 
 	// Manage cursor capture: locked during gameplay, visible in menus
 	switch g.state {
@@ -1686,6 +1697,9 @@ func (g *Game) setGenreForVisualSystems(genreID string) {
 	}
 	if g.impactBurstRenderer != nil {
 		g.impactBurstRenderer.SetGenre(genreID)
+	}
+	if g.flickerBridge != nil {
+		g.flickerBridge.SetGenre(genreID)
 	}
 }
 
@@ -5253,17 +5267,36 @@ func (g *Game) collectTorchLights(lights []lighting.Light) []lighting.Light {
 	}
 
 	allProps := g.propsManager.GetProps()
-	for _, prop := range allProps {
+	for i, prop := range allProps {
 		if prop.SpriteType == props.PropTorch {
-			lights = append(lights, lighting.Light{
-				X:         prop.X,
-				Y:         prop.Y,
-				Radius:    8.0,
-				Intensity: 0.9,
-				R:         1.0,
-				G:         0.8,
-				B:         0.4,
-			})
+			// Use physics-based flicker system for realistic flame behavior
+			baseIntensity := 0.9
+			baseR, baseG, baseB := 1.0, 0.8, 0.4
+
+			if g.flickerBridge != nil {
+				// Use prop index as unique seed for this torch
+				flickerResult := g.flickerBridge.CalculateFlickerSimple(int64(i), g.flickerTick, baseIntensity, baseR, baseG, baseB)
+				lights = append(lights, lighting.Light{
+					X:         prop.X,
+					Y:         prop.Y,
+					Radius:    8.0,
+					Intensity: flickerResult.Intensity,
+					R:         flickerResult.R,
+					G:         flickerResult.G,
+					B:         flickerResult.B,
+				})
+			} else {
+				// Fallback if flicker system not initialized
+				lights = append(lights, lighting.Light{
+					X:         prop.X,
+					Y:         prop.Y,
+					Radius:    8.0,
+					Intensity: baseIntensity,
+					R:         baseR,
+					G:         baseG,
+					B:         baseB,
+				})
+			}
 		}
 	}
 	return lights
