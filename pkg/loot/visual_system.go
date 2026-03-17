@@ -8,6 +8,7 @@ import (
 	"reflect"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/opd-ai/violence/pkg/common"
 	"github.com/opd-ai/violence/pkg/engine"
 	"github.com/sirupsen/logrus"
@@ -613,25 +614,15 @@ func (vs *VisualSystem) addEnchantmentGlow(img *ebiten.Image, rarity Rarity, siz
 		glowColor = color.RGBA{255, 215, 0, 120}
 	}
 
-	cx, cy := size/2, size/2
-	glowRadius := size / 2
+	cx, cy := float32(size/2), float32(size/2)
+	glowRadius := float32(size / 2)
 
-	bounds := img.Bounds()
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			existing := img.At(x, y)
-			_, _, _, a := existing.RGBA()
-			if a > 0 {
-				dx := x - cx
-				dy := y - cy
-				dist := math.Sqrt(float64(dx*dx + dy*dy))
-				if dist < float64(glowRadius) {
-					glowAlpha := uint8(float64(glowColor.A) * (1.0 - dist/float64(glowRadius)))
-					overlayColor := color.RGBA{glowColor.R, glowColor.G, glowColor.B, glowAlpha}
-					img.Set(x, y, blendColors(existing.(color.RGBA), overlayColor))
-				}
-			}
-		}
+	// Draw a radial glow using vector graphics (avoids ReadPixels)
+	for ring := 0; ring < int(glowRadius); ring++ {
+		radius := float32(ring)
+		alpha := float64(glowColor.A) * (1.0 - float64(radius)/float64(glowRadius))
+		ringColor := color.RGBA{glowColor.R, glowColor.G, glowColor.B, uint8(alpha * 0.5)}
+		vector.StrokeCircle(img, cx, cy, radius, 1.0, ringColor, false)
 	}
 }
 

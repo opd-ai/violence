@@ -659,9 +659,9 @@ func TestDoorInteraction(t *testing.T) {
 	}
 	game.raycaster.SetMap(game.currentMap)
 
-	// Position player facing the door - place closer so 1.5 units puts us at the door
+	// Position player facing the door - need to be at y=1.5 so interaction ray lands at y=2.5 (maps to mapY=2)
 	game.camera.X = 2.0
-	game.camera.Y = 0.7
+	game.camera.Y = 1.5
 	game.camera.DirX = 0.0
 	game.camera.DirY = 1.0
 
@@ -2855,9 +2855,9 @@ func TestSecretWallDiscovery(t *testing.T) {
 	}
 
 	// Position player to face the secret wall at (11, 10)
-	// checkDist = 1.5, so camera at (9.5, 10.0) with dir (1.0, 0.0)
-	// will check position (9.5 + 1.0*1.5, 10.0 + 0.0*1.5) = (11.0, 10.0) -> (11, 10)
-	game.camera.X = 9.5
+	// checkDist = 1.0, so camera at (10.5, 10.0) with dir (1.0, 0.0)
+	// will check position (10.5 + 1.0*1.0, 10.0 + 0.0*1.0) = (11.5, 10.0) -> (11, 10)
+	game.camera.X = 10.5
 	game.camera.Y = 10.0
 	game.camera.DirX = 1.0
 	game.camera.DirY = 0.0

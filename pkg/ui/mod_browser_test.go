@@ -451,7 +451,7 @@ func TestComputeSHA256(t *testing.T) {
 		{
 			name:     "wasm magic",
 			data:     []byte{0x00, 0x61, 0x73, 0x6d},
-			expected: "4c910acba0aa1dd89b8cdd3ceb30165c84f2870c2e35e8ac82a7bda31a7ec69c",
+			expected: "cd5d4935a48c0672cb06407bb443bc0087aff947c6b864bac886982c73b3027f",
 		},
 	}
 

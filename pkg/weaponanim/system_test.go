@@ -102,21 +102,26 @@ func TestSystemUpdate(t *testing.T) {
 	anim := &WeaponAnimComponent{
 		Active:     true,
 		Progress:   0.0,
-		Duration:   0.3,
+		Duration:   2.0, // Long duration so animation doesn't complete during test
 		StartAngle: 0.0,
 		EndAngle:   math.Pi,
 		ArcRadius:  20.0,
 	}
 	world.AddComponent(entity, anim)
 
-	// Update multiple times
-	for i := 0; i < 20; i++ {
+	// Update multiple times (but not enough to complete the animation)
+	for i := 0; i < 5; i++ {
 		system.Update(world)
 	}
 
 	// Animation should have progressed
 	if anim.Progress <= 0.0 {
 		t.Error("Animation progress did not increase")
+	}
+
+	// Animation should still be active
+	if !anim.Active {
+		t.Error("Animation completed unexpectedly")
 	}
 
 	// Should have trail points

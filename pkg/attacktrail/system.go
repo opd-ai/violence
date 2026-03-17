@@ -333,6 +333,9 @@ func (s *System) GetWeaponTrailColor(weaponName string, rng *rand.Rand) color.RG
 			{R: 255, G: 100, B: 100, A: 200}, // Laser red
 			{R: 100, G: 255, B: 150, A: 200}, // Energy green
 		}
+		if rng == nil {
+			return colors[0]
+		}
 		return colors[rng.Intn(len(colors))]
 	case "horror":
 		return color.RGBA{R: 140, G: 20, B: 20, A: 160}
@@ -341,6 +344,9 @@ func (s *System) GetWeaponTrailColor(weaponName string, rng *rand.Rand) color.RG
 			{R: 255, G: 0, B: 255, A: 200}, // Neon magenta
 			{R: 0, G: 255, B: 255, A: 200}, // Neon cyan
 			{R: 255, G: 255, B: 0, A: 200}, // Neon yellow
+		}
+		if rng == nil {
+			return colors[0]
 		}
 		return colors[rng.Intn(len(colors))]
 	default:

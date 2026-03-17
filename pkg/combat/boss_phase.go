@@ -168,7 +168,7 @@ func createHorrorBossPhases(rng *rand.Rand) []PhaseTransition {
 			DamageMultiplier: 2.0,
 			SpeedMultiplier:  1.5,
 			AttackRate:       2.0,
-			AbilitySet:       []string{"frenzy", "life_drain", "death_curse"},
+			AbilitySet:       []string{"frenzy", "spawn_minions", "life_drain", "death_curse"},
 			VisualEffect:     "desperate",
 			Enraged:          true,
 		},

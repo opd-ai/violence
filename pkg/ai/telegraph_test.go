@@ -107,8 +107,11 @@ func TestFindEntityByAgent(t *testing.T) {
 	t.Run("finds matching entity", func(t *testing.T) {
 		agent := &Agent{X: 100, Y: 100}
 
-		entity := findEntityByAgent(w, agent)
+		entity, found := findEntityByAgent(w, agent)
 
+		if !found {
+			t.Error("expected entity to be found")
+		}
 		if entity != e1 {
 			t.Errorf("expected entity %d, got %d", e1, entity)
 		}
@@ -117,28 +120,34 @@ func TestFindEntityByAgent(t *testing.T) {
 	t.Run("finds second entity", func(t *testing.T) {
 		agent := &Agent{X: 200, Y: 200}
 
-		entity := findEntityByAgent(w, agent)
+		entity, found := findEntityByAgent(w, agent)
 
+		if !found {
+			t.Error("expected entity to be found")
+		}
 		if entity != e2 {
 			t.Errorf("expected entity %d, got %d", e2, entity)
 		}
 	})
 
-	t.Run("returns zero for no match", func(t *testing.T) {
+	t.Run("returns false for no match", func(t *testing.T) {
 		agent := &Agent{X: 500, Y: 500}
 
-		entity := findEntityByAgent(w, agent)
+		_, found := findEntityByAgent(w, agent)
 
-		if entity != 0 {
-			t.Errorf("expected entity 0 for no match, got %d", entity)
+		if found {
+			t.Error("expected entity not to be found")
 		}
 	})
 
 	t.Run("handles close positions", func(t *testing.T) {
 		agent := &Agent{X: 100.05, Y: 100.05}
 
-		entity := findEntityByAgent(w, agent)
+		entity, found := findEntityByAgent(w, agent)
 
+		if !found {
+			t.Error("expected entity to be found")
+		}
 		if entity != e1 {
 			t.Error("should match within tolerance")
 		}

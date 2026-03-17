@@ -134,11 +134,13 @@ func TestSystem_Update(t *testing.T) {
 	ent1 := Spawn(w, 50, 100.0, 100.0, "physical", false, false)
 	ent2 := Spawn(w, 100, 150.0, 150.0, "fire", true, false)
 
-	comp1, _ := w.GetComponent(ent1, nil)
+	compType := reflect.TypeOf((*Component)(nil))
+
+	comp1, _ := w.GetComponent(ent1, compType)
 	dmg1 := comp1.(*Component)
 	initialY1 := dmg1.Y
 
-	comp2, _ := w.GetComponent(ent2, nil)
+	comp2, _ := w.GetComponent(ent2, compType)
 	dmg2 := comp2.(*Component)
 	initialY2 := dmg2.Y
 
@@ -146,7 +148,7 @@ func TestSystem_Update(t *testing.T) {
 		sys.Update(w)
 	}
 
-	comp1, found1 := w.GetComponent(ent1, nil)
+	comp1, found1 := w.GetComponent(ent1, compType)
 	if !found1 {
 		t.Fatal("Entity 1 was removed prematurely")
 	}
@@ -159,7 +161,7 @@ func TestSystem_Update(t *testing.T) {
 		t.Errorf("Y should decrease (rise up), was %f now %f", initialY1, dmg1.Y)
 	}
 
-	comp2, found2 := w.GetComponent(ent2, nil)
+	comp2, found2 := w.GetComponent(ent2, compType)
 	if !found2 {
 		t.Fatal("Entity 2 was removed prematurely")
 	}
@@ -173,9 +175,10 @@ func TestSystem_Update(t *testing.T) {
 func TestSystem_Update_Expiration(t *testing.T) {
 	w := engine.NewWorld()
 	sys := NewSystem("fantasy")
+	compType := reflect.TypeOf((*Component)(nil))
 
 	ent := Spawn(w, 10, 100.0, 100.0, "physical", false, false)
-	comp, _ := w.GetComponent(ent, nil)
+	comp, _ := w.GetComponent(ent, compType)
 	dmg := comp.(*Component)
 	dmg.Lifetime = 0.1
 
@@ -183,7 +186,7 @@ func TestSystem_Update_Expiration(t *testing.T) {
 		sys.Update(w)
 	}
 
-	_, found := w.GetComponent(ent, nil)
+	_, found := w.GetComponent(ent, compType)
 	if found {
 		t.Error("Entity should be removed after lifetime expires")
 	}
@@ -192,10 +195,11 @@ func TestSystem_Update_Expiration(t *testing.T) {
 func TestSystem_Update_ScaleAnimation(t *testing.T) {
 	w := engine.NewWorld()
 	sys := NewSystem("fantasy")
+	compType := reflect.TypeOf((*Component)(nil))
 
 	ent := Spawn(w, 50, 100.0, 100.0, "physical", false, false)
 
-	comp, _ := w.GetComponent(ent, nil)
+	comp, _ := w.GetComponent(ent, compType)
 	dmg := comp.(*Component)
 	initialScale := dmg.Scale
 
@@ -203,7 +207,7 @@ func TestSystem_Update_ScaleAnimation(t *testing.T) {
 		sys.Update(w)
 	}
 
-	comp, _ = w.GetComponent(ent, nil)
+	comp, _ = w.GetComponent(ent, compType)
 	dmg = comp.(*Component)
 
 	if dmg.Scale <= initialScale {
@@ -214,15 +218,16 @@ func TestSystem_Update_ScaleAnimation(t *testing.T) {
 func TestSystem_Update_FadeOut(t *testing.T) {
 	w := engine.NewWorld()
 	sys := NewSystem("fantasy")
+	compType := reflect.TypeOf((*Component)(nil))
 
 	ent := Spawn(w, 50, 100.0, 100.0, "physical", false, false)
-	comp, _ := w.GetComponent(ent, nil)
+	comp, _ := w.GetComponent(ent, compType)
 	dmg := comp.(*Component)
 	dmg.Age = dmg.Lifetime * 0.75
 
 	sys.Update(w)
 
-	comp, _ = w.GetComponent(ent, nil)
+	comp, _ = w.GetComponent(ent, compType)
 	dmg = comp.(*Component)
 
 	if dmg.Alpha >= 1.0 {

@@ -92,9 +92,11 @@ func TestBuildWorkflowMobileJobs(t *testing.T) {
 		t.Error("Android job missing Java setup")
 	}
 
-	// Check summary job depends on mobile builds
-	if !strings.Contains(content, "needs: [build-linux, build-macos, build-windows, build-wasm, build-ios, build-android]") {
-		t.Error("Summary job not depending on all build jobs including mobile")
+	// Check summary job depends on active builds
+	// Note: Mobile builds (build-ios, build-android) are currently disabled (if: false)
+	// and not included in summary needs
+	if !strings.Contains(content, "needs: [build-linux, build-macos, build-windows, build-wasm]") {
+		t.Error("Summary job not depending on active build jobs")
 	}
 }
 

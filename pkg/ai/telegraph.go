@@ -24,8 +24,8 @@ func checkCanTelegraphAttack(agent *Agent, ctx *Context) bool {
 		return false
 	}
 	// Find entity by agent ID
-	entity := findEntityByAgent(tCtx.World, agent)
-	if entity == 0 {
+	entity, found := findEntityByAgent(tCtx.World, agent)
+	if !found {
 		return false
 	}
 
@@ -47,8 +47,8 @@ func actionTelegraphAttack(agent *Agent, ctx *Context) NodeStatus {
 		return StatusFailure
 	}
 
-	entity := findEntityByAgent(tCtx.World, agent)
-	if entity == 0 {
+	entity, found := findEntityByAgent(tCtx.World, agent)
+	if !found {
 		return StatusFailure
 	}
 
@@ -127,9 +127,11 @@ func NewTelegraphBehaviorTree() *BehaviorTree {
 
 // findEntityByAgent locates the engine.Entity corresponding to an AI agent.
 // This is a helper for linking the legacy AI system to ECS.
-func findEntityByAgent(w *engine.World, agent *Agent) engine.Entity {
+// Returns the entity and a boolean indicating if an entity was found.
+func findEntityByAgent(w *engine.World, agent *Agent) (engine.Entity, bool) {
 	// Query all entities with position
 	it := w.QueryWithBitmask(engine.ComponentIDPosition)
+	defer it.Release()
 
 	posType := reflect.TypeOf(&engine.Position{})
 
@@ -147,11 +149,11 @@ func findEntityByAgent(w *engine.World, agent *Agent) engine.Entity {
 		dx := pos.X - agent.X
 		dy := pos.Y - agent.Y
 		if math.Abs(dx) < 0.1 && math.Abs(dy) < 0.1 {
-			return e
+			return e, true
 		}
 	}
 
-	return 0
+	return 0, false
 }
 
 // AddTelegraphToAgent adds a telegraph component to an entity for an AI agent.
