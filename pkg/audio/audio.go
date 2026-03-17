@@ -438,20 +438,7 @@ func (e *Engine) getSFXData(name string) []byte {
 // generateSilence creates a silent WAV buffer for testing.
 func generateSilence(samples int) []byte {
 	buf := &bytes.Buffer{}
-	// WAV header (44 bytes)
-	buf.Write([]byte("RIFF"))
-	writeUint32(buf, uint32(36+samples*4))
-	buf.Write([]byte("WAVE"))
-	buf.Write([]byte("fmt "))
-	writeUint32(buf, 16)
-	writeUint16(buf, 1) // PCM
-	writeUint16(buf, 2) // Stereo
-	writeUint32(buf, sampleRate)
-	writeUint32(buf, sampleRate*4)
-	writeUint16(buf, 4)
-	writeUint16(buf, 16)
-	buf.Write([]byte("data"))
-	writeUint32(buf, uint32(samples*4))
+	writeWAVHeader(buf, samples)
 	// Silence samples
 	for i := 0; i < samples*2; i++ {
 		writeUint16(buf, 0)
@@ -462,20 +449,7 @@ func generateSilence(samples int) []byte {
 // generateBlip creates a simple tone WAV buffer for testing.
 func generateBlip(samples int) []byte {
 	buf := &bytes.Buffer{}
-	// WAV header
-	buf.Write([]byte("RIFF"))
-	writeUint32(buf, uint32(36+samples*4))
-	buf.Write([]byte("WAVE"))
-	buf.Write([]byte("fmt "))
-	writeUint32(buf, 16)
-	writeUint16(buf, 1)
-	writeUint16(buf, 2)
-	writeUint32(buf, sampleRate)
-	writeUint32(buf, sampleRate*4)
-	writeUint16(buf, 4)
-	writeUint16(buf, 16)
-	buf.Write([]byte("data"))
-	writeUint32(buf, uint32(samples*4))
+	writeWAVHeader(buf, samples)
 	// Generate simple tone
 	for i := 0; i < samples; i++ {
 		val := int16(math.Sin(float64(i)*0.1) * 8000)

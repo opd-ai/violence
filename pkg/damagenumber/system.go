@@ -77,6 +77,40 @@ func (s *System) Update(w *engine.World) {
 	}
 }
 
+// damageTextInfo contains pre-computed text rendering information for a damage number.
+type damageTextInfo struct {
+	dmg        *Component
+	textStr    string
+	textWidth  int
+	textHeight int
+	screenX    float64
+	screenY    float64
+}
+
+// prepareDamageText computes text rendering info for a damage component.
+// Returns nil if the component is invalid.
+func (s *System) prepareDamageText(dmg *Component, cameraX, cameraY float64) *damageTextInfo {
+	if dmg == nil {
+		return nil
+	}
+
+	textStr := fmt.Sprintf("%d", dmg.Value)
+	if dmg.IsCritical {
+		textStr += "!"
+	}
+
+	bounds := text.BoundString(s.font, textStr)
+
+	return &damageTextInfo{
+		dmg:        dmg,
+		textStr:    textStr,
+		textWidth:  bounds.Dx(),
+		textHeight: bounds.Dy(),
+		screenX:    dmg.X - cameraX,
+		screenY:    dmg.Y - cameraY,
+	}
+}
+
 // Render draws damage numbers to screen.
 func (s *System) Render(w *engine.World, screen *ebiten.Image, cameraX, cameraY float64) {
 	compType := reflect.TypeOf((*Component)(nil))
@@ -93,20 +127,16 @@ func (s *System) Render(w *engine.World, screen *ebiten.Image, cameraX, cameraY 
 			continue
 		}
 
-		screenX := int(dmg.X - cameraX)
-		screenY := int(dmg.Y - cameraY)
-
-		textStr := fmt.Sprintf("%d", dmg.Value)
-		if dmg.IsCritical {
-			textStr += "!"
+		info := s.prepareDamageText(dmg, cameraX, cameraY)
+		if info == nil {
+			continue
 		}
 
-		bounds := text.BoundString(s.font, textStr)
-		textWidth := bounds.Dx()
-		textHeight := bounds.Dy()
+		screenX := int(info.screenX)
+		screenY := int(info.screenY)
 
-		drawX := screenX - textWidth/2
-		drawY := screenY - textHeight/2
+		drawX := screenX - info.textWidth/2
+		drawY := screenY - info.textHeight/2
 
 		renderColor := dmg.Color
 		renderColor.A = uint8(dmg.Alpha * 255)
@@ -118,17 +148,17 @@ func (s *System) Render(w *engine.World, screen *ebiten.Image, cameraX, cameraY 
 
 		if math.Abs(dmg.Scale-1.0) > 0.01 {
 			opts := &ebiten.DrawImageOptions{}
-			opts.GeoM.Translate(float64(-textWidth/2), float64(-textHeight/2))
+			opts.GeoM.Translate(float64(-info.textWidth/2), float64(-info.textHeight/2))
 			opts.GeoM.Scale(dmg.Scale, dmg.Scale)
 			opts.GeoM.Translate(float64(screenX), float64(screenY))
 
-			tmpImg := ebiten.NewImage(textWidth+4, textHeight+4)
-			text.Draw(tmpImg, textStr, s.font, 2, textHeight, renderColor)
+			tmpImg := ebiten.NewImage(info.textWidth+4, info.textHeight+4)
+			text.Draw(tmpImg, info.textStr, s.font, 2, info.textHeight, renderColor)
 
 			opts.ColorScale.ScaleAlpha(float32(dmg.Alpha))
 			screen.DrawImage(tmpImg, opts)
 		} else {
-			text.Draw(screen, textStr, s.font, drawX, drawY+textHeight, renderColor)
+			text.Draw(screen, info.textStr, s.font, drawX, drawY+info.textHeight, renderColor)
 		}
 	}
 }
@@ -149,17 +179,10 @@ func (s *System) RenderWithLayout(w *engine.World, screen *ebiten.Image, cameraX
 			continue
 		}
 
-		screenX := float32(dmg.X - cameraX)
-		screenY := float32(dmg.Y - cameraY)
-
-		textStr := fmt.Sprintf("%d", dmg.Value)
-		if dmg.IsCritical {
-			textStr += "!"
+		info := s.prepareDamageText(dmg, cameraX, cameraY)
+		if info == nil {
+			continue
 		}
-
-		bounds := text.BoundString(s.font, textStr)
-		textWidth := float32(bounds.Dx())
-		textHeight := float32(bounds.Dy())
 
 		// Reserve space with layout manager - damage numbers stack vertically
 		priority := ui.PriorityImportant
@@ -169,10 +192,10 @@ func (s *System) RenderWithLayout(w *engine.World, screen *ebiten.Image, cameraX
 
 		adjustedX, adjustedY, visible := layoutMgr.ReserveDamageNumber(
 			fmt.Sprintf("dmg_%d", ent),
-			screenX-textWidth/2,
-			screenY-textHeight/2,
-			textWidth*2,  // Extra width for scaling
-			textHeight*2, // Extra height for scaling
+			float32(info.screenX)-float32(info.textWidth)/2,
+			float32(info.screenY)-float32(info.textHeight)/2,
+			float32(info.textWidth)*2,  // Extra width for scaling
+			float32(info.textHeight)*2, // Extra height for scaling
 			priority,
 		)
 
@@ -180,8 +203,8 @@ func (s *System) RenderWithLayout(w *engine.World, screen *ebiten.Image, cameraX
 			continue
 		}
 
-		drawX := int(adjustedX + textWidth/2)
-		drawY := int(adjustedY + textHeight/2)
+		drawX := int(adjustedX + float32(info.textWidth)/2)
+		drawY := int(adjustedY + float32(info.textHeight)/2)
 
 		renderColor := dmg.Color
 		renderColor.A = uint8(dmg.Alpha * 255)
@@ -193,17 +216,17 @@ func (s *System) RenderWithLayout(w *engine.World, screen *ebiten.Image, cameraX
 
 		if math.Abs(dmg.Scale-1.0) > 0.01 {
 			opts := &ebiten.DrawImageOptions{}
-			opts.GeoM.Translate(float64(-textWidth/2), float64(-textHeight/2))
+			opts.GeoM.Translate(float64(-info.textWidth/2), float64(-info.textHeight/2))
 			opts.GeoM.Scale(dmg.Scale, dmg.Scale)
 			opts.GeoM.Translate(float64(drawX), float64(drawY))
 
-			tmpImg := ebiten.NewImage(int(textWidth)+4, int(textHeight)+4)
-			text.Draw(tmpImg, textStr, s.font, 2, int(textHeight), renderColor)
+			tmpImg := ebiten.NewImage(info.textWidth+4, info.textHeight+4)
+			text.Draw(tmpImg, info.textStr, s.font, 2, info.textHeight, renderColor)
 
 			opts.ColorScale.ScaleAlpha(float32(dmg.Alpha))
 			screen.DrawImage(tmpImg, opts)
 		} else {
-			text.Draw(screen, textStr, s.font, drawX-int(textWidth/2), drawY+int(textHeight/2), renderColor)
+			text.Draw(screen, info.textStr, s.font, drawX-info.textWidth/2, drawY+info.textHeight/2, renderColor)
 		}
 	}
 }

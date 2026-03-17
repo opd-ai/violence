@@ -126,25 +126,38 @@ func (g *Grid) removeFromCell(e engine.Entity, cx, cy int64) {
 	}
 }
 
+// cellBounds represents a bounding box in cell coordinates.
+type cellBounds struct {
+	minCX, maxCX, minCY, maxCY int64
+}
+
+// getCellBounds computes the cell coordinate range for a circular query.
+// This helper consolidates duplicate cell range computation from query methods.
+func (g *Grid) getCellBounds(x, y, radius float64) cellBounds {
+	return cellBounds{
+		minCX: g.cellCoord(x - radius),
+		maxCX: g.cellCoord(x + radius),
+		minCY: g.cellCoord(y - radius),
+		maxCY: g.cellCoord(y + radius),
+	}
+}
+
 // QueryRadius returns all entities within the given radius of (x, y).
 // This is the primary fast-path for proximity queries.
 func (g *Grid) QueryRadius(x, y, radius float64) []engine.Entity {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
-	minCX := g.cellCoord(x - radius)
-	maxCX := g.cellCoord(x + radius)
-	minCY := g.cellCoord(y - radius)
-	maxCY := g.cellCoord(y + radius)
+	bounds := g.getCellBounds(x, y, radius)
 
 	seen := make(map[engine.Entity]bool)
 	var results []engine.Entity
 
-	for cx := minCX; cx <= maxCX; cx++ {
+	for cx := bounds.minCX; cx <= bounds.maxCX; cx++ {
 		if g.cells[cx] == nil {
 			continue
 		}
-		for cy := minCY; cy <= maxCY; cy++ {
+		for cy := bounds.minCY; cy <= bounds.maxCY; cy++ {
 			for _, e := range g.cells[cx][cy] {
 				if seen[e] {
 					continue
@@ -164,21 +177,18 @@ func (g *Grid) QueryRadiusFiltered(x, y, radius float64, positions map[engine.En
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
-	minCX := g.cellCoord(x - radius)
-	maxCX := g.cellCoord(x + radius)
-	minCY := g.cellCoord(y - radius)
-	maxCY := g.cellCoord(y + radius)
+	bounds := g.getCellBounds(x, y, radius)
 
 	seen := make(map[engine.Entity]bool)
 	var results []engine.Entity
 
 	radiusSq := radius * radius
 
-	for cx := minCX; cx <= maxCX; cx++ {
+	for cx := bounds.minCX; cx <= bounds.maxCX; cx++ {
 		if g.cells[cx] == nil {
 			continue
 		}
-		for cy := minCY; cy <= maxCY; cy++ {
+		for cy := bounds.minCY; cy <= bounds.maxCY; cy++ {
 			for _, e := range g.cells[cx][cy] {
 				if seen[e] {
 					continue

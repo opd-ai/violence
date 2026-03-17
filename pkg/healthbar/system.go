@@ -121,52 +121,10 @@ func (s *System) Update(w *engine.World) {
 
 // RenderHealthBars draws health bars for visible entities.
 func (s *System) RenderHealthBars(screen *ebiten.Image, w *engine.World, cameraX, cameraY, cameraDirX, cameraDirY float64, screenWidth, screenHeight int) {
-	healthType := reflect.TypeOf(&engine.Health{})
-	barType := reflect.TypeOf(&Component{})
-	posType := reflect.TypeOf(&engine.Position{})
-
-	entities := w.Query(healthType)
-
-	for _, eid := range entities {
-		healthComp, ok := w.GetComponent(eid, healthType)
-		if !ok {
-			continue
-		}
-		health := healthComp.(*engine.Health)
-
-		barComp, hasBar := w.GetComponent(eid, barType)
-		if !hasBar {
-			continue
-		}
-		bar := barComp.(*Component)
-
-		if !bar.Visible {
-			continue
-		}
-
-		if health.Max == 0 {
-			continue
-		}
-
-		healthPct := float64(health.Current) / float64(health.Max)
-		if healthPct >= 1.0 && !bar.ShowWhenFull && bar.LastDamageAge > s.fadeDelay {
-			continue
-		}
-
-		posComp, hasPos := w.GetComponent(eid, posType)
-		if !hasPos {
-			continue
-		}
-		pos := posComp.(*engine.Position)
-
-		screenX, screenY, visible := s.worldToScreen(pos.X, pos.Y, cameraX, cameraY, cameraDirX, cameraDirY, screenWidth, screenHeight)
-		if !visible {
-			continue
-		}
-
-		s.drawHealthBar(screen, screenX, screenY-bar.OffsetY, bar.Width, bar.Height, healthPct, bar)
-
-		s.drawStatusIcons(screen, w, eid, screenX, screenY-bar.OffsetY-bar.Height-4)
+	bars := s.collectVisibleHealthBars(w, cameraX, cameraY, cameraDirX, cameraDirY, screenWidth, screenHeight)
+	for _, info := range bars {
+		s.drawHealthBar(screen, info.screenX, info.screenY-info.bar.OffsetY, info.bar.Width, info.bar.Height, info.healthPct, info.bar)
+		s.drawStatusIcons(screen, w, info.eid, info.screenX, info.screenY-info.bar.OffsetY-info.bar.Height-4)
 	}
 }
 

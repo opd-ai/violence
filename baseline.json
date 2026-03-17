@@ -1,17 +1,17 @@
 {
   "metadata": {
     "repository": "/home/user/go/src/github.com/opd-ai/violence",
-    "generated_at": "2026-03-17T08:51:31.916485578-04:00",
-    "analysis_time": 6151692295,
+    "generated_at": "2026-03-17T08:28:20.094050278-04:00",
+    "analysis_time": 6682857479,
     "files_processed": 335,
     "tool_version": "1.0.0",
     "go_version": ""
   },
   "overview": {
-    "total_lines_of_code": 48481,
-    "total_functions": 1242,
-    "total_methods": 2742,
-    "total_structs": 659,
+    "total_lines_of_code": 48562,
+    "total_functions": 1239,
+    "total_methods": 2738,
+    "total_structs": 656,
     "total_interfaces": 29,
     "total_packages": 102,
     "total_files": 335
@@ -112,9 +112,9 @@
     "complexity_score": 0
   },
   "duplication": {
-    "clone_pairs": 79,
-    "duplicated_lines": 1750,
-    "duplication_ratio": 0.019649012496771947,
+    "clone_pairs": 86,
+    "duplicated_lines": 1910,
+    "duplication_ratio": 0.021432498849826634,
     "largest_clone_size": 59,
     "clones": [
       {
@@ -895,27 +895,6 @@
         "suggestion": "Extract 10-line duplicate code block into a shared function. Found in 3 locations. Consider using generics or interface-based abstraction"
       },
       {
-        "hash": "6249a613d4ddc8ac",
-        "type": "renamed",
-        "instances": [
-          {
-            "file": "pkg/damagenumber/system.go",
-            "start_line": 150,
-            "end_line": 159,
-            "node_count": 108
-          },
-          {
-            "file": "pkg/damagenumber/system.go",
-            "start_line": 218,
-            "end_line": 227,
-            "node_count": 108
-          }
-        ],
-        "line_count": 10,
-        "severity": "warning",
-        "suggestion": "Extract 10-line duplicate code block into a shared function. Found in 2 locations. Consider using generics or interface-based abstraction"
-      },
-      {
         "hash": "a925a2dd1e1809bd",
         "type": "renamed",
         "instances": [
@@ -948,14 +927,14 @@
         "instances": [
           {
             "file": "pkg/audio/audio.go",
-            "start_line": 667,
-            "end_line": 676,
+            "start_line": 693,
+            "end_line": 702,
             "node_count": 92
           },
           {
             "file": "pkg/audio/audio.go",
-            "start_line": 732,
-            "end_line": 740,
+            "start_line": 758,
+            "end_line": 766,
             "node_count": 92
           }
         ],
@@ -1010,6 +989,27 @@
         "line_count": 10,
         "severity": "warning",
         "suggestion": "Extract 10-line duplicate code block into a shared function. Found in 3 locations. Consider using generics or interface-based abstraction"
+      },
+      {
+        "hash": "d9f372a0d2a4ec72",
+        "type": "exact",
+        "instances": [
+          {
+            "file": "pkg/spatial/spatial.go",
+            "start_line": 132,
+            "end_line": 141,
+            "node_count": 67
+          },
+          {
+            "file": "pkg/spatial/spatial.go",
+            "start_line": 164,
+            "end_line": 173,
+            "node_count": 67
+          }
+        ],
+        "line_count": 10,
+        "severity": "warning",
+        "suggestion": "Extract 10-line duplicate code block into a shared function. Found in 2 locations"
       },
       {
         "hash": "db6de58397f1a67b",
@@ -1122,6 +1122,27 @@
             "start_line": 392,
             "end_line": 403,
             "node_count": 53
+          }
+        ],
+        "line_count": 12,
+        "severity": "warning",
+        "suggestion": "Extract 12-line duplicate code block into a shared function. Found in 2 locations"
+      },
+      {
+        "hash": "6b83af2f241c1611",
+        "type": "exact",
+        "instances": [
+          {
+            "file": "pkg/common/imgutil.go",
+            "start_line": 75,
+            "end_line": 86,
+            "node_count": 49
+          },
+          {
+            "file": "pkg/common/imgutil.go",
+            "start_line": 111,
+            "end_line": 122,
+            "node_count": 49
           }
         ],
         "line_count": 12,
@@ -1297,6 +1318,33 @@
         "suggestion": "Extract 13-line duplicate code block into a shared function. Found in 2 locations. Consider using generics or interface-based abstraction"
       },
       {
+        "hash": "9cbf12bdd72e5ef1",
+        "type": "exact",
+        "instances": [
+          {
+            "file": "pkg/audio/audio.go",
+            "start_line": 442,
+            "end_line": 454,
+            "node_count": 93
+          },
+          {
+            "file": "pkg/audio/audio.go",
+            "start_line": 466,
+            "end_line": 478,
+            "node_count": 93
+          },
+          {
+            "file": "pkg/audio/audio.go",
+            "start_line": 867,
+            "end_line": 879,
+            "node_count": 93
+          }
+        ],
+        "line_count": 13,
+        "severity": "warning",
+        "suggestion": "Extract 13-line duplicate code block into a shared function. Found in 3 locations"
+      },
+      {
         "hash": "9d7ed69095022957",
         "type": "renamed",
         "instances": [
@@ -1393,27 +1441,6 @@
         "suggestion": "Extract 14-line duplicate code block into a shared function. Found in 2 locations. Consider using generics or interface-based abstraction"
       },
       {
-        "hash": "afe664c43d683796",
-        "type": "exact",
-        "instances": [
-          {
-            "file": "pkg/damagenumber/system.go",
-            "start_line": 120,
-            "end_line": 133,
-            "node_count": 41
-          },
-          {
-            "file": "pkg/damagenumber/system.go",
-            "start_line": 172,
-            "end_line": 185,
-            "node_count": 41
-          }
-        ],
-        "line_count": 14,
-        "severity": "warning",
-        "suggestion": "Extract 14-line duplicate code block into a shared function. Found in 2 locations"
-      },
-      {
         "hash": "4eab0729d03ea3c4",
         "type": "renamed",
         "instances": [
@@ -1475,6 +1502,48 @@
         "line_count": 15,
         "severity": "warning",
         "suggestion": "Extract 15-line duplicate code block into a shared function. Found in 2 locations. Consider using generics or interface-based abstraction"
+      },
+      {
+        "hash": "cf4706785072ee98",
+        "type": "exact",
+        "instances": [
+          {
+            "file": "pkg/audio/audio.go",
+            "start_line": 440,
+            "end_line": 454,
+            "node_count": 100
+          },
+          {
+            "file": "pkg/audio/audio.go",
+            "start_line": 464,
+            "end_line": 478,
+            "node_count": 100
+          }
+        ],
+        "line_count": 15,
+        "severity": "warning",
+        "suggestion": "Extract 15-line duplicate code block into a shared function. Found in 2 locations"
+      },
+      {
+        "hash": "cf554f43b5658150",
+        "type": "exact",
+        "instances": [
+          {
+            "file": "pkg/weapon/visual_system.go",
+            "start_line": 56,
+            "end_line": 70,
+            "node_count": 64
+          },
+          {
+            "file": "pkg/weapon/visual_system.go",
+            "start_line": 89,
+            "end_line": 103,
+            "node_count": 64
+          }
+        ],
+        "line_count": 15,
+        "severity": "warning",
+        "suggestion": "Extract 15-line duplicate code block into a shared function. Found in 2 locations"
       },
       {
         "hash": "e75ebf06e3c938ec",
@@ -1580,6 +1649,27 @@
         "line_count": 18,
         "severity": "warning",
         "suggestion": "Extract 18-line duplicate code block into a shared function. Found in 2 locations. Consider using generics or interface-based abstraction"
+      },
+      {
+        "hash": "05919fc1a752519d",
+        "type": "renamed",
+        "instances": [
+          {
+            "file": "pkg/damagenumber/system.go",
+            "start_line": 86,
+            "end_line": 104,
+            "node_count": 72
+          },
+          {
+            "file": "pkg/damagenumber/system.go",
+            "start_line": 142,
+            "end_line": 160,
+            "node_count": 72
+          }
+        ],
+        "line_count": 19,
+        "severity": "warning",
+        "suggestion": "Extract 19-line duplicate code block into a shared function. Found in 2 locations. Consider using generics or interface-based abstraction"
       },
       {
         "hash": "08292605a231ea26",
@@ -1732,6 +1822,27 @@
         "suggestion": "Extract 23-line duplicate code block into a shared function. Found in 2 locations. Consider using generics or interface-based abstraction"
       },
       {
+        "hash": "1720f798781aec16",
+        "type": "renamed",
+        "instances": [
+          {
+            "file": "pkg/automap/renderer.go",
+            "start_line": 259,
+            "end_line": 283,
+            "node_count": 135
+          },
+          {
+            "file": "pkg/automap/renderer.go",
+            "start_line": 292,
+            "end_line": 316,
+            "node_count": 135
+          }
+        ],
+        "line_count": 25,
+        "severity": "violation",
+        "suggestion": "Extract 25-line duplicate code block into a shared function. Found in 2 locations. Consider using generics or interface-based abstraction"
+      },
+      {
         "hash": "1e8618de479df0bb",
         "type": "renamed",
         "instances": [
@@ -1769,6 +1880,27 @@
         "line_count": 25,
         "severity": "violation",
         "suggestion": "Extract 25-line duplicate code block into a shared function. Found in 5 locations. Consider using generics or interface-based abstraction"
+      },
+      {
+        "hash": "d9ed362fe77a092a",
+        "type": "exact",
+        "instances": [
+          {
+            "file": "pkg/spritebatch/helpers.go",
+            "start_line": 44,
+            "end_line": 70,
+            "node_count": 146
+          },
+          {
+            "file": "pkg/spritebatch/system.go",
+            "start_line": 201,
+            "end_line": 227,
+            "node_count": 146
+          }
+        ],
+        "line_count": 27,
+        "severity": "violation",
+        "suggestion": "Extract 27-line duplicate code block into a shared function. Found in 2 locations"
       },
       {
         "hash": "cbd8723d2c227659",
@@ -1862,6 +1994,27 @@
         "line_count": 34,
         "severity": "violation",
         "suggestion": "Extract 34-line duplicate code block into a shared function. Found in 3 locations. Consider using generics or interface-based abstraction"
+      },
+      {
+        "hash": "0bdd54328dd362c0",
+        "type": "exact",
+        "instances": [
+          {
+            "file": "pkg/healthbar/system.go",
+            "start_line": 131,
+            "end_line": 165,
+            "node_count": 136
+          },
+          {
+            "file": "pkg/healthbar/system.go",
+            "start_line": 544,
+            "end_line": 578,
+            "node_count": 136
+          }
+        ],
+        "line_count": 35,
+        "severity": "violation",
+        "suggestion": "Extract 35-line duplicate code block into a shared function. Found in 2 locations"
       },
       {
         "hash": "3ad64d8a03b11293",

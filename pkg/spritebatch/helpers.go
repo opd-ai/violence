@@ -39,11 +39,18 @@ func directDraw(screen *ebiten.Image, item BatchItem) {
 	}
 
 	opts := &ebiten.DrawImageOptions{}
+	applyItemTransform(opts, item)
+	screen.DrawImage(item.Source, opts)
+}
 
+// applyItemTransform applies the geometric and color transformations for a BatchItem
+// to the provided DrawImageOptions. This helper consolidates the transform logic
+// shared between directDraw and System.renderItem.
+func applyItemTransform(opts *ebiten.DrawImageOptions, item BatchItem) (srcW, srcH float64) {
 	// Get source bounds
 	bounds := item.Source.Bounds()
-	srcW := float64(bounds.Dx())
-	srcH := float64(bounds.Dy())
+	srcW = float64(bounds.Dx())
+	srcH = float64(bounds.Dy())
 
 	if item.SrcWidth > 0 && item.SrcHeight > 0 {
 		srcW = float64(item.SrcWidth)
@@ -68,6 +75,5 @@ func directDraw(screen *ebiten.Image, item BatchItem) {
 
 	// Apply color multiply
 	opts.ColorScale.Scale(float32(item.ColorR), float32(item.ColorG), float32(item.ColorB), float32(item.Alpha))
-
-	screen.DrawImage(item.Source, opts)
+	return srcW, srcH
 }

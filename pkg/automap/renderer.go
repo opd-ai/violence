@@ -253,27 +253,46 @@ func (m *Map) renderAnnotations(screen *ebiten.Image, cfg RenderConfig, theme Ge
 	}
 }
 
+// gridVisibility holds the result of a grid visibility check for minimap rendering.
+type gridVisibility struct {
+	screenX, screenY float32
+	visible          bool
+}
+
+// checkGridVisibility determines if a world position is visible on the minimap and returns
+// its screen coordinates. This helper consolidates duplicate visibility logic from
+// renderItems and renderEnemies.
+func (m *Map) checkGridVisibility(worldX, worldY float64, centerX, centerY float32, cfg RenderConfig, playerGridX, playerGridY, visibleRadius int) gridVisibility {
+	dx := int(worldX) - playerGridX
+	dy := int(worldY) - playerGridY
+
+	if math.Abs(float64(dx)) > float64(visibleRadius) || math.Abs(float64(dy)) > float64(visibleRadius) {
+		return gridVisibility{visible: false}
+	}
+
+	gridX := int(worldX)
+	gridY := int(worldY)
+	if gridX < 0 || gridX >= m.Width || gridY < 0 || gridY >= m.Height {
+		return gridVisibility{visible: false}
+	}
+	if !m.Revealed[gridY][gridX] {
+		return gridVisibility{visible: false}
+	}
+
+	return gridVisibility{
+		screenX: centerX + float32(dx)*cfg.CellSize,
+		screenY: centerY + float32(dy)*cfg.CellSize,
+		visible: true,
+	}
+}
+
 // renderItems draws items on the minimap with rarity distinction.
 func (m *Map) renderItems(screen *ebiten.Image, cfg RenderConfig, theme GenreTheme, centerX, centerY float32, playerGridX, playerGridY, visibleRadius int) {
 	for _, item := range cfg.Items {
-		dx := int(item.X) - playerGridX
-		dy := int(item.Y) - playerGridY
-
-		if math.Abs(float64(dx)) > float64(visibleRadius) || math.Abs(float64(dy)) > float64(visibleRadius) {
+		vis := m.checkGridVisibility(item.X, item.Y, centerX, centerY, cfg, playerGridX, playerGridY, visibleRadius)
+		if !vis.visible {
 			continue
 		}
-
-		gridX := int(item.X)
-		gridY := int(item.Y)
-		if gridX < 0 || gridX >= m.Width || gridY < 0 || gridY >= m.Height {
-			continue
-		}
-		if !m.Revealed[gridY][gridX] {
-			continue
-		}
-
-		screenX := centerX + float32(dx)*cfg.CellSize
-		screenY := centerY + float32(dy)*cfg.CellSize
 
 		itemColor := theme.Item
 		if item.IsRare {
@@ -281,7 +300,7 @@ func (m *Map) renderItems(screen *ebiten.Image, cfg RenderConfig, theme GenreThe
 		}
 
 		itemSize := cfg.CellSize * 0.8
-		vector.DrawFilledRect(screen, screenX+cfg.CellSize/2-itemSize/2, screenY+cfg.CellSize/2-itemSize/2,
+		vector.DrawFilledRect(screen, vis.screenX+cfg.CellSize/2-itemSize/2, vis.screenY+cfg.CellSize/2-itemSize/2,
 			itemSize, itemSize, itemColor, false)
 	}
 }
@@ -289,24 +308,10 @@ func (m *Map) renderItems(screen *ebiten.Image, cfg RenderConfig, theme GenreThe
 // renderEnemies draws enemies with boss health bars.
 func (m *Map) renderEnemies(screen *ebiten.Image, cfg RenderConfig, theme GenreTheme, centerX, centerY float32, playerGridX, playerGridY, visibleRadius int) {
 	for _, enemy := range cfg.Enemies {
-		dx := int(enemy.X) - playerGridX
-		dy := int(enemy.Y) - playerGridY
-
-		if math.Abs(float64(dx)) > float64(visibleRadius) || math.Abs(float64(dy)) > float64(visibleRadius) {
+		vis := m.checkGridVisibility(enemy.X, enemy.Y, centerX, centerY, cfg, playerGridX, playerGridY, visibleRadius)
+		if !vis.visible {
 			continue
 		}
-
-		gridX := int(enemy.X)
-		gridY := int(enemy.Y)
-		if gridX < 0 || gridX >= m.Width || gridY < 0 || gridY >= m.Height {
-			continue
-		}
-		if !m.Revealed[gridY][gridX] {
-			continue
-		}
-
-		screenX := centerX + float32(dx)*cfg.CellSize
-		screenY := centerY + float32(dy)*cfg.CellSize
 
 		enemyColor := theme.Enemy
 		if enemy.IsBoss {
@@ -318,10 +323,10 @@ func (m *Map) renderEnemies(screen *ebiten.Image, cfg RenderConfig, theme GenreT
 			enemySize = cfg.CellSize * 1.3
 		}
 
-		vector.DrawFilledCircle(screen, screenX+cfg.CellSize/2, screenY+cfg.CellSize/2, enemySize/2, enemyColor, false)
+		vector.DrawFilledCircle(screen, vis.screenX+cfg.CellSize/2, vis.screenY+cfg.CellSize/2, enemySize/2, enemyColor, false)
 
 		if enemy.IsBoss && enemy.HealthPct < 1.0 {
-			drawBossHealthBar(screen, cfg, screenX, screenY, enemy.HealthPct)
+			drawBossHealthBar(screen, cfg, vis.screenX, vis.screenY, enemy.HealthPct)
 		}
 	}
 }

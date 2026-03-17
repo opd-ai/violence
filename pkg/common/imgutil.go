@@ -73,17 +73,7 @@ func DrawLine(img *image.RGBA, x1, y1, x2, y2 int, c color.RGBA, thickness int) 
 // drawLineThin draws a 1-pixel line using Bresenham's algorithm.
 func drawLineThin(img *image.RGBA, x1, y1, x2, y2 int, c color.RGBA) {
 	bounds := img.Bounds()
-	dx := Abs(x2 - x1)
-	dy := Abs(y2 - y1)
-	sx := -1
-	if x1 < x2 {
-		sx = 1
-	}
-	sy := -1
-	if y1 < y2 {
-		sy = 1
-	}
-	err := dx - dy
+	dx, dy, sx, sy, err := bresenhamSetup(x1, y1, x2, y2)
 
 	for {
 		if x1 >= 0 && x1 < bounds.Dx() && y1 >= 0 && y1 < bounds.Dy() {
@@ -92,16 +82,40 @@ func drawLineThin(img *image.RGBA, x1, y1, x2, y2 int, c color.RGBA) {
 		if x1 == x2 && y1 == y2 {
 			break
 		}
-		e2 := 2 * err
-		if e2 > -dy {
-			err -= dy
-			x1 += sx
-		}
-		if e2 < dx {
-			err += dx
-			y1 += sy
-		}
+		x1, y1, err = bresenhamStep(dx, dy, sx, sy, err, x1, y1)
 	}
+}
+
+// bresenhamSetup initializes Bresenham's line algorithm parameters.
+// Returns dx, dy, sx, sy, err for use in the stepping loop.
+func bresenhamSetup(x1, y1, x2, y2 int) (dx, dy, sx, sy, err int) {
+	dx = Abs(x2 - x1)
+	dy = Abs(y2 - y1)
+	sx = -1
+	if x1 < x2 {
+		sx = 1
+	}
+	sy = -1
+	if y1 < y2 {
+		sy = 1
+	}
+	err = dx - dy
+	return
+}
+
+// bresenhamStep advances one step in Bresenham's line algorithm.
+// Returns the updated x, y position and error term.
+func bresenhamStep(dx, dy, sx, sy, err, x, y int) (int, int, int) {
+	e2 := 2 * err
+	if e2 > -dy {
+		err -= dy
+		x += sx
+	}
+	if e2 < dx {
+		err += dx
+		y += sy
+	}
+	return x, y, err
 }
 
 // DrawThickLine draws a thick line from (x1, y1) to (x2, y2).
@@ -109,17 +123,7 @@ func drawLineThin(img *image.RGBA, x1, y1, x2, y2 int, c color.RGBA) {
 // This function consolidates the drawThickLine implementation from pkg/sprite/sprite.go.
 func DrawThickLine(img *image.RGBA, x1, y1, x2, y2, thickness int, c color.RGBA) {
 	bounds := img.Bounds()
-	dx := Abs(x2 - x1)
-	dy := Abs(y2 - y1)
-	sx := -1
-	if x1 < x2 {
-		sx = 1
-	}
-	sy := -1
-	if y1 < y2 {
-		sy = 1
-	}
-	err := dx - dy
+	dx, dy, sx, sy, err := bresenhamSetup(x1, y1, x2, y2)
 
 	for {
 		for dt := -thickness / 2; dt <= thickness/2; dt++ {
@@ -134,15 +138,7 @@ func DrawThickLine(img *image.RGBA, x1, y1, x2, y2, thickness int, c color.RGBA)
 		if x1 == x2 && y1 == y2 {
 			break
 		}
-		e2 := 2 * err
-		if e2 > -dy {
-			err -= dy
-			x1 += sx
-		}
-		if e2 < dx {
-			err += dx
-			y1 += sy
-		}
+		x1, y1, err = bresenhamStep(dx, dy, sx, sy, err, x1, y1)
 	}
 }
 

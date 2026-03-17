@@ -46,21 +46,17 @@ func (vs *VisualSystem) Update(w *engine.World) {
 	}
 }
 
-// RenderWeapon renders a weapon sprite at the given position.
-func (vs *VisualSystem) RenderWeapon(
-	screen *ebiten.Image,
-	visualComp *VisualComponent,
-	x, y float64,
-	scale float64,
-) {
+// prepareWeaponDraw validates a visual component and returns its sprite with draw options.
+// Returns nil if the component or sprite is invalid.
+func (vs *VisualSystem) prepareWeaponDraw(visualComp *VisualComponent) (*ebiten.Image, *ebiten.DrawImageOptions) {
 	if visualComp == nil {
-		return
+		return nil, nil
 	}
 
 	sprite := visualComp.GetSprite()
 	if sprite == nil {
 		vs.logger.Warn("weapon visual component has no sprite")
-		return
+		return nil, nil
 	}
 
 	opts := &ebiten.DrawImageOptions{}
@@ -68,6 +64,21 @@ func (vs *VisualSystem) RenderWeapon(
 	// Center the sprite
 	bounds := sprite.Bounds()
 	opts.GeoM.Translate(-float64(bounds.Dx())/2, -float64(bounds.Dy())/2)
+
+	return sprite, opts
+}
+
+// RenderWeapon renders a weapon sprite at the given position.
+func (vs *VisualSystem) RenderWeapon(
+	screen *ebiten.Image,
+	visualComp *VisualComponent,
+	x, y float64,
+	scale float64,
+) {
+	sprite, opts := vs.prepareWeaponDraw(visualComp)
+	if sprite == nil {
+		return
+	}
 
 	// Scale
 	opts.GeoM.Scale(scale, scale)
@@ -86,21 +97,10 @@ func (vs *VisualSystem) RenderWeaponWithRotation(
 	rotation float64,
 	scale float64,
 ) {
-	if visualComp == nil {
-		return
-	}
-
-	sprite := visualComp.GetSprite()
+	sprite, opts := vs.prepareWeaponDraw(visualComp)
 	if sprite == nil {
-		vs.logger.Warn("weapon visual component has no sprite")
 		return
 	}
-
-	opts := &ebiten.DrawImageOptions{}
-
-	// Center the sprite
-	bounds := sprite.Bounds()
-	opts.GeoM.Translate(-float64(bounds.Dx())/2, -float64(bounds.Dy())/2)
 
 	// Rotate
 	opts.GeoM.Rotate(rotation)

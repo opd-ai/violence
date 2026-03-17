@@ -197,34 +197,8 @@ func (s *System) renderItem(screen *ebiten.Image, item BatchItem) {
 	opts.GeoM.Reset()
 	opts.ColorScale.Reset()
 
-	// Get source bounds
-	bounds := item.Source.Bounds()
-	srcW := float64(bounds.Dx())
-	srcH := float64(bounds.Dy())
-
-	if item.SrcWidth > 0 && item.SrcHeight > 0 {
-		srcW = float64(item.SrcWidth)
-		srcH = float64(item.SrcHeight)
-	}
-
-	// Apply origin offset (move origin to center for rotation/scale)
-	originX := srcW * item.OriginX
-	originY := srcH * item.OriginY
-	opts.GeoM.Translate(-originX, -originY)
-
-	// Apply scale
-	opts.GeoM.Scale(item.ScaleX, item.ScaleY)
-
-	// Apply rotation
-	if item.Rotation != 0 {
-		opts.GeoM.Rotate(item.Rotation)
-	}
-
-	// Apply final position
-	opts.GeoM.Translate(item.DstX, item.DstY)
-
-	// Apply color multiply
-	opts.ColorScale.Scale(float32(item.ColorR), float32(item.ColorG), float32(item.ColorB), float32(item.Alpha))
+	// Apply shared transform logic
+	applyItemTransform(opts, item)
 
 	// Draw with sub-image if source rect specified
 	if item.SrcWidth > 0 && item.SrcHeight > 0 {
