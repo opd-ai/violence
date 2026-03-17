@@ -298,6 +298,9 @@ type Game struct {
 	// Ambient occlusion system for depth cues and atmospheric shading
 	aoSystem *lighting.AOSystem
 
+	// Color temperature tinting system for warm/cool light color bleeding
+	colorTempSystem *lighting.ColorTempSystem
+
 	// Projectile system for spell/ranged combat with damage types and resistances
 	projectileSystem *projectile.System
 
@@ -485,6 +488,7 @@ func NewGame() *Game {
 		positionalSystem:    combat.NewPositionalSystem("fantasy"),
 		adaptiveAISystem:    ai.NewAdaptiveAISystem("fantasy"),
 		aoSystem:            lighting.NewAOSystem("fantasy"),
+		colorTempSystem:     lighting.NewColorTempSystem(lighting.DefaultColorTempConfig()),
 		projectileSystem:    projectile.NewSystem(),
 		biomeMaterialSystem: biome.NewBiomeMaterialSystem("fantasy"),
 		trapSystem:          trap.NewSystem(int64(seed)),
@@ -4893,6 +4897,18 @@ func (g *Game) renderProps(screen *ebiten.Image) {
 				op.ColorScale.Scale(1, 1, 1, float32(alpha))
 			}
 
+			// Apply color temperature tinting from nearby lights
+			if g.colorTempSystem != nil {
+				tint := g.colorTempSystem.CalculateTintAtPosition(prop.X, prop.Y)
+				if tint.A > 0 {
+					blend := float64(tint.A) / 255.0 * 0.35 // Moderate tinting for props
+					tintR := float32(1.0 + (float64(tint.R)/255.0-0.5)*blend)
+					tintG := float32(1.0 + (float64(tint.G)/255.0-0.5)*blend)
+					tintB := float32(1.0 + (float64(tint.B)/255.0-0.5)*blend)
+					op.ColorScale.Scale(tintR, tintG, tintB, 1.0)
+				}
+			}
+
 			screen.DrawImage(spriteImg, op)
 		}
 	}
@@ -4930,6 +4946,20 @@ func (g *Game) renderFloorDetails(screen *ebiten.Image) {
 		if tileImg != nil {
 			op := &ebiten.DrawImageOptions{}
 			op.GeoM.Translate(float64(screenX-tileSize/2), float64(screenY-tileSize/2))
+
+			// Apply color temperature tinting from nearby lights
+			if g.colorTempSystem != nil {
+				tint := g.colorTempSystem.CalculateTintAtPosition(float64(tile.X)+0.5, float64(tile.Y)+0.5)
+				if tint.A > 0 {
+					// Apply tint as a color scale
+					blend := float64(tint.A) / 255.0 * 0.3 // Subtle tinting
+					tintR := 1.0 + (float64(tint.R)/255.0-0.5)*blend
+					tintG := 1.0 + (float64(tint.G)/255.0-0.5)*blend
+					tintB := 1.0 + (float64(tint.B)/255.0-0.5)*blend
+					op.ColorM.Scale(tintR, tintG, tintB, 1.0)
+				}
+			}
+
 			screen.DrawImage(tileImg, op)
 		}
 	}
@@ -4970,6 +5000,19 @@ func (g *Game) renderFloorDetails(screen *ebiten.Image) {
 
 			// Use blend mode for overlay effect
 			op.ColorM.Scale(1, 1, 1, detail.Intensity*0.8)
+
+			// Apply color temperature tinting from nearby lights
+			if g.colorTempSystem != nil {
+				tint := g.colorTempSystem.CalculateTintAtPosition(float64(detail.X)+0.5, float64(detail.Y)+0.5)
+				if tint.A > 0 {
+					// Apply subtle tint
+					blend := float64(tint.A) / 255.0 * 0.25
+					tintR := 1.0 + (float64(tint.R)/255.0-0.5)*blend
+					tintG := 1.0 + (float64(tint.G)/255.0-0.5)*blend
+					tintB := 1.0 + (float64(tint.B)/255.0-0.5)*blend
+					op.ColorM.Scale(tintR, tintG, tintB, 1.0)
+				}
+			}
 
 			screen.DrawImage(detailImg, op)
 		}
@@ -5088,7 +5131,41 @@ func (g *Game) collectLights() ([]lighting.Light, []lighting.ConeLight) {
 	lights = g.collectTorchLights(lights)
 	coneLights = g.collectPlayerFlashlight(coneLights)
 
+	// Update color temperature system with collected lights
+	g.updateColorTempLights(lights)
+
 	return lights, coneLights
+}
+
+// updateColorTempLights populates the color temperature system with current light sources.
+func (g *Game) updateColorTempLights(lights []lighting.Light) {
+	if g.colorTempSystem == nil {
+		return
+	}
+
+	g.colorTempSystem.ClearLights()
+
+	for _, light := range lights {
+		// Infer temperature from light color (warm if R > B, cool if B > R)
+		temp := lighting.ColorTemperature(light.R - light.B)
+		if temp < -1.0 {
+			temp = -1.0
+		}
+		if temp > 1.0 {
+			temp = 1.0
+		}
+
+		g.colorTempSystem.AddLight(lighting.ColorTempLight{
+			X:           light.X,
+			Y:           light.Y,
+			Radius:      light.Radius,
+			Intensity:   light.Intensity,
+			Temperature: temp,
+			R:           light.R,
+			G:           light.G,
+			B:           light.B,
+		})
+	}
 }
 
 // collectDynamicLights gathers lights from the lighting system.
