@@ -83,6 +83,7 @@ import (
 	"github.com/opd-ai/violence/pkg/skills"
 	"github.com/opd-ai/violence/pkg/spatial"
 	"github.com/opd-ai/violence/pkg/sprite"
+	"github.com/opd-ai/violence/pkg/spritebatch"
 	"github.com/opd-ai/violence/pkg/squad"
 	"github.com/opd-ai/violence/pkg/stats"
 	"github.com/opd-ai/violence/pkg/status"
@@ -412,6 +413,9 @@ type Game struct {
 	// Realistic flame flicker system for physics-based torch/fire lighting
 	flickerBridge *flicker.LightFlickerBridge
 	flickerTick   int // Frame counter for flicker animation
+
+	// Sprite batch rendering system for efficient GPU draw call batching
+	spriteBatchSystem *spritebatch.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -623,6 +627,9 @@ func NewGame() *Game {
 
 	// Initialize UI layout manager for preventing element overlap
 	g.uiLayoutManager = ui.NewLayoutManager(config.C.InternalWidth, config.C.InternalHeight)
+
+	// Initialize sprite batch rendering system for efficient GPU draw call batching
+	g.spriteBatchSystem = spritebatch.NewSystem()
 
 	// Connect sliding system to spatial index
 	g.slidingSystem.SetSpatialIndex(g.spatialSystem.GetGrid())
@@ -4596,9 +4603,19 @@ func (g *Game) setupRenderer() {
 
 // renderWorldLayers draws all world elements in proper depth order.
 func (g *Game) renderWorldLayers(screen *ebiten.Image, camX, camY float64) {
+	// Start sprite batch for efficient draw call grouping
+	if g.spriteBatchSystem != nil {
+		g.spriteBatchSystem.Begin()
+	}
+
 	g.renderBackgroundAndWorld(screen, camX, camY)
 	g.renderWorldEntities(screen, camX, camY)
 	g.renderCombatEffects(screen, camX, camY)
+
+	// End sprite batch and flush all queued draws
+	if g.spriteBatchSystem != nil {
+		g.spriteBatchSystem.End(screen)
+	}
 }
 
 // renderBackgroundAndWorld renders parallax background and 3D world.
@@ -6494,6 +6511,12 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 		g.tooltipSystem.SetScreenSize(config.C.InternalWidth, config.C.InternalHeight)
 	}
 	return config.C.InternalWidth, config.C.InternalHeight
+}
+
+// GetSpriteBatch returns the sprite batch system for efficient draw call grouping.
+// Systems can use this to queue sprites for batched rendering instead of drawing directly.
+func (g *Game) GetSpriteBatch() *spritebatch.System {
+	return g.spriteBatchSystem
 }
 
 // initializeEncryptedChat sets up E2E encrypted chat for multiplayer.

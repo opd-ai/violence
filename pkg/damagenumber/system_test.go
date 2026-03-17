@@ -2,6 +2,7 @@ package damagenumber
 
 import (
 	"image/color"
+	"reflect"
 	"testing"
 
 	"github.com/opd-ai/violence/pkg/engine"
