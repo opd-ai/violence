@@ -53,6 +53,7 @@ import (
 	"github.com/opd-ai/violence/pkg/fog"
 	"github.com/opd-ai/violence/pkg/hazard"
 	"github.com/opd-ai/violence/pkg/healthbar"
+	"github.com/opd-ai/violence/pkg/impactburst"
 	"github.com/opd-ai/violence/pkg/input"
 	"github.com/opd-ai/violence/pkg/inventory"
 	"github.com/opd-ai/violence/pkg/itemicon"
@@ -401,6 +402,10 @@ type Game struct {
 
 	// Tooltip system for screen-edge-aware tooltips that don't cover their targets
 	tooltipSystem *ui.TooltipSystem
+
+	// Impact burst rendering system for visually realistic combat impact effects
+	impactBurstSystem   *impactburst.System
+	impactBurstRenderer *impactburst.Renderer
 }
 
 // NewGame creates and initializes a new game instance.
@@ -603,6 +608,10 @@ func NewGame() *Game {
 	// Initialize crosshair system for aiming reticle
 	g.crosshairSystem = crosshair.NewSystem(g.genreID)
 
+	// Initialize impact burst system for visually realistic combat impact effects
+	g.impactBurstSystem = impactburst.NewSystem(g.genreID, int64(seed))
+	g.impactBurstRenderer = impactburst.NewRenderer(g.genreID)
+
 	// Initialize UI layout manager for preventing element overlap
 	g.uiLayoutManager = ui.NewLayoutManager(config.C.InternalWidth, config.C.InternalHeight)
 
@@ -750,6 +759,9 @@ func NewGame() *Game {
 
 	// Register crosshair system with the World
 	g.world.AddSystem(g.crosshairSystem)
+
+	// Register impact burst system for realistic combat impact visuals
+	g.world.AddSystem(g.impactBurstSystem)
 
 	// Register entity label system for guaranteed text rendering
 	g.world.AddSystem(g.entityLabelSystem)
@@ -1664,6 +1676,12 @@ func (g *Game) setGenreForVisualSystems(genreID string) {
 	if g.fogSystem != nil {
 		g.fogSystem.SetGenre(genreID)
 	}
+	if g.impactBurstSystem != nil {
+		g.impactBurstSystem.SetGenre(genreID)
+	}
+	if g.impactBurstRenderer != nil {
+		g.impactBurstRenderer.SetGenre(genreID)
+	}
 }
 
 // setGenreForGameplaySystems updates genre for UI and gameplay systems.
@@ -2209,6 +2227,23 @@ func (g *Game) applyHitFeedback(agent *ai.Agent, damage float64, isCritical bool
 			impactType = feedback.ImpactCritical
 		}
 		g.feedbackSystem.SpawnImpactEffect(agent.X, agent.Y, impactType)
+	}
+
+	// Spawn enhanced impact burst effect with shockwaves and debris
+	if g.impactBurstSystem != nil {
+		impactAngle := math.Atan2(agent.Y-g.camera.Y, agent.X-g.camera.X)
+		burstType := impactburst.ImpactMelee
+		if isCritical {
+			burstType = impactburst.ImpactCritical
+		}
+		intensity := damage / 50.0
+		if intensity > 2.0 {
+			intensity = 2.0
+		}
+		if intensity < 0.5 {
+			intensity = 0.5
+		}
+		g.impactBurstSystem.SpawnImpact(agent.X, agent.Y, impactAngle, burstType, impactburst.MaterialFlesh, intensity)
 	}
 
 	// Enhanced camera effects for hits
@@ -5425,8 +5460,25 @@ func drawTextOutline(screen *ebiten.Image, txt string, x, y int, alpha uint8) {
 	}
 }
 
-// renderImpactEffects renders circular impact effects.
+// renderImpactEffects renders impact effects with enhanced visual realism.
 func (g *Game) renderImpactEffects(screen *ebiten.Image, planeX, planeY float64) {
+	// Render enhanced impact burst effects with shockwaves, debris, and glow
+	impacts := g.impactBurstSystem.GetGlobalImpacts()
+	for i := range impacts {
+		imp := &impacts[i]
+		if !shouldRenderFeedbackAtPosition(imp.X, imp.Y, g.camera) {
+			continue
+		}
+
+		transformX, transformY := calculateSpriteTransform(&lore.LoreItem{PosX: imp.X, PosY: imp.Y}, g.camera, planeX, planeY)
+		if transformY <= 0.1 {
+			continue
+		}
+
+		g.impactBurstRenderer.RenderToWorld(screen, imp, transformX, transformY, config.C.InternalWidth, config.C.InternalHeight)
+	}
+
+	// Also render legacy feedback system impacts for compatibility
 	impactEffects := g.feedbackSystem.GetImpactEffects()
 	for _, ie := range impactEffects {
 		ieX, ieY := ie.GetPosition()
