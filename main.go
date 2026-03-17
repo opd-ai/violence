@@ -120,26 +120,27 @@ const (
 
 // Game implements ebiten.Game for the VIOLENCE raycasting FPS.
 type Game struct {
-	state          GameState
-	world          *engine.World
-	camera         *camera.Camera
-	raycaster      *raycaster.Raycaster
-	renderer       *render.Renderer
-	input          *input.Manager
-	audioEngine    *audio.Engine
-	hud            *ui.HUD
-	menuManager    *ui.MenuManager
-	loadingScreen  *ui.LoadingScreen
-	tutorialSystem *tutorial.Tutorial
-	rng            *rng.RNG
-	bspGenerator   *bsp.Generator
-	currentMap     [][]int
-	genreID        string
-	seed           uint64
-	automap        *automap.Map
-	keycards       map[string]bool
-	automapVisible bool
-	playerEntity   engine.Entity // ECS player entity for status effects and other systems
+	state              GameState
+	world              *engine.World
+	camera             *camera.Camera
+	raycaster          *raycaster.Raycaster
+	renderer           *render.Renderer
+	input              *input.Manager
+	audioEngine        *audio.Engine
+	hud                *ui.HUD
+	menuManager        *ui.MenuManager
+	loadingScreen      *ui.LoadingScreen
+	tutorialSystem     *tutorial.Tutorial
+	rng                *rng.RNG
+	bspGenerator       *bsp.Generator
+	currentMap         [][]int
+	genreID            string
+	seed               uint64
+	automap            *automap.Map
+	collapsibleMinimap *automap.CollapsibleMinimap
+	keycards           map[string]bool
+	automapVisible     bool
+	playerEntity       engine.Entity // ECS player entity for status effects and other systems
 
 	// v2.0 systems
 	arsenal      *weapon.Arsenal
@@ -895,11 +896,15 @@ func (g *Game) generateLevel() {
 
 	if len(tiles) > 0 && len(tiles[0]) > 0 {
 		g.automap = automap.NewMap(len(tiles[0]), len(tiles))
+		// Create collapsible minimap wrapper with default config
+		minimapCfg := automap.DefaultCollapsibleConfig()
+		g.collapsibleMinimap = automap.NewCollapsibleMinimap(g.automap, minimapCfg)
 		g.lightMap = lighting.NewSectorLightMap(len(tiles[0]), len(tiles), 0.3)
 		g.weatherEmitter = particle.NewWeatherEmitter(g.particleSystem, g.genreID, 0, 0, float64(len(tiles[0])), float64(len(tiles)))
 	} else {
 		g.lightMap = lighting.NewSectorLightMap(0, 0, 0.3)
 		g.weatherEmitter = nil
+		g.collapsibleMinimap = nil
 	}
 	g.setGenre(g.genreID)
 
@@ -2037,6 +2042,10 @@ func (g *Game) handleMenuActions() bool {
 
 	if g.input.IsJustPressed(input.ActionAutomap) {
 		g.automapVisible = !g.automapVisible
+		// Toggle collapsible minimap expansion when key pressed
+		if g.collapsibleMinimap != nil {
+			g.collapsibleMinimap.ToggleExpand()
+		}
 	}
 
 	if g.input.IsJustPressed(input.ActionShop) {
@@ -2913,6 +2922,11 @@ func (g *Game) handleCollisionAndMovement(deltaX, deltaY, deltaPitch float64) {
 
 	if g.automap != nil {
 		g.automap.Reveal(int(g.camera.X), int(g.camera.Y))
+	}
+
+	// Update collapsible minimap state (handles auto-hide, transitions, area reveals)
+	if g.collapsibleMinimap != nil {
+		g.collapsibleMinimap.Update(1.0/60.0, g.camera.X, g.camera.Y)
 	}
 
 	g.world.Update()
@@ -4688,7 +4702,12 @@ func (g *Game) renderEntityLabels(screen *ebiten.Image, camX, camY float64) {
 // renderOverlaysAndHUD renders hit flash, automap, HUD, quests, and tutorial.
 func (g *Game) renderOverlaysAndHUD(screen *ebiten.Image, camX, camY float64) {
 	g.renderHitFlashOverlay(screen)
-	if g.automapVisible && g.automap != nil {
+
+	// Render collapsible minimap (always renders based on its state, replaces old toggle)
+	if g.collapsibleMinimap != nil {
+		g.drawCollapsibleAutomap(screen)
+	} else if g.automapVisible && g.automap != nil {
+		// Fallback to old behavior if collapsible not available
 		g.drawAutomap(screen)
 	}
 
@@ -5616,6 +5635,37 @@ func (g *Game) drawAutomap(screen *ebiten.Image) {
 	}
 
 	g.automap.RenderMinimap(screen, cfg)
+}
+
+// drawCollapsibleAutomap renders the collapsible minimap with smooth transitions.
+func (g *Game) drawCollapsibleAutomap(screen *ebiten.Image) {
+	if g.collapsibleMinimap == nil || g.currentMap == nil {
+		return
+	}
+
+	// Build walls array for rendering
+	walls := make([][]bool, len(g.currentMap))
+	for y := 0; y < len(g.currentMap); y++ {
+		walls[y] = make([]bool, len(g.currentMap[y]))
+		for x := 0; x < len(g.currentMap[y]); x++ {
+			tile := g.currentMap[y][x]
+			walls[y][x] = tile == bsp.TileWall || (tile >= 10 && tile <= 14)
+		}
+	}
+
+	angle := math.Atan2(g.camera.DirY, g.camera.DirX)
+
+	// Provide base config - collapsible minimap handles sizing and positioning
+	cfg := automap.RenderConfig{
+		CellSize:     3.0,
+		PlayerX:      g.camera.X,
+		PlayerY:      g.camera.Y,
+		PlayerAngle:  angle,
+		Walls:        walls,
+		ShowFogOfWar: true,
+	}
+
+	g.collapsibleMinimap.Render(screen, cfg)
 }
 
 // drawQuestObjectives renders quest objectives on screen.
