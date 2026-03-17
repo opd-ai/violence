@@ -11,6 +11,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/opd-ai/violence/pkg/common"
+	"github.com/opd-ai/violence/pkg/dither"
 	"github.com/opd-ai/violence/pkg/pool"
 )
 
@@ -50,6 +51,7 @@ type Generator struct {
 	mu         sync.RWMutex
 	genreID    string
 	lightCfg   LightConfig
+	ditherSys  *dither.System
 }
 
 // NewGenerator creates a sprite generator with LRU cache.
@@ -60,6 +62,7 @@ func NewGenerator(maxCacheEntries int) *Generator {
 		maxEntries: maxCacheEntries,
 		genreID:    "fantasy",
 		lightCfg:   DefaultLightConfig(),
+		ditherSys:  dither.NewSystem(12345),
 	}
 }
 
@@ -121,26 +124,96 @@ func (g *Generator) generateSprite(spriteType SpriteType, subtype string, seed i
 	rgba := pool.GlobalPools.Images.Get(size, size)
 	rng := rand.New(rand.NewSource(seed))
 
+	// Determine dominant material for dithering based on sprite type
+	var dominantMaterial dither.Material
+
 	switch spriteType {
 	case SpriteEnemy:
 		g.generateEnemySprite(rgba, subtype, rng, frame)
+		dominantMaterial = g.getDominantMaterialForEnemy(subtype)
 	case SpriteProp:
 		g.generatePropSprite(rgba, subtype, rng, frame)
+		dominantMaterial = g.getDominantMaterialForProp(subtype)
 	case SpriteLoreItem:
 		g.generateLoreSprite(rgba, subtype, rng, frame)
+		dominantMaterial = dither.MaterialCrystal
 	case SpriteDestructible:
 		g.generateDestructibleSprite(rgba, subtype, rng, frame)
+		dominantMaterial = dither.MaterialLeather
 	case SpritePickup:
 		g.generatePickupSprite(rgba, subtype, rng, frame)
+		dominantMaterial = dither.MaterialMetal
 	case SpriteProjectile:
 		g.generateProjectileSprite(rgba, subtype, rng, frame)
+		dominantMaterial = dither.MaterialCrystal
 	default:
 		g.generateDefaultSprite(rgba, rng)
+		dominantMaterial = dither.MaterialDefault
 	}
+
+	// Apply dithering as final pass for smoother tonal transitions
+	g.applyDitheringPass(rgba, dominantMaterial, seed)
 
 	result := ebiten.NewImageFromImage(rgba)
 	pool.GlobalPools.Images.Put(rgba)
 	return result
+}
+
+// applyDitheringPass applies material-appropriate dithering to enhance visual depth.
+func (g *Generator) applyDitheringPass(img *image.RGBA, material dither.Material, seed int64) {
+	// Use seed-based intensity variation for organic-looking results
+	rng := rand.New(rand.NewSource(seed))
+	intensity := 0.3 + rng.Float64()*0.2 // 0.3-0.5 intensity
+
+	// Apply material-specific dithering
+	g.ditherSys.ApplyDithering(img, material, intensity)
+
+	// Apply edge-aware dithering for smooth shading transitions
+	g.ditherSys.ApplyEdgeDithering(img, img.Bounds(), intensity*0.5)
+}
+
+// getDominantMaterialForEnemy returns the dither material for an enemy subtype.
+func (g *Generator) getDominantMaterialForEnemy(subtype string) dither.Material {
+	switch subtype {
+	case "humanoid", "skeleton", "zombie":
+		return dither.MaterialFlesh
+	case "quadruped", "wolf", "bear":
+		return dither.MaterialFur
+	case "insect", "spider", "scorpion":
+		return dither.MaterialScales
+	case "serpent", "snake", "dragon":
+		return dither.MaterialScales
+	case "flying", "bat", "bird":
+		return dither.MaterialFur
+	case "amorphous", "slime", "ooze":
+		return dither.MaterialSlime
+	case "golem", "robot", "mech":
+		return dither.MaterialMetal
+	case "elemental", "spirit", "ghost":
+		return dither.MaterialCrystal
+	default:
+		return dither.MaterialDefault
+	}
+}
+
+// getDominantMaterialForProp returns the dither material for a prop subtype.
+func (g *Generator) getDominantMaterialForProp(subtype string) dither.Material {
+	switch subtype {
+	case "barrel", "crate", "table":
+		return dither.MaterialLeather // Wood-like
+	case "terminal", "container":
+		return dither.MaterialMetal
+	case "bones", "debris":
+		return dither.MaterialFlesh
+	case "plant":
+		return dither.MaterialCloth // Soft organic
+	case "pillar":
+		return dither.MaterialLeather // Stone-like
+	case "torch":
+		return dither.MaterialCrystal // Glowing
+	default:
+		return dither.MaterialDefault
+	}
 }
 
 // generatePropSprite creates prop sprites with genre-specific styling.
