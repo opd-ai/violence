@@ -398,6 +398,9 @@ type Game struct {
 
 	// Interactive UI system for hover states, press feedback, and smooth transitions
 	interactiveUI *ui.InteractiveSystem
+
+	// Tooltip system for screen-edge-aware tooltips that don't cover their targets
+	tooltipSystem *ui.TooltipSystem
 }
 
 // NewGame creates and initializes a new game instance.
@@ -516,6 +519,9 @@ func NewGame() *Game {
 
 	// Initialize interactive UI system for menu polish with hover/press feedback
 	g.interactiveUI = ui.NewInteractiveSystem()
+
+	// Initialize tooltip system with screen-edge awareness
+	g.tooltipSystem = ui.NewTooltipSystem(config.C.InternalWidth, config.C.InternalHeight, ui.DefaultTooltipConfig())
 
 	// Initialize BSP generator
 	var err error
@@ -802,6 +808,11 @@ func (g *Game) updateMenu() error {
 	mousePressed := ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft)
 	if g.interactiveUI != nil {
 		g.interactiveUI.Update(mouseX, mouseY, mousePressed)
+	}
+
+	// Update tooltip system
+	if g.tooltipSystem != nil {
+		g.tooltipSystem.Update()
 	}
 
 	// Keyboard navigation (existing)
@@ -4477,6 +4488,10 @@ func (g *Game) drawMenu(screen *ebiten.Image) {
 	if g.interactiveUI != nil {
 		g.interactiveUI.Draw(screen)
 	}
+	// Draw tooltips above all other UI elements
+	if g.tooltipSystem != nil {
+		g.tooltipSystem.Render(screen)
+	}
 }
 
 // drawPlaying renders the game world and HUD.
@@ -6338,6 +6353,10 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	// Update UI layout manager screen size if dimensions changed
 	if g.uiLayoutManager != nil {
 		g.uiLayoutManager.SetScreenSize(config.C.InternalWidth, config.C.InternalHeight)
+	}
+	// Update tooltip system screen size
+	if g.tooltipSystem != nil {
+		g.tooltipSystem.SetScreenSize(config.C.InternalWidth, config.C.InternalHeight)
 	}
 	return config.C.InternalWidth, config.C.InternalHeight
 }
