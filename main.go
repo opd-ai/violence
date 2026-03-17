@@ -88,6 +88,7 @@ import (
 	"github.com/opd-ai/violence/pkg/stats"
 	"github.com/opd-ai/violence/pkg/status"
 	"github.com/opd-ai/violence/pkg/statusfx"
+	"github.com/opd-ai/violence/pkg/statustint"
 	"github.com/opd-ai/violence/pkg/telegraph"
 	"github.com/opd-ai/violence/pkg/territory"
 	"github.com/opd-ai/violence/pkg/texture"
@@ -388,6 +389,9 @@ type Game struct {
 	// Status effect visual system for glowing auras and particles on status effects
 	statusFXSystem *statusfx.System
 
+	// Status tint system for material-appropriate sprite tinting based on status effects
+	statusTintSystem *statustint.System
+
 	// Player sprite rendering system for character visuals with equipment
 	playerSpriteSystem *playersprite.System
 
@@ -612,6 +616,9 @@ func NewGame() *Game {
 	// Initialize status effect visual system for glowing auras and particles
 	g.statusFXSystem = statusfx.NewSystem(g.genreID, g.particleSystem)
 
+	// Initialize status tint system for material-appropriate sprite tinting
+	g.statusTintSystem = statustint.NewSystem(g.genreID)
+
 	// Initialize player sprite rendering system for character visuals
 	g.playerSpriteSystem = playersprite.NewSystem(g.genreID)
 
@@ -769,6 +776,9 @@ func NewGame() *Game {
 
 	// Register status effect visual system with the World
 	g.world.AddSystem(g.statusFXSystem)
+
+	// Register status tint system for material-appropriate sprite color modification
+	g.world.AddSystem(g.statusTintSystem)
 
 	// Register player sprite rendering system with the World
 	g.world.AddSystem(g.playerSpriteSystem)
@@ -1707,6 +1717,9 @@ func (g *Game) setGenreForVisualSystems(genreID string) {
 	}
 	if g.flickerBridge != nil {
 		g.flickerBridge.SetGenre(genreID)
+	}
+	if g.statusTintSystem != nil {
+		g.statusTintSystem.SetGenre(genreID)
 	}
 }
 
