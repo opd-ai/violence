@@ -95,6 +95,7 @@ import (
 	"github.com/opd-ai/violence/pkg/trap"
 	"github.com/opd-ai/violence/pkg/tutorial"
 	"github.com/opd-ai/violence/pkg/ui"
+	"github.com/opd-ai/violence/pkg/uicache"
 	"github.com/opd-ai/violence/pkg/upgrade"
 	"github.com/opd-ai/violence/pkg/walltex"
 	"github.com/opd-ai/violence/pkg/weapon"
@@ -420,6 +421,9 @@ type Game struct {
 
 	// Sprite batch rendering system for efficient GPU draw call batching
 	spriteBatchSystem *spritebatch.System
+
+	// UI render caching system for dirty-flag based optimization
+	uiCacheSystem *uicache.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -637,6 +641,9 @@ func NewGame() *Game {
 
 	// Initialize sprite batch rendering system for efficient GPU draw call batching
 	g.spriteBatchSystem = spritebatch.NewSystem()
+
+	// Initialize UI render caching system for dirty-flag based optimization
+	g.uiCacheSystem = uicache.NewSystem(config.C.InternalWidth, config.C.InternalHeight)
 
 	// Connect sliding system to spatial index
 	g.slidingSystem.SetSpatialIndex(g.spatialSystem.GetGrid())
@@ -4698,12 +4705,22 @@ func (g *Game) renderCombatUI(screen *ebiten.Image, camX, camY float64) {
 		g.uiLayoutManager.Clear()
 	}
 
+	// Begin UI cache frame for efficient render caching
+	if g.uiCacheSystem != nil {
+		g.uiCacheSystem.BeginFrame()
+	}
+
 	g.renderHealthBars(screen, camX, camY)
 	g.renderECSDamageNumbers(screen, camX, camY)
 	g.renderEntityLabels(screen, camX, camY)
 
 	if g.statusFXSystem != nil {
 		g.statusFXSystem.Render(screen, g.world, camX, camY)
+	}
+
+	// End UI cache frame and perform LRU eviction if needed
+	if g.uiCacheSystem != nil {
+		g.uiCacheSystem.EndFrame()
 	}
 }
 
