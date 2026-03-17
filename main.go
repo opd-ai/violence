@@ -76,6 +76,7 @@ import (
 	"github.com/opd-ai/violence/pkg/raycaster"
 	"github.com/opd-ai/violence/pkg/render"
 	"github.com/opd-ai/violence/pkg/replay"
+	"github.com/opd-ai/violence/pkg/rimlight"
 	"github.com/opd-ai/violence/pkg/rng"
 	"github.com/opd-ai/violence/pkg/save"
 	"github.com/opd-ai/violence/pkg/secret"
@@ -325,6 +326,9 @@ type Game struct {
 	// Sprite outline system for visual clarity and entity distinction
 	outlineSystem *outline.System
 
+	// Rim lighting system for directional edge highlights on sprites
+	rimLightSystem *rimlight.System
+
 	// Attack trail system for weapon swing/slash visual effects
 	attackTrailSystem *attacktrail.System
 
@@ -521,6 +525,7 @@ func NewGame() *Game {
 		questLootSystem:     loot.NewQuestLootSystem("fantasy", seed),
 		dmgfxSystem:         dmgfx.NewSystem(),
 		outlineSystem:       outline.NewSystem("fantasy"),
+		rimLightSystem:      rimlight.NewSystem("fantasy"),
 		attackTrailSystem:   attacktrail.NewSystem("fantasy"),
 		damageStateSystem:   damagestate.NewSystem("fantasy"),
 	}
@@ -745,6 +750,9 @@ func NewGame() *Game {
 	// Register sprite outline system with the World
 	g.world.AddSystem(g.outlineSystem)
 
+	// Register rim lighting system for directional edge highlights
+	g.world.AddSystem(g.rimLightSystem)
+
 	// Register attack trail system with the World
 	g.world.AddSystem(g.attackTrailSystem)
 
@@ -918,6 +926,7 @@ func (g *Game) generateLevel() {
 	g.bspGenerator.SetGenre(g.genreID)
 	g.spriteGenerator.SetGenre(g.genreID)
 	g.outlineSystem.SetGenre(g.genreID)
+	g.rimLightSystem.SetGenre(g.genreID)
 	bspTree, tiles := g.bspGenerator.Generate()
 	g.currentMap = tiles
 	g.currentBSPTree = bspTree

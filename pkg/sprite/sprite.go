@@ -13,6 +13,7 @@ import (
 	"github.com/opd-ai/violence/pkg/common"
 	"github.com/opd-ai/violence/pkg/dither"
 	"github.com/opd-ai/violence/pkg/pool"
+	"github.com/opd-ai/violence/pkg/rimlight"
 )
 
 // SpriteType identifies the category of sprite to generate.
@@ -45,24 +46,26 @@ type CachedSprite struct {
 
 // Generator creates procedural sprites with caching.
 type Generator struct {
-	cache      map[SpriteKey]*list.Element
-	lruList    *list.List
-	maxEntries int
-	mu         sync.RWMutex
-	genreID    string
-	lightCfg   LightConfig
-	ditherSys  *dither.System
+	cache       map[SpriteKey]*list.Element
+	lruList     *list.List
+	maxEntries  int
+	mu          sync.RWMutex
+	genreID     string
+	lightCfg    LightConfig
+	ditherSys   *dither.System
+	rimlightSys *rimlight.System
 }
 
 // NewGenerator creates a sprite generator with LRU cache.
 func NewGenerator(maxCacheEntries int) *Generator {
 	return &Generator{
-		cache:      make(map[SpriteKey]*list.Element),
-		lruList:    list.New(),
-		maxEntries: maxCacheEntries,
-		genreID:    "fantasy",
-		lightCfg:   DefaultLightConfig(),
-		ditherSys:  dither.NewSystem(12345),
+		cache:       make(map[SpriteKey]*list.Element),
+		lruList:     list.New(),
+		maxEntries:  maxCacheEntries,
+		genreID:     "fantasy",
+		lightCfg:    DefaultLightConfig(),
+		ditherSys:   dither.NewSystem(12345),
+		rimlightSys: rimlight.NewSystem("fantasy"),
 	}
 }
 
@@ -73,6 +76,7 @@ func (g *Generator) SetGenre(genreID string) {
 	g.genreID = genreID
 	g.cache = make(map[SpriteKey]*list.Element)
 	g.lruList = list.New()
+	g.rimlightSys.SetGenre(genreID)
 }
 
 // GetSprite retrieves or generates a sprite.
@@ -124,35 +128,46 @@ func (g *Generator) generateSprite(spriteType SpriteType, subtype string, seed i
 	rgba := pool.GlobalPools.Images.Get(size, size)
 	rng := rand.New(rand.NewSource(seed))
 
-	// Determine dominant material for dithering based on sprite type
+	// Determine dominant material for dithering and rim lighting based on sprite type
 	var dominantMaterial dither.Material
+	var rimMaterial rimlight.Material
 
 	switch spriteType {
 	case SpriteEnemy:
 		g.generateEnemySprite(rgba, subtype, rng, frame)
 		dominantMaterial = g.getDominantMaterialForEnemy(subtype)
+		rimMaterial = g.getRimMaterialForEnemy(subtype)
 	case SpriteProp:
 		g.generatePropSprite(rgba, subtype, rng, frame)
 		dominantMaterial = g.getDominantMaterialForProp(subtype)
+		rimMaterial = g.getRimMaterialForProp(subtype)
 	case SpriteLoreItem:
 		g.generateLoreSprite(rgba, subtype, rng, frame)
 		dominantMaterial = dither.MaterialCrystal
+		rimMaterial = rimlight.MaterialMagic
 	case SpriteDestructible:
 		g.generateDestructibleSprite(rgba, subtype, rng, frame)
 		dominantMaterial = dither.MaterialLeather
+		rimMaterial = rimlight.MaterialDefault
 	case SpritePickup:
 		g.generatePickupSprite(rgba, subtype, rng, frame)
 		dominantMaterial = dither.MaterialMetal
+		rimMaterial = rimlight.MaterialMetal
 	case SpriteProjectile:
 		g.generateProjectileSprite(rgba, subtype, rng, frame)
 		dominantMaterial = dither.MaterialCrystal
+		rimMaterial = rimlight.MaterialMagic
 	default:
 		g.generateDefaultSprite(rgba, rng)
 		dominantMaterial = dither.MaterialDefault
+		rimMaterial = rimlight.MaterialDefault
 	}
 
 	// Apply dithering as final pass for smoother tonal transitions
 	g.applyDitheringPass(rgba, dominantMaterial, seed)
+
+	// Apply rim lighting for directional edge highlights
+	g.applyRimLightPass(rgba, rimMaterial, seed)
 
 	result := ebiten.NewImageFromImage(rgba)
 	pool.GlobalPools.Images.Put(rgba)
@@ -213,6 +228,59 @@ func (g *Generator) getDominantMaterialForProp(subtype string) dither.Material {
 		return dither.MaterialCrystal // Glowing
 	default:
 		return dither.MaterialDefault
+	}
+}
+
+// applyRimLightPass applies rim lighting for directional edge highlights.
+func (g *Generator) applyRimLightPass(img *image.RGBA, material rimlight.Material, seed int64) {
+	// Use seed-based intensity variation
+	rng := rand.New(rand.NewSource(seed))
+	intensity := 0.8 + rng.Float64()*0.4 // 0.8-1.2 intensity
+
+	g.rimlightSys.ApplyRimLightToImage(img, material, intensity)
+}
+
+// getRimMaterialForEnemy returns the rim light material for an enemy subtype.
+func (g *Generator) getRimMaterialForEnemy(subtype string) rimlight.Material {
+	switch subtype {
+	case "humanoid", "skeleton", "zombie":
+		return rimlight.MaterialOrganic
+	case "quadruped", "wolf", "bear":
+		return rimlight.MaterialOrganic
+	case "insect", "spider", "scorpion":
+		return rimlight.MaterialLeather
+	case "serpent", "snake", "dragon":
+		return rimlight.MaterialLeather
+	case "flying", "bat", "bird":
+		return rimlight.MaterialCloth
+	case "amorphous", "slime", "ooze":
+		return rimlight.MaterialCrystal
+	case "golem", "robot", "mech":
+		return rimlight.MaterialMetal
+	case "elemental", "spirit", "ghost":
+		return rimlight.MaterialMagic
+	default:
+		return rimlight.MaterialDefault
+	}
+}
+
+// getRimMaterialForProp returns the rim light material for a prop subtype.
+func (g *Generator) getRimMaterialForProp(subtype string) rimlight.Material {
+	switch subtype {
+	case "barrel", "crate", "table":
+		return rimlight.MaterialLeather
+	case "terminal", "container":
+		return rimlight.MaterialMetal
+	case "bones", "debris":
+		return rimlight.MaterialOrganic
+	case "plant":
+		return rimlight.MaterialCloth
+	case "pillar":
+		return rimlight.MaterialDefault
+	case "torch":
+		return rimlight.MaterialMagic
+	default:
+		return rimlight.MaterialDefault
 	}
 }
 
