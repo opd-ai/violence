@@ -23,6 +23,7 @@ import (
 	"github.com/opd-ai/violence/pkg/audio"
 	"github.com/opd-ai/violence/pkg/automap"
 	"github.com/opd-ai/violence/pkg/biome"
+	"github.com/opd-ai/violence/pkg/bouncelight"
 	"github.com/opd-ai/violence/pkg/bsp"
 	"github.com/opd-ai/violence/pkg/camera"
 	"github.com/opd-ai/violence/pkg/camerafx"
@@ -437,6 +438,10 @@ type Game struct {
 	wetnessSystem  *wetness.System
 	wetnessPattern *wetness.WetnessPattern
 
+	// Bounce lighting system for indirect illumination
+	bounceLightSystem *bouncelight.System
+	bounceMap         *bouncelight.BounceMap
+
 	// Proximity-based UI detail system for decluttering in-world indicators
 	proximityUISystem *proximityui.System
 }
@@ -667,6 +672,9 @@ func NewGame() *Game {
 	// Initialize surface wetness system for puddles and wet surface rendering
 	g.wetnessSystem = wetness.NewSystem(g.genreID, config.C.InternalWidth, config.C.InternalHeight)
 
+	// Initialize bounce lighting system for indirect illumination
+	g.bounceLightSystem = bouncelight.NewSystem(g.genreID, config.C.InternalWidth, config.C.InternalHeight)
+
 	// Connect sliding system to spatial index
 	game.ConnectSlidingSystem(g.slidingSystem, g.spatialSystem)
 
@@ -858,6 +866,11 @@ func (g *Game) generateLevel() {
 		g.wetnessPattern = g.wetnessSystem.GenerateWetnessPattern(tiles, int64(g.seed)^0x574554)
 	}
 
+	// Generate bounce lighting map for indirect illumination
+	if g.bounceLightSystem != nil && len(tiles) > 0 && len(tiles[0]) > 0 {
+		g.bounceMap = g.generateBounceMap(tiles)
+	}
+
 	if len(tiles) > 0 && len(tiles[0]) > 0 {
 		g.automap = automap.NewMap(len(tiles[0]), len(tiles))
 		// Create collapsible minimap wrapper with default config
@@ -940,6 +953,121 @@ func (g *Game) generateFloorDetails(tiles [][]int) {
 		"details_count": len(g.floorDetails),
 		"seed":          g.seed,
 	}).Debug("Floor tiles and details generated")
+}
+
+// generateBounceMap creates indirect illumination bounce map from wall colors.
+func (g *Game) generateBounceMap(tiles [][]int) *bouncelight.BounceMap {
+	if g.bounceLightSystem == nil || len(tiles) == 0 {
+		return nil
+	}
+
+	gridH := len(tiles)
+	gridW := len(tiles[0])
+
+	// Extract wall surfaces with their colors
+	surfaces := make([]bouncelight.BounceSurface, 0, gridW*2+gridH*2)
+
+	// Scan for wall tiles and extract their colors
+	wallRNG := rng.NewRNG(g.seed ^ 0x424F554E) // "BOUN"
+
+	for y := 0; y < gridH; y++ {
+		for x := 0; x < gridW; x++ {
+			tile := tiles[y][x]
+			if tile > 0 { // Wall tile
+				// Get wall color based on genre and tile type
+				r, gr, b := g.getWallTileColor(tile, wallRNG)
+
+				surf := bouncelight.BounceSurface{
+					X:            float64(x) + 0.5,
+					Y:            float64(y) + 0.5,
+					R:            r,
+					G:            gr,
+					B:            b,
+					Reflectivity: 0.4 + wallRNG.Float64()*0.3, // 0.4-0.7
+					IsWall:       true,
+					DirectLight:  0.8 + wallRNG.Float64()*0.2, // Assume mostly lit
+				}
+				surfaces = append(surfaces, surf)
+			}
+		}
+	}
+
+	// Calculate bounce map
+	bounceMap := g.bounceLightSystem.CalculateBounce(surfaces, gridW, gridH, 1.0)
+
+	logrus.WithFields(logrus.Fields{
+		"system":   "bouncelight",
+		"surfaces": len(surfaces),
+		"grid_w":   gridW,
+		"grid_h":   gridH,
+	}).Debug("Bounce lighting map generated")
+
+	return bounceMap
+}
+
+// getWallTileColor returns RGB color (0-1) for a wall tile type based on genre.
+func (g *Game) getWallTileColor(tileType int, wallRNG *rng.RNG) (r, gr, b float64) {
+	// Base colors by genre
+	switch g.genreID {
+	case "fantasy":
+		// Stone/brick colors - warm grays and browns
+		r = 0.4 + wallRNG.Float64()*0.15
+		gr = 0.35 + wallRNG.Float64()*0.1
+		b = 0.25 + wallRNG.Float64()*0.1
+	case "scifi":
+		// Cool metal blues and silvers
+		r = 0.3 + wallRNG.Float64()*0.1
+		gr = 0.35 + wallRNG.Float64()*0.15
+		b = 0.45 + wallRNG.Float64()*0.15
+	case "horror":
+		// Dark, desaturated colors with occasional reds
+		r = 0.25 + wallRNG.Float64()*0.2
+		gr = 0.2 + wallRNG.Float64()*0.1
+		b = 0.2 + wallRNG.Float64()*0.1
+	case "cyberpunk":
+		// Concrete grays with occasional neon tints
+		baseGray := 0.35 + wallRNG.Float64()*0.15
+		r = baseGray
+		gr = baseGray
+		b = baseGray
+		// Random neon tint
+		if wallRNG.Float64() < 0.15 {
+			switch wallRNG.Intn(3) {
+			case 0: // Pink
+				r += 0.3
+				b += 0.2
+			case 1: // Cyan
+				gr += 0.2
+				b += 0.3
+			case 2: // Yellow
+				r += 0.25
+				gr += 0.2
+			}
+		}
+	case "postapoc":
+		// Rust, dirt, and weathered concrete
+		r = 0.4 + wallRNG.Float64()*0.2
+		gr = 0.3 + wallRNG.Float64()*0.1
+		b = 0.2 + wallRNG.Float64()*0.1
+	default:
+		// Default gray
+		r = 0.4 + wallRNG.Float64()*0.1
+		gr = 0.4 + wallRNG.Float64()*0.1
+		b = 0.4 + wallRNG.Float64()*0.1
+	}
+
+	// Clamp values
+	if r > 1 {
+		r = 1
+	}
+	if gr > 1 {
+		gr = 1
+	}
+	if b > 1 {
+		b = 1
+	}
+
+	return r, gr, b
 }
 
 // placeDecorativeProps places decorative props in BSP rooms.
@@ -1649,6 +1777,7 @@ func (g *Game) setGenreForVisualSystems(genreID string) {
 	trySetGenre(g.flickerBridge, genreID)
 	trySetGenre(g.statusTintSystem, genreID)
 	trySetGenre(g.wetnessSystem, genreID)
+	trySetGenre(g.bounceLightSystem, genreID)
 }
 
 // setGenreForGameplaySystems updates genre for UI and gameplay systems.
@@ -4592,6 +4721,10 @@ func (g *Game) renderWorldEntities(screen *ebiten.Image, camX, camY float64) {
 	if g.floorDetailSystem != nil && (len(g.floorTiles) > 0 || len(g.floorDetails) > 0) {
 		g.renderFloorDetails(screen)
 	}
+	// Render bounce lighting overlay for indirect illumination
+	if g.bounceLightSystem != nil && g.bounceMap != nil {
+		g.renderBounceLighting(screen)
+	}
 	if g.decalSystem != nil && len(g.combatDecals) > 0 {
 		g.decalSystem.RenderDecals(screen, g.combatDecals, camX, camY)
 	}
@@ -5146,6 +5279,26 @@ func (g *Game) collectWetnessLights() []wetness.LightSource {
 	}
 
 	return lights
+}
+
+// renderBounceLighting draws indirect illumination overlay from nearby surfaces.
+func (g *Game) renderBounceLighting(screen *ebiten.Image) {
+	if g.bounceLightSystem == nil || g.bounceMap == nil {
+		return
+	}
+
+	// Scale factor matches internal resolution to tile coordinates
+	const tileSize = 64.0
+	scale := float64(config.C.InternalWidth) / (float64(g.bounceMap.Width) * tileSize)
+
+	// Render bounce lighting overlay with camera offset
+	g.bounceLightSystem.RenderBounceOverlay(
+		screen,
+		g.bounceMap,
+		g.camera.X*tileSize,
+		g.camera.Y*tileSize,
+		scale*tileSize, // Each tile covers tileSize pixels
+	)
 }
 
 // renderShadows draws dynamic shadows for props and entities based on active lights.
