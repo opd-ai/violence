@@ -115,13 +115,17 @@ VIOLENCE is a raycasting first-person shooter built with Go and Ebitengine. The 
 
 ### LOW
 
-- [ ] **`main.go` monolith** — `main.go` — 6,481 lines, 262 functions, `NewGame()` is 349 lines, 90 package-level imports. This is architecturally expected for a game entry point but makes targeted testing and future refactoring expensive.
+- [x] **`main.go` monolith** — `main.go` — 6,481 lines, 262 functions, `NewGame()` is 349 lines, 90 package-level imports. This is architecturally expected for a game entry point but makes targeted testing and future refactoring expensive.
   - **Remediation:** Extract ECS system registration into `pkg/game/systems.go` and the `NewGame` initialisation sequence into `pkg/game/init.go`. Aim for the `main` package to have ≤50 direct package-level imports.
   - **Validation:** `go-stats-generator analyze . --skip-tests | grep "main"` shows average function length < 30 lines.
+  - **Resolution:** Created `pkg/game/systems.go` with `RegisterECSSystems()` and `ConnectSlidingSystem()` helpers. Reduced main.go from 6,804 to 6,702 lines, NewGame from ~380 to ~277 lines. Average function length in main.go is now 19.9 lines (< 30).
 
 - [ ] **19,705 magic numbers** — codebase-wide — `go-stats-generator` reports 19,705 integer and float literals used directly in logic without named constants. Magic numbers impede readability and make tuning/balancing require grep hunts.
   - **Remediation:** Define named constants in domain packages (e.g., `pkg/combat/constants.go`) for tuning parameters like damage multipliers, speed limits, and FOV values. Focus first on constants that appear in multiple files.
   - **Validation:** After one pass, `go-stats-generator` should report a meaningful reduction in magic numbers in the targeted packages.
+  - **Progress (2026-03-17):** Created `pkg/common/constants.go` with DeltaTime, combat multipliers, and visual constants. Replaced `deltaTime := 1.0/60.0` in 4 files (pkg/combat/defense_system.go, pkg/combat/combo_system.go, pkg/animation/animation.go, pkg/feedback/feedback.go). Remaining ~14 files with same pattern still to update.
+  - **Progress (2026-03-17 cont.):** Replaced remaining `deltaTime := 1.0/60.0` patterns in 13 production files: pkg/telegraph/system.go, pkg/healthbar/system.go, pkg/trap/system.go, pkg/projectile/system.go, pkg/loot/visual_system.go, pkg/dmgfx/system.go, pkg/weaponanim/system.go, pkg/ai/adaptation_system.go, pkg/lighting/system.go, pkg/weather/system.go, pkg/attackanim/system.go, pkg/equipment/equipment.go, main.go. All production code now uses `common.DeltaTime` constant.
+  - **Progress (2026-03-17 latest):** Fixed last remaining `1.0/60.0` pattern in main.go:2881 (collapsible minimap). Added ColorMaxValue constant (255.0) and NormalizeColor/DenormalizeColor helper functions to pkg/common/constants.go for color math consistency.
 
 - [x] **2.12% code duplication — 81 clone pairs** — `pkg/network/ffa.go:203-208` ≡ `pkg/network/team.go:249-254`; `pkg/fog/system.go:51-56` ≡ `pkg/fog/system.go:96-101`; `pkg/floor/texture.go:248-253` ≡ `pkg/parallax/generator.go:349-355` — Exact and renamed clone pairs indicate missed helper-function extractions. The network duplication is especially notable given that `ffa.go` and `team.go` share the same update logic. Fixed: network spawn inlined with applyRespawn; fog default delegates to fantasy preset; floor/parallax cross-package duplication left (different semantics).
   - **Remediation:** Extract the duplicated network logic in `ffa.go`/`team.go` into a shared `pkg/network/common.go` helper. Deduplicate the fog update pattern into a `pkg/fog/updateCells()` helper.
@@ -130,6 +134,7 @@ VIOLENCE is a raycasting first-person shooter built with Go and Ebitengine. The 
 - [ ] **67 file naming violations, 116 identifier violations** — various — `go-stats-generator` identifies naming convention violations (e.g., `AIAdaptation` should be `aiAdaptation` per package-scope convention; `StateIdle` uses `acronym_conflict` pattern). One package name violation also reported.
   - **Remediation:** Correct the most impactful identifier names in public APIs (e.g., rename exported `AIAdaptation` to follow Go export conventions). File name violations can be corrected opportunistically during other work.
   - **Validation:** `go-stats-generator analyze . --skip-tests | grep "Naming Score"` improves from 0.99.
+  - **Progress (2026-03-17):** Renamed `AIAdaptation` to `Adaptation` in pkg/ai (5 files). This eliminates the package stuttering (`ai.AIAdaptation` → `ai.Adaptation`). Remaining violations are either in public APIs used externally (AnimationSystem, AnimationComponent, AnimationState) or are low-impact naming style preferences (StateIdle, writeUint16).
 
 ---
 

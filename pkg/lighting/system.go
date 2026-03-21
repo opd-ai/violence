@@ -4,6 +4,7 @@ import (
 	"math"
 	"reflect"
 
+	"github.com/opd-ai/violence/pkg/common"
 	"github.com/opd-ai/violence/pkg/engine"
 	"github.com/sirupsen/logrus"
 )
@@ -90,7 +91,7 @@ func (s *LightingSystem) GetAmbient() (r, g, b, intensity float64) {
 // This is called by the ECS World each frame.
 func (s *LightingSystem) Update(w *engine.World) {
 	s.tick++
-	deltaTime := 1.0 / 60.0
+	deltaTime := common.DeltaTime
 
 	lightType := reflect.TypeOf(&LightComponent{})
 	positionType := reflect.TypeOf(&PositionComponent{})

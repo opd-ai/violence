@@ -3,7 +3,7 @@ package ai
 
 // AdaptationComponent tracks AI behavioral adaptation state for an entity.
 type AdaptationComponent struct {
-	CurrentAdaptation AIAdaptation
+	CurrentAdaptation Adaptation
 	LastUpdateTime    float64
 }
 

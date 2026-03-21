@@ -8,6 +8,7 @@ import (
 	"math"
 	"math/rand"
 
+	"github.com/opd-ai/violence/pkg/common"
 	"github.com/opd-ai/violence/pkg/engine"
 )
 
@@ -110,7 +111,7 @@ func (f *FeedbackSystem) SetGenre(genreID string) {
 
 // Update implements the System interface.
 func (f *FeedbackSystem) Update(w *engine.World) {
-	deltaTime := 1.0 / 60.0
+	deltaTime := common.DeltaTime
 	f.updateScreenShake(deltaTime)
 	f.updateHitFlash(deltaTime)
 	f.updateDamageNumbers(deltaTime)

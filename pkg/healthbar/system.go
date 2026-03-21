@@ -8,6 +8,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
+	"github.com/opd-ai/violence/pkg/common"
 	"github.com/opd-ai/violence/pkg/engine"
 	"github.com/opd-ai/violence/pkg/ui"
 	"github.com/sirupsen/logrus"
@@ -95,7 +96,7 @@ func (s *System) applyGenreTheme() {
 
 // Update processes all entities with health bars.
 func (s *System) Update(w *engine.World) {
-	deltaTime := 1.0 / 60.0
+	deltaTime := common.DeltaTime
 
 	healthType := reflect.TypeOf(&engine.Health{})
 	barType := reflect.TypeOf(&Component{})

@@ -233,7 +233,7 @@ func TestApplyAdaptationToRole(t *testing.T) {
 		},
 	}
 
-	adaptation := AIAdaptation{
+	adaptation := Adaptation{
 		PreferredRangeMultiplier: 1.5,
 		RetreatThreshold:         0.5,
 		UseCover:                 true,
@@ -276,7 +276,7 @@ func TestApplyAdaptationToScout(t *testing.T) {
 		},
 	}
 
-	adaptation := AIAdaptation{
+	adaptation := Adaptation{
 		PreferredRangeMultiplier: 1.0,
 		FlankingPriority:         0.8,
 	}

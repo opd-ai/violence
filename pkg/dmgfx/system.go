@@ -28,6 +28,7 @@ import (
 	"math"
 	"reflect"
 
+	"github.com/opd-ai/violence/pkg/common"
 	"github.com/opd-ai/violence/pkg/engine"
 	"github.com/sirupsen/logrus"
 )
@@ -72,7 +73,7 @@ func (s *System) SetFeedbackProvider(provider FeedbackProvider) {
 
 // Update processes all entities with damage visual components.
 func (s *System) Update(w *engine.World) {
-	deltaTime := 1.0 / 60.0
+	deltaTime := common.DeltaTime
 
 	dvType := reflect.TypeOf((*DamageVisualComponent)(nil))
 	posType := reflect.TypeOf((*engine.Position)(nil))

@@ -130,8 +130,8 @@ func (p *PlayerBehaviorProfile) GetDominantTactic() PlayerTactic {
 	return dominant
 }
 
-// AIAdaptation represents behavioral adjustments based on player profile.
-type AIAdaptation struct {
+// Adaptation represents behavioral adjustments based on player profile.
+type Adaptation struct {
 	// Spacing adjustments
 	PreferredRangeMultiplier float64
 	SpreadFormation          float64
@@ -151,8 +151,8 @@ type AIAdaptation struct {
 }
 
 // ComputeAdaptation generates AI behavioral adjustments for a player profile.
-func ComputeAdaptation(profile *PlayerBehaviorProfile) AIAdaptation {
-	adapt := AIAdaptation{
+func ComputeAdaptation(profile *PlayerBehaviorProfile) Adaptation {
+	adapt := Adaptation{
 		PreferredRangeMultiplier: 1.0,
 		SpreadFormation:          0.5,
 		RetreatThreshold:         0.3,

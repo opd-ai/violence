@@ -182,10 +182,19 @@ func (s *GameServer) acceptLoop() {
 			return
 		}
 
+		// Set deadline to allow periodic context checks
+		if tcpListener, ok := s.listener.(*net.TCPListener); ok {
+			tcpListener.SetDeadline(time.Now().Add(100 * time.Millisecond))
+		}
+
 		conn, err := s.listener.Accept()
 		if err != nil {
 			if shouldStopAccepting(s.ctx) {
 				return
+			}
+			// Check if this is a timeout error (expected for deadline checks)
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				continue
 			}
 			logrus.WithError(err).Error("Failed to accept connection")
 			continue

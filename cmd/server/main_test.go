@@ -177,7 +177,7 @@ func TestServerGracefulShutdown(t *testing.T) {
 	// Drain any buffered data and verify the connection eventually returns an error.
 	buf := make([]byte, 4096)
 	conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-	
+
 	var lastErr error
 	for {
 		_, err = conn.Read(buf)
@@ -186,7 +186,7 @@ func TestServerGracefulShutdown(t *testing.T) {
 			break
 		}
 	}
-	
+
 	// Should get EOF or connection closed error
 	if lastErr == nil {
 		t.Error("Expected connection to eventually return error after server stop")

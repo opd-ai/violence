@@ -8,6 +8,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
+	"github.com/opd-ai/violence/pkg/common"
 	"github.com/opd-ai/violence/pkg/engine"
 	"github.com/sirupsen/logrus"
 )
@@ -37,7 +38,7 @@ func NewSystem(genreID string, seed int64) *System {
 
 // Update processes all telegraph components each frame.
 func (s *System) Update(w *engine.World) {
-	deltaTime := 1.0 / 60.0
+	deltaTime := common.DeltaTime
 
 	telegraphType := reflect.TypeOf(&Component{})
 	positionType := reflect.TypeOf(&PositionComponent{})

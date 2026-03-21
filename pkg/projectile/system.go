@@ -5,6 +5,7 @@ import (
 	"math"
 	"reflect"
 
+	"github.com/opd-ai/violence/pkg/common"
 	"github.com/opd-ai/violence/pkg/engine"
 	"github.com/sirupsen/logrus"
 )
@@ -70,7 +71,7 @@ func (s *System) SetDamageVisualProvider(provider DamageVisualProvider) {
 
 // Update processes all projectile entities.
 func (s *System) Update(w *engine.World) {
-	deltaTime := 1.0 / 60.0 // Assume 60 FPS
+	deltaTime := common.DeltaTime
 
 	projectileType := reflect.TypeOf((*ProjectileComponent)(nil))
 	positionType := reflect.TypeOf((*engine.Position)(nil))

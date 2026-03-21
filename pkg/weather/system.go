@@ -3,6 +3,7 @@ package weather
 import (
 	"reflect"
 
+	"github.com/opd-ai/violence/pkg/common"
 	"github.com/opd-ai/violence/pkg/engine"
 	"github.com/sirupsen/logrus"
 )
@@ -29,7 +30,7 @@ func NewSystem(maxParticles int, seed int64, genreID string) *System {
 
 // Update processes the weather system each frame.
 func (s *System) Update(w *engine.World) {
-	deltaTime := 1.0 / 60.0 // Assume 60 FPS
+	deltaTime := common.DeltaTime
 
 	// Update weather particles
 	s.weather.Update(deltaTime)

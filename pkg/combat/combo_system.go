@@ -21,6 +21,7 @@ import (
 	"math/rand"
 	"reflect"
 
+	"github.com/opd-ai/violence/pkg/common"
 	"github.com/opd-ai/violence/pkg/engine"
 	"github.com/opd-ai/violence/pkg/rng"
 	"github.com/sirupsen/logrus"
@@ -53,7 +54,7 @@ func NewComboSystem(genreID string, seed int64) *ComboSystem {
 
 // Update processes all combo components, tracking timing windows and advancing chains.
 func (s *ComboSystem) Update(w *engine.World) {
-	deltaTime := 1.0 / 60.0 // 60 FPS
+	deltaTime := common.DeltaTime
 
 	it := w.QueryWithBitmask(engine.ComponentIDPosition)
 

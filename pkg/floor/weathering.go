@@ -183,60 +183,67 @@ func (g *TextureGenerator) applyWearPatterns(img *image.RGBA, size int, material
 		return
 	}
 
-	// Wear appears as lighter/darker patches depending on material
-	wearBrightness := 1.15
-	if material == MaterialMetal {
-		wearBrightness = 1.25 // Polished from foot traffic
-	} else if material == MaterialWood {
-		wearBrightness = 0.85 // Darkened from oils and dirt
-	}
-
-	// Create 1-3 wear paths across the tile
+	wearBrightness := getWearBrightness(material)
 	pathCount := 1 + rng.Intn(3)
 	for i := 0; i < pathCount; i++ {
-		startX := rng.Intn(size)
-		startY := rng.Intn(size)
-		angle := rng.Float64() * math.Pi * 2
-		length := float64(size) * (0.4 + rng.Float64()*0.5)
-		width := 3.0 + rng.Float64()*4.0
+		g.drawWearPath(img, size, wearBrightness, intensity, rng)
+	}
+}
 
-		for t := 0.0; t < 1.0; t += 0.05 {
-			centerX := startX + int(math.Cos(angle)*length*t)
-			centerY := startY + int(math.Sin(angle)*length*t)
+// getWearBrightness returns the wear brightness factor for a material.
+func getWearBrightness(material MaterialType) float64 {
+	switch material {
+	case MaterialMetal:
+		return 1.25 // Polished from foot traffic
+	case MaterialWood:
+		return 0.85 // Darkened from oils and dirt
+	default:
+		return 1.15
+	}
+}
 
-			// Wander slightly for organic path
-			centerX += rng.Intn(3) - 1
-			centerY += rng.Intn(3) - 1
+// drawWearPath draws a single wear path across the tile.
+func (g *TextureGenerator) drawWearPath(img *image.RGBA, size int, wearBrightness, intensity float64, rng *rand.Rand) {
+	startX := rng.Intn(size)
+	startY := rng.Intn(size)
+	angle := rng.Float64() * math.Pi * 2
+	length := float64(size) * (0.4 + rng.Float64()*0.5)
+	width := 3.0 + rng.Float64()*4.0
 
-			if centerX < 0 || centerX >= size || centerY < 0 || centerY >= size {
+	for t := 0.0; t < 1.0; t += 0.05 {
+		centerX := startX + int(math.Cos(angle)*length*t) + rng.Intn(3) - 1
+		centerY := startY + int(math.Sin(angle)*length*t) + rng.Intn(3) - 1
+
+		if centerX < 0 || centerX >= size || centerY < 0 || centerY >= size {
+			continue
+		}
+		g.applyWearAtPoint(img, size, centerX, centerY, width, wearBrightness, intensity, rng)
+	}
+}
+
+// applyWearAtPoint applies wear effect in a radius around a center point.
+func (g *TextureGenerator) applyWearAtPoint(img *image.RGBA, size, centerX, centerY int, width, wearBrightness, intensity float64, rng *rand.Rand) {
+	for dy := -int(width); dy <= int(width); dy++ {
+		for dx := -int(width); dx <= int(width); dx++ {
+			px, py := centerX+dx, centerY+dy
+			if px < 0 || px >= size || py < 0 || py >= size {
 				continue
 			}
 
-			// Apply wear in radius around path center
-			for dy := -int(width); dy <= int(width); dy++ {
-				for dx := -int(width); dx <= int(width); dx++ {
-					px := centerX + dx
-					py := centerY + dy
-					if px < 0 || px >= size || py < 0 || py >= size {
-						continue
-					}
+			dist := math.Sqrt(float64(dx*dx + dy*dy))
+			if dist > width {
+				continue
+			}
 
-					dist := math.Sqrt(float64(dx*dx + dy*dy))
-					if dist > width {
-						continue
-					}
+			falloff := 1.0 - (dist / width)
+			wearStrength := intensity * falloff * (0.5 + rng.Float64()*0.5)
 
-					falloff := 1.0 - (dist / width)
-					wearStrength := intensity * falloff * (0.5 + rng.Float64()*0.5)
-
-					if wearStrength > 0.1 {
-						current := img.At(px, py).(color.RGBA)
-						r := uint8(clamp(float64(current.R) * lerp(1.0, wearBrightness, wearStrength)))
-						g := uint8(clamp(float64(current.G) * lerp(1.0, wearBrightness, wearStrength)))
-						b := uint8(clamp(float64(current.B) * lerp(1.0, wearBrightness, wearStrength)))
-						img.Set(px, py, color.RGBA{R: r, G: g, B: b, A: 255})
-					}
-				}
+			if wearStrength > 0.1 {
+				current := img.At(px, py).(color.RGBA)
+				r := uint8(clamp(float64(current.R) * lerp(1.0, wearBrightness, wearStrength)))
+				gr := uint8(clamp(float64(current.G) * lerp(1.0, wearBrightness, wearStrength)))
+				b := uint8(clamp(float64(current.B) * lerp(1.0, wearBrightness, wearStrength)))
+				img.Set(px, py, color.RGBA{R: r, G: gr, B: b, A: 255})
 			}
 		}
 	}
@@ -295,8 +302,6 @@ func (g *TextureGenerator) applyOrganicGrowth(img *image.RGBA, size int, materia
 	if intensity <= 0 {
 		return
 	}
-
-	// Growth only on natural materials in moist environments
 	if material == MaterialMetal || material == MaterialCrystal {
 		return
 	}
@@ -306,48 +311,62 @@ func (g *TextureGenerator) applyOrganicGrowth(img *image.RGBA, size int, materia
 
 	growthCount := int(intensity * 5)
 	for i := 0; i < growthCount; i++ {
-		centerX := rng.Intn(size)
-		centerY := rng.Intn(size)
-		radius := 2.0 + rng.Float64()*5.0
+		g.drawOrganicPatch(img, size, intensity, rng)
+	}
+}
 
-		// Determine growth color based on material and random variation
-		var growthColor color.RGBA
-		switch rng.Intn(3) {
-		case 0: // Green moss
-			growthColor = color.RGBA{R: 60, G: 100 + uint8(rng.Intn(40)), B: 50, A: 255}
-		case 1: // Brown fungus
-			growthColor = color.RGBA{R: 80 + uint8(rng.Intn(30)), G: 70, B: 50, A: 255}
-		case 2: // Dark mold
-			growthColor = color.RGBA{R: 50, G: 55, B: 50, A: 255}
+// drawOrganicPatch draws a single patch of organic growth.
+func (g *TextureGenerator) drawOrganicPatch(img *image.RGBA, size int, intensity float64, rng *rand.Rand) {
+	centerX := rng.Intn(size)
+	centerY := rng.Intn(size)
+	radius := 2.0 + rng.Float64()*5.0
+	growthColor := pickGrowthColor(rng)
+
+	for y := 0; y < size; y++ {
+		for x := 0; x < size; x++ {
+			g.applyGrowthAtPixel(img, x, y, centerX, centerY, radius, intensity, growthColor, rng)
 		}
+	}
+}
 
-		for y := 0; y < size; y++ {
-			for x := 0; x < size; x++ {
-				dx := float64(x - centerX)
-				dy := float64(y - centerY)
-				dist := math.Sqrt(dx*dx + dy*dy)
+// pickGrowthColor selects a random organic growth color.
+func pickGrowthColor(rng *rand.Rand) color.RGBA {
+	switch rng.Intn(3) {
+	case 0: // Green moss
+		return color.RGBA{R: 60, G: 100 + uint8(rng.Intn(40)), B: 50, A: 255}
+	case 1: // Brown fungus
+		return color.RGBA{R: 80 + uint8(rng.Intn(30)), G: 70, B: 50, A: 255}
+	default: // Dark mold
+		return color.RGBA{R: 50, G: 55, B: 50, A: 255}
+	}
+}
 
-				if dist < radius {
-					// Very irregular growth pattern
-					noise := rng.Float64()
-					if noise < 0.4 { // Only 40% coverage within radius
-						continue
-					}
+// applyGrowthAtPixel applies organic growth effect at a single pixel.
+func (g *TextureGenerator) applyGrowthAtPixel(img *image.RGBA, x, y, centerX, centerY int, radius, intensity float64, growthColor color.RGBA, rng *rand.Rand) {
+	dx := float64(x - centerX)
+	dy := float64(y - centerY)
+	dist := math.Sqrt(dx*dx + dy*dy)
 
-					falloff := 1.0 - (dist / radius)
-					growthStrength := intensity * falloff * noise
+	if dist >= radius {
+		return
+	}
 
-					if growthStrength > 0.3 {
-						current := img.At(x, y).(color.RGBA)
-						alpha := math.Min(growthStrength, 0.7)
-						r := uint8(lerp(float64(current.R), float64(growthColor.R), alpha))
-						g := uint8(lerp(float64(current.G), float64(growthColor.G), alpha))
-						b := uint8(lerp(float64(current.B), float64(growthColor.B), alpha))
-						img.Set(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
-					}
-				}
-			}
-		}
+	// Very irregular growth pattern - only 40% coverage within radius
+	noise := rng.Float64()
+	if noise < 0.4 {
+		return
+	}
+
+	falloff := 1.0 - (dist / radius)
+	growthStrength := intensity * falloff * noise
+
+	if growthStrength > 0.3 {
+		current := img.At(x, y).(color.RGBA)
+		alpha := math.Min(growthStrength, 0.7)
+		r := uint8(lerp(float64(current.R), float64(growthColor.R), alpha))
+		gr := uint8(lerp(float64(current.G), float64(growthColor.G), alpha))
+		b := uint8(lerp(float64(current.B), float64(growthColor.B), alpha))
+		img.Set(x, y, color.RGBA{R: r, G: gr, B: b, A: 255})
 	}
 }
 

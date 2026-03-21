@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/opd-ai/violence/pkg/common"
 	"github.com/opd-ai/violence/pkg/engine"
 	"github.com/sirupsen/logrus"
 )
@@ -147,7 +148,7 @@ func NewAnimationSystem(genre string) *AnimationSystem {
 
 // Update processes all entities with AnimationComponent.
 func (sys *AnimationSystem) Update(w *engine.World) {
-	deltaTime := 1.0 / 60.0 // 60 FPS
+	deltaTime := common.DeltaTime
 
 	animType := reflect.TypeOf(&AnimationComponent{})
 	entities := w.Query(animType)

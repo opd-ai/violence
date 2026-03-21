@@ -79,7 +79,7 @@ func (vs *VisualSystem) Update(w *engine.World) {
 		}
 
 		// Use fixed deltaTime for consistent animation
-		deltaTime := 1.0 / 60.0
+		deltaTime := common.DeltaTime
 
 		lv.BobPhase += deltaTime * 2.0
 		if lv.BobPhase > 2.0*math.Pi {

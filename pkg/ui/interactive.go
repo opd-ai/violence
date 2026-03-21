@@ -100,45 +100,53 @@ func (s *InteractiveSystem) AddPanel(panel *Panel) {
 // Update processes hover detection and transitions.
 func (s *InteractiveSystem) Update(mouseX, mouseY int, mousePressed bool) {
 	for _, btn := range s.buttons {
-		// Detect hover
-		inBounds := float32(mouseX) >= btn.X && float32(mouseX) <= btn.X+btn.Width &&
-			float32(mouseY) >= btn.Y && float32(mouseY) <= btn.Y+btn.Height
-
-		btn.PrevState = btn.State
-
-		// Update state based on interaction
-		if inBounds {
-			if mousePressed {
-				btn.State = StatePressed
-			} else if btn.State == StatePressed {
-				// Button released over button - trigger click
-				if btn.OnClick != nil {
-					btn.OnClick()
-				}
-				btn.State = StateHover
-			} else {
-				btn.State = StateHover
-			}
-		} else {
-			if btn == s.focused {
-				btn.State = StateFocused
-			} else {
-				btn.State = StateIdle
-			}
-		}
-
-		// Start transition if state changed
-		if btn.State != btn.PrevState {
-			btn.Transition.CurrentTime = 0
-		}
-
-		// Advance transition
-		if btn.Transition.CurrentTime < btn.Transition.Duration {
-			btn.Transition.CurrentTime++
-		}
+		s.updateButton(btn, mouseX, mouseY, mousePressed)
 	}
+	s.advancePanelTransitions()
+}
 
-	// Update panels
+// updateButton handles state changes for a single button.
+func (s *InteractiveSystem) updateButton(btn *Button, mouseX, mouseY int, mousePressed bool) {
+	inBounds := s.isPointInButton(btn, mouseX, mouseY)
+	btn.PrevState = btn.State
+	btn.State = s.determineButtonState(btn, inBounds, mousePressed)
+
+	if btn.State != btn.PrevState {
+		btn.Transition.CurrentTime = 0
+	}
+	if btn.Transition.CurrentTime < btn.Transition.Duration {
+		btn.Transition.CurrentTime++
+	}
+}
+
+// isPointInButton checks if a point is within button bounds.
+func (s *InteractiveSystem) isPointInButton(btn *Button, mouseX, mouseY int) bool {
+	return float32(mouseX) >= btn.X && float32(mouseX) <= btn.X+btn.Width &&
+		float32(mouseY) >= btn.Y && float32(mouseY) <= btn.Y+btn.Height
+}
+
+// determineButtonState determines the new button state based on interaction.
+func (s *InteractiveSystem) determineButtonState(btn *Button, inBounds, mousePressed bool) ElementState {
+	if inBounds {
+		if mousePressed {
+			return StatePressed
+		}
+		if btn.State == StatePressed {
+			if btn.OnClick != nil {
+				btn.OnClick()
+			}
+			return StateHover
+		}
+		return StateHover
+	}
+	if btn == s.focused {
+		return StateFocused
+	}
+	return StateIdle
+}
+
+// advancePanelTransitions advances transition timers for all panels.
+func (s *InteractiveSystem) advancePanelTransitions() {
 	for _, panel := range s.panels {
 		if panel.Transition.CurrentTime < panel.Transition.Duration {
 			panel.Transition.CurrentTime++

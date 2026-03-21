@@ -5,6 +5,7 @@ import (
 	"math"
 	"reflect"
 
+	"github.com/opd-ai/violence/pkg/common"
 	"github.com/opd-ai/violence/pkg/engine"
 	"github.com/sirupsen/logrus"
 )
@@ -35,7 +36,7 @@ func NewAdaptiveAISystem(genreID string) *AdaptiveAISystem {
 
 // Update runs adaptive AI logic.
 func (s *AdaptiveAISystem) Update(w *engine.World) {
-	deltaTime := 1.0 / 60.0 // Assume 60 FPS
+	deltaTime := common.DeltaTime
 	s.gameTime += deltaTime
 
 	// Periodic player observation
@@ -206,7 +207,7 @@ func (s *AdaptiveAISystem) adaptEnemies(w *engine.World) {
 }
 
 // applyAdaptationToRole modifies role configuration based on adaptation.
-func (s *AdaptiveAISystem) applyAdaptationToRole(role *EnemyRoleComponent, adapt AIAdaptation) {
+func (s *AdaptiveAISystem) applyAdaptationToRole(role *EnemyRoleComponent, adapt Adaptation) {
 	// Adjust range preferences
 	role.Config.PreferredRange *= adapt.PreferredRangeMultiplier
 	role.Config.MinRange *= adapt.PreferredRangeMultiplier * 0.8

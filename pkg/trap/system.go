@@ -5,6 +5,7 @@ import (
 	"math"
 	"reflect"
 
+	"github.com/opd-ai/violence/pkg/common"
 	"github.com/opd-ai/violence/pkg/engine"
 	"github.com/opd-ai/violence/pkg/rng"
 	"github.com/sirupsen/logrus"
@@ -48,7 +49,7 @@ func (s *System) SetGenre(genre string) {
 
 // Update processes all traps and checks for entity triggers (implements engine.System).
 func (s *System) Update(w *engine.World) {
-	deltaTime := 1.0 / 60.0 // Assuming 60 FPS
+	deltaTime := common.DeltaTime
 
 	// Update trap states
 	for _, trap := range s.traps {

@@ -300,7 +300,12 @@ func (s *System) ApplyEdgeDithering(img *image.RGBA, bounds image.Rectangle, int
 		return
 	}
 
-	// First pass: detect edges using Sobel-like operator
+	edgeMap := s.buildEdgeMap(img, bounds)
+	s.applyDitheringFromEdgeMap(img, bounds, edgeMap, intensity)
+}
+
+// buildEdgeMap creates a 2D map of edge strengths for the given bounds.
+func (s *System) buildEdgeMap(img *image.RGBA, bounds image.Rectangle) [][]float64 {
 	edgeMap := make([][]float64, bounds.Max.Y-bounds.Min.Y)
 	for i := range edgeMap {
 		edgeMap[i] = make([]float64, bounds.Max.X-bounds.Min.X)
@@ -312,31 +317,41 @@ func (s *System) ApplyEdgeDithering(img *image.RGBA, bounds image.Rectangle, int
 			edgeMap[y-bounds.Min.Y][x-bounds.Min.X] = edgeStrength
 		}
 	}
+	return edgeMap
+}
 
-	// Second pass: apply dithering weighted by edge strength
+// applyDitheringFromEdgeMap applies dithering weighted by edge strength.
+func (s *System) applyDitheringFromEdgeMap(img *image.RGBA, bounds image.Rectangle, edgeMap [][]float64, intensity float64) {
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			if x < 0 || x >= img.Bounds().Dx() || y < 0 || y >= img.Bounds().Dy() {
-				continue
-			}
-
-			c := img.RGBAAt(x, y)
-			if c.A == 0 {
-				continue
-			}
-
-			ey := y - bounds.Min.Y
-			ex := x - bounds.Min.X
-			if ey >= 0 && ey < len(edgeMap) && ex >= 0 && ex < len(edgeMap[ey]) {
-				edgeWeight := edgeMap[ey][ex]
-				if edgeWeight > 0.1 {
-					ditherValue := getBayerThreshold(x, y, true)
-					effectiveIntensity := intensity * edgeWeight
-					ditheredColor := s.applyDitherToColor(c, ditherValue, effectiveIntensity, MaterialDefault)
-					img.SetRGBA(x, y, ditheredColor)
-				}
-			}
+			s.applyEdgeDitherAtPixel(img, x, y, bounds, edgeMap, intensity)
 		}
+	}
+}
+
+// applyEdgeDitherAtPixel applies dithering to a single pixel based on edge weight.
+func (s *System) applyEdgeDitherAtPixel(img *image.RGBA, x, y int, bounds image.Rectangle, edgeMap [][]float64, intensity float64) {
+	if x < 0 || x >= img.Bounds().Dx() || y < 0 || y >= img.Bounds().Dy() {
+		return
+	}
+
+	c := img.RGBAAt(x, y)
+	if c.A == 0 {
+		return
+	}
+
+	ey := y - bounds.Min.Y
+	ex := x - bounds.Min.X
+	if ey < 0 || ey >= len(edgeMap) || ex < 0 || ex >= len(edgeMap[ey]) {
+		return
+	}
+
+	edgeWeight := edgeMap[ey][ex]
+	if edgeWeight > 0.1 {
+		ditherValue := getBayerThreshold(x, y, true)
+		effectiveIntensity := intensity * edgeWeight
+		ditheredColor := s.applyDitherToColor(c, ditherValue, effectiveIntensity, MaterialDefault)
+		img.SetRGBA(x, y, ditheredColor)
 	}
 }
 

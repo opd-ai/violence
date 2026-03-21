@@ -5,6 +5,7 @@ import (
 	"math"
 	"reflect"
 
+	"github.com/opd-ai/violence/pkg/common"
 	"github.com/opd-ai/violence/pkg/engine"
 	"github.com/sirupsen/logrus"
 )
@@ -45,7 +46,7 @@ func (s *DefenseSystem) Update(w *engine.World) {
 }
 
 func (s *DefenseSystem) updateDefense(w *engine.World, entity engine.Entity, pos *engine.Position, def *DefenseComponent) {
-	deltaTime := 1.0 / 60.0
+	deltaTime := common.DeltaTime
 
 	s.regenerateStamina(def, deltaTime)
 	s.updateDefenseTimers(def, deltaTime)

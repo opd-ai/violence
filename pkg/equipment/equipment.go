@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/opd-ai/violence/pkg/common"
 	"github.com/opd-ai/violence/pkg/engine"
 	"github.com/sirupsen/logrus"
 )
@@ -127,7 +128,7 @@ func NewEquipmentSystem(genre string) *EquipmentSystem {
 
 // Update processes equipment components and updates glow animations.
 func (sys *EquipmentSystem) Update(w *engine.World) {
-	deltaTime := 1.0 / 60.0
+	deltaTime := common.DeltaTime
 
 	eqType := reflect.TypeOf(&EquipmentComponent{})
 	entities := w.Query(eqType)

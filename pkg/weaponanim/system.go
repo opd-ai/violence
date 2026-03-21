@@ -5,6 +5,7 @@ import (
 	"math"
 	"reflect"
 
+	"github.com/opd-ai/violence/pkg/common"
 	"github.com/opd-ai/violence/pkg/engine"
 	"github.com/sirupsen/logrus"
 )
@@ -37,7 +38,7 @@ func (s *System) SetGenre(genreID string) {
 
 // Update implements the System interface.
 func (s *System) Update(w *engine.World) {
-	deltaTime := 1.0 / 60.0
+	deltaTime := common.DeltaTime
 
 	swingTriggerType := reflect.TypeOf(&SwingTriggerComponent{})
 	weaponAnimType := reflect.TypeOf(&WeaponAnimComponent{})

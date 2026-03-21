@@ -30,6 +30,7 @@ import (
 	"github.com/opd-ai/violence/pkg/class"
 	"github.com/opd-ai/violence/pkg/collision"
 	"github.com/opd-ai/violence/pkg/combat"
+	"github.com/opd-ai/violence/pkg/common"
 	"github.com/opd-ai/violence/pkg/config"
 	"github.com/opd-ai/violence/pkg/corpse"
 	"github.com/opd-ai/violence/pkg/crafting"
@@ -52,6 +53,7 @@ import (
 	"github.com/opd-ai/violence/pkg/flicker"
 	"github.com/opd-ai/violence/pkg/floor"
 	"github.com/opd-ai/violence/pkg/fog"
+	"github.com/opd-ai/violence/pkg/game"
 	"github.com/opd-ai/violence/pkg/hazard"
 	"github.com/opd-ai/violence/pkg/healthbar"
 	"github.com/opd-ai/violence/pkg/impactburst"
@@ -651,161 +653,58 @@ func NewGame() *Game {
 	g.uiCacheSystem = uicache.NewSystem(config.C.InternalWidth, config.C.InternalHeight)
 
 	// Connect sliding system to spatial index
-	g.slidingSystem.SetSpatialIndex(g.spatialSystem.GetGrid())
+	game.ConnectSlidingSystem(g.slidingSystem, g.spatialSystem)
 
-	// Register spatial system with the World
-	g.world.AddSystem(g.spatialSystem)
-
-	// Register animation system with the World
-	g.world.AddSystem(g.animationSystem)
-
-	// Register organic motion system with the World
-	g.world.AddSystem(g.motionSystem)
-
-	// Register status effect system with the World
-	g.world.AddSystem(g.statusSystem)
-
-	// Register combo system with the World
-	g.world.AddSystem(g.comboSystem)
-
-	// Register loot drop system with the World
-	g.world.AddSystem(g.lootDropSystem)
-
-	// Register feedback system with the World
-	g.world.AddSystem(g.feedbackSystem)
-
-	// Register defense system with the World
-	g.world.AddSystem(g.defenseSystem)
-
-	// Register dynamic lighting system with the World
-	g.world.AddSystem(g.lightingSystem)
-
-	// Register boss phase system with the World
-	g.world.AddSystem(g.bossPhaseSystem)
-
-	// Register hazard ECS system with the World
-	g.world.AddSystem(g.hazardECSSystem)
-
-	// Register faction reputation system with the World
-	g.world.AddSystem(g.factionSystem)
-
-	// Register stat allocation system with the World
-	g.world.AddSystem(g.statSystem)
-
-	// Register weather system with the World
-	g.world.AddSystem(g.weatherSystem)
-	g.weatherSystem.AddWeatherToWorld(g.world)
-
-	// Register sliding system with the World
-	g.world.AddSystem(g.slidingSystem)
-
-	// Register equipment rendering system with the World
-	g.world.AddSystem(g.equipmentSystem)
-
-	// Register positional advantage system with the World
-	g.world.AddSystem(g.positionalSystem)
-
-	// Register adaptive AI system with the World
-	g.world.AddSystem(g.adaptiveAISystem)
-
-	// Register ambient occlusion system with the World
-	g.world.AddSystem(g.aoSystem)
-
-	// Connect AO system to spatial index for fast proximity queries
-	g.aoSystem.SetSpatialGrid(g.spatialSystem.GetGrid())
-
-	// Register projectile system with the World
-	g.world.AddSystem(g.projectileSystem)
-
-	// Connect projectile system to spatial index, particles, and feedback
-	g.projectileSystem.SetSpatialGrid(g.spatialSystem.GetGrid())
-	g.projectileSystem.SetParticleSpawner(g.particleSystem)
-	g.projectileSystem.SetFeedbackProvider(g.feedbackSystem)
-
-	// Register biome material system with the World
-	g.world.AddSystem(g.biomeMaterialSystem)
-
-	// Register interactive trap system with the World
-	g.world.AddSystem(g.trapSystem)
-
-	// Register quest-loot integration system with the World
-	g.world.AddSystem(g.questLootSystem)
-
-	// Register damage state visualization system with the World
-	g.world.AddSystem(g.damageStateSystem)
-
-	// Register damage visual effects system with the World
-	g.world.AddSystem(g.dmgfxSystem)
-
-	// Connect damage visual effects system to dependencies
-	g.dmgfxSystem.SetParticleSpawner(g.particleSystem)
-	g.dmgfxSystem.SetFeedbackProvider(g.feedbackSystem)
-
-	// Connect projectile system to damage visual effects
-	g.projectileSystem.SetDamageVisualProvider(g.dmgfxSystem)
-
-	// Register territory control system with the World
-	g.world.AddSystem(g.territorySystem)
-
-	// Register sprite outline system with the World
-	g.world.AddSystem(g.outlineSystem)
-
-	// Register rim lighting system for directional edge highlights
-	g.world.AddSystem(g.rimLightSystem)
-
-	// Register attack trail system with the World
-	g.world.AddSystem(g.attackTrailSystem)
-
-	// Register attack telegraph system with the World
-	g.world.AddSystem(g.telegraphSystem)
-
-	// Register loot visual system with the World
-	g.world.AddSystem(g.lootVisualSystem)
-
-	// Register health bar system with the World
-	g.world.AddSystem(g.healthBarSystem)
-
-	// Register atmospheric fog system with the World
-	g.world.AddSystem(g.fogSystem)
-
-	// Register parallax background system with the World
-	g.world.AddSystem(g.parallaxSystem)
-
-	// Register weapon swing animation system with the World
-	g.world.AddSystem(g.weaponAnimSystem)
-
-	// Register wall texture variation system with the World
-	g.world.AddSystem(g.wallTexSystem)
-
-	// Register particle rendering system with the World
-	g.world.AddSystem(g.particleRenderer)
-
-	// Register floating damage number system with the World
-	g.world.AddSystem(g.damageNumberSystem)
-
-	// Register weapon visual enhancement system with the World
-	g.world.AddSystem(g.weaponVisualSystem)
-
-	// Register attack animation system with the World
-	g.world.AddSystem(g.attackAnimSystem)
-
-	// Register status effect visual system with the World
-	g.world.AddSystem(g.statusFXSystem)
-
-	// Register status tint system for material-appropriate sprite color modification
-	g.world.AddSystem(g.statusTintSystem)
-
-	// Register player sprite rendering system with the World
-	g.world.AddSystem(g.playerSpriteSystem)
-
-	// Register crosshair system with the World
-	g.world.AddSystem(g.crosshairSystem)
-
-	// Register impact burst system for realistic combat impact visuals
-	g.world.AddSystem(g.impactBurstSystem)
-
-	// Register entity label system for guaranteed text rendering
-	g.world.AddSystem(g.entityLabelSystem)
+	// Register all ECS systems with the World using centralized helper
+	game.RegisterECSSystems(g.world, &game.SystemDependencies{
+		Spatial:          g.spatialSystem,
+		Animation:        g.animationSystem,
+		Motion:           g.motionSystem,
+		Status:           g.statusSystem,
+		Combo:            g.comboSystem,
+		LootDrop:         g.lootDropSystem,
+		Feedback:         g.feedbackSystem,
+		Defense:          g.defenseSystem,
+		Lighting:         g.lightingSystem,
+		BossPhase:        g.bossPhaseSystem,
+		HazardECS:        g.hazardECSSystem,
+		Faction:          g.factionSystem,
+		Stat:             g.statSystem,
+		Weather:          g.weatherSystem,
+		Sliding:          g.slidingSystem,
+		Equipment:        g.equipmentSystem,
+		Positional:       g.positionalSystem,
+		AdaptiveAI:       g.adaptiveAISystem,
+		AO:               g.aoSystem,
+		Projectile:       g.projectileSystem,
+		BiomeMaterial:    g.biomeMaterialSystem,
+		Trap:             g.trapSystem,
+		QuestLoot:        g.questLootSystem,
+		DamageState:      g.damageStateSystem,
+		Dmgfx:            g.dmgfxSystem,
+		Territory:        g.territorySystem,
+		Outline:          g.outlineSystem,
+		RimLight:         g.rimLightSystem,
+		AttackTrail:      g.attackTrailSystem,
+		Telegraph:        g.telegraphSystem,
+		LootVisual:       g.lootVisualSystem,
+		HealthBar:        g.healthBarSystem,
+		Fog:              g.fogSystem,
+		Parallax:         g.parallaxSystem,
+		WeaponAnim:       g.weaponAnimSystem,
+		WallTex:          g.wallTexSystem,
+		ParticleRenderer: g.particleRenderer,
+		DamageNumber:     g.damageNumberSystem,
+		WeaponVisual:     g.weaponVisualSystem,
+		AttackAnim:       g.attackAnimSystem,
+		StatusFX:         g.statusFXSystem,
+		StatusTint:       g.statusTintSystem,
+		PlayerSprite:     g.playerSpriteSystem,
+		Crosshair:        g.crosshairSystem,
+		ImpactBurst:      g.impactBurstSystem,
+		EntityLabel:      g.entityLabelSystem,
+		Particle:         g.particleSystem,
+	})
 
 	// Show main menu
 	g.menuManager.Show(ui.MenuTypeMain)
@@ -1354,7 +1253,10 @@ func (g *Game) setupQuests(rooms []*bsp.Room) {
 		questRooms[i] = quest.Room{X: r.X, Y: r.Y, Width: r.W, Height: r.H}
 	}
 
-	exitPos := g.findExitPosition(rooms, g.camera.X, g.camera.Y)
+	// Calculate spawn position (same logic as findSpawnPosition) since
+	// g.camera is not yet initialized when setupQuests is called.
+	spawnX, spawnY := g.findSpawnPosition(rooms)
+	exitPos := g.findExitPosition(rooms, spawnX, spawnY)
 	layout := quest.LevelLayout{
 		Width:       len(g.currentMap[0]),
 		Height:      len(g.currentMap),
@@ -1699,60 +1601,40 @@ func (g *Game) setGenreForWorldSystems(genreID string) {
 	}
 }
 
+// GenreSetter allows systems to update their genre.
+type GenreSetter interface {
+	SetGenre(genreID string)
+}
+
+// trySetGenre safely sets genre on a system if it's non-nil.
+func trySetGenre(setter GenreSetter, genreID string) {
+	if setter != nil {
+		setter.SetGenre(genreID)
+	}
+}
+
 // setGenreForVisualSystems updates genre for rendering and visual effect systems.
 func (g *Game) setGenreForVisualSystems(genreID string) {
-	if g.animationSystem != nil {
-		g.animationSystem.SetGenre(genreID)
-	}
-	if g.feedbackSystem != nil {
-		g.feedbackSystem.SetGenre(genreID)
-	}
-	if g.cameraFXSystem != nil {
-		g.cameraFXSystem.SetGenre(genreID)
-	}
-	if g.spriteGenerator != nil {
-		g.spriteGenerator.SetGenre(genreID)
-	}
-	if g.floorDetailSystem != nil {
-		g.floorDetailSystem.SetGenre(genreID)
-	}
-	if g.decalSystem != nil {
-		g.decalSystem.SetGenre(genreID)
-	}
-	if g.corpseSystem != nil {
-		g.corpseSystem.SetGenre(genreID)
-	}
-	if g.fogSystem != nil {
-		g.fogSystem.SetGenre(genreID)
-	}
-	if g.impactBurstSystem != nil {
-		g.impactBurstSystem.SetGenre(genreID)
-	}
-	if g.impactBurstRenderer != nil {
-		g.impactBurstRenderer.SetGenre(genreID)
-	}
-	if g.flickerBridge != nil {
-		g.flickerBridge.SetGenre(genreID)
-	}
-	if g.statusTintSystem != nil {
-		g.statusTintSystem.SetGenre(genreID)
-	}
+	trySetGenre(g.animationSystem, genreID)
+	trySetGenre(g.feedbackSystem, genreID)
+	trySetGenre(g.cameraFXSystem, genreID)
+	trySetGenre(g.spriteGenerator, genreID)
+	trySetGenre(g.floorDetailSystem, genreID)
+	trySetGenre(g.decalSystem, genreID)
+	trySetGenre(g.corpseSystem, genreID)
+	trySetGenre(g.fogSystem, genreID)
+	trySetGenre(g.impactBurstSystem, genreID)
+	trySetGenre(g.impactBurstRenderer, genreID)
+	trySetGenre(g.flickerBridge, genreID)
+	trySetGenre(g.statusTintSystem, genreID)
 }
 
 // setGenreForGameplaySystems updates genre for UI and gameplay systems.
 func (g *Game) setGenreForGameplaySystems(genreID string) {
-	if g.equipmentSystem != nil {
-		g.equipmentSystem.SetGenre(genreID)
-	}
-	if g.healthBarSystem != nil {
-		g.healthBarSystem.SetGenre(genreID)
-	}
-	if g.itemIconSystem != nil {
-		g.itemIconSystem.SetGenre(genreID)
-	}
-	if g.playerSpriteSystem != nil {
-		g.playerSpriteSystem.SetGenre(genreID)
-	}
+	trySetGenre(g.equipmentSystem, genreID)
+	trySetGenre(g.healthBarSystem, genreID)
+	trySetGenre(g.itemIconSystem, genreID)
+	trySetGenre(g.playerSpriteSystem, genreID)
 }
 
 // loadGame loads a saved game state.
@@ -2273,60 +2155,80 @@ func (g *Game) calculatePositionalDamage(agent *ai.Agent) float64 {
 
 // applyHitFeedback spawns visual and audio feedback for weapon hits.
 func (g *Game) applyHitFeedback(agent *ai.Agent, damage float64, isCritical bool) {
-	if g.feedbackSystem != nil {
-		shakeIntensity := damage / 10.0
-		if shakeIntensity > 5.0 {
-			shakeIntensity = 5.0
-		}
-		g.feedbackSystem.AddScreenShake(shakeIntensity)
-		g.feedbackSystem.SpawnDamageNumber(agent.X, agent.Y, int(damage), isCritical)
+	impactAngle := math.Atan2(agent.Y-g.camera.Y, agent.X-g.camera.X)
+	g.applyFeedbackSystemEffects(agent, damage, isCritical)
+	g.applyImpactBurstEffects(agent, damage, isCritical, impactAngle)
+	g.applyCameraHitEffects(damage, isCritical)
+	g.applyParticleImpactEffects(agent, isCritical, impactAngle)
+}
 
-		impactType := feedback.ImpactHit
-		if isCritical {
-			impactType = feedback.ImpactCritical
-		}
-		g.feedbackSystem.SpawnImpactEffect(agent.X, agent.Y, impactType)
+// applyFeedbackSystemEffects applies screen shake and damage numbers.
+func (g *Game) applyFeedbackSystemEffects(agent *ai.Agent, damage float64, isCritical bool) {
+	if g.feedbackSystem == nil {
+		return
 	}
+	shakeIntensity := clampFloat(damage/10.0, 0, 5.0)
+	g.feedbackSystem.AddScreenShake(shakeIntensity)
+	g.feedbackSystem.SpawnDamageNumber(agent.X, agent.Y, int(damage), isCritical)
 
-	// Spawn enhanced impact burst effect with shockwaves and debris
-	if g.impactBurstSystem != nil {
-		impactAngle := math.Atan2(agent.Y-g.camera.Y, agent.X-g.camera.X)
-		burstType := impactburst.ImpactMelee
-		if isCritical {
-			burstType = impactburst.ImpactCritical
-		}
-		intensity := damage / 50.0
-		if intensity > 2.0 {
-			intensity = 2.0
-		}
-		if intensity < 0.5 {
-			intensity = 0.5
-		}
-		g.impactBurstSystem.SpawnImpact(agent.X, agent.Y, impactAngle, burstType, impactburst.MaterialFlesh, intensity)
+	impactType := feedback.ImpactHit
+	if isCritical {
+		impactType = feedback.ImpactCritical
 	}
+	g.feedbackSystem.SpawnImpactEffect(agent.X, agent.Y, impactType)
+}
 
-	// Enhanced camera effects for hits
-	if g.cameraFXSystem != nil {
-		shakeAmount := damage / 20.0
-		if isCritical {
-			shakeAmount *= 2.0
-			fr, fg, fb, fa := camerafx.Flash.Orange()
-			g.cameraFXSystem.TriggerFlash(fr, fg, fb, fa*0.6)
-		} else {
-			fr, fg, fb, fa := camerafx.Flash.White()
-			g.cameraFXSystem.TriggerFlash(fr, fg, fb, fa*0.3)
-		}
-		g.cameraFXSystem.TriggerShake(shakeAmount)
+// applyImpactBurstEffects spawns enhanced impact burst with shockwaves.
+func (g *Game) applyImpactBurstEffects(agent *ai.Agent, damage float64, isCritical bool, impactAngle float64) {
+	if g.impactBurstSystem == nil {
+		return
 	}
+	burstType := impactburst.ImpactMelee
+	if isCritical {
+		burstType = impactburst.ImpactCritical
+	}
+	intensity := clampFloat(damage/50.0, 0.5, 2.0)
+	g.impactBurstSystem.SpawnImpact(agent.X, agent.Y, impactAngle, burstType, impactburst.MaterialFlesh, intensity)
+}
 
-	if g.impactEmitter != nil {
-		impactAngle := math.Atan2(agent.Y-g.camera.Y, agent.X-g.camera.X)
-		impactTypeParticle := particle.ImpactMelee
-		if isCritical {
-			impactTypeParticle = particle.ImpactCritical
-		}
-		g.impactEmitter.EmitImpact(agent.X, agent.Y, impactTypeParticle, particle.MaterialFlesh, impactAngle)
+// applyCameraHitEffects applies camera shake and flash for hits.
+func (g *Game) applyCameraHitEffects(damage float64, isCritical bool) {
+	if g.cameraFXSystem == nil {
+		return
 	}
+	shakeAmount := damage / 20.0
+	if isCritical {
+		shakeAmount *= 2.0
+		fr, fg, fb, fa := camerafx.Flash.Orange()
+		g.cameraFXSystem.TriggerFlash(fr, fg, fb, fa*0.6)
+	} else {
+		fr, fg, fb, fa := camerafx.Flash.White()
+		g.cameraFXSystem.TriggerFlash(fr, fg, fb, fa*0.3)
+	}
+	g.cameraFXSystem.TriggerShake(shakeAmount)
+}
+
+// applyParticleImpactEffects spawns particle impact at hit location.
+func (g *Game) applyParticleImpactEffects(agent *ai.Agent, isCritical bool, impactAngle float64) {
+	if g.impactEmitter == nil {
+		return
+	}
+	impactTypeParticle := particle.ImpactMelee
+	if isCritical {
+		impactTypeParticle = particle.ImpactCritical
+	}
+	g.impactEmitter.EmitImpact(agent.X, agent.Y, impactTypeParticle, particle.MaterialFlesh, impactAngle)
+}
+
+// clampFloat clamps a value between min and max.
+func clampFloat(value, min, max float64) float64 {
+	if value < min {
+		return min
+	}
+	if value > max {
+		return max
+	}
+	return value
 }
 
 // spawnHitDecal creates a blood decal at the hit location.
@@ -2679,7 +2581,7 @@ func (g *Game) updateSquadAndEventTriggers() {
 		g.squadCompanions.Update(g.camera.X, g.camera.Y, g.currentMap, g.camera.X, g.camera.Y, g.seed)
 	}
 
-	deltaTime := 1.0 / 60.0
+	deltaTime := common.DeltaTime
 	g.updateAlarmTrigger(deltaTime)
 	g.updateLockdownTrigger(deltaTime)
 	g.checkBossArenaTrigger()
@@ -2788,7 +2690,7 @@ func (g *Game) grantQuestReward(objectiveID, objectiveType string, isMain bool, 
 
 // updateV3Systems updates particle, weather, and secret wall systems.
 func (g *Game) updateV3Systems() {
-	deltaTime := 1.0 / 60.0
+	deltaTime := common.DeltaTime
 
 	if g.particleSystem != nil {
 		g.particleSystem.Update(deltaTime)
@@ -2976,7 +2878,7 @@ func (g *Game) handleCollisionAndMovement(deltaX, deltaY, deltaPitch float64) {
 
 	// Update collapsible minimap state (handles auto-hide, transitions, area reveals)
 	if g.collapsibleMinimap != nil {
-		g.collapsibleMinimap.Update(1.0/60.0, g.camera.X, g.camera.Y)
+		g.collapsibleMinimap.Update(common.DeltaTime, g.camera.X, g.camera.Y)
 	}
 
 	g.world.Update()
@@ -4940,222 +4842,229 @@ func (g *Game) renderFogParticle(screen *ebiten.Image, x, y, size float32, c col
 // renderProps draws decorative props as simple sprites in world space.
 func (g *Game) renderProps(screen *ebiten.Image) {
 	allProps := g.propsManager.GetProps()
-
-	// Calculate camera plane from direction and FOV
-	fov := g.camera.FOV
-	planeX := -g.camera.DirY * fov / 66.0 // Standard plane calculation
-	planeY := g.camera.DirX * fov / 66.0
+	planeX, planeY := g.calcCameraPlane()
 
 	for _, prop := range allProps {
-		// Calculate vector from camera to prop
-		dx := prop.X - g.camera.X
-		dy := prop.Y - g.camera.Y
-
-		// Only render props within visible range
-		dist := dx*dx + dy*dy
-		if dist > 400 { // Skip distant props
-			continue
-		}
-
-		// Transform prop position to camera space
-		invDet := 1.0 / (planeX*g.camera.DirY - g.camera.DirX*planeY)
-		transformX := invDet * (g.camera.DirY*dx - g.camera.DirX*dy)
-		transformY := invDet * (-planeY*dx + planeX*dy)
-
-		// Skip props behind camera
-		if transformY <= 0.1 {
-			continue
-		}
-
-		// Calculate screen X position
-		spriteScreenX := int((float64(config.C.InternalWidth) / 2.0) * (1.0 + transformX/transformY))
-
-		// Calculate sprite height based on distance
-		spriteHeight := int(float64(config.C.InternalHeight) / transformY)
-		spriteWidth := spriteHeight // Square sprites for simplicity
-
-		// Draw bounds
-		drawStartX := spriteScreenX - spriteWidth/2
-		drawStartY := config.C.InternalHeight/2 - spriteHeight/2
-
-		// Clip to screen bounds
-		if spriteScreenX+spriteWidth/2 < 0 || drawStartX >= config.C.InternalWidth {
-			continue
-		}
-		if drawStartX < 0 {
-			drawStartX = 0
-		}
-
-		// Map prop type to sprite subtype string
-		var propSubtype string
-		switch prop.SpriteType {
-		case props.PropBarrel:
-			propSubtype = "barrel"
-		case props.PropCrate:
-			propSubtype = "crate"
-		case props.PropTable:
-			propSubtype = "table"
-		case props.PropTerminal:
-			propSubtype = "terminal"
-		case props.PropBones:
-			propSubtype = "bones"
-		case props.PropPlant:
-			propSubtype = "plant"
-		case props.PropPillar:
-			propSubtype = "pillar"
-		case props.PropTorch:
-			propSubtype = "torch"
-		case props.PropDebris:
-			propSubtype = "debris"
-		case props.PropContainer:
-			propSubtype = "container"
-		default:
-			propSubtype = "crate"
-		}
-
-		// Generate deterministic seed from prop position
-		propSeed := int64(prop.X*1000 + prop.Y)
-
-		// Get or generate sprite (32x32 base size)
-		spriteImg := g.spriteGenerator.GetSprite(sprite.SpriteProp, propSubtype, propSeed, g.animationTicker/10, 32)
-
-		// Render sprite with scaling
-		if spriteImg != nil {
-			op := &ebiten.DrawImageOptions{}
-			scaleX := float64(spriteWidth) / float64(spriteImg.Bounds().Dx())
-			scaleY := float64(spriteHeight) / float64(spriteImg.Bounds().Dy())
-			op.GeoM.Scale(scaleX, scaleY)
-			op.GeoM.Translate(float64(drawStartX), float64(drawStartY))
-
-			// Apply distance-based alpha fade for far props
-			if dist > 250 {
-				alpha := 1.0 - (dist-250)/150
-				if alpha < 0.3 {
-					alpha = 0.3
-				}
-				op.ColorScale.Scale(1, 1, 1, float32(alpha))
-			}
-
-			// Apply color temperature tinting from nearby lights
-			if g.colorTempSystem != nil {
-				tint := g.colorTempSystem.CalculateTintAtPosition(prop.X, prop.Y)
-				if tint.A > 0 {
-					blend := float64(tint.A) / 255.0 * 0.35 // Moderate tinting for props
-					tintR := float32(1.0 + (float64(tint.R)/255.0-0.5)*blend)
-					tintG := float32(1.0 + (float64(tint.G)/255.0-0.5)*blend)
-					tintB := float32(1.0 + (float64(tint.B)/255.0-0.5)*blend)
-					op.ColorScale.Scale(tintR, tintG, tintB, 1.0)
-				}
-			}
-
-			screen.DrawImage(spriteImg, op)
-		}
+		g.renderSingleProp(screen, prop, planeX, planeY)
 	}
+}
+
+// calcCameraPlane computes camera plane vectors from direction and FOV.
+func (g *Game) calcCameraPlane() (float64, float64) {
+	fov := g.camera.FOV
+	planeX := -g.camera.DirY * fov / 66.0
+	planeY := g.camera.DirX * fov / 66.0
+	return planeX, planeY
+}
+
+// renderSingleProp renders a single prop with camera-space transform.
+func (g *Game) renderSingleProp(screen *ebiten.Image, prop *props.Prop, planeX, planeY float64) {
+	dx := prop.X - g.camera.X
+	dy := prop.Y - g.camera.Y
+
+	dist := dx*dx + dy*dy
+	if dist > 400 {
+		return
+	}
+
+	transformX, transformY := g.transformToCamera(dx, dy, planeX, planeY)
+	if transformY <= 0.1 {
+		return
+	}
+
+	spriteScreenX, spriteWidth, spriteHeight, drawStartX, drawStartY, visible := g.calcPropScreenBounds(transformX, transformY)
+	if !visible {
+		return
+	}
+	_ = spriteScreenX
+
+	propSubtype := mapPropTypeToSubtype(prop.SpriteType)
+	propSeed := int64(prop.X*1000 + prop.Y)
+	spriteImg := g.spriteGenerator.GetSprite(sprite.SpriteProp, propSubtype, propSeed, g.animationTicker/10, 32)
+	if spriteImg == nil {
+		return
+	}
+
+	op := &ebiten.DrawImageOptions{}
+	scaleX := float64(spriteWidth) / float64(spriteImg.Bounds().Dx())
+	scaleY := float64(spriteHeight) / float64(spriteImg.Bounds().Dy())
+	op.GeoM.Scale(scaleX, scaleY)
+	op.GeoM.Translate(float64(drawStartX), float64(drawStartY))
+
+	applyDistanceFade(op, dist)
+	g.applyColorTempScale(op, prop.X, prop.Y, 0.35)
+	screen.DrawImage(spriteImg, op)
+}
+
+// transformToCamera transforms world-relative offset to camera space.
+func (g *Game) transformToCamera(dx, dy, planeX, planeY float64) (float64, float64) {
+	invDet := 1.0 / (planeX*g.camera.DirY - g.camera.DirX*planeY)
+	transformX := invDet * (g.camera.DirY*dx - g.camera.DirX*dy)
+	transformY := invDet * (-planeY*dx + planeX*dy)
+	return transformX, transformY
+}
+
+// calcPropScreenBounds calculates screen bounds for a prop sprite.
+func (g *Game) calcPropScreenBounds(transformX, transformY float64) (int, int, int, int, int, bool) {
+	spriteScreenX := int((float64(config.C.InternalWidth) / 2.0) * (1.0 + transformX/transformY))
+	spriteHeight := int(float64(config.C.InternalHeight) / transformY)
+	spriteWidth := spriteHeight
+
+	drawStartX := spriteScreenX - spriteWidth/2
+	drawStartY := config.C.InternalHeight/2 - spriteHeight/2
+
+	if spriteScreenX+spriteWidth/2 < 0 || drawStartX >= config.C.InternalWidth {
+		return 0, 0, 0, 0, 0, false
+	}
+	if drawStartX < 0 {
+		drawStartX = 0
+	}
+	return spriteScreenX, spriteWidth, spriteHeight, drawStartX, drawStartY, true
+}
+
+// mapPropTypeToSubtype converts prop type enum to sprite subtype string.
+func mapPropTypeToSubtype(propType props.PropType) string {
+	switch propType {
+	case props.PropBarrel:
+		return "barrel"
+	case props.PropCrate:
+		return "crate"
+	case props.PropTable:
+		return "table"
+	case props.PropTerminal:
+		return "terminal"
+	case props.PropBones:
+		return "bones"
+	case props.PropPlant:
+		return "plant"
+	case props.PropPillar:
+		return "pillar"
+	case props.PropTorch:
+		return "torch"
+	case props.PropDebris:
+		return "debris"
+	case props.PropContainer:
+		return "container"
+	default:
+		return "crate"
+	}
+}
+
+// applyDistanceFade applies alpha fade based on distance.
+func applyDistanceFade(op *ebiten.DrawImageOptions, dist float64) {
+	if dist > 250 {
+		alpha := 1.0 - (dist-250)/150
+		if alpha < 0.3 {
+			alpha = 0.3
+		}
+		op.ColorScale.Scale(1, 1, 1, float32(alpha))
+	}
+}
+
+// applyColorTempScale applies color temperature tinting using ColorScale.
+func (g *Game) applyColorTempScale(op *ebiten.DrawImageOptions, worldX, worldY, blendFactor float64) {
+	if g.colorTempSystem == nil {
+		return
+	}
+	tint := g.colorTempSystem.CalculateTintAtPosition(worldX, worldY)
+	if tint.A == 0 {
+		return
+	}
+	blend := float64(tint.A) / 255.0 * blendFactor
+	tintR := float32(1.0 + (float64(tint.R)/255.0-0.5)*blend)
+	tintG := float32(1.0 + (float64(tint.G)/255.0-0.5)*blend)
+	tintB := float32(1.0 + (float64(tint.B)/255.0-0.5)*blend)
+	op.ColorScale.Scale(tintR, tintG, tintB, 1.0)
 }
 
 // renderFloorDetails draws procedural floor detail overlays for visual variety.
 func (g *Game) renderFloorDetails(screen *ebiten.Image) {
-	// Tile size for rendering (64x64 pixels per tile in this game)
-	tileSize := 64
+	const tileSize = 64
+	g.renderFloorTiles(screen, tileSize)
+	g.renderDetailOverlays(screen, tileSize)
+}
 
-	// First, render base floor tiles with material textures
+// renderFloorTiles renders base floor tiles with material textures.
+func (g *Game) renderFloorTiles(screen *ebiten.Image, tileSize int) {
 	for _, tile := range g.floorTiles {
-		// Calculate vector from camera to tile
 		dx := float64(tile.X) + 0.5 - g.camera.X
 		dy := float64(tile.Y) + 0.5 - g.camera.Y
 
-		// Check if tile is within visible range
-		dist := dx*dx + dy*dy
-		if dist > 36 { // Render up to 6 tile radius
+		if dx*dx+dy*dy > 36 {
 			continue
 		}
 
-		// Calculate screen position relative to camera
-		screenX := int(float64(config.C.InternalWidth)/2 + dx*float64(tileSize))
-		screenY := int(float64(config.C.InternalHeight)/2 + dy*float64(tileSize))
-
-		// Skip if off-screen
-		if screenX < -tileSize || screenX > config.C.InternalWidth+tileSize ||
-			screenY < -tileSize || screenY > config.C.InternalHeight+tileSize {
+		screenX, screenY, visible := g.calcTileScreenPos(dx, dy, tileSize)
+		if !visible {
 			continue
 		}
 
-		// Render the base tile texture
 		tileImg := g.floorDetailSystem.RenderTile(tile)
-		if tileImg != nil {
-			op := &ebiten.DrawImageOptions{}
-			op.GeoM.Translate(float64(screenX-tileSize/2), float64(screenY-tileSize/2))
-
-			// Apply color temperature tinting from nearby lights
-			if g.colorTempSystem != nil {
-				tint := g.colorTempSystem.CalculateTintAtPosition(float64(tile.X)+0.5, float64(tile.Y)+0.5)
-				if tint.A > 0 {
-					// Apply tint as a color scale
-					blend := float64(tint.A) / 255.0 * 0.3 // Subtle tinting
-					tintR := 1.0 + (float64(tint.R)/255.0-0.5)*blend
-					tintG := 1.0 + (float64(tint.G)/255.0-0.5)*blend
-					tintB := 1.0 + (float64(tint.B)/255.0-0.5)*blend
-					op.ColorM.Scale(tintR, tintG, tintB, 1.0)
-				}
-			}
-
-			screen.DrawImage(tileImg, op)
+		if tileImg == nil {
+			continue
 		}
+
+		op := &ebiten.DrawImageOptions{}
+		op.GeoM.Translate(float64(screenX-tileSize/2), float64(screenY-tileSize/2))
+		g.applyColorTempTint(op, float64(tile.X)+0.5, float64(tile.Y)+0.5, 0.3)
+		screen.DrawImage(tileImg, op)
 	}
+}
 
-	// Then, render detail overlays on top
+// renderDetailOverlays renders detail overlays on top of floor tiles.
+func (g *Game) renderDetailOverlays(screen *ebiten.Image, tileSize int) {
 	for _, detail := range g.floorDetails {
-		// Calculate screen position for this floor tile
-		// Map coordinates (detail.X, detail.Y) to screen coordinates
-		// For a raycaster/top-down hybrid, floor details are rendered in the renderer
-		// Here we render them as overlays on the already-rendered floor
-
-		// Calculate vector from camera to detail
 		dx := float64(detail.X) + 0.5 - g.camera.X
 		dy := float64(detail.Y) + 0.5 - g.camera.Y
 
-		// Check if detail is within visible range
-		dist := dx*dx + dy*dy
-		if dist > 25 { // Only render nearby details (5 tile radius)
+		if dx*dx+dy*dy > 25 {
 			continue
 		}
 
-		// For top-down rendering overlay approach:
-		// Calculate screen position relative to camera
-		screenX := int(float64(config.C.InternalWidth)/2 + dx*float64(tileSize))
-		screenY := int(float64(config.C.InternalHeight)/2 + dy*float64(tileSize))
-
-		// Skip if off-screen
-		if screenX < -tileSize || screenX > config.C.InternalWidth+tileSize ||
-			screenY < -tileSize || screenY > config.C.InternalHeight+tileSize {
+		screenX, screenY, visible := g.calcTileScreenPos(dx, dy, tileSize)
+		if !visible {
 			continue
 		}
 
-		// Render the detail sprite
 		detailImg := g.floorDetailSystem.RenderDetail(detail)
-		if detailImg != nil {
-			op := &ebiten.DrawImageOptions{}
-			op.GeoM.Translate(float64(screenX-tileSize/2), float64(screenY-tileSize/2))
-
-			// Use blend mode for overlay effect
-			op.ColorM.Scale(1, 1, 1, detail.Intensity*0.8)
-
-			// Apply color temperature tinting from nearby lights
-			if g.colorTempSystem != nil {
-				tint := g.colorTempSystem.CalculateTintAtPosition(float64(detail.X)+0.5, float64(detail.Y)+0.5)
-				if tint.A > 0 {
-					// Apply subtle tint
-					blend := float64(tint.A) / 255.0 * 0.25
-					tintR := 1.0 + (float64(tint.R)/255.0-0.5)*blend
-					tintG := 1.0 + (float64(tint.G)/255.0-0.5)*blend
-					tintB := 1.0 + (float64(tint.B)/255.0-0.5)*blend
-					op.ColorM.Scale(tintR, tintG, tintB, 1.0)
-				}
-			}
-
-			screen.DrawImage(detailImg, op)
+		if detailImg == nil {
+			continue
 		}
+
+		op := &ebiten.DrawImageOptions{}
+		op.GeoM.Translate(float64(screenX-tileSize/2), float64(screenY-tileSize/2))
+		op.ColorM.Scale(1, 1, 1, detail.Intensity*0.8)
+		g.applyColorTempTint(op, float64(detail.X)+0.5, float64(detail.Y)+0.5, 0.25)
+		screen.DrawImage(detailImg, op)
 	}
+}
+
+// calcTileScreenPos calculates screen position for a tile at camera-relative offset.
+func (g *Game) calcTileScreenPos(dx, dy float64, tileSize int) (int, int, bool) {
+	screenX := int(float64(config.C.InternalWidth)/2 + dx*float64(tileSize))
+	screenY := int(float64(config.C.InternalHeight)/2 + dy*float64(tileSize))
+
+	if screenX < -tileSize || screenX > config.C.InternalWidth+tileSize ||
+		screenY < -tileSize || screenY > config.C.InternalHeight+tileSize {
+		return 0, 0, false
+	}
+	return screenX, screenY, true
+}
+
+// applyColorTempTint applies color temperature tinting from nearby lights.
+func (g *Game) applyColorTempTint(op *ebiten.DrawImageOptions, worldX, worldY, blendFactor float64) {
+	if g.colorTempSystem == nil {
+		return
+	}
+	tint := g.colorTempSystem.CalculateTintAtPosition(worldX, worldY)
+	if tint.A == 0 {
+		return
+	}
+	blend := float64(tint.A) / 255.0 * blendFactor
+	tintR := 1.0 + (float64(tint.R)/255.0-0.5)*blend
+	tintG := 1.0 + (float64(tint.G)/255.0-0.5)*blend
+	tintB := 1.0 + (float64(tint.B)/255.0-0.5)*blend
+	op.ColorM.Scale(tintR, tintG, tintB, 1.0)
 }
 
 // renderShadows draws dynamic shadows for props and entities based on active lights.

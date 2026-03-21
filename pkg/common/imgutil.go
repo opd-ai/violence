@@ -100,7 +100,7 @@ func bresenhamSetup(x1, y1, x2, y2 int) (dx, dy, sx, sy, err int) {
 		sy = 1
 	}
 	err = dx - dy
-	return
+	return dx, dy, sx, sy, err
 }
 
 // bresenhamStep advances one step in Bresenham's line algorithm.

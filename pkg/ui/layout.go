@@ -96,67 +96,56 @@ func (lm *LayoutManager) Clear() {
 // Reserve attempts to reserve screen space for a UI element.
 // Returns adjusted position if moved to avoid overlap, or original if no conflict.
 func (lm *LayoutManager) Reserve(id string, x, y, width, height float32, priority Priority, canMove bool) (float32, float32, bool) {
-	// Clamp to screen bounds if movable
 	if canMove {
-		if x < 0 {
-			x = 0
-		}
-		if y < 0 {
-			y = 0
-		}
-		if x+width > float32(lm.screenWidth) {
-			x = float32(lm.screenWidth) - width
-		}
-		if y+height > float32(lm.screenHeight) {
-			y = float32(lm.screenHeight) - height
-		}
+		x, y = lm.clampToScreen(x, y, width, height)
 	}
 
 	elem := &UIElement{
-		ID: id,
-		Bounds: Rect{
-			X:      x,
-			Y:      y,
-			Width:  width,
-			Height: height,
-		},
+		ID:       id,
+		Bounds:   Rect{X: x, Y: y, Width: width, Height: height},
 		Priority: priority,
 		CanMove:  canMove,
 	}
 
-	// Check for overlaps with existing elements
 	conflicting := lm.findConflicts(elem)
-
 	if len(conflicting) == 0 {
-		// No conflicts, reserve at requested position
 		lm.elements = append(lm.elements, elem)
 		return x, y, true
 	}
 
-	// Handle conflicts based on priority
+	return lm.resolveConflicts(elem, conflicting, x, y, priority, canMove)
+}
+
+// clampToScreen constrains coordinates to screen bounds.
+func (lm *LayoutManager) clampToScreen(x, y, width, height float32) (float32, float32) {
+	if x < 0 {
+		x = 0
+	}
+	if y < 0 {
+		y = 0
+	}
+	if x+width > float32(lm.screenWidth) {
+		x = float32(lm.screenWidth) - width
+	}
+	if y+height > float32(lm.screenHeight) {
+		y = float32(lm.screenHeight) - height
+	}
+	return x, y
+}
+
+// resolveConflicts handles element placement when conflicts exist.
+func (lm *LayoutManager) resolveConflicts(elem *UIElement, conflicting []*UIElement, x, y float32, priority Priority, canMove bool) (float32, float32, bool) {
 	if !canMove {
-		// Fixed element: force others to move
 		lm.elements = append(lm.elements, elem)
 		return x, y, true
 	}
 
-	// Find if we should yield to existing elements
-	shouldYield := false
-	for _, conflict := range conflicting {
-		if conflict.Priority >= priority || !conflict.CanMove {
-			shouldYield = true
-			break
-		}
-	}
-
-	if !shouldYield {
-		// Higher priority: remove lower priority elements
+	if !lm.shouldYieldToConflicts(conflicting, priority) {
 		lm.removeConflicts(conflicting)
 		lm.elements = append(lm.elements, elem)
 		return x, y, true
 	}
 
-	// Lower priority: try to find alternative position
 	newX, newY, found := lm.findAlternativePosition(elem, conflicting)
 	if found {
 		elem.Bounds.X = newX
@@ -165,13 +154,22 @@ func (lm *LayoutManager) Reserve(id string, x, y, width, height float32, priorit
 		return newX, newY, true
 	}
 
-	// No space found: don't render this element
 	lm.logger.WithFields(logrus.Fields{
-		"element": id,
+		"element": elem.ID,
 		"x":       x,
 		"y":       y,
 	}).Debug("UI element could not find space - suppressing")
 	return x, y, false
+}
+
+// shouldYieldToConflicts checks if element should yield to existing conflicts.
+func (lm *LayoutManager) shouldYieldToConflicts(conflicting []*UIElement, priority Priority) bool {
+	for _, conflict := range conflicting {
+		if conflict.Priority >= priority || !conflict.CanMove {
+			return true
+		}
+	}
+	return false
 }
 
 // ReserveDamageNumber reserves space for a damage number with stacking.

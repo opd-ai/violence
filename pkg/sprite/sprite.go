@@ -1502,54 +1502,75 @@ func (g *Generator) generateFlyingEnemy(img *image.RGBA, rng *rand.Rand, frame i
 	cx, cy := size/2, size/2
 
 	bodyColor := g.getCreatureColor("flying", rng)
-	wingColor := color.RGBA{
-		R: bodyColor.R / 2,
-		G: bodyColor.G / 2,
-		B: bodyColor.B / 2,
-		A: 200,
-	}
+	wingColor := deriveWingColor(bodyColor)
+	hoverOffset := calcHoverOffset(frame)
 
-	hoverOffset := 0
-	if frame%4 < 2 {
-		hoverOffset = -2
-	} else {
-		hoverOffset = 2
-	}
-
-	wingSpan := size / 2
 	wingH := size / 4
 	if wingH == 0 {
 		return
 	}
 	wingY := cy + hoverOffset - wingH/2
+	wingAngle := calcWingAngle(frame)
 
-	wingAngle := 0.0
+	g.drawFlyingWings(img, cx, wingY, size, wingH, wingAngle, wingColor)
+	g.drawFlyingBody(img, cx, cy, size, hoverOffset, bodyColor)
+	g.drawFlyingHead(img, cx, cy, size, hoverOffset, bodyColor)
+	g.drawFlyingTail(img, cx, cy, size, hoverOffset, frame, bodyColor)
+	g.applyMaterialDetail(img, image.Rect(cx-size/2, wingY, cx+size/2, wingY+wingH), MaterialMembrane, rng.Int63(), 0.6, wingColor)
+}
+
+// deriveWingColor creates a darker wing color from body color.
+func deriveWingColor(bodyColor color.RGBA) color.RGBA {
+	return color.RGBA{R: bodyColor.R / 2, G: bodyColor.G / 2, B: bodyColor.B / 2, A: 200}
+}
+
+// calcHoverOffset calculates vertical hover offset based on animation frame.
+func calcHoverOffset(frame int) int {
 	if frame%4 < 2 {
-		wingAngle = math.Pi / 6
-	} else {
-		wingAngle = -math.Pi / 6
+		return -2
 	}
+	return 2
+}
 
+// calcWingAngle calculates wing flap angle based on animation frame.
+func calcWingAngle(frame int) float64 {
+	if frame%4 < 2 {
+		return math.Pi / 6
+	}
+	return -math.Pi / 6
+}
+
+// drawFlyingWings draws both wings of a flying creature.
+func (g *Generator) drawFlyingWings(img *image.RGBA, cx, wingY, size, wingH int, wingAngle float64, wingColor color.RGBA) {
+	wingSpan := size / 2
 	for side := -1; side <= 1; side += 2 {
-		wingCenterX := cx + side*size/8
-		for y := 0; y < wingH; y++ {
-			yOffset := float64(y) - float64(wingH)/2
-			rotatedY := int(yOffset*math.Cos(wingAngle)) + wingY + wingH/2
-			wingWidth := int(float64(wingSpan) * (1.0 - float64(y)/float64(wingH)))
+		g.drawSingleWing(img, cx, wingY, size, wingH, wingSpan, wingAngle, side, wingColor)
+	}
+}
 
-			if wingWidth > 0 {
-				for x := 0; x < wingWidth; x++ {
-					px := wingCenterX + side*x
-					py := rotatedY
-					if px >= 0 && px < img.Bounds().Dx() && py >= 0 && py < img.Bounds().Dy() {
-						alpha := uint8(200 - uint8(float64(x)/float64(wingWidth)*150))
-						img.Set(px, py, color.RGBA{R: wingColor.R, G: wingColor.G, B: wingColor.B, A: alpha})
-					}
-				}
+// drawSingleWing draws one wing of a flying creature.
+func (g *Generator) drawSingleWing(img *image.RGBA, cx, wingY, size, wingH, wingSpan int, wingAngle float64, side int, wingColor color.RGBA) {
+	wingCenterX := cx + side*size/8
+	for y := 0; y < wingH; y++ {
+		yOffset := float64(y) - float64(wingH)/2
+		rotatedY := int(yOffset*math.Cos(wingAngle)) + wingY + wingH/2
+		wingWidth := int(float64(wingSpan) * (1.0 - float64(y)/float64(wingH)))
+
+		if wingWidth <= 0 {
+			continue
+		}
+		for x := 0; x < wingWidth; x++ {
+			px, py := wingCenterX+side*x, rotatedY
+			if px >= 0 && px < img.Bounds().Dx() && py >= 0 && py < img.Bounds().Dy() {
+				alpha := uint8(200 - uint8(float64(x)/float64(wingWidth)*150))
+				img.Set(px, py, color.RGBA{R: wingColor.R, G: wingColor.G, B: wingColor.B, A: alpha})
 			}
 		}
 	}
+}
 
+// drawFlyingBody draws the body of a flying creature.
+func (g *Generator) drawFlyingBody(img *image.RGBA, cx, cy, size, hoverOffset int, bodyColor color.RGBA) {
 	bodyW := size / 5
 	bodyH := size / 3
 	bodyY := cy + hoverOffset - bodyH/2
@@ -1560,30 +1581,36 @@ func (g *Generator) generateFlyingEnemy(img *image.RGBA, rng *rand.Rand, frame i
 				dy := float64(y - bodyY)
 				shade := 0.8 + 0.4*(1.0-math.Abs(dy-float64(bodyH)/2)/float64(bodyH))
 				r := uint8(float64(bodyColor.R) * shade)
-				g := uint8(float64(bodyColor.G) * shade)
+				gr := uint8(float64(bodyColor.G) * shade)
 				b := uint8(float64(bodyColor.B) * shade)
-				img.Set(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
+				img.Set(x, y, color.RGBA{R: r, G: gr, B: b, A: 255})
 			}
 		}
 	}
+}
 
+// drawFlyingHead draws the head and eyes of a flying creature.
+func (g *Generator) drawFlyingHead(img *image.RGBA, cx, cy, size, hoverOffset int, bodyColor color.RGBA) {
+	bodyH := size / 3
+	bodyY := cy + hoverOffset - bodyH/2
 	headRadius := size / 9
 	headY := bodyY - 2
-	common.FillCircle(img, cx, headY, headRadius, bodyColor)
 
+	common.FillCircle(img, cx, headY, headRadius, bodyColor)
 	eyeColor := color.RGBA{R: 255, G: 100, B: 0, A: 255}
 	common.FillCircle(img, cx-headRadius/2, headY, 2, eyeColor)
 	common.FillCircle(img, cx+headRadius/2, headY, 2, eyeColor)
+}
 
+// drawFlyingTail draws the tail of a flying creature.
+func (g *Generator) drawFlyingTail(img *image.RGBA, cx, cy, size, hoverOffset, frame int, bodyColor color.RGBA) {
+	bodyH := size / 3
+	bodyY := cy + hoverOffset - bodyH/2
 	tailY := bodyY + bodyH
 	tailLen := size / 5
 	tailEndY := tailY + tailLen
 	tailSway := int(math.Sin(float64(frame)*0.4) * 3)
 	common.DrawThickLine(img, cx, tailY, cx+tailSway, tailEndY, 2, bodyColor)
-
-	// Apply membrane texture to wings
-	wingBounds := image.Rect(cx-size/2, wingY, cx+size/2, wingY+wingH)
-	g.applyMaterialDetail(img, wingBounds, MaterialMembrane, rng.Int63(), 0.6, wingColor)
 }
 
 // generateAmorphousEnemy creates blob/slime creature sprites.

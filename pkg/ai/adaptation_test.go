@@ -137,7 +137,7 @@ func TestComputeAdaptation(t *testing.T) {
 	tests := []struct {
 		name            string
 		setupProfile    func(*PlayerBehaviorProfile)
-		checkAdaptation func(*testing.T, AIAdaptation)
+		checkAdaptation func(*testing.T, Adaptation)
 	}{
 		{
 			name: "counter melee rusher",
@@ -146,7 +146,7 @@ func TestComputeAdaptation(t *testing.T) {
 				p.MeleeFrequency = 0.9
 				p.AverageEngagementRange = 3.0
 			},
-			checkAdaptation: func(t *testing.T, a AIAdaptation) {
+			checkAdaptation: func(t *testing.T, a Adaptation) {
 				if a.PreferredRangeMultiplier <= 1.0 {
 					t.Error("Expected increased range multiplier for melee counter")
 				}
@@ -162,7 +162,7 @@ func TestComputeAdaptation(t *testing.T) {
 				p.RangedFrequency = 0.9
 				p.AverageEngagementRange = 15.0
 			},
-			checkAdaptation: func(t *testing.T, a AIAdaptation) {
+			checkAdaptation: func(t *testing.T, a Adaptation) {
 				if a.PursuitAggression <= 0.7 {
 					t.Error("Expected high pursuit aggression for kiter counter")
 				}
@@ -177,7 +177,7 @@ func TestComputeAdaptation(t *testing.T) {
 				p.ObservationCount = 10
 				p.PrefersCover = 0.8
 			},
-			checkAdaptation: func(t *testing.T, a AIAdaptation) {
+			checkAdaptation: func(t *testing.T, a Adaptation) {
 				if a.FlankingPriority <= 0.8 {
 					t.Error("Expected high flanking priority for cover counter")
 				}
@@ -192,7 +192,7 @@ func TestComputeAdaptation(t *testing.T) {
 				p.ObservationCount = 10
 				p.StealthFrequency = 0.9
 			},
-			checkAdaptation: func(t *testing.T, a AIAdaptation) {
+			checkAdaptation: func(t *testing.T, a Adaptation) {
 				if a.AlertnessModifier <= 1.3 {
 					t.Error("Expected high alertness modifier for stealth counter")
 				}
@@ -207,7 +207,7 @@ func TestComputeAdaptation(t *testing.T) {
 				p.ObservationCount = 10
 				p.ExplosiveFrequency = 0.9
 			},
-			checkAdaptation: func(t *testing.T, a AIAdaptation) {
+			checkAdaptation: func(t *testing.T, a Adaptation) {
 				if a.SpreadFormation <= 0.8 {
 					t.Error("Expected high spread formation for explosive counter")
 				}
@@ -222,7 +222,7 @@ func TestComputeAdaptation(t *testing.T) {
 				p.ObservationCount = 15
 				p.HitAndRunCount = 8
 			},
-			checkAdaptation: func(t *testing.T, a AIAdaptation) {
+			checkAdaptation: func(t *testing.T, a Adaptation) {
 				if a.PursuitAggression <= 0.8 {
 					t.Error("Expected high pursuit for hit-and-run counter")
 				}

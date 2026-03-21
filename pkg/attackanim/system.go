@@ -5,6 +5,7 @@ import (
 	"math"
 	"reflect"
 
+	"github.com/opd-ai/violence/pkg/common"
 	"github.com/opd-ai/violence/pkg/engine"
 	"github.com/sirupsen/logrus"
 )
@@ -31,7 +32,7 @@ func (s *System) Update(w *engine.World) {
 	compType := reflect.TypeOf(&Component{})
 	entities := w.Query(compType)
 
-	deltaTime := 1.0 / 60.0
+	deltaTime := common.DeltaTime
 
 	for _, entity := range entities {
 		comp := s.getComponent(w, entity)
