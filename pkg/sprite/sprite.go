@@ -128,40 +128,52 @@ func (g *Generator) generateSprite(spriteType SpriteType, subtype string, seed i
 	rgba := pool.GlobalPools.Images.Get(size, size)
 	rng := rand.New(rand.NewSource(seed))
 
-	// Determine dominant material for dithering and rim lighting based on sprite type
+	// Determine dominant material for dithering, rim lighting, and normal perturbation
 	var dominantMaterial dither.Material
 	var rimMaterial rimlight.Material
+	var pbrMaterial MaterialDetail
 
 	switch spriteType {
 	case SpriteEnemy:
 		g.generateEnemySprite(rgba, subtype, rng, frame)
 		dominantMaterial = g.getDominantMaterialForEnemy(subtype)
 		rimMaterial = g.getRimMaterialForEnemy(subtype)
+		pbrMaterial = g.getPBRMaterialForEnemy(subtype)
 	case SpriteProp:
 		g.generatePropSprite(rgba, subtype, rng, frame)
 		dominantMaterial = g.getDominantMaterialForProp(subtype)
 		rimMaterial = g.getRimMaterialForProp(subtype)
+		pbrMaterial = g.getPBRMaterialForProp(subtype)
 	case SpriteLoreItem:
 		g.generateLoreSprite(rgba, subtype, rng, frame)
 		dominantMaterial = dither.MaterialCrystal
 		rimMaterial = rimlight.MaterialMagic
+		pbrMaterial = MaterialCrystal
 	case SpriteDestructible:
 		g.generateDestructibleSprite(rgba, subtype, rng, frame)
 		dominantMaterial = dither.MaterialLeather
 		rimMaterial = rimlight.MaterialDefault
+		pbrMaterial = MaterialLeather
 	case SpritePickup:
 		g.generatePickupSprite(rgba, subtype, rng, frame)
 		dominantMaterial = dither.MaterialMetal
 		rimMaterial = rimlight.MaterialMetal
+		pbrMaterial = MaterialMetal
 	case SpriteProjectile:
 		g.generateProjectileSprite(rgba, subtype, rng, frame)
 		dominantMaterial = dither.MaterialCrystal
 		rimMaterial = rimlight.MaterialMagic
+		pbrMaterial = MaterialCrystal
 	default:
 		g.generateDefaultSprite(rgba, rng)
 		dominantMaterial = dither.MaterialDefault
 		rimMaterial = rimlight.MaterialDefault
+		pbrMaterial = MaterialLeather
 	}
+
+	// Apply normal perturbation pass for micro-surface detail
+	// This adds material-specific surface texture to lighting calculations
+	g.applyNormalPerturbationPass(rgba, pbrMaterial, seed)
 
 	// Apply dithering as final pass for smoother tonal transitions
 	g.applyDitheringPass(rgba, dominantMaterial, seed)
@@ -185,6 +197,112 @@ func (g *Generator) applyDitheringPass(img *image.RGBA, material dither.Material
 
 	// Apply edge-aware dithering for smooth shading transitions
 	g.ditherSys.ApplyEdgeDithering(img, img.Bounds(), intensity*0.5)
+}
+
+// applyNormalPerturbationPass applies material-specific normal perturbation shading.
+// This creates micro-surface detail that makes materials appear more realistic by
+// perturbing surface normals to add texture-appropriate lighting variation.
+func (g *Generator) applyNormalPerturbationPass(img *image.RGBA, material MaterialDetail, seed int64) {
+	bounds := img.Bounds()
+	cx := bounds.Dx() / 2
+	cy := bounds.Dy() / 2
+	radius := float64(bounds.Dx()) / 2
+
+	perturbCfg := NormalPerturbForMaterial(material)
+
+	for y := 0; y < bounds.Dy(); y++ {
+		for x := 0; x < bounds.Dx(); x++ {
+			// Skip transparent pixels
+			existingColor := img.At(x, y)
+			_, _, _, ea := existingColor.RGBA()
+			if ea == 0 {
+				continue
+			}
+
+			// Get current color
+			er, eg, eb, _ := existingColor.RGBA()
+			r := float64(er >> 8)
+			gr := float64(eg >> 8)
+			b := float64(eb >> 8)
+
+			// Calculate base normal from position (assuming spherical)
+			dx := float64(x - cx)
+			dy := float64(y - cy)
+			nx, ny, nz := CalculateSurfaceNormal(dx, dy, radius)
+
+			// Perturb the normal based on material
+			pnx, pny, pnz := PerturbNormal(nx, ny, nz, x, y, material, seed, perturbCfg)
+
+			// Calculate lighting adjustment from perturbed normal
+			// Use default light direction (-0.5773, -0.5773, 0.5773) normalized
+			lightDirX, lightDirY, lightDirZ := -0.5773, -0.5773, 0.5773
+
+			// Original NdotL
+			origNdotL := math.Max(0, nx*lightDirX+ny*lightDirY+nz*lightDirZ)
+			// Perturbed NdotL
+			perturbedNdotL := math.Max(0, pnx*lightDirX+pny*lightDirY+pnz*lightDirZ)
+
+			// Calculate lighting adjustment factor
+			// We don't want drastic changes, just subtle surface detail
+			lightAdjust := 1.0 + (perturbedNdotL-origNdotL)*0.4
+
+			// Apply adjustment
+			r = math.Max(0, math.Min(255, r*lightAdjust))
+			gr = math.Max(0, math.Min(255, gr*lightAdjust))
+			b = math.Max(0, math.Min(255, b*lightAdjust))
+
+			img.Set(x, y, color.RGBA{
+				R: uint8(r),
+				G: uint8(gr),
+				B: uint8(b),
+				A: uint8(ea >> 8),
+			})
+		}
+	}
+}
+
+// getPBRMaterialForEnemy returns the PBR material type for an enemy subtype.
+func (g *Generator) getPBRMaterialForEnemy(subtype string) MaterialDetail {
+	switch subtype {
+	case "humanoid", "skeleton", "zombie":
+		return MaterialLeather
+	case "quadruped", "wolf", "bear":
+		return MaterialFur
+	case "insect", "spider", "scorpion":
+		return MaterialChitin
+	case "serpent", "snake", "dragon":
+		return MaterialScales
+	case "flying", "bat", "bird":
+		return MaterialFur
+	case "amorphous", "slime", "ooze":
+		return MaterialSlime
+	case "golem", "robot", "mech":
+		return MaterialMetal
+	case "elemental", "spirit", "ghost":
+		return MaterialCrystal
+	default:
+		return MaterialLeather
+	}
+}
+
+// getPBRMaterialForProp returns the PBR material type for a prop subtype.
+func (g *Generator) getPBRMaterialForProp(subtype string) MaterialDetail {
+	switch subtype {
+	case "barrel", "crate", "table":
+		return MaterialLeather // Wood-like
+	case "terminal", "container":
+		return MaterialMetal
+	case "bones", "debris":
+		return MaterialLeather
+	case "plant":
+		return MaterialCloth
+	case "pillar":
+		return MaterialLeather
+	case "torch":
+		return MaterialCrystal
+	default:
+		return MaterialLeather
+	}
 }
 
 // getDominantMaterialForEnemy returns the dither material for an enemy subtype.

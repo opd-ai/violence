@@ -331,9 +331,31 @@ func (g *Generator) ApplyPBRShadingToRegion(
 	geometryType string, // "spherical", "cylindrical", "planar"
 	light LightConfig,
 ) {
+	// Use the enhanced version with default seed
+	g.ApplyPBRShadingToRegionWithSeed(img, bounds, material, geometryType, light, 0)
+}
+
+// ApplyPBRShadingToRegionWithSeed applies physically-based shading with normal perturbation.
+// The seed parameter enables deterministic normal perturbation for micro-surface detail.
+// When seed is 0, perturbation is disabled for backward compatibility.
+func (g *Generator) ApplyPBRShadingToRegionWithSeed(
+	img *image.RGBA,
+	bounds image.Rectangle,
+	material MaterialDetail,
+	geometryType string,
+	light LightConfig,
+	seed int64,
+) {
 	cx := (bounds.Min.X + bounds.Max.X) / 2
 	cy := (bounds.Min.Y + bounds.Max.Y) / 2
 	radius := float64(bounds.Max.X-bounds.Min.X) / 2
+
+	// Get perturbation config for this material (only if seed is provided)
+	enablePerturbation := seed != 0
+	var perturbCfg NormalPerturbConfig
+	if enablePerturbation {
+		perturbCfg = NormalPerturbForMaterial(material)
+	}
 
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
@@ -372,6 +394,11 @@ func (g *Generator) ApplyPBRShadingToRegion(
 				nx, ny, nz = CalculatePlanarNormal(0, 0)
 			default:
 				nx, ny, nz = CalculateSurfaceNormal(dx, dy, radius)
+			}
+
+			// Apply normal perturbation for micro-surface detail if enabled
+			if enablePerturbation {
+				nx, ny, nz = PerturbNormal(nx, ny, nz, x, y, material, seed, perturbCfg)
 			}
 
 			// Calculate ambient occlusion (assume bottom contact for Y > center)
