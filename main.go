@@ -92,6 +92,7 @@ import (
 	"github.com/opd-ai/violence/pkg/squad"
 	"github.com/opd-ai/violence/pkg/stats"
 	"github.com/opd-ai/violence/pkg/status"
+	"github.com/opd-ai/violence/pkg/statusbar"
 	"github.com/opd-ai/violence/pkg/statusfx"
 	"github.com/opd-ai/violence/pkg/statustint"
 	"github.com/opd-ai/violence/pkg/telegraph"
@@ -448,6 +449,9 @@ type Game struct {
 
 	// Toast notification system for action feedback (item pickups, level ups, achievements)
 	toastSystem *toast.System
+
+	// Status bar system for displaying active status effects on player HUD
+	statusBarSystem *statusbar.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -682,6 +686,9 @@ func NewGame() *Game {
 	// Initialize toast notification system for action feedback
 	g.toastSystem = toast.NewSystem(g.genreID)
 	g.toastSystem.SetScreenSize(config.C.InternalWidth, config.C.InternalHeight)
+
+	// Initialize status bar system for displaying player status effects
+	g.statusBarSystem = statusbar.NewSystem(g.genreID)
 
 	// Connect sliding system to spatial index
 	game.ConnectSlidingSystem(g.slidingSystem, g.spatialSystem)
@@ -1579,6 +1586,11 @@ func (g *Game) initializePlayer() {
 	crosshairComp := crosshair.NewComponent()
 	crosshairComp.WeaponType = "ranged" // Default to ranged crosshair
 	g.world.AddComponent(g.playerEntity, crosshairComp)
+
+	// Add status bar component to player for displaying active status effects
+	statusBarComp := statusbar.NewComponent()
+	statusBarComp.SetPosition(4, 55) // Below health/armor bars
+	g.world.AddComponent(g.playerEntity, statusBarComp)
 }
 
 // findSpawnPosition finds a safe starting position for the player.
@@ -1796,6 +1808,7 @@ func (g *Game) setGenreForGameplaySystems(genreID string) {
 	trySetGenre(g.playerSpriteSystem, genreID)
 	trySetGenre(g.proximityUISystem, genreID)
 	trySetGenre(g.toastSystem, genreID)
+	trySetGenre(g.statusBarSystem, genreID)
 }
 
 // loadGame loads a saved game state.
@@ -4896,6 +4909,12 @@ func (g *Game) renderOverlaysAndHUD(screen *ebiten.Image, camX, camY float64) {
 
 	g.hud.Update()
 	ui.DrawHUD(screen, g.hud)
+
+	// Render player status effect icons (buffs/debuffs)
+	if g.statusBarSystem != nil && g.playerEntity != 0 {
+		g.statusBarSystem.UpdatePlayerStatusBar(g.world, g.playerEntity)
+		g.statusBarSystem.Render(screen, g.world, g.playerEntity)
+	}
 
 	// Render toast notifications for action feedback
 	if g.toastSystem != nil {
