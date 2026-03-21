@@ -104,6 +104,7 @@ import (
 	"github.com/opd-ai/violence/pkg/weapon"
 	"github.com/opd-ai/violence/pkg/weaponanim"
 	"github.com/opd-ai/violence/pkg/weather"
+	"github.com/opd-ai/violence/pkg/wetness"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/image/font/basicfont"
 )
@@ -430,6 +431,10 @@ type Game struct {
 
 	// UI render caching system for dirty-flag based optimization
 	uiCacheSystem *uicache.System
+
+	// Surface wetness system for puddles and wet surface rendering
+	wetnessSystem  *wetness.System
+	wetnessPattern *wetness.WetnessPattern
 }
 
 // NewGame creates and initializes a new game instance.
@@ -652,6 +657,9 @@ func NewGame() *Game {
 	// Initialize UI render caching system for dirty-flag based optimization
 	g.uiCacheSystem = uicache.NewSystem(config.C.InternalWidth, config.C.InternalHeight)
 
+	// Initialize surface wetness system for puddles and wet surface rendering
+	g.wetnessSystem = wetness.NewSystem(g.genreID, config.C.InternalWidth, config.C.InternalHeight)
+
 	// Connect sliding system to spatial index
 	game.ConnectSlidingSystem(g.slidingSystem, g.spatialSystem)
 
@@ -836,6 +844,11 @@ func (g *Game) generateLevel() {
 
 	// Generate floor details for visual variety
 	g.generateFloorDetails(tiles)
+
+	// Generate wetness pattern for puddles and wet surfaces
+	if g.wetnessSystem != nil {
+		g.wetnessPattern = g.wetnessSystem.GenerateWetnessPattern(tiles, int64(g.seed)^0x574554)
+	}
 
 	if len(tiles) > 0 && len(tiles[0]) > 0 {
 		g.automap = automap.NewMap(len(tiles[0]), len(tiles))
@@ -1627,6 +1640,7 @@ func (g *Game) setGenreForVisualSystems(genreID string) {
 	trySetGenre(g.impactBurstRenderer, genreID)
 	trySetGenre(g.flickerBridge, genreID)
 	trySetGenre(g.statusTintSystem, genreID)
+	trySetGenre(g.wetnessSystem, genreID)
 }
 
 // setGenreForGameplaySystems updates genre for UI and gameplay systems.
@@ -4982,6 +4996,7 @@ func (g *Game) renderFloorDetails(screen *ebiten.Image) {
 	const tileSize = 64
 	g.renderFloorTiles(screen, tileSize)
 	g.renderDetailOverlays(screen, tileSize)
+	g.renderWetness(screen)
 }
 
 // renderFloorTiles renders base floor tiles with material textures.
@@ -5065,6 +5080,47 @@ func (g *Game) applyColorTempTint(op *ebiten.DrawImageOptions, worldX, worldY, b
 	tintG := 1.0 + (float64(tint.G)/255.0-0.5)*blend
 	tintB := 1.0 + (float64(tint.B)/255.0-0.5)*blend
 	op.ColorM.Scale(tintR, tintG, tintB, 1.0)
+}
+
+// renderWetness draws surface wetness overlays including puddles and wet surface highlights.
+func (g *Game) renderWetness(screen *ebiten.Image) {
+	if g.wetnessSystem == nil || g.wetnessPattern == nil {
+		return
+	}
+
+	// Convert lighting system lights to wetness light sources for specular calculations
+	lights := g.collectWetnessLights()
+
+	// Render wetness with camera offset for proper positioning
+	g.wetnessSystem.RenderWetness(screen, g.wetnessPattern, lights, g.camera.X*64, g.camera.Y*64)
+}
+
+// collectWetnessLights gathers light sources for wetness specular calculations.
+func (g *Game) collectWetnessLights() []wetness.LightSource {
+	var lights []wetness.LightSource
+
+	// Convert torch/point lights from the lighting system
+	if g.propsManager != nil {
+		// Collect lighting.Light first, then convert
+		var torchLights []lighting.Light
+		torchLights = g.collectTorchLights(torchLights)
+
+		for _, torch := range torchLights {
+			lights = append(lights, wetness.LightSource{
+				X:             torch.X * 64, // Convert to pixel coordinates
+				Y:             torch.Y * 64,
+				Radius:        torch.Radius * 64,
+				Intensity:     torch.Intensity,
+				R:             torch.R,
+				G:             torch.G,
+				B:             torch.B,
+				IsWarm:        true,
+				FlickerAmount: 0.2,
+			})
+		}
+	}
+
+	return lights
 }
 
 // renderShadows draws dynamic shadows for props and entities based on active lights.
