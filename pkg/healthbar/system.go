@@ -590,3 +590,104 @@ func layoutPriority(distance float64) ui.Priority {
 		return ui.PrioritySecondary
 	}
 }
+
+// ProximityFilter allows filtering entities by distance-based detail levels.
+type ProximityFilter interface {
+	// ShouldRenderHealthBar returns true if health bar should render for entity.
+	ShouldRenderHealthBar(w *engine.World, entity engine.Entity) bool
+	// ShouldRenderStatusIcons returns true if status icons should render for entity.
+	ShouldRenderStatusIcons(w *engine.World, entity engine.Entity) bool
+	// GetFadeAlpha returns the opacity multiplier (0-1) for the entity's UI.
+	GetFadeAlpha(w *engine.World, entity engine.Entity) float64
+}
+
+// RenderWithProximityFilter draws health bars filtered by proximity detail levels.
+func (s *System) RenderWithProximityFilter(screen *ebiten.Image, w *engine.World, cameraX, cameraY, cameraDirX, cameraDirY float64, screenWidth, screenHeight int, layoutMgr *ui.LayoutManager, filter ProximityFilter) {
+	visibleBars := s.collectVisibleHealthBars(w, cameraX, cameraY, cameraDirX, cameraDirY, screenWidth, screenHeight)
+
+	for _, info := range visibleBars {
+		// Check if this entity should render health bar
+		if filter != nil && !filter.ShouldRenderHealthBar(w, info.eid) {
+			continue
+		}
+
+		barY := info.screenY - info.bar.OffsetY
+		barX := info.screenX - info.bar.Width/2
+
+		priority := layoutPriority(info.distance)
+
+		var adjustedX, adjustedY float32
+		visible := true
+
+		if layoutMgr != nil {
+			adjustedX, adjustedY, visible = layoutMgr.Reserve(
+				"healthbar",
+				barX,
+				barY,
+				info.bar.Width,
+				info.bar.Height+8,
+				priority,
+				true,
+			)
+		} else {
+			adjustedX, adjustedY = barX, barY
+		}
+
+		if !visible {
+			continue
+		}
+
+		// Get fade alpha from proximity filter
+		fadeAlpha := 1.0
+		if filter != nil {
+			fadeAlpha = filter.GetFadeAlpha(w, info.eid)
+		}
+
+		// Render health bar with proximity-based fade
+		s.drawHealthBarWithAlpha(screen, adjustedX, adjustedY, info.bar.Width, info.bar.Height, info.healthPct, info.bar, fadeAlpha)
+
+		// Only render status icons if permitted by proximity filter
+		if filter == nil || filter.ShouldRenderStatusIcons(w, info.eid) {
+			s.drawStatusIcons(screen, w, info.eid, adjustedX+info.bar.Width/2, adjustedY-4)
+		}
+	}
+}
+
+// drawHealthBarWithAlpha renders a health bar with an additional alpha multiplier.
+func (s *System) drawHealthBarWithAlpha(screen *ebiten.Image, x, y, width, height float32, healthPct float64, bar *Component, alphaMultiplier float64) {
+	alpha := uint8(255 * alphaMultiplier)
+	if bar.LastDamageAge > s.fadeDelay {
+		fadePct := (bar.LastDamageAge - s.fadeDelay) / s.fadeDelay
+		if fadePct > 1.0 {
+			fadePct = 1.0
+		}
+		alpha = uint8(float64(alpha) * (1.0 - fadePct))
+	}
+
+	if alpha == 0 {
+		return
+	}
+
+	bg := s.backgroundColor
+	bg.A = alpha
+	border := s.borderColor
+	border.A = alpha
+
+	vector.DrawFilledRect(screen, x-1, y-1, width+2, height+2, border, false)
+	vector.DrawFilledRect(screen, x, y, width, height, bg, false)
+
+	fillWidth := float32(healthPct) * width
+	if fillWidth < 0 {
+		fillWidth = 0
+	}
+	if fillWidth > width {
+		fillWidth = width
+	}
+
+	fillColor := s.getHealthColor(healthPct, bar)
+	fillColor.A = alpha
+
+	if fillWidth > 0 {
+		vector.DrawFilledRect(screen, x, y, fillWidth, height, fillColor, false)
+	}
+}

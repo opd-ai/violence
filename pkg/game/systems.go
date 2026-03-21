@@ -30,6 +30,7 @@ import (
 	"github.com/opd-ai/violence/pkg/particle"
 	"github.com/opd-ai/violence/pkg/playersprite"
 	"github.com/opd-ai/violence/pkg/projectile"
+	"github.com/opd-ai/violence/pkg/proximityui"
 	"github.com/opd-ai/violence/pkg/rimlight"
 	"github.com/opd-ai/violence/pkg/spatial"
 	"github.com/opd-ai/violence/pkg/stats"
@@ -94,6 +95,7 @@ type SystemDependencies struct {
 	ImpactBurst      *impactburst.System
 	EntityLabel      *entitylabel.System
 	Particle         *particle.ParticleSystem
+	ProximityUI      *proximityui.System
 }
 
 // RegisterECSSystems registers all ECS systems with the World in the correct order.
@@ -168,6 +170,7 @@ func RegisterECSSystems(world *engine.World, deps *SystemDependencies) {
 	world.AddSystem(deps.Crosshair)
 	world.AddSystem(deps.ImpactBurst)
 	world.AddSystem(deps.EntityLabel)
+	world.AddSystem(deps.ProximityUI)
 }
 
 // ConnectSlidingSystem wires the sliding system to the spatial index.

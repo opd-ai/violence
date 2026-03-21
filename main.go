@@ -73,6 +73,7 @@ import (
 	"github.com/opd-ai/violence/pkg/playersprite"
 	"github.com/opd-ai/violence/pkg/progression"
 	"github.com/opd-ai/violence/pkg/projectile"
+	"github.com/opd-ai/violence/pkg/proximityui"
 	"github.com/opd-ai/violence/pkg/props"
 	"github.com/opd-ai/violence/pkg/quest"
 	"github.com/opd-ai/violence/pkg/raycaster"
@@ -435,6 +436,9 @@ type Game struct {
 	// Surface wetness system for puddles and wet surface rendering
 	wetnessSystem  *wetness.System
 	wetnessPattern *wetness.WetnessPattern
+
+	// Proximity-based UI detail system for decluttering in-world indicators
+	proximityUISystem *proximityui.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -551,6 +555,9 @@ func NewGame() *Game {
 
 	// Initialize entity label system for guaranteed text rendering
 	g.entityLabelSystem = entitylabel.NewSystem(g.genreID)
+
+	// Initialize proximity-based UI detail system for decluttering game view
+	g.proximityUISystem = proximityui.NewSystem(g.genreID)
 
 	// Initialize interactive UI system for menu polish with hover/press feedback
 	g.interactiveUI = ui.NewInteractiveSystem()
@@ -712,6 +719,7 @@ func NewGame() *Game {
 		ImpactBurst:      g.impactBurstSystem,
 		EntityLabel:      g.entityLabelSystem,
 		Particle:         g.particleSystem,
+		ProximityUI:      g.proximityUISystem,
 	})
 
 	// Show main menu
@@ -1649,6 +1657,7 @@ func (g *Game) setGenreForGameplaySystems(genreID string) {
 	trySetGenre(g.healthBarSystem, genreID)
 	trySetGenre(g.itemIconSystem, genreID)
 	trySetGenre(g.playerSpriteSystem, genreID)
+	trySetGenre(g.proximityUISystem, genreID)
 }
 
 // loadGame loads a saved game state.
@@ -2731,6 +2740,12 @@ func (g *Game) updateV3Systems() {
 	// Update atmospheric fog system camera position
 	if g.fogSystem != nil {
 		g.fogSystem.SetCamera(g.camera.X, g.camera.Y)
+	}
+
+	// Update proximity UI system for distance-based detail levels
+	if g.proximityUISystem != nil {
+		g.proximityUISystem.SetCameraPosition(g.camera.X, g.camera.Y)
+		g.proximityUISystem.Update(g.world)
 	}
 
 	// Check for hazard collisions and apply damage/effects
@@ -4650,11 +4665,15 @@ func (g *Game) renderCombatUI(screen *ebiten.Image, camX, camY float64) {
 }
 
 // renderHealthBars renders health bars for all entities with layout support.
+// Uses proximity UI system for distance-based detail filtering when available.
 func (g *Game) renderHealthBars(screen *ebiten.Image, camX, camY float64) {
 	if g.healthBarSystem == nil {
 		return
 	}
-	if g.uiLayoutManager != nil {
+	// Use proximity-filtered rendering when the proximity system is available
+	if g.proximityUISystem != nil {
+		g.healthBarSystem.RenderWithProximityFilter(screen, g.world, camX, camY, g.camera.DirX, g.camera.DirY, config.C.InternalWidth, config.C.InternalHeight, g.uiLayoutManager, g.proximityUISystem)
+	} else if g.uiLayoutManager != nil {
 		g.healthBarSystem.RenderHealthBarsWithLayout(screen, g.world, camX, camY, g.camera.DirX, g.camera.DirY, config.C.InternalWidth, config.C.InternalHeight, g.uiLayoutManager)
 	} else {
 		g.healthBarSystem.RenderHealthBars(screen, g.world, camX, camY, g.camera.DirX, g.camera.DirY, config.C.InternalWidth, config.C.InternalHeight)
@@ -4683,6 +4702,12 @@ func (g *Game) renderEntityLabels(screen *ebiten.Image, camX, camY float64) {
 	} else {
 		g.entityLabelSystem.Render(g.world, screen, camX, camY)
 	}
+}
+
+// GetProximityUISystem returns the proximity UI system for in-world UI filtering.
+// Other systems can use this to query entity detail levels.
+func (g *Game) GetProximityUISystem() *proximityui.System {
+	return g.proximityUISystem
 }
 
 // renderOverlaysAndHUD renders hit flash, automap, HUD, quests, and tutorial.
