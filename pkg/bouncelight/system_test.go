@@ -233,9 +233,9 @@ func TestExtractSurfacesFromColors(t *testing.T) {
 	sys := NewSystem("fantasy", 320, 240)
 
 	colors := []color.RGBA{
-		{R: 255, G: 0, B: 0, A: 255},    // Red
-		{R: 0, G: 255, B: 0, A: 255},    // Green
-		{R: 0, G: 0, B: 0, A: 0},        // Transparent (should be skipped)
+		{R: 255, G: 0, B: 0, A: 255},     // Red
+		{R: 0, G: 255, B: 0, A: 255},     // Green
+		{R: 0, G: 0, B: 0, A: 0},         // Transparent (should be skipped)
 		{R: 255, G: 255, B: 255, A: 255}, // White
 	}
 
