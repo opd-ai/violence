@@ -97,6 +97,7 @@ import (
 	"github.com/opd-ai/violence/pkg/telegraph"
 	"github.com/opd-ai/violence/pkg/territory"
 	"github.com/opd-ai/violence/pkg/texture"
+	"github.com/opd-ai/violence/pkg/toast"
 	"github.com/opd-ai/violence/pkg/trap"
 	"github.com/opd-ai/violence/pkg/tutorial"
 	"github.com/opd-ai/violence/pkg/ui"
@@ -444,6 +445,9 @@ type Game struct {
 
 	// Proximity-based UI detail system for decluttering in-world indicators
 	proximityUISystem *proximityui.System
+
+	// Toast notification system for action feedback (item pickups, level ups, achievements)
+	toastSystem *toast.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -674,6 +678,10 @@ func NewGame() *Game {
 
 	// Initialize bounce lighting system for indirect illumination
 	g.bounceLightSystem = bouncelight.NewSystem(g.genreID, config.C.InternalWidth, config.C.InternalHeight)
+
+	// Initialize toast notification system for action feedback
+	g.toastSystem = toast.NewSystem(g.genreID)
+	g.toastSystem.SetScreenSize(config.C.InternalWidth, config.C.InternalHeight)
 
 	// Connect sliding system to spatial index
 	game.ConnectSlidingSystem(g.slidingSystem, g.spatialSystem)
@@ -1787,6 +1795,7 @@ func (g *Game) setGenreForGameplaySystems(genreID string) {
 	trySetGenre(g.itemIconSystem, genreID)
 	trySetGenre(g.playerSpriteSystem, genreID)
 	trySetGenre(g.proximityUISystem, genreID)
+	trySetGenre(g.toastSystem, genreID)
 }
 
 // loadGame loads a saved game state.
@@ -2482,6 +2491,11 @@ func (g *Game) grantXPReward() {
 		}
 
 		g.hud.ShowMessage("Level Up! Skill point earned!")
+
+		// Toast notification for level up
+		if g.toastSystem != nil {
+			g.toastSystem.Queue(toast.TypeLevelUp, fmt.Sprintf("Level %d!", newLevel), toast.PriorityCritical)
+		}
 	}
 }
 
@@ -2498,6 +2512,11 @@ func (g *Game) grantCurrencyRewards() {
 	if g.scrapStorage != nil {
 		scrapName := crafting.GetScrapNameForGenre(g.genreID)
 		g.scrapStorage.Add(scrapName, 3)
+	}
+
+	// Toast notification for currency rewards
+	if g.toastSystem != nil {
+		g.toastSystem.Queue(toast.TypeCurrency, "+25 Credits", toast.PriorityLow)
 	}
 }
 
@@ -2838,6 +2857,11 @@ func (g *Game) grantQuestReward(objectiveID, objectiveType string, isMain bool, 
 	if g.hud != nil {
 		g.hud.ShowMessage(msg)
 	}
+
+	// Toast notification for quest completion
+	if g.toastSystem != nil {
+		g.toastSystem.Queue(toast.TypeQuest, msg, toast.PriorityHigh)
+	}
 }
 
 // updateV3Systems updates particle, weather, and secret wall systems.
@@ -2875,6 +2899,11 @@ func (g *Game) updateV3Systems() {
 	if g.proximityUISystem != nil {
 		g.proximityUISystem.SetCameraPosition(g.camera.X, g.camera.Y)
 		g.proximityUISystem.Update(g.world)
+	}
+
+	// Update toast notification system for action feedback
+	if g.toastSystem != nil {
+		g.toastSystem.Update(g.world)
 	}
 
 	// Check for hazard collisions and apply damage/effects
@@ -3284,6 +3313,11 @@ func (g *Game) tryCollectLore() {
 			typeName := lore.GetLoreItemTypeName(loreItem.Type, g.genreID)
 			g.hud.ShowMessage("Found: " + typeName)
 			g.audioEngine.PlaySFX("lore_pickup", g.camera.X, g.camera.Y)
+
+			// Toast notification for lore discovery
+			if g.toastSystem != nil {
+				g.toastSystem.Queue(toast.TypeLoot, "Found: "+typeName, toast.PriorityNormal)
+			}
 			return
 		}
 	}
@@ -4862,6 +4896,12 @@ func (g *Game) renderOverlaysAndHUD(screen *ebiten.Image, camX, camY float64) {
 
 	g.hud.Update()
 	ui.DrawHUD(screen, g.hud)
+
+	// Render toast notifications for action feedback
+	if g.toastSystem != nil {
+		g.toastSystem.Render(screen)
+	}
+
 	if g.questTracker != nil {
 		g.drawQuestObjectives(screen)
 	}
