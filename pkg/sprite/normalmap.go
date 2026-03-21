@@ -183,7 +183,7 @@ func perturbScales(x, y int, scale float64, rng *rand.Rand) (float64, float64) {
 }
 
 // perturbFur creates directional fur-strand normal perturbation.
-func perturbFur(x, y int, scale float64, bias float64, rng *rand.Rand) (float64, float64) {
+func perturbFur(x, y int, scale, bias float64, rng *rand.Rand) (float64, float64) {
 	// Fur strands aligned along a direction
 	strandAngle := math.Pi/4 + bias*math.Pi/4
 	perpX := math.Cos(strandAngle + math.Pi/2)
@@ -239,7 +239,7 @@ func perturbMembrane(x, y int, scale float64, rng *rand.Rand) (float64, float64)
 }
 
 // perturbMetal creates anisotropic brushed-metal normal perturbation.
-func perturbMetal(x, y int, scale float64, bias float64, rng *rand.Rand) (float64, float64) {
+func perturbMetal(x, y int, scale, bias float64, rng *rand.Rand) (float64, float64) {
 	// Anisotropic brush direction (mostly horizontal by default)
 	brushAngle := bias * math.Pi / 2
 
