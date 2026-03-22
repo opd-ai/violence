@@ -98,6 +98,7 @@ import (
 	"github.com/opd-ai/violence/pkg/telegraph"
 	"github.com/opd-ai/violence/pkg/territory"
 	"github.com/opd-ai/violence/pkg/texture"
+	"github.com/opd-ai/violence/pkg/threat"
 	"github.com/opd-ai/violence/pkg/toast"
 	"github.com/opd-ai/violence/pkg/trap"
 	"github.com/opd-ai/violence/pkg/tutorial"
@@ -452,6 +453,9 @@ type Game struct {
 
 	// Status bar system for displaying active status effects on player HUD
 	statusBarSystem *statusbar.System
+
+	// Threat indicator system for information hierarchy and visual prominence
+	threatSystem *threat.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -689,6 +693,10 @@ func NewGame() *Game {
 
 	// Initialize status bar system for displaying player status effects
 	g.statusBarSystem = statusbar.NewSystem(g.genreID)
+
+	// Initialize threat indicator system for information hierarchy
+	g.threatSystem = threat.NewSystem(g.genreID)
+	g.threatSystem.SetScreenSize(config.C.InternalWidth, config.C.InternalHeight)
 
 	// Connect sliding system to spatial index
 	game.ConnectSlidingSystem(g.slidingSystem, g.spatialSystem)
@@ -2919,6 +2927,12 @@ func (g *Game) updateV3Systems() {
 		g.toastSystem.Update(g.world)
 	}
 
+	// Update threat indicator system for information hierarchy
+	if g.threatSystem != nil {
+		g.threatSystem.SetPlayerPosition(g.camera.X, g.camera.Y)
+		g.threatSystem.Update(g.world)
+	}
+
 	// Check for hazard collisions and apply damage/effects
 	g.checkHazardCollisions()
 
@@ -4919,6 +4933,11 @@ func (g *Game) renderOverlaysAndHUD(screen *ebiten.Image, camX, camY float64) {
 	// Render toast notifications for action feedback
 	if g.toastSystem != nil {
 		g.toastSystem.Render(screen)
+	}
+
+	// Render threat indicators for information hierarchy
+	if g.threatSystem != nil {
+		g.threatSystem.Render(screen, g.world, camX, camY)
 	}
 
 	if g.questTracker != nil {
