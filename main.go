@@ -107,6 +107,7 @@ import (
 	"github.com/opd-ai/violence/pkg/ui"
 	"github.com/opd-ai/violence/pkg/uicache"
 	"github.com/opd-ai/violence/pkg/upgrade"
+	"github.com/opd-ai/violence/pkg/volumetric"
 	"github.com/opd-ai/violence/pkg/walltex"
 	"github.com/opd-ai/violence/pkg/weapon"
 	"github.com/opd-ai/violence/pkg/weaponanim"
@@ -465,6 +466,9 @@ type Game struct {
 	// Muzzle flash system for weapon firing visual feedback
 	muzzleFlashSystem   *muzzleflash.System
 	muzzleFlashRenderer *muzzleflash.Renderer
+
+	// Volumetric light system for atmospheric light shafts and god-rays
+	volumetricSystem *volumetric.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -713,6 +717,9 @@ func NewGame() *Game {
 
 	// Initialize ground shadow system for entity-anchoring blob shadows
 	g.groundShadowSystem = groundshadow.NewSystem(g.genreID)
+
+	// Initialize volumetric lighting system for atmospheric light shafts
+	g.volumetricSystem = volumetric.NewSystem(g.genreID, config.C.InternalWidth, config.C.InternalHeight)
 
 	// Connect sliding system to spatial index
 	game.ConnectSlidingSystem(g.slidingSystem, g.spatialSystem)
@@ -1824,6 +1831,7 @@ func (g *Game) setGenreForVisualSystems(genreID string) {
 	trySetGenre(g.bounceLightSystem, genreID)
 	trySetGenre(g.muzzleFlashSystem, genreID)
 	trySetGenre(g.muzzleFlashRenderer, genreID)
+	trySetGenre(g.volumetricSystem, genreID)
 }
 
 // setGenreForGameplaySystems updates genre for UI and gameplay systems.
@@ -4893,6 +4901,10 @@ func (g *Game) renderWorldEntities(screen *ebiten.Image, camX, camY float64) {
 	if g.shadowSystem != nil && g.lightMap != nil {
 		g.renderShadows(screen)
 	}
+	// Render volumetric light shafts after shadows but before combat effects
+	if g.volumetricSystem != nil {
+		g.renderVolumetricLighting(screen)
+	}
 }
 
 // renderCombatEffects renders particles, weather, hazards, and combat feedback.
@@ -5466,6 +5478,96 @@ func (g *Game) renderBounceLighting(screen *ebiten.Image) {
 		g.camera.Y*tileSize,
 		scale*tileSize, // Each tile covers tileSize pixels
 	)
+}
+
+// renderVolumetricLighting draws atmospheric light shafts from visible light sources.
+func (g *Game) renderVolumetricLighting(screen *ebiten.Image) {
+	if g.volumetricSystem == nil {
+		return
+	}
+
+	// Collect light shafts from torch props within visible range
+	lightShafts := g.collectVolumetricLights()
+	if len(lightShafts) == 0 {
+		return
+	}
+
+	// Create occlusion checker using world map
+	occluder := func(worldX, worldY float64) bool {
+		return g.isWallAt(worldX, worldY)
+	}
+
+	// Render volumetric effects
+	g.volumetricSystem.Render(
+		screen,
+		g.camera.X,
+		g.camera.Y,
+		g.camera.DirX,
+		g.camera.DirY,
+		g.camera.FOV,
+		lightShafts,
+		occluder,
+	)
+}
+
+// collectVolumetricLights gathers light sources for volumetric rendering.
+func (g *Game) collectVolumetricLights() []volumetric.LightShaft {
+	var shafts []volumetric.LightShaft
+
+	if g.propsManager == nil {
+		return shafts
+	}
+
+	allProps := g.propsManager.GetProps()
+	for i, prop := range allProps {
+		// Only torches produce volumetric shafts
+		if prop.SpriteType != props.PropTorch {
+			continue
+		}
+
+		// Check if torch is within visible range
+		dx := prop.X - g.camera.X
+		dy := prop.Y - g.camera.Y
+		distSq := dx*dx + dy*dy
+		if distSq > 100 { // ~10 units max for volumetric
+			continue
+		}
+
+		// Get flickered intensity and color if available
+		intensity := 0.8
+		r, g_, b := 1.0, 0.7, 0.3
+		if g.flickerBridge != nil {
+			flickerResult := g.flickerBridge.CalculateFlickerSimple(int64(i), g.flickerTick, 0.9, r, g_, b)
+			intensity = flickerResult.Intensity * 0.9 // Slightly reduce for volumetrics
+			r = flickerResult.R
+			g_ = flickerResult.G
+			b = flickerResult.B
+		}
+
+		shaft := volumetric.NewLightShaft(prop.X, prop.Y, 5.0, intensity, r, g_, b)
+		shafts = append(shafts, shaft)
+	}
+
+	return shafts
+}
+
+// isWallAt checks if a world position contains a wall for occlusion.
+func (g *Game) isWallAt(worldX, worldY float64) bool {
+	if g.currentMap == nil || len(g.currentMap) == 0 {
+		return false
+	}
+
+	tileX := int(worldX)
+	tileY := int(worldY)
+
+	if tileY < 0 || tileY >= len(g.currentMap) {
+		return true // Out of bounds treated as wall
+	}
+	if tileX < 0 || tileX >= len(g.currentMap[0]) {
+		return true // Out of bounds treated as wall
+	}
+
+	return g.currentMap[tileY][tileX] > 0
 }
 
 // renderShadows draws dynamic shadows for props and entities based on active lights.
