@@ -55,6 +55,7 @@ import (
 	"github.com/opd-ai/violence/pkg/floor"
 	"github.com/opd-ai/violence/pkg/fog"
 	"github.com/opd-ai/violence/pkg/game"
+	"github.com/opd-ai/violence/pkg/groundshadow"
 	"github.com/opd-ai/violence/pkg/hazard"
 	"github.com/opd-ai/violence/pkg/healthbar"
 	"github.com/opd-ai/violence/pkg/impactburst"
@@ -456,6 +457,9 @@ type Game struct {
 
 	// Threat indicator system for information hierarchy and visual prominence
 	threatSystem *threat.System
+
+	// Ground shadow system for entity-anchoring blob shadows beneath props, loot, and corpses
+	groundShadowSystem *groundshadow.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -697,6 +701,9 @@ func NewGame() *Game {
 	// Initialize threat indicator system for information hierarchy
 	g.threatSystem = threat.NewSystem(g.genreID)
 	g.threatSystem.SetScreenSize(config.C.InternalWidth, config.C.InternalHeight)
+
+	// Initialize ground shadow system for entity-anchoring blob shadows
+	g.groundShadowSystem = groundshadow.NewSystem(g.genreID)
 
 	// Connect sliding system to spatial index
 	game.ConnectSlidingSystem(g.slidingSystem, g.spatialSystem)
