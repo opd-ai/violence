@@ -113,6 +113,7 @@ import (
 	"github.com/opd-ai/violence/pkg/weaponanim"
 	"github.com/opd-ai/violence/pkg/weather"
 	"github.com/opd-ai/violence/pkg/wetness"
+	"github.com/opd-ai/violence/pkg/subsurface"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/image/font/basicfont"
 )
@@ -469,6 +470,9 @@ type Game struct {
 
 	// Volumetric light system for atmospheric light shafts and god-rays
 	volumetricSystem *volumetric.System
+
+	// Subsurface scattering system for organic material visual realism
+	subsurfaceSystem *subsurface.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -721,6 +725,10 @@ func NewGame() *Game {
 	// Initialize volumetric lighting system for atmospheric light shafts
 	g.volumetricSystem = volumetric.NewSystem(g.genreID, config.C.InternalWidth, config.C.InternalHeight)
 
+	// Initialize subsurface scattering system for organic material visual realism
+	g.subsurfaceSystem = subsurface.NewSystem()
+	g.subsurfaceSystem.SetGenre(g.genreID)
+
 	// Connect sliding system to spatial index
 	game.ConnectSlidingSystem(g.slidingSystem, g.spatialSystem)
 
@@ -774,6 +782,7 @@ func NewGame() *Game {
 		EntityLabel:      g.entityLabelSystem,
 		Particle:         g.particleSystem,
 		ProximityUI:      g.proximityUISystem,
+		Subsurface:       g.subsurfaceSystem,
 	})
 
 	// Show main menu
@@ -1843,6 +1852,7 @@ func (g *Game) setGenreForGameplaySystems(genreID string) {
 	trySetGenre(g.proximityUISystem, genreID)
 	trySetGenre(g.toastSystem, genreID)
 	trySetGenre(g.statusBarSystem, genreID)
+	trySetGenre(g.subsurfaceSystem, genreID)
 }
 
 // loadGame loads a saved game state.

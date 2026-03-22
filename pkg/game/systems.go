@@ -37,6 +37,7 @@ import (
 	"github.com/opd-ai/violence/pkg/status"
 	"github.com/opd-ai/violence/pkg/statusfx"
 	"github.com/opd-ai/violence/pkg/statustint"
+	"github.com/opd-ai/violence/pkg/subsurface"
 	"github.com/opd-ai/violence/pkg/telegraph"
 	"github.com/opd-ai/violence/pkg/territory"
 	"github.com/opd-ai/violence/pkg/trap"
@@ -96,6 +97,7 @@ type SystemDependencies struct {
 	EntityLabel      *entitylabel.System
 	Particle         *particle.ParticleSystem
 	ProximityUI      *proximityui.System
+	Subsurface       *subsurface.System
 }
 
 // RegisterECSSystems registers all ECS systems with the World in the correct order.
@@ -171,6 +173,7 @@ func RegisterECSSystems(world *engine.World, deps *SystemDependencies) {
 	world.AddSystem(deps.ImpactBurst)
 	world.AddSystem(deps.EntityLabel)
 	world.AddSystem(deps.ProximityUI)
+	world.AddSystem(deps.Subsurface)
 }
 
 // ConnectSlidingSystem wires the sliding system to the spatial index.
