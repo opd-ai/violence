@@ -97,6 +97,7 @@ import (
 	"github.com/opd-ai/violence/pkg/statusbar"
 	"github.com/opd-ai/violence/pkg/statusfx"
 	"github.com/opd-ai/violence/pkg/statustint"
+	"github.com/opd-ai/violence/pkg/subsurface"
 	"github.com/opd-ai/violence/pkg/telegraph"
 	"github.com/opd-ai/violence/pkg/territory"
 	"github.com/opd-ai/violence/pkg/texture"
@@ -113,7 +114,6 @@ import (
 	"github.com/opd-ai/violence/pkg/weaponanim"
 	"github.com/opd-ai/violence/pkg/weather"
 	"github.com/opd-ai/violence/pkg/wetness"
-	"github.com/opd-ai/violence/pkg/subsurface"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/image/font/basicfont"
 )

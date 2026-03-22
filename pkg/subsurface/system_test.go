@@ -117,10 +117,10 @@ func TestNewComponentWithMaterial(t *testing.T) {
 
 func TestGetScatterProfile(t *testing.T) {
 	tests := []struct {
-		mat                     Material
-		name                    string
-		expectHighAbsorptionB   bool
-		expectHighTranslucency  bool
+		mat                    Material
+		name                   string
+		expectHighAbsorptionB  bool
+		expectHighTranslucency bool
 	}{
 		{MaterialFlesh, "flesh", true, false},
 		{MaterialLeaf, "leaf", true, true},
