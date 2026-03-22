@@ -92,8 +92,8 @@ type System struct {
 	screenW, screenH int
 
 	// Reusable overlay image
-	overlay    *ebiten.Image
-	overlayMu  sync.Mutex
+	overlay   *ebiten.Image
+	overlayMu sync.Mutex
 
 	// Ray cache for performance
 	rayCache   []raySegment

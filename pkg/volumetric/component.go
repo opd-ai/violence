@@ -109,7 +109,7 @@ type LightShaft struct {
 	FalloffExponent float64
 
 	// Directional properties (0 cone = omnidirectional)
-	ConeAngle float64
+	ConeAngle  float64
 	DirX, DirY float64
 }
 

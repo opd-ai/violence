@@ -275,9 +275,9 @@ func TestGenreVisualDifferences(t *testing.T) {
 
 func TestClampF64(t *testing.T) {
 	tests := []struct {
-		name     string
+		name        string
 		v, min, max float64
-		want     float64
+		want        float64
 	}{
 		{"in range", 0.5, 0.0, 1.0, 0.5},
 		{"below min", -0.5, 0.0, 1.0, 0.0},
