@@ -68,6 +68,7 @@ import (
 	"github.com/opd-ai/violence/pkg/minigame"
 	"github.com/opd-ai/violence/pkg/mod"
 	"github.com/opd-ai/violence/pkg/motion"
+	"github.com/opd-ai/violence/pkg/muzzleflash"
 	"github.com/opd-ai/violence/pkg/network"
 	"github.com/opd-ai/violence/pkg/outline"
 	"github.com/opd-ai/violence/pkg/parallax"
@@ -460,6 +461,10 @@ type Game struct {
 
 	// Ground shadow system for entity-anchoring blob shadows beneath props, loot, and corpses
 	groundShadowSystem *groundshadow.System
+
+	// Muzzle flash system for weapon firing visual feedback
+	muzzleFlashSystem   *muzzleflash.System
+	muzzleFlashRenderer *muzzleflash.Renderer
 }
 
 // NewGame creates and initializes a new game instance.
@@ -672,6 +677,10 @@ func NewGame() *Game {
 	// Initialize impact burst system for visually realistic combat impact effects
 	g.impactBurstSystem = impactburst.NewSystem(g.genreID, int64(seed))
 	g.impactBurstRenderer = impactburst.NewRenderer(g.genreID)
+
+	// Initialize muzzle flash system for weapon firing visual feedback
+	g.muzzleFlashSystem = muzzleflash.NewSystem(g.genreID, int64(seed))
+	g.muzzleFlashRenderer = muzzleflash.NewRenderer(g.muzzleFlashSystem, g.genreID)
 
 	// Initialize realistic flame flicker system for physics-based torch/fire lighting
 	g.flickerBridge = flicker.NewLightFlickerBridge(g.genreID)
@@ -1813,6 +1822,8 @@ func (g *Game) setGenreForVisualSystems(genreID string) {
 	trySetGenre(g.statusTintSystem, genreID)
 	trySetGenre(g.wetnessSystem, genreID)
 	trySetGenre(g.bounceLightSystem, genreID)
+	trySetGenre(g.muzzleFlashSystem, genreID)
+	trySetGenre(g.muzzleFlashRenderer, genreID)
 }
 
 // setGenreForGameplaySystems updates genre for UI and gameplay systems.
@@ -2236,6 +2247,11 @@ func (g *Game) handleWeaponFiring() {
 		g.hud.Ammo = g.ammoPool.Get(ammoType)
 	}
 
+	// Spawn muzzle flash for ranged weapons
+	if currentWeapon.Type != weapon.TypeMelee && g.muzzleFlashSystem != nil {
+		g.spawnMuzzleFlash(currentWeapon)
+	}
+
 	g.processWeaponHits(hitResults, currentWeapon)
 	g.checkDestructibleHits(hitResults, currentWeapon)
 	g.audioEngine.PlaySFX("weapon_fire", g.camera.X, g.camera.Y)
@@ -2407,6 +2423,67 @@ func (g *Game) applyParticleImpactEffects(agent *ai.Agent, isCritical bool, impa
 		impactTypeParticle = particle.ImpactCritical
 	}
 	g.impactEmitter.EmitImpact(agent.X, agent.Y, impactTypeParticle, particle.MaterialFlesh, impactAngle)
+}
+
+// spawnMuzzleFlash creates a muzzle flash effect at the weapon barrel position.
+func (g *Game) spawnMuzzleFlash(currentWeapon weapon.Weapon) {
+	if g.muzzleFlashSystem == nil || g.playerEntity == 0 {
+		return
+	}
+
+	// Calculate muzzle position slightly ahead of player in aim direction
+	muzzleOffset := 0.3 // Distance from player center to weapon barrel
+	muzzleX := g.camera.X + g.camera.DirX*muzzleOffset
+	muzzleY := g.camera.Y + g.camera.DirY*muzzleOffset
+
+	// Determine flash type based on weapon characteristics
+	flashType := g.determineFlashType(currentWeapon)
+
+	// Calculate aim angle
+	aimAngle := math.Atan2(g.camera.DirY, g.camera.DirX)
+
+	// Intensity based on weapon damage
+	intensity := clampFloat(currentWeapon.Damage/15.0, 0.8, 1.5)
+
+	g.muzzleFlashSystem.SpawnFlash(g.world, g.playerEntity, muzzleX, muzzleY, aimAngle, flashType, intensity)
+}
+
+// determineFlashType maps weapon properties to muzzle flash types.
+func (g *Game) determineFlashType(currentWeapon weapon.Weapon) string {
+	// Map weapon types and names to flash types
+	switch currentWeapon.Type {
+	case weapon.TypeHitscan, weapon.TypeProjectile:
+		// Check weapon name for specific flash types
+		name := currentWeapon.Name
+		switch {
+		case containsAny(name, "plasma", "Plasma"):
+			return "plasma"
+		case containsAny(name, "laser", "Laser", "beam", "Beam"):
+			return "laser"
+		case containsAny(name, "shotgun", "Shotgun", "scatter", "Scatter"):
+			return "shotgun"
+		case containsAny(name, "fire", "Fire", "flame", "Flame"):
+			return "fire"
+		default:
+			return "bullet"
+		}
+	default:
+		return "bullet"
+	}
+}
+
+// containsAny checks if str contains any of the substrings.
+func containsAny(str string, substrings ...string) bool {
+	for _, sub := range substrings {
+		if len(str) >= len(sub) {
+			for i := 0; i <= len(str)-len(sub); i++ {
+				if str[i:i+len(sub)] == sub {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 // clampFloat clamps a value between min and max.
@@ -2938,6 +3015,11 @@ func (g *Game) updateV3Systems() {
 	if g.threatSystem != nil {
 		g.threatSystem.SetPlayerPosition(g.camera.X, g.camera.Y)
 		g.threatSystem.Update(g.world)
+	}
+
+	// Update muzzle flash system for weapon firing visual feedback
+	if g.muzzleFlashSystem != nil {
+		g.muzzleFlashSystem.Update(g.world)
 	}
 
 	// Check for hazard collisions and apply damage/effects
@@ -5828,6 +5910,11 @@ func (g *Game) renderImpactEffects(screen *ebiten.Image, planeX, planeY float64)
 		}
 
 		g.drawImpactCircle(screen, ie, transformX, transformY)
+	}
+
+	// Render muzzle flash effects for weapon firing visual feedback
+	if g.muzzleFlashRenderer != nil {
+		g.muzzleFlashRenderer.Render(screen, g.world, g.camera.X, g.camera.Y, config.C.InternalWidth, config.C.InternalHeight)
 	}
 }
 
