@@ -24,6 +24,12 @@ type LightMap interface {
 	Calculate()
 }
 
+// EdgeAOProvider is an interface for edge ambient occlusion data.
+// Allows the renderer to darken floor/ceiling near walls and corners.
+type EdgeAOProvider interface {
+	GetAO(worldX, worldY float64) float64
+}
+
 // Renderer manages the rendering pipeline.
 type Renderer struct {
 	Width         int
@@ -35,6 +41,7 @@ type Renderer struct {
 	genreID       string
 	atlas         TextureAtlas
 	lightMap      LightMap
+	edgeAO        EdgeAOProvider
 	postProcessor *PostProcessor
 	tick          int
 }
@@ -63,6 +70,11 @@ func (r *Renderer) SetTextureAtlas(atlas TextureAtlas) {
 // SetLightMap assigns a light map for dynamic lighting.
 func (r *Renderer) SetLightMap(lightMap LightMap) {
 	r.lightMap = lightMap
+}
+
+// SetEdgeAO assigns an edge ambient occlusion provider for environment depth.
+func (r *Renderer) SetEdgeAO(edgeAO EdgeAOProvider) {
+	r.edgeAO = edgeAO
 }
 
 // SetPostProcessor assigns a post-processor for visual effects.
@@ -290,11 +302,18 @@ func (r *Renderer) renderSurface(x int, pixels []raycaster.FloorCeilPixel, textu
 	// Apply lighting if available
 	lightMult := r.getLightMultiplier(pixels[x].WorldX, pixels[x].WorldY)
 
+	// Apply edge ambient occlusion for environment depth
+	aoMult := 1.0
+	if r.edgeAO != nil {
+		aoFactor := r.edgeAO.GetAO(pixels[x].WorldX, pixels[x].WorldY)
+		aoMult = 1.0 - aoFactor
+	}
+
 	foggedColor := r.raycaster.ApplyFog(
 		[3]float64{
-			float64(baseColor.R) / 255.0 * lightMult,
-			float64(baseColor.G) / 255.0 * lightMult,
-			float64(baseColor.B) / 255.0 * lightMult,
+			float64(baseColor.R) / 255.0 * lightMult * aoMult,
+			float64(baseColor.G) / 255.0 * lightMult * aoMult,
+			float64(baseColor.B) / 255.0 * lightMult * aoMult,
 		},
 		pixels[x].Distance,
 	)

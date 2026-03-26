@@ -13,6 +13,7 @@ import (
 	"github.com/opd-ai/violence/pkg/damagenumber"
 	"github.com/opd-ai/violence/pkg/damagestate"
 	"github.com/opd-ai/violence/pkg/dmgfx"
+	"github.com/opd-ai/violence/pkg/edgeao"
 	"github.com/opd-ai/violence/pkg/engine"
 	"github.com/opd-ai/violence/pkg/entitylabel"
 	"github.com/opd-ai/violence/pkg/equipment"
@@ -98,6 +99,7 @@ type SystemDependencies struct {
 	Particle         *particle.ParticleSystem
 	ProximityUI      *proximityui.System
 	Subsurface       *subsurface.System
+	EdgeAO           *edgeao.System
 }
 
 // RegisterECSSystems registers all ECS systems with the World in the correct order.
@@ -174,6 +176,7 @@ func RegisterECSSystems(world *engine.World, deps *SystemDependencies) {
 	world.AddSystem(deps.EntityLabel)
 	world.AddSystem(deps.ProximityUI)
 	world.AddSystem(deps.Subsurface)
+	world.AddSystem(deps.EdgeAO)
 }
 
 // ConnectSlidingSystem wires the sliding system to the spatial index.

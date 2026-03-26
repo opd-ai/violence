@@ -44,6 +44,7 @@ import (
 	"github.com/opd-ai/violence/pkg/dialogue"
 	"github.com/opd-ai/violence/pkg/dmgfx"
 	"github.com/opd-ai/violence/pkg/door"
+	"github.com/opd-ai/violence/pkg/edgeao"
 	"github.com/opd-ai/violence/pkg/engine"
 	"github.com/opd-ai/violence/pkg/entitylabel"
 	"github.com/opd-ai/violence/pkg/equipment"
@@ -473,6 +474,9 @@ type Game struct {
 
 	// Subsurface scattering system for organic material visual realism
 	subsurfaceSystem *subsurface.System
+
+	// Edge ambient occlusion system for environment geometry depth
+	edgeAOSystem *edgeao.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -729,6 +733,9 @@ func NewGame() *Game {
 	g.subsurfaceSystem = subsurface.NewSystem()
 	g.subsurfaceSystem.SetGenre(g.genreID)
 
+	// Initialize edge ambient occlusion system for environment geometry depth
+	g.edgeAOSystem = edgeao.NewSystem(g.genreID, int64(seed))
+
 	// Connect sliding system to spatial index
 	game.ConnectSlidingSystem(g.slidingSystem, g.spatialSystem)
 
@@ -783,6 +790,7 @@ func NewGame() *Game {
 		Particle:         g.particleSystem,
 		ProximityUI:      g.proximityUISystem,
 		Subsurface:       g.subsurfaceSystem,
+		EdgeAO:           g.edgeAOSystem,
 	})
 
 	// Show main menu
@@ -924,6 +932,11 @@ func (g *Game) generateLevel() {
 	// Generate bounce lighting map for indirect illumination
 	if g.bounceLightSystem != nil && len(tiles) > 0 && len(tiles[0]) > 0 {
 		g.bounceMap = g.generateBounceMap(tiles)
+	}
+
+	// Build edge AO map for environment geometry depth
+	if g.edgeAOSystem != nil && len(tiles) > 0 && len(tiles[0]) > 0 {
+		g.edgeAOSystem.BuildAOMap(tiles)
 	}
 
 	if len(tiles) > 0 && len(tiles[0]) > 0 {
@@ -1853,6 +1866,7 @@ func (g *Game) setGenreForGameplaySystems(genreID string) {
 	trySetGenre(g.toastSystem, genreID)
 	trySetGenre(g.statusBarSystem, genreID)
 	trySetGenre(g.subsurfaceSystem, genreID)
+	trySetGenre(g.edgeAOSystem, genreID)
 }
 
 // loadGame loads a saved game state.
@@ -4854,6 +4868,7 @@ func (g *Game) applyCameraShake() (float64, float64) {
 func (g *Game) setupRenderer() {
 	g.renderer.SetTextureAtlas(g.textureAtlas)
 	g.renderer.SetLightMap(g.lightMap)
+	g.renderer.SetEdgeAO(g.edgeAOSystem)
 	g.renderer.SetPostProcessor(g.postProcessor)
 	g.renderer.Tick()
 }
