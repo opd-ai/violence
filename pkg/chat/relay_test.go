@@ -7,6 +7,50 @@ import (
 	"time"
 )
 
+// relayTestEnv holds a started relay server for testing.
+type relayTestEnv struct {
+	server *RelayServer
+	addr   string
+}
+
+// setupRelayServer creates and starts a relay server for testing.
+// Returns a cleanup function that should be deferred.
+func setupRelayServer(t *testing.T) (*relayTestEnv, func()) {
+	t.Helper()
+	rs, err := NewRelayServer("127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("NewRelayServer() failed: %v", err)
+	}
+	if err := rs.Start(); err != nil {
+		rs.Stop()
+		t.Fatalf("Start() failed: %v", err)
+	}
+	env := &relayTestEnv{
+		server: rs,
+		addr:   rs.listener.Addr().String(),
+	}
+	return env, func() { rs.Stop() }
+}
+
+// createRelayClient creates a relay client connected to the test server.
+func (e *relayTestEnv) createRelayClient(t *testing.T, playerID string) *RelayClient {
+	t.Helper()
+	client, err := NewRelayClient(e.addr, playerID)
+	if err != nil {
+		t.Fatalf("NewRelayClient(%s) failed: %v", playerID, err)
+	}
+	return client
+}
+
+// createTwoClients creates two connected clients with a brief wait for registration.
+func (e *relayTestEnv) createTwoClients(t *testing.T) (client1, client2 *RelayClient) {
+	t.Helper()
+	client1 = e.createRelayClient(t, "player1")
+	client2 = e.createRelayClient(t, "player2")
+	time.Sleep(50 * time.Millisecond)
+	return client1, client2
+}
+
 // TestRelayServerCreation tests relay server instantiation.
 func TestRelayServerCreation(t *testing.T) {
 	tests := []struct {
@@ -74,30 +118,18 @@ func TestRelayServerStartStop(t *testing.T) {
 
 // TestRelayClientConnection tests client connection and disconnection.
 func TestRelayClientConnection(t *testing.T) {
-	rs, err := NewRelayServer("127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("NewRelayServer() failed: %v", err)
-	}
-	defer rs.Stop()
-
-	if err := rs.Start(); err != nil {
-		t.Fatalf("Start() failed: %v", err)
-	}
-
-	addr := rs.listener.Addr().String()
+	env, cleanup := setupRelayServer(t)
+	defer cleanup()
 
 	// Connect client
-	client, err := NewRelayClient(addr, "player1")
-	if err != nil {
-		t.Fatalf("NewRelayClient() failed: %v", err)
-	}
+	client := env.createRelayClient(t, "player1")
 	defer client.Close()
 
 	// Wait for connection to register
 	time.Sleep(50 * time.Millisecond)
 
 	// Verify client count
-	if count := rs.GetClientCount(); count != 1 {
+	if count := env.server.GetClientCount(); count != 1 {
 		t.Errorf("GetClientCount() = %d, want 1", count)
 	}
 
@@ -106,39 +138,19 @@ func TestRelayClientConnection(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Verify client count is zero
-	if count := rs.GetClientCount(); count != 0 {
+	if count := env.server.GetClientCount(); count != 0 {
 		t.Errorf("GetClientCount() = %d, want 0 after disconnect", count)
 	}
 }
 
 // TestRelayEncryptedMessage tests encrypted message relay without decryption.
 func TestRelayEncryptedMessage(t *testing.T) {
-	rs, err := NewRelayServer("127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("NewRelayServer() failed: %v", err)
-	}
-	defer rs.Stop()
+	env, cleanup := setupRelayServer(t)
+	defer cleanup()
 
-	if err := rs.Start(); err != nil {
-		t.Fatalf("Start() failed: %v", err)
-	}
-
-	addr := rs.listener.Addr().String()
-
-	// Create two clients
-	client1, err := NewRelayClient(addr, "player1")
-	if err != nil {
-		t.Fatalf("NewRelayClient(player1) failed: %v", err)
-	}
+	client1, client2 := env.createTwoClients(t)
 	defer client1.Close()
-
-	client2, err := NewRelayClient(addr, "player2")
-	if err != nil {
-		t.Fatalf("NewRelayClient(player2) failed: %v", err)
-	}
 	defer client2.Close()
-
-	time.Sleep(50 * time.Millisecond)
 
 	// Client 1 sends encrypted message to client 2
 	// Server should relay without decryption
@@ -168,28 +180,15 @@ func TestRelayEncryptedMessage(t *testing.T) {
 
 // TestRelayBroadcastMessage tests broadcast to all clients.
 func TestRelayBroadcastMessage(t *testing.T) {
-	rs, err := NewRelayServer("127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("NewRelayServer() failed: %v", err)
-	}
-	defer rs.Stop()
-
-	if err := rs.Start(); err != nil {
-		t.Fatalf("Start() failed: %v", err)
-	}
-
-	addr := rs.listener.Addr().String()
+	env, cleanup := setupRelayServer(t)
+	defer cleanup()
 
 	// Create three clients
 	clients := make([]*RelayClient, 3)
 	for i := 0; i < 3; i++ {
 		playerID := fmt.Sprintf("player%d", i+1)
-		client, err := NewRelayClient(addr, playerID)
-		if err != nil {
-			t.Fatalf("NewRelayClient(%s) failed: %v", playerID, err)
-		}
-		defer client.Close()
-		clients[i] = client
+		clients[i] = env.createRelayClient(t, playerID)
+		defer clients[i].Close()
 	}
 
 	time.Sleep(50 * time.Millisecond)
@@ -232,17 +231,8 @@ func TestRelayBroadcastMessage(t *testing.T) {
 
 // TestRelayServerNoPlaintextStorage tests that server never stores plaintext.
 func TestRelayServerNoPlaintextStorage(t *testing.T) {
-	rs, err := NewRelayServer("127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("NewRelayServer() failed: %v", err)
-	}
-	defer rs.Stop()
-
-	if err := rs.Start(); err != nil {
-		t.Fatalf("Start() failed: %v", err)
-	}
-
-	addr := rs.listener.Addr().String()
+	env, cleanup := setupRelayServer(t)
+	defer cleanup()
 
 	// Create encryption chat instances for two clients
 	key := make([]byte, 32)
@@ -252,19 +242,9 @@ func TestRelayServerNoPlaintextStorage(t *testing.T) {
 	chat2 := NewChatWithKey(key)
 
 	// Create relay clients
-	client1, err := NewRelayClient(addr, "player1")
-	if err != nil {
-		t.Fatalf("NewRelayClient(player1) failed: %v", err)
-	}
+	client1, client2 := env.createTwoClients(t)
 	defer client1.Close()
-
-	client2, err := NewRelayClient(addr, "player2")
-	if err != nil {
-		t.Fatalf("NewRelayClient(player2) failed: %v", err)
-	}
 	defer client2.Close()
-
-	time.Sleep(50 * time.Millisecond)
 
 	// Client 1 encrypts and sends message
 	plaintext := "secret message"
@@ -380,32 +360,12 @@ func TestRelayParseMessage(t *testing.T) {
 
 // TestRelayMultipleMessages tests sending multiple messages.
 func TestRelayMultipleMessages(t *testing.T) {
-	rs, err := NewRelayServer("127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("NewRelayServer() failed: %v", err)
-	}
-	defer rs.Stop()
+	env, cleanup := setupRelayServer(t)
+	defer cleanup()
 
-	if err := rs.Start(); err != nil {
-		t.Fatalf("Start() failed: %v", err)
-	}
-
-	addr := rs.listener.Addr().String()
-
-	// Create two clients
-	client1, err := NewRelayClient(addr, "player1")
-	if err != nil {
-		t.Fatalf("NewRelayClient(player1) failed: %v", err)
-	}
+	client1, client2 := env.createTwoClients(t)
 	defer client1.Close()
-
-	client2, err := NewRelayClient(addr, "player2")
-	if err != nil {
-		t.Fatalf("NewRelayClient(player2) failed: %v", err)
-	}
 	defer client2.Close()
-
-	time.Sleep(50 * time.Millisecond)
 
 	// Send multiple messages
 	messageCount := 5
@@ -436,22 +396,10 @@ func TestRelayMultipleMessages(t *testing.T) {
 
 // TestRelayClientReceiveTimeout tests receive timeout behavior.
 func TestRelayClientReceiveTimeout(t *testing.T) {
-	rs, err := NewRelayServer("127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("NewRelayServer() failed: %v", err)
-	}
-	defer rs.Stop()
+	env, cleanup := setupRelayServer(t)
+	defer cleanup()
 
-	if err := rs.Start(); err != nil {
-		t.Fatalf("Start() failed: %v", err)
-	}
-
-	addr := rs.listener.Addr().String()
-
-	client, err := NewRelayClient(addr, "player1")
-	if err != nil {
-		t.Fatalf("NewRelayClient() failed: %v", err)
-	}
+	client := env.createRelayClient(t, "player1")
 	defer client.Close()
 
 	time.Sleep(50 * time.Millisecond)
@@ -469,17 +417,8 @@ func TestRelayClientReceiveTimeout(t *testing.T) {
 
 // TestRelayEndToEndWithEncryption tests full E2E encrypted chat flow.
 func TestRelayEndToEndWithEncryption(t *testing.T) {
-	rs, err := NewRelayServer("127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("NewRelayServer() failed: %v", err)
-	}
-	defer rs.Stop()
-
-	if err := rs.Start(); err != nil {
-		t.Fatalf("Start() failed: %v", err)
-	}
-
-	addr := rs.listener.Addr().String()
+	env, cleanup := setupRelayServer(t)
+	defer cleanup()
 
 	// Shared encryption key (in real impl, would use key exchange)
 	key := make([]byte, 32)
@@ -490,16 +429,10 @@ func TestRelayEndToEndWithEncryption(t *testing.T) {
 	chat2 := NewChatWithKey(key)
 
 	// Create relay clients
-	client1, err := NewRelayClient(addr, "alice")
-	if err != nil {
-		t.Fatalf("NewRelayClient(alice) failed: %v", err)
-	}
+	client1 := env.createRelayClient(t, "alice")
 	defer client1.Close()
 
-	client2, err := NewRelayClient(addr, "bob")
-	if err != nil {
-		t.Fatalf("NewRelayClient(bob) failed: %v", err)
-	}
+	client2 := env.createRelayClient(t, "bob")
 	defer client2.Close()
 
 	time.Sleep(50 * time.Millisecond)

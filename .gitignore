@@ -49,6 +49,19 @@ baseline.json
 refactored*.json
 *_improvements.html
 improvements.html
+deduplication-report.html
+metrics.json
+post.json
+pre-cleanup.json
+post-cleanup.json
+*-baseline.json
+*-post.json
+diff-report*.json
+
+# Loop/debug logs
+loop.log
+test-output.txt
+*.log
 
 # GitHub Pages build output
 _site/
