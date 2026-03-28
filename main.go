@@ -45,6 +45,7 @@ import (
 	"github.com/opd-ai/violence/pkg/dmgfx"
 	"github.com/opd-ai/violence/pkg/door"
 	"github.com/opd-ai/violence/pkg/edgeao"
+	"github.com/opd-ai/violence/pkg/emissive"
 	"github.com/opd-ai/violence/pkg/engine"
 	"github.com/opd-ai/violence/pkg/entitylabel"
 	"github.com/opd-ai/violence/pkg/equipment"
@@ -494,6 +495,9 @@ type Game struct {
 
 	// Focus ring system for keyboard navigation and accessibility
 	focusRingSystem *focusring.System
+
+	// Emissive glow system for light sources and magic effects
+	emissiveSystem *emissive.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -767,6 +771,10 @@ func NewGame() *Game {
 	// Initialize focus ring system for keyboard navigation and accessibility
 	g.focusRingSystem = focusring.NewSystem()
 	g.focusRingSystem.SetGenre(g.genreID)
+
+	// Initialize emissive glow system for light sources and magic effects
+	g.emissiveSystem = emissive.NewSystem(g.genreID, int64(seed))
+	g.emissiveSystem.SetScreenSize(config.C.InternalWidth, config.C.InternalHeight)
 
 	// Connect sliding system to spatial index
 	game.ConnectSlidingSystem(g.slidingSystem, g.spatialSystem)
@@ -1908,6 +1916,7 @@ func (g *Game) setGenreForGameplaySystems(genreID string) {
 	trySetGenre(g.hitMarkerSystem, genreID)
 	trySetGenre(g.heatDistortSystem, genreID)
 	trySetGenre(g.focusRingSystem, genreID)
+	trySetGenre(g.emissiveSystem, genreID)
 }
 
 // loadGame loads a saved game state.
@@ -3120,6 +3129,12 @@ func (g *Game) updateV3Systems() {
 	// Update hit marker system for damage confirmation feedback
 	if g.hitMarkerSystem != nil {
 		g.hitMarkerSystem.Update(g.world)
+	}
+
+	// Update emissive glow system for light sources and magic effects
+	if g.emissiveSystem != nil {
+		g.emissiveSystem.SetCamera(g.camera.X, g.camera.Y)
+		g.emissiveSystem.Update(g.world)
 	}
 
 	// Check for hazard collisions and apply damage/effects
@@ -5126,6 +5141,11 @@ func (g *Game) renderOverlaysAndHUD(screen *ebiten.Image, camX, camY float64) {
 	// Render hit marker at crosshair when player deals damage
 	if g.hitMarkerSystem != nil {
 		g.hitMarkerSystem.Render(g.world, screen)
+	}
+
+	// Render emissive glow effects for light sources and magic effects
+	if g.emissiveSystem != nil {
+		g.emissiveSystem.Render(g.world, screen)
 	}
 
 	g.hud.Update()
