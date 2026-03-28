@@ -46,6 +46,7 @@ import (
 	"github.com/opd-ai/violence/pkg/dialogue"
 	"github.com/opd-ai/violence/pkg/dmgfx"
 	"github.com/opd-ai/violence/pkg/door"
+	"github.com/opd-ai/violence/pkg/dustmote"
 	"github.com/opd-ai/violence/pkg/edgeao"
 	"github.com/opd-ai/violence/pkg/emissive"
 	"github.com/opd-ai/violence/pkg/engine"
@@ -523,6 +524,9 @@ type Game struct {
 
 	// Reload bar system for weapon reload progress indicator
 	reloadBarSystem *reloadbar.System
+
+	// Ambient dust mote system for floating atmospheric particles visible in light beams
+	dustMoteSystem *dustmote.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -819,6 +823,9 @@ func NewGame() *Game {
 
 	// Initialize lens dirt system for cinematic light scattering effects
 	g.lensDirtSystem = lensdirt.NewSystem(g.genreID, int64(seed), config.C.InternalWidth, config.C.InternalHeight)
+
+	// Initialize ambient dust mote system for floating atmospheric particles
+	g.dustMoteSystem = dustmote.NewSystem(g.genreID, int64(seed), config.C.InternalWidth, config.C.InternalHeight)
 
 	// Initialize weapon sway system for first-person weapon movement with realistic inertia
 	g.weaponSwaySystem = weaponsway.NewSystem(g.genreID)
@@ -2073,6 +2080,7 @@ func (g *Game) setGenreForGameplaySystems(genreID string) {
 	trySetGenre(g.lensDirtSystem, genreID)
 	trySetGenre(g.floorReflectSystem, genreID)
 	trySetGenre(g.reloadBarSystem, genreID)
+	trySetGenre(g.dustMoteSystem, genreID)
 }
 
 // loadGame loads a saved game state.
@@ -3345,6 +3353,14 @@ func (g *Game) updateV3Systems() {
 	if g.proximityUISystem != nil {
 		g.proximityUISystem.SetCameraPosition(g.camera.X, g.camera.Y)
 		g.proximityUISystem.Update(g.world)
+	}
+
+	// Update ambient dust mote system for floating atmospheric particles
+	if g.dustMoteSystem != nil {
+		g.dustMoteSystem.SetCamera(g.camera.X, g.camera.Y,
+			float64(config.C.InternalWidth)/10.0, float64(config.C.InternalHeight)/10.0)
+		g.updateDustMoteLights()
+		g.dustMoteSystem.Update(deltaTime)
 	}
 
 	// Update toast notification system for action feedback
@@ -5310,6 +5326,9 @@ func (g *Game) renderCombatEffects(screen *ebiten.Image, camX, camY float64) {
 	if g.weatherSystem != nil {
 		g.renderWeatherParticles(screen)
 	}
+	if g.dustMoteSystem != nil {
+		g.renderDustMotes(screen)
+	}
 	if g.hazardECSSystem != nil {
 		g.renderHazards(screen)
 	}
@@ -6502,6 +6521,96 @@ func (g *Game) collectMagicLensDirtLights() {
 			col,
 		)
 		g.lensDirtSystem.AddLightSource(light)
+	}
+}
+
+// renderDustMotes draws floating ambient dust particles visible in light beams.
+func (g *Game) renderDustMotes(screen *ebiten.Image) {
+	if g.dustMoteSystem == nil {
+		return
+	}
+	g.dustMoteSystem.Draw(screen)
+}
+
+// updateDustMoteLights collects nearby light sources for dust mote illumination.
+func (g *Game) updateDustMoteLights() {
+	if g.dustMoteSystem == nil {
+		return
+	}
+
+	g.dustMoteSystem.ClearLights()
+
+	visibleRange := 15.0 // Max distance to consider lights
+
+	// Set base ambient light level from atmosphere
+	ambientLevel := 0.1
+	if g.atmosphericLighting != nil {
+		ambientLevel = 0.15
+	}
+	g.dustMoteSystem.SetAmbientLight(ambientLevel)
+
+	// Collect lights from torches and props
+	if g.propsManager != nil {
+		for _, prop := range g.propsManager.GetProps() {
+			if prop.SpriteType != props.PropTorch {
+				continue
+			}
+
+			dx := prop.X - g.camera.X
+			dy := prop.Y - g.camera.Y
+			distSq := dx*dx + dy*dy
+			if distSq > visibleRange*visibleRange {
+				continue
+			}
+
+			// Get flicker-modulated intensity
+			intensity := 0.8
+			var r, gb, b float64 = 255, 200, 100
+
+			if g.flickerBridge != nil {
+				seed := int64(len(prop.ID))
+				flickerResult := g.flickerBridge.CalculateFlickerSimple(seed, g.flickerTick, 0.9, r, gb, b)
+				intensity = flickerResult.Intensity
+				r, gb, b = flickerResult.R, flickerResult.G, flickerResult.B
+			}
+
+			light := dustmote.LightSource{
+				X:         prop.X,
+				Y:         prop.Y,
+				Radius:    8.0,
+				Intensity: intensity,
+				ColorR:    uint8(r),
+				ColorG:    uint8(gb),
+				ColorB:    uint8(b),
+			}
+			g.dustMoteSystem.AddLight(light)
+		}
+	}
+
+	// Add player weapon light if firing (muzzle flash)
+	if g.muzzleFlashSystem != nil && g.world != nil {
+		// Get all active flashes and add them as lights
+		flashes := g.muzzleFlashSystem.GetAllActiveFlashes(g.world)
+		for _, flash := range flashes {
+			if flash == nil || flash.Age >= flash.Duration {
+				continue
+			}
+			// Calculate remaining life fraction
+			lifeFraction := 1.0 - (flash.Age / flash.Duration)
+			if lifeFraction < 0.1 {
+				continue
+			}
+			light := dustmote.LightSource{
+				X:         flash.X,
+				Y:         flash.Y,
+				Radius:    6.0,
+				Intensity: lifeFraction,
+				ColorR:    255,
+				ColorG:    220,
+				ColorB:    150,
+			}
+			g.dustMoteSystem.AddLight(light)
+		}
 	}
 }
 
