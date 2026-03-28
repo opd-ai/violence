@@ -59,6 +59,7 @@ import (
 	"github.com/opd-ai/violence/pkg/groundshadow"
 	"github.com/opd-ai/violence/pkg/hazard"
 	"github.com/opd-ai/violence/pkg/healthbar"
+	"github.com/opd-ai/violence/pkg/heatdistort"
 	"github.com/opd-ai/violence/pkg/hitmarker"
 	"github.com/opd-ai/violence/pkg/impactburst"
 	"github.com/opd-ai/violence/pkg/input"
@@ -486,6 +487,9 @@ type Game struct {
 	// Hit marker system for visual hit confirmation feedback at crosshair
 	hitMarkerSystem *hitmarker.System
 	hitMarkerEntity engine.Entity
+
+	// Heat distortion system for atmospheric shimmer near heat sources
+	heatDistortSystem *heatdistort.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -752,6 +756,9 @@ func NewGame() *Game {
 	g.hitMarkerSystem = hitmarker.NewSystem(g.genreID)
 	g.hitMarkerSystem.SetScreenSize(config.C.InternalWidth, config.C.InternalHeight)
 	g.hitMarkerEntity = hitmarker.SpawnHitMarker(g.world)
+
+	// Initialize heat distortion system for atmospheric shimmer effects
+	g.heatDistortSystem = heatdistort.NewSystem(g.genreID, config.C.InternalWidth, config.C.InternalHeight)
 
 	// Connect sliding system to spatial index
 	game.ConnectSlidingSystem(g.slidingSystem, g.spatialSystem)
@@ -1886,6 +1893,7 @@ func (g *Game) setGenreForGameplaySystems(genreID string) {
 	trySetGenre(g.edgeAOSystem, genreID)
 	trySetGenre(g.surfaceSheenSystem, genreID)
 	trySetGenre(g.hitMarkerSystem, genreID)
+	trySetGenre(g.heatDistortSystem, genreID)
 }
 
 // loadGame loads a saved game state.
@@ -4976,6 +4984,10 @@ func (g *Game) renderWorldEntities(screen *ebiten.Image, camX, camY float64) {
 	if g.volumetricSystem != nil {
 		g.renderVolumetricLighting(screen)
 	}
+	// Render heat distortion near fire sources for atmospheric shimmer
+	if g.heatDistortSystem != nil {
+		g.renderHeatDistortion(screen)
+	}
 }
 
 // renderCombatEffects renders particles, weather, hazards, and combat feedback.
@@ -5625,6 +5637,166 @@ func (g *Game) collectVolumetricLights() []volumetric.LightShaft {
 	}
 
 	return shafts
+}
+
+// renderHeatDistortion applies atmospheric heat shimmer near fire sources.
+func (g *Game) renderHeatDistortion(screen *ebiten.Image) {
+	if g.heatDistortSystem == nil {
+		return
+	}
+
+	// Collect heat sources from torch props within visible range
+	heatSources := g.collectHeatSources()
+	if len(heatSources) == 0 {
+		return
+	}
+
+	// Apply distortion effect to screen
+	g.heatDistortSystem.ApplyToImage(screen, heatSources)
+}
+
+// collectHeatSources gathers heat sources for distortion rendering.
+func (g *Game) collectHeatSources() []heatdistort.Component {
+	var sources []heatdistort.Component
+
+	if g.propsManager == nil {
+		return sources
+	}
+
+	allProps := g.propsManager.GetProps()
+	for _, prop := range allProps {
+		// Only torches and fire props produce heat distortion
+		if prop.SpriteType != props.PropTorch {
+			continue
+		}
+
+		// Check if torch is within visible range
+		dx := prop.X - g.camera.X
+		dy := prop.Y - g.camera.Y
+		distSq := dx*dx + dy*dy
+		if distSq > 64 { // ~8 units max for heat distortion
+			continue
+		}
+
+		// Calculate screen position for the heat source
+		// Use the camera and raycaster to project world position
+		screenX, screenY, visible := g.worldToScreen(prop.X, prop.Y)
+		if !visible {
+			continue
+		}
+
+		// Create heat source component at screen position
+		source := heatdistort.NewComponent(heatdistort.HeatTorch)
+		source.ScreenX = screenX
+		source.ScreenY = screenY
+		source.Radius = 32.0 // Moderate radius for torch
+		sources = append(sources, *source)
+	}
+
+	// Also add hazard-based heat sources (lava pools, etc.)
+	sources = g.collectHazardHeatSources(sources)
+
+	return sources
+}
+
+// collectHazardHeatSources adds heat sources from environmental hazards.
+func (g *Game) collectHazardHeatSources(sources []heatdistort.Component) []heatdistort.Component {
+	if g.hazardECSSystem == nil {
+		return sources
+	}
+
+	// Query for fire/lava hazards in the ECS world
+	hazardType := reflect.TypeOf(&hazard.HazardComponent{})
+	posType := reflect.TypeOf(&hazard.PositionComponent{})
+
+	for _, entity := range g.world.Query(hazardType, posType) {
+		hComp, ok := g.world.GetComponent(entity, hazardType)
+		if !ok {
+			continue
+		}
+		hc := hComp.(*hazard.HazardComponent)
+
+		// Only fire-type hazards produce heat
+		if hc.Type != hazard.TypeFireGrate {
+			continue
+		}
+
+		pos, ok := g.world.GetComponent(entity, posType)
+		if !ok {
+			continue
+		}
+		p := pos.(*hazard.PositionComponent)
+
+		// Check distance
+		dx := p.X - g.camera.X
+		dy := p.Y - g.camera.Y
+		distSq := dx*dx + dy*dy
+		if distSq > 100 { // ~10 units for larger hazards
+			continue
+		}
+
+		screenX, screenY, visible := g.worldToScreen(p.X, p.Y)
+		if !visible {
+			continue
+		}
+
+		// Fire hazards produce stronger distortion
+		source := heatdistort.NewComponent(heatdistort.HeatLava)
+		source.ScreenX = screenX
+		source.ScreenY = screenY
+		source.Radius = 48.0
+		source.Intensity = 1.0
+		sources = append(sources, *source)
+	}
+
+	return sources
+}
+
+// worldToScreen converts world coordinates to screen coordinates using camera projection.
+func (g *Game) worldToScreen(worldX, worldY float64) (screenX, screenY float64, visible bool) {
+	// Calculate relative position to camera
+	dx := worldX - g.camera.X
+	dy := worldY - g.camera.Y
+
+	// Distance check
+	dist := math.Sqrt(dx*dx + dy*dy)
+	if dist < 0.01 {
+		return float64(config.C.InternalWidth) / 2, float64(config.C.InternalHeight) / 2, true
+	}
+	if dist > 16 { // Too far to be visible
+		return 0, 0, false
+	}
+
+	// Calculate angle relative to camera direction
+	perpDirX := -g.camera.DirY
+	perpDirY := g.camera.DirX
+
+	// Transform to camera space
+	invDet := 1.0 / (perpDirX*g.camera.DirY - g.camera.DirX*perpDirY)
+	transformX := invDet * (g.camera.DirY*dx - g.camera.DirX*dy)
+	transformY := invDet * (-perpDirY*dx + perpDirX*dy)
+
+	// Check if behind camera
+	if transformY <= 0.1 {
+		return 0, 0, false
+	}
+
+	// Project to screen coordinates
+	screenX = float64(config.C.InternalWidth/2) * (1 + transformX/transformY)
+
+	// Vertical position uses pitch-adjusted horizon
+	horizon := float64(config.C.InternalHeight) / 2
+	screenY = horizon - float64(config.C.InternalHeight)/(2*transformY)
+
+	// Bounds check
+	if screenX < -50 || screenX > float64(config.C.InternalWidth)+50 {
+		return 0, 0, false
+	}
+	if screenY < -50 || screenY > float64(config.C.InternalHeight)+50 {
+		return 0, 0, false
+	}
+
+	return screenX, screenY, true
 }
 
 // isWallAt checks if a world position contains a wall for occlusion.
