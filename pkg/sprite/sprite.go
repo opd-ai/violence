@@ -1047,61 +1047,61 @@ func (g *Generator) calculateBodyPartPositions(size, cx, cy int, role string, fr
 	switch role {
 	case "tank":
 		// Wide and stocky: increased torso width, shorter legs, heavy armor
-		positions.torsoW = size * 2 / 5           // 40% wider torso
-		positions.torsoH = size / 3               // Same height
-		positions.legW = size / 9                 // Thicker legs
-		positions.legH = size / 5                 // Shorter legs (stockier)
-		positions.headRadius = size / 11          // Slightly smaller head relative to body
-		positions.shoulderWidth = size / 8        // Wide pauldrons
-		positions.stanceWidthMod = size / 16      // Wider leg stance
-		positions.hasHelmet = true                // Visible helmet
-		positions.extraArmorHeight = size / 10    // Shoulder pads visible above torso
-		positions.weaponScale = 120               // Larger weapon
-		positions.armW = positions.legW - 1       // Thicker arms to match
-		positions.armH = size / 5                 // Shorter, stockier arms
+		positions.torsoW = size * 2 / 5        // 40% wider torso
+		positions.torsoH = size / 3            // Same height
+		positions.legW = size / 9              // Thicker legs
+		positions.legH = size / 5              // Shorter legs (stockier)
+		positions.headRadius = size / 11       // Slightly smaller head relative to body
+		positions.shoulderWidth = size / 8     // Wide pauldrons
+		positions.stanceWidthMod = size / 16   // Wider leg stance
+		positions.hasHelmet = true             // Visible helmet
+		positions.extraArmorHeight = size / 10 // Shoulder pads visible above torso
+		positions.weaponScale = 120            // Larger weapon
+		positions.armW = positions.legW - 1    // Thicker arms to match
+		positions.armH = size / 5              // Shorter, stockier arms
 
 	case "ranged":
 		// Lean with extended arms: narrow torso, longer arms for bow/gun silhouette
-		positions.torsoW = size / 4               // Narrower torso
-		positions.torsoH = size * 2 / 5           // Taller torso (elongated)
-		positions.armH = size / 3                 // Longer arms for weapon reach
-		positions.armW = size / 14                // Thinner arms
-		positions.neckLength = size / 16          // Slightly extended neck
-		positions.headRadius = size / 9           // Normal head
-		positions.legW = size / 14                // Thinner legs
-		positions.weaponScale = 150               // Large visible weapon (bow/rifle silhouette)
+		positions.torsoW = size / 4      // Narrower torso
+		positions.torsoH = size * 2 / 5  // Taller torso (elongated)
+		positions.armH = size / 3        // Longer arms for weapon reach
+		positions.armW = size / 14       // Thinner arms
+		positions.neckLength = size / 16 // Slightly extended neck
+		positions.headRadius = size / 9  // Normal head
+		positions.legW = size / 14       // Thinner legs
+		positions.weaponScale = 150      // Large visible weapon (bow/rifle silhouette)
 
 	case "healer":
 		// Robed appearance: flowing silhouette, glowing hands
-		positions.torsoW = size * 3 / 10          // Slightly narrow upper body
-		positions.torsoH = size * 2 / 5           // Longer torso (robed)
-		positions.legH = size / 5                 // Shorter visible legs (hidden by robe)
-		positions.legW = size / 16                // Thin legs (robe silhouette)
-		positions.headRadius = size / 9           // Normal head
-		positions.glowingHands = true             // Magical glow effect
-		positions.weaponScale = 130               // Staff silhouette
+		positions.torsoW = size * 3 / 10 // Slightly narrow upper body
+		positions.torsoH = size * 2 / 5  // Longer torso (robed)
+		positions.legH = size / 5        // Shorter visible legs (hidden by robe)
+		positions.legW = size / 16       // Thin legs (robe silhouette)
+		positions.headRadius = size / 9  // Normal head
+		positions.glowingHands = true    // Magical glow effect
+		positions.weaponScale = 130      // Staff silhouette
 
 	case "ambusher":
 		// Crouched and hooded: hunched posture, lean profile
-		positions.torsoW = size / 4               // Narrow torso
-		positions.torsoH = size / 4               // Compact torso (crouched)
-		positions.bodyY = cy                      // Lower center (crouching)
-		positions.hunchAmount = size / 12         // Forward lean
-		positions.hasHood = true                  // Hood silhouette
-		positions.headRadius = size / 12          // Smaller visible head (hooded)
-		positions.legH = size / 5                 // Bent legs (crouching)
-		positions.stanceWidthMod = size / 20      // Slightly wider stance (ready to spring)
-		positions.weaponScale = 80                // Smaller, concealed weapon
+		positions.torsoW = size / 4          // Narrow torso
+		positions.torsoH = size / 4          // Compact torso (crouched)
+		positions.bodyY = cy                 // Lower center (crouching)
+		positions.hunchAmount = size / 12    // Forward lean
+		positions.hasHood = true             // Hood silhouette
+		positions.headRadius = size / 12     // Smaller visible head (hooded)
+		positions.legH = size / 5            // Bent legs (crouching)
+		positions.stanceWidthMod = size / 20 // Slightly wider stance (ready to spring)
+		positions.weaponScale = 80           // Smaller, concealed weapon
 
 	case "scout":
 		// Compact and agile: balanced proportions, backpack
-		positions.torsoW = size / 4               // Narrow torso
-		positions.torsoH = size / 4               // Compact torso
-		positions.legH = size * 3 / 10            // Longer legs (runner's build)
-		positions.legW = size / 14                // Lean legs
-		positions.hasBackpack = true              // Visible gear pack
-		positions.headRadius = size / 10          // Normal head
-		positions.weaponScale = 90                // Compact weapon
+		positions.torsoW = size / 4      // Narrow torso
+		positions.torsoH = size / 4      // Compact torso
+		positions.legH = size * 3 / 10   // Longer legs (runner's build)
+		positions.legW = size / 14       // Lean legs
+		positions.hasBackpack = true     // Visible gear pack
+		positions.headRadius = size / 10 // Normal head
+		positions.weaponScale = 90       // Compact weapon
 	}
 
 	// Animation: leg alternation for walking
