@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"image"
 	"image/color"
 	"log"
 	"math"
@@ -56,6 +57,7 @@ import (
 	"github.com/opd-ai/violence/pkg/feedback"
 	"github.com/opd-ai/violence/pkg/flicker"
 	"github.com/opd-ai/violence/pkg/floor"
+	"github.com/opd-ai/violence/pkg/floorreflect"
 	"github.com/opd-ai/violence/pkg/focusring"
 	"github.com/opd-ai/violence/pkg/fog"
 	"github.com/opd-ai/violence/pkg/game"
@@ -477,6 +479,9 @@ type Game struct {
 	// Ground shadow system for entity-anchoring blob shadows beneath props, loot, and corpses
 	groundShadowSystem *groundshadow.System
 
+	// Floor reflection system for sprite reflections on wet/polished surfaces
+	floorReflectSystem *floorreflect.System
+
 	// Muzzle flash system for weapon firing visual feedback
 	muzzleFlashSystem   *muzzleflash.System
 	muzzleFlashRenderer *muzzleflash.Renderer
@@ -765,6 +770,11 @@ func NewGame() *Game {
 
 	// Initialize ground shadow system for entity-anchoring blob shadows
 	g.groundShadowSystem = groundshadow.NewSystem(g.genreID)
+
+	// Initialize floor reflection system for sprite reflections on wet/polished surfaces
+	g.floorReflectSystem = floorreflect.NewSystem(g.genreID)
+	g.floorReflectSystem.SetScreenSize(config.C.InternalWidth, config.C.InternalHeight)
+	g.floorReflectSystem.SetSeed(int64(seed))
 
 	// Initialize volumetric lighting system for atmospheric light shafts
 	g.volumetricSystem = volumetric.NewSystem(g.genreID, config.C.InternalWidth, config.C.InternalHeight)
@@ -2053,6 +2063,7 @@ func (g *Game) setGenreForGameplaySystems(genreID string) {
 	trySetGenre(g.objectiveCompassSystem, genreID)
 	trySetGenre(g.emissiveSystem, genreID)
 	trySetGenre(g.lensDirtSystem, genreID)
+	trySetGenre(g.floorReflectSystem, genreID)
 }
 
 // loadGame loads a saved game state.
@@ -5220,6 +5231,10 @@ func (g *Game) renderWorldEntities(screen *ebiten.Image, camX, camY float64) {
 	if g.floorDetailSystem != nil && (len(g.floorTiles) > 0 || len(g.floorDetails) > 0) {
 		g.renderFloorDetails(screen)
 	}
+	// Render floor reflections on wet/polished surfaces before entities
+	if g.floorReflectSystem != nil {
+		g.renderFloorReflections(screen)
+	}
 	// Render bounce lighting overlay for indirect illumination
 	if g.bounceLightSystem != nil && g.bounceMap != nil {
 		g.renderBounceLighting(screen)
@@ -5822,6 +5837,215 @@ func (g *Game) collectWetnessLights() []wetness.LightSource {
 	}
 
 	return lights
+}
+
+// renderFloorReflections draws sprite reflections on wet and polished floor surfaces.
+func (g *Game) renderFloorReflections(screen *ebiten.Image) {
+	if g.floorReflectSystem == nil {
+		return
+	}
+
+	const tileSize = 64
+
+	// Update floor reflection system from wetness pattern
+	if g.wetnessPattern != nil {
+		g.syncFloorReflectionsWithWetness(tileSize)
+	}
+
+	// Update animation frame
+	g.floorReflectSystem.Update()
+
+	// Collect and render reflections for visible entities
+	g.renderLootReflections(screen, tileSize)
+	g.renderPropReflections(screen, tileSize)
+}
+
+// syncFloorReflectionsWithWetness updates reflective floor data from wetness pattern.
+func (g *Game) syncFloorReflectionsWithWetness(tileSize int) {
+	if g.wetnessPattern == nil {
+		return
+	}
+
+	// Build wetness tile map for floor reflection system
+	wetTiles := make(map[int]float64)
+
+	for y := 0; y < g.wetnessPattern.Height; y++ {
+		for x := 0; x < g.wetnessPattern.Width; x++ {
+			comp := g.wetnessPattern.GetComponentAt(x, y)
+			if comp != nil && comp.Moisture > 0.15 {
+				key := x*10000 + y
+				wetTiles[key] = comp.Moisture
+			}
+		}
+	}
+
+	g.floorReflectSystem.SetReflectiveFloorsFromWetness(wetTiles, tileSize)
+}
+
+// renderLootReflections draws reflections for loot items on reflective surfaces.
+func (g *Game) renderLootReflections(screen *ebiten.Image, tileSize int) {
+	if g.lootVisualSystem == nil {
+		return
+	}
+
+	// Query loot entities from ECS
+	visualType := reflect.TypeOf((*loot.VisualComponent)(nil))
+	posType := reflect.TypeOf((*loot.PositionComponent)(nil))
+	entities := g.world.Query(visualType, posType)
+
+	for _, entity := range entities {
+		// Get components
+		lv, pos := g.getLootComponentsForReflection(entity, visualType, posType)
+		if lv == nil || pos == nil || lv.Collected {
+			continue
+		}
+
+		// Check if floor at loot position is reflective
+		reflective, material := g.floorReflectSystem.IsFloorReflective(pos.X, pos.Y, tileSize)
+		if !reflective {
+			continue
+		}
+
+		// Calculate screen position
+		dx := pos.X - g.camera.X
+		dy := pos.Y - g.camera.Y
+		if dx*dx+dy*dy > 25 {
+			continue
+		}
+
+		// Generate loot sprite
+		spriteImg := g.lootVisualSystem.GenerateItemSprite(lv.ItemID, lv.Category, lv.Rarity, lv.Seed, 24)
+		if spriteImg == nil {
+			continue
+		}
+
+		// Convert ebiten.Image to image.RGBA for reflection generation
+		bounds := spriteImg.Bounds()
+		rgba := imageToRGBA(spriteImg)
+
+		screenX := int(float64(config.C.InternalWidth)/2 + dx*64 - float64(bounds.Dx())/2)
+		screenY := int(float64(config.C.InternalHeight)/2 + dy*64 - float64(bounds.Dy())/2)
+
+		// Get floor light level
+		lightLevel := g.getLightLevelAt(pos.X, pos.Y)
+
+		// Generate and render reflection
+		reflection := g.floorReflectSystem.GenerateReflection(rgba, material, lightLevel)
+		if reflection == nil {
+			continue
+		}
+
+		reflectY := screenY + bounds.Dy()
+		ebitenImg := ebiten.NewImageFromImage(reflection)
+		opts := &ebiten.DrawImageOptions{}
+		opts.GeoM.Translate(float64(screenX), float64(reflectY))
+		opts.ColorScale.ScaleAlpha(0.5)
+		screen.DrawImage(ebitenImg, opts)
+	}
+}
+
+// getLootComponentsForReflection retrieves loot components for reflection rendering.
+func (g *Game) getLootComponentsForReflection(entity engine.Entity, visualType, posType reflect.Type) (*loot.VisualComponent, *loot.PositionComponent) {
+	comp, found := g.world.GetComponent(entity, visualType)
+	if !found {
+		return nil, nil
+	}
+	lv, ok := comp.(*loot.VisualComponent)
+	if !ok {
+		return nil, nil
+	}
+
+	posComp, found := g.world.GetComponent(entity, posType)
+	if !found {
+		return nil, nil
+	}
+	pos, ok := posComp.(*loot.PositionComponent)
+	if !ok {
+		return nil, nil
+	}
+
+	return lv, pos
+}
+
+// getLightLevelAt returns the light level at a world position.
+func (g *Game) getLightLevelAt(x, y float64) float64 {
+	if g.lightMap == nil {
+		return 0.5
+	}
+	return g.lightMap.GetLight(int(x), int(y))
+}
+
+// renderPropReflections draws reflections for props on reflective surfaces.
+func (g *Game) renderPropReflections(screen *ebiten.Image, tileSize int) {
+	if g.propsManager == nil || g.spriteGenerator == nil {
+		return
+	}
+
+	propList := g.propsManager.GetProps()
+	for _, prop := range propList {
+		// Skip non-reflectable props (debris has minimal visual interest)
+		if prop.SpriteType == props.PropDebris {
+			continue
+		}
+
+		// Check if floor at prop position is reflective
+		reflective, material := g.floorReflectSystem.IsFloorReflective(prop.X, prop.Y, tileSize)
+		if !reflective {
+			continue
+		}
+
+		// Calculate screen position
+		dx := prop.X - g.camera.X
+		dy := prop.Y - g.camera.Y
+		if dx*dx+dy*dy > 16 {
+			continue
+		}
+
+		// Get prop sprite using the same pattern as renderProp
+		propSubtype := mapPropTypeToSubtype(prop.SpriteType)
+		propSeed := int64(prop.X*1000 + prop.Y)
+		spriteImg := g.spriteGenerator.GetSprite(sprite.SpriteProp, propSubtype, propSeed, 0, 32)
+		if spriteImg == nil {
+			continue
+		}
+
+		screenX := int(float64(config.C.InternalWidth)/2 + dx*64 - float64(spriteImg.Bounds().Dx())/2)
+		screenY := int(float64(config.C.InternalHeight)/2 + dy*64 - float64(spriteImg.Bounds().Dy())/2)
+
+		// Get floor light level
+		lightLevel := g.getLightLevelAt(prop.X, prop.Y)
+
+		// Convert ebiten.Image to image.RGBA for reflection generation
+		bounds := spriteImg.Bounds()
+		rgba := imageToRGBA(spriteImg)
+
+		// Generate and render reflection
+		reflection := g.floorReflectSystem.GenerateReflection(rgba, material, lightLevel)
+		if reflection == nil {
+			continue
+		}
+
+		reflectY := screenY + bounds.Dy()
+		ebitenImg := ebiten.NewImageFromImage(reflection)
+		opts := &ebiten.DrawImageOptions{}
+		opts.GeoM.Translate(float64(screenX), float64(reflectY))
+		opts.ColorScale.ScaleAlpha(0.4)
+		screen.DrawImage(ebitenImg, opts)
+	}
+}
+
+// imageToRGBA converts an ebiten.Image to image.RGBA for reflection processing.
+func imageToRGBA(img *ebiten.Image) *image.RGBA {
+	bounds := img.Bounds()
+	rgba := image.NewRGBA(bounds)
+
+	// Read pixels directly from ebiten image
+	pixels := make([]byte, bounds.Dx()*bounds.Dy()*4)
+	img.ReadPixels(pixels)
+
+	// Copy to RGBA
+	copy(rgba.Pix, pixels)
+	return rgba
 }
 
 // renderCaustics draws animated water caustic light patterns near puddles.
