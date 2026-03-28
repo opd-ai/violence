@@ -27,6 +27,7 @@ import (
 	"github.com/opd-ai/violence/pkg/bsp"
 	"github.com/opd-ai/violence/pkg/camera"
 	"github.com/opd-ai/violence/pkg/camerafx"
+	"github.com/opd-ai/violence/pkg/caustics"
 	"github.com/opd-ai/violence/pkg/chat"
 	"github.com/opd-ai/violence/pkg/class"
 	"github.com/opd-ai/violence/pkg/collision"
@@ -123,7 +124,6 @@ import (
 	"github.com/opd-ai/violence/pkg/weaponsway"
 	"github.com/opd-ai/violence/pkg/weather"
 	"github.com/opd-ai/violence/pkg/wetness"
-	"github.com/opd-ai/violence/pkg/caustics"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/image/font/basicfont"
 )

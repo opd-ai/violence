@@ -263,9 +263,9 @@ func (s *System) GenerateCausticsFromWetness(puddleLocations []PuddleLocation, s
 
 // PuddleLocation represents a water source location for caustic generation.
 type PuddleLocation struct {
-	TileX, TileY int
+	TileX, TileY   int
 	WorldX, WorldY float64
-	Moisture float64
+	Moisture       float64
 }
 
 // calculateCausticColor determines the caustic tint with genre variation.
@@ -451,7 +451,7 @@ func (s *System) calculateCausticIntensity(x, y, cx, cy, time float64, src *Comp
 
 	// Add jitter for organic feel
 	if p.JitterAmount > 0 {
-		jitter := math.Sin(time*17+nx*3)*math.Cos(time*13+ny*5) * p.JitterAmount
+		jitter := math.Sin(time*17+nx*3) * math.Cos(time*13+ny*5) * p.JitterAmount
 		combined += jitter
 	}
 
