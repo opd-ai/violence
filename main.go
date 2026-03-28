@@ -54,6 +54,7 @@ import (
 	"github.com/opd-ai/violence/pkg/entitylabel"
 	"github.com/opd-ai/violence/pkg/equipment"
 	"github.com/opd-ai/violence/pkg/event"
+	"github.com/opd-ai/violence/pkg/eyeglint"
 	"github.com/opd-ai/violence/pkg/faction"
 	"github.com/opd-ai/violence/pkg/federation"
 	"github.com/opd-ai/violence/pkg/feedback"
@@ -539,6 +540,9 @@ type Game struct {
 
 	// Specular sparkle system for animated glints on metallic, crystalline, and wet surfaces
 	specSparkleSystem *specsparkle.System
+
+	// Eye glint system for wet highlight reflections on creature eyes
+	eyeGlintSystem *eyeglint.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -849,6 +853,9 @@ func NewGame() *Game {
 	// Initialize specular sparkle system for animated glints on reflective surfaces
 	g.specSparkleSystem = specsparkle.NewSystem(g.genreID, int64(seed))
 	g.specSparkleSystem.SetScreenSize(config.C.InternalWidth, config.C.InternalHeight)
+
+	// Initialize eye glint system for wet highlight reflections on creature eyes
+	g.eyeGlintSystem = eyeglint.NewSystem(g.genreID)
 
 	// Initialize weapon sway system for first-person weapon movement with realistic inertia
 	g.weaponSwaySystem = weaponsway.NewSystem(g.genreID)
@@ -2115,6 +2122,7 @@ func (g *Game) setGenreForGameplaySystems(genreID string) {
 	trySetGenre(g.dustMoteSystem, genreID)
 	trySetGenre(g.damageDirSystem, genreID)
 	trySetGenre(g.specSparkleSystem, genreID)
+	trySetGenre(g.eyeGlintSystem, genreID)
 }
 
 // loadGame loads a saved game state.
@@ -3413,6 +3421,11 @@ func (g *Game) updateV3Systems() {
 	if g.specSparkleSystem != nil {
 		g.specSparkleSystem.SetCamera(g.camera.X, g.camera.Y)
 		g.specSparkleSystem.Update(g.world)
+	}
+
+	// Update eye glint system for wet highlight reflections on creature eyes
+	if g.eyeGlintSystem != nil {
+		g.eyeGlintSystem.Update(g.world)
 	}
 
 	// Update toast notification system for action feedback
@@ -5512,6 +5525,11 @@ func (g *Game) renderOverlaysAndHUD(screen *ebiten.Image, camX, camY float64) {
 	// Render animated specular sparkles on metallic and wet surfaces
 	if g.specSparkleSystem != nil {
 		g.specSparkleSystem.Draw(screen, g.world)
+	}
+
+	// Render eye glint wet highlights on creature eyes
+	if g.eyeGlintSystem != nil {
+		g.eyeGlintSystem.Render(screen, g.world)
 	}
 
 	// Render lens dirt cinematic light scattering effects
