@@ -38,6 +38,7 @@ import (
 	"github.com/opd-ai/violence/pkg/corpse"
 	"github.com/opd-ai/violence/pkg/crafting"
 	"github.com/opd-ai/violence/pkg/crosshair"
+	"github.com/opd-ai/violence/pkg/damagedir"
 	"github.com/opd-ai/violence/pkg/damagenumber"
 	"github.com/opd-ai/violence/pkg/damagestate"
 	"github.com/opd-ai/violence/pkg/decal"
@@ -527,6 +528,9 @@ type Game struct {
 
 	// Ambient dust mote system for floating atmospheric particles visible in light beams
 	dustMoteSystem *dustmote.System
+
+	// Directional damage indicator system for screen-edge damage direction vignettes
+	damageDirSystem *damagedir.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -826,6 +830,10 @@ func NewGame() *Game {
 
 	// Initialize ambient dust mote system for floating atmospheric particles
 	g.dustMoteSystem = dustmote.NewSystem(g.genreID, int64(seed), config.C.InternalWidth, config.C.InternalHeight)
+
+	// Initialize directional damage indicator system for screen-edge vignettes
+	g.damageDirSystem = damagedir.NewSystem(g.genreID)
+	g.damageDirSystem.SetScreenSize(config.C.InternalWidth, config.C.InternalHeight)
 
 	// Initialize weapon sway system for first-person weapon movement with realistic inertia
 	g.weaponSwaySystem = weaponsway.NewSystem(g.genreID)
@@ -2081,6 +2089,7 @@ func (g *Game) setGenreForGameplaySystems(genreID string) {
 	trySetGenre(g.floorReflectSystem, genreID)
 	trySetGenre(g.reloadBarSystem, genreID)
 	trySetGenre(g.dustMoteSystem, genreID)
+	trySetGenre(g.damageDirSystem, genreID)
 }
 
 // loadGame loads a saved game state.
@@ -3195,6 +3204,13 @@ func (g *Game) handleAgentAttack(agent *ai.Agent) {
 		}
 	}
 
+	// Trigger directional damage indicator showing damage direction
+	if g.damageDirSystem != nil {
+		// Calculate player facing angle from direction vector
+		playerAngle := math.Atan2(g.camera.DirY, g.camera.DirX)
+		g.damageDirSystem.TriggerDamage(agent.X, agent.Y, g.camera.X, g.camera.Y, healthDamage, playerAngle)
+	}
+
 	if g.hud.Health <= 0 {
 		g.hud.Health = 0
 	}
@@ -3361,6 +3377,11 @@ func (g *Game) updateV3Systems() {
 			float64(config.C.InternalWidth)/10.0, float64(config.C.InternalHeight)/10.0)
 		g.updateDustMoteLights()
 		g.dustMoteSystem.Update(deltaTime)
+	}
+
+	// Update directional damage indicator system for screen-edge vignettes
+	if g.damageDirSystem != nil {
+		g.damageDirSystem.Update(g.world)
 	}
 
 	// Update toast notification system for action feedback
@@ -5511,6 +5532,11 @@ func (g *Game) renderHitFlashOverlay(screen *ebiten.Image) {
 			}
 			vector.DrawFilledRect(screen, 0, 0, float32(config.C.InternalWidth), float32(config.C.InternalHeight), flashColor, false)
 		}
+	}
+
+	// Render directional damage indicators showing where damage came from
+	if g.damageDirSystem != nil {
+		g.damageDirSystem.Render(screen)
 	}
 }
 
