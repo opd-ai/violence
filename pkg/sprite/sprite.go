@@ -154,7 +154,7 @@ func (g *Generator) generateSprite(spriteType SpriteType, subtype string, seed i
 		rimMaterial = rimlight.MaterialMagic
 		pbrMaterial = MaterialCrystal
 	case SpriteDestructible:
-		g.generateDestructibleSprite(rgba, subtype, rng, frame)
+		g.generateDestructibleSprite(rgba, subtype, seed, rng, frame)
 		dominantMaterial = dither.MaterialLeather
 		rimMaterial = rimlight.MaterialDefault
 		pbrMaterial = MaterialLeather
@@ -495,8 +495,10 @@ func (g *Generator) drawBarrel(img *image.RGBA, cx, cy, size int, v *seedvariati
 }
 
 // drawCrate renders a wooden crate with planks and corner reinforcements.
-func (g *Generator) drawCrate(img *image.RGBA, cx, cy, size int, rng *rand.Rand) {
+func (g *Generator) drawCrate(img *image.RGBA, cx, cy, size int, v *seedvariation.Variation, rng *rand.Rand) {
 	baseColor := g.getGenreWoodColor()
+	// Apply color variation from seed
+	baseColor = v.ApplyColorVariation(baseColor)
 	darkColor := color.RGBA{
 		R: baseColor.R / 2,
 		G: baseColor.G / 2,
@@ -504,7 +506,9 @@ func (g *Generator) drawCrate(img *image.RGBA, cx, cy, size int, rng *rand.Rand)
 		A: 255,
 	}
 
-	boxSize := size * 2 / 3
+	// Apply size variation
+	boxSizeBase := float64(size) * 2 / 3 * v.BodyWidthRatio
+	boxSize := int(boxSizeBase)
 	x1, y1 := cx-boxSize/2, cy-boxSize/2
 	x2, y2 := cx+boxSize/2, cy+boxSize/2
 
@@ -523,17 +527,17 @@ func (g *Generator) drawCrate(img *image.RGBA, cx, cy, size int, rng *rand.Rand)
 			shade += plankNoise
 
 			r := uint8(math.Min(255, float64(baseColor.R)*shade))
-			g := uint8(math.Min(255, float64(baseColor.G)*shade))
+			gr := uint8(math.Min(255, float64(baseColor.G)*shade))
 			b := uint8(math.Min(255, float64(baseColor.B)*shade))
 
 			plankPhase := int(math.Floor(float64(y-y1) / 8))
 			if plankPhase%2 == 0 {
 				r = uint8(float64(r) * 0.9)
-				g = uint8(float64(g) * 0.9)
+				gr = uint8(float64(gr) * 0.9)
 				b = uint8(float64(b) * 0.9)
 			}
 
-			img.Set(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
+			img.Set(x, y, color.RGBA{R: r, G: gr, B: b, A: 255})
 		}
 	}
 
@@ -561,14 +565,20 @@ func (g *Generator) drawCrate(img *image.RGBA, cx, cy, size int, rng *rand.Rand)
 	// Apply PBR shading for realistic wood rendering
 	crateBounds := image.Rect(x1, y1, x2, y2)
 	g.ApplyPBRShadingToRegion(img, crateBounds, MaterialLeather, "planar", g.lightCfg)
+
+	// Apply wear based on seed variation
+	seedvariation.ApplyWear(img, crateBounds, v)
 }
 
 // drawTable renders a table sprite with perspective.
-func (g *Generator) drawTable(img *image.RGBA, cx, cy, size int, rng *rand.Rand) {
+func (g *Generator) drawTable(img *image.RGBA, cx, cy, size int, v *seedvariation.Variation, rng *rand.Rand) {
 	woodColor := g.getGenreWoodColor()
+	// Apply color variation from seed
+	woodColor = v.ApplyColorVariation(woodColor)
 
-	tableW := size * 3 / 4
-	tableH := size / 4
+	// Apply size variation
+	tableW := int(float64(size) * 3 / 4 * v.BodyWidthRatio)
+	tableH := int(float64(size) / 4 * v.BodyHeightRatio)
 	tableY := cy - size/6
 
 	for y := tableY; y < tableY+tableH; y++ {
@@ -576,9 +586,9 @@ func (g *Generator) drawTable(img *image.RGBA, cx, cy, size int, rng *rand.Rand)
 			if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
 				shade := 0.8 + 0.2*float64(y-tableY)/float64(tableH)
 				r := uint8(float64(woodColor.R) * shade)
-				g := uint8(float64(woodColor.G) * shade)
+				gr := uint8(float64(woodColor.G) * shade)
 				b := uint8(float64(woodColor.B) * shade)
-				img.Set(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
+				img.Set(x, y, color.RGBA{R: r, G: gr, B: b, A: 255})
 			}
 		}
 	}
@@ -593,16 +603,24 @@ func (g *Generator) drawTable(img *image.RGBA, cx, cy, size int, rng *rand.Rand)
 		lx, ly := legPos[0], legPos[1]
 		common.FillRect(img, lx, ly, lx+4, ly+size/3, legColor)
 	}
+
+	// Apply wear based on seed variation
+	tableBounds := image.Rect(cx-tableW/2, tableY, cx+tableW/2, tableY+tableH+size/3)
+	seedvariation.ApplyWear(img, tableBounds, v)
 }
 
 // drawTerminal renders a sci-fi terminal with screen and panel.
-func (g *Generator) drawTerminal(img *image.RGBA, cx, cy, size int, rng *rand.Rand) {
+func (g *Generator) drawTerminal(img *image.RGBA, cx, cy, size int, v *seedvariation.Variation, rng *rand.Rand) {
 	panelColor := color.RGBA{R: 40, G: 45, B: 50, A: 255}
 	screenColor := color.RGBA{R: 0, G: 100, B: 120, A: 255}
 	glowColor := color.RGBA{R: 0, G: 200, B: 255, A: 255}
 
-	termW := size * 2 / 3
-	termH := size * 3 / 4
+	// Apply color variation from seed
+	screenColor = v.ApplyColorVariation(screenColor)
+
+	// Apply size variation
+	termW := int(float64(size) * 2 / 3 * v.BodyWidthRatio)
+	termH := int(float64(size) * 3 / 4 * v.BodyHeightRatio)
 	x1, y1 := cx-termW/2, cy-termH/2
 
 	common.FillRect(img, x1, y1, x1+termW, y1+termH, panelColor)
@@ -617,9 +635,9 @@ func (g *Generator) drawTerminal(img *image.RGBA, cx, cy, size int, rng *rand.Ra
 			if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
 				scanline := math.Sin(float64(y)*0.5) * 0.15
 				r := uint8(float64(screenColor.R) * (1.0 + scanline))
-				g := uint8(float64(screenColor.G) * (1.0 + scanline))
+				gr := uint8(float64(screenColor.G) * (1.0 + scanline))
 				b := uint8(float64(screenColor.B) * (1.0 + scanline))
-				img.Set(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
+				img.Set(x, y, color.RGBA{R: r, G: gr, B: b, A: 255})
 			}
 		}
 	}
@@ -629,6 +647,10 @@ func (g *Generator) drawTerminal(img *image.RGBA, cx, cy, size int, rng *rand.Ra
 		ly := screenY + screenH/4
 		common.FillCircle(img, lx, ly, 2, glowColor)
 	}
+
+	// Apply wear based on seed variation
+	termBounds := image.Rect(x1, y1, x1+termW, y1+termH)
+	seedvariation.ApplyWear(img, termBounds, v)
 }
 
 // drawBones renders skeletal remains.
@@ -650,17 +672,22 @@ func (g *Generator) drawBones(img *image.RGBA, cx, cy, size int, rng *rand.Rand)
 }
 
 // drawPlant renders foliage with leaves.
-func (g *Generator) drawPlant(img *image.RGBA, cx, cy, size int, rng *rand.Rand) {
+func (g *Generator) drawPlant(img *image.RGBA, cx, cy, size int, v *seedvariation.Variation, rng *rand.Rand) {
 	leafColor := g.getGenreLeafColor()
+	// Apply color variation from seed
+	leafColor = v.ApplyColorVariation(leafColor)
 	stemColor := color.RGBA{R: 60, G: 80, B: 40, A: 255}
 
 	stemX := cx
-	stemBot := cy + size/3
-	stemTop := cy - size/3
+	// Apply height variation
+	stemBot := cy + int(float64(size)/3*v.BodyHeightRatio)
+	stemTop := cy - int(float64(size)/3*v.BodyHeightRatio)
 
 	common.DrawThickLine(img, stemX, stemBot, stemX, stemTop, 2, stemColor)
 
-	for i := 0; i < 5; i++ {
+	// Variable number of leaves based on seed
+	leafCount := 3 + int(v.BodyWidthRatio*3)
+	for i := 0; i < leafCount; i++ {
 		leafY := stemBot - i*size/7
 		leafSize := 6 - i
 		if leafSize < 2 {
@@ -673,11 +700,14 @@ func (g *Generator) drawPlant(img *image.RGBA, cx, cy, size int, rng *rand.Rand)
 }
 
 // drawPillar renders a stone pillar with weathering.
-func (g *Generator) drawPillar(img *image.RGBA, cx, cy, size int, rng *rand.Rand) {
+func (g *Generator) drawPillar(img *image.RGBA, cx, cy, size int, v *seedvariation.Variation, rng *rand.Rand) {
 	stoneColor := g.getGenreStoneColor()
+	// Apply color variation from seed
+	stoneColor = v.ApplyColorVariation(stoneColor)
 
-	pillarW := size / 3
-	pillarH := size * 3 / 4
+	// Apply size variation
+	pillarW := int(float64(size) / 3 * v.BodyWidthRatio)
+	pillarH := int(float64(size) * 3 / 4 * v.BodyHeightRatio)
 	x1 := cx - pillarW/2
 	y1 := cy - pillarH/2
 
@@ -694,10 +724,10 @@ func (g *Generator) drawPillar(img *image.RGBA, cx, cy, size int, rng *rand.Rand
 			shade += noise
 
 			r := uint8(math.Max(0, math.Min(255, float64(stoneColor.R)*shade)))
-			g := uint8(math.Max(0, math.Min(255, float64(stoneColor.G)*shade)))
+			gr := uint8(math.Max(0, math.Min(255, float64(stoneColor.G)*shade)))
 			b := uint8(math.Max(0, math.Min(255, float64(stoneColor.B)*shade)))
 
-			img.Set(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
+			img.Set(x, y, color.RGBA{R: r, G: gr, B: b, A: 255})
 		}
 	}
 
@@ -709,6 +739,10 @@ func (g *Generator) drawPillar(img *image.RGBA, cx, cy, size int, rng *rand.Rand
 			}
 		}
 	}
+
+	// Apply wear based on seed variation
+	pillarBounds := image.Rect(x1-2, y1, x1+pillarW+2, y1+pillarH)
+	seedvariation.ApplyWear(img, pillarBounds, v)
 }
 
 // drawTorch renders an animated torch with flame.
@@ -758,11 +792,14 @@ func (g *Generator) drawDebris(img *image.RGBA, cx, cy, size int, rng *rand.Rand
 }
 
 // drawContainer renders a futuristic storage container.
-func (g *Generator) drawContainer(img *image.RGBA, cx, cy, size int, rng *rand.Rand) {
+func (g *Generator) drawContainer(img *image.RGBA, cx, cy, size int, v *seedvariation.Variation, rng *rand.Rand) {
 	baseColor := color.RGBA{R: 180, G: 180, B: 190, A: 255}
+	// Apply color variation from seed
+	baseColor = v.ApplyColorVariation(baseColor)
 	accentColor := color.RGBA{R: 255, G: 200, B: 0, A: 255}
 
-	boxSize := size * 2 / 3
+	// Apply size variation
+	boxSize := int(float64(size) * 2 / 3 * v.BodyWidthRatio)
 	x1, y1 := cx-boxSize/2, cy-boxSize/2
 
 	common.FillRect(img, x1, y1, x1+boxSize, y1+boxSize, baseColor)
@@ -775,6 +812,10 @@ func (g *Generator) drawContainer(img *image.RGBA, cx, cy, size int, rng *rand.R
 	handleW := boxSize / 6
 	handleY := y1 + boxSize/3
 	common.FillRect(img, cx-handleW/2, handleY, cx+handleW/2, handleY+4, color.RGBA{R: 100, G: 100, B: 110, A: 255})
+
+	// Apply wear based on seed variation
+	containerBounds := image.Rect(x1, y1, x1+boxSize, y1+boxSize)
+	seedvariation.ApplyWear(img, containerBounds, v)
 }
 
 // generateLoreSprite creates lore item sprites.
@@ -846,17 +887,20 @@ func (g *Generator) drawBodyArrangement(img *image.RGBA, cx, cy, size int, rng *
 }
 
 // generateDestructibleSprite creates destructible object sprites.
-func (g *Generator) generateDestructibleSprite(img *image.RGBA, subtype string, rng *rand.Rand, frame int) {
+func (g *Generator) generateDestructibleSprite(img *image.RGBA, subtype string, seed int64, rng *rand.Rand, frame int) {
 	size := img.Bounds().Dx()
 	cx, cy := size/2, size/2
 
+	// Generate seed-based variation for destructibles
+	variation := g.variationGen.GeneratePropVariation(seed)
+
 	switch subtype {
 	case "barrel":
-		g.drawBarrel(img, cx, cy, size, rng)
+		g.drawBarrel(img, cx, cy, size, &variation, rng)
 	case "crate":
-		g.drawCrate(img, cx, cy, size, rng)
+		g.drawCrate(img, cx, cy, size, &variation, rng)
 	default:
-		g.drawCrate(img, cx, cy, size, rng)
+		g.drawCrate(img, cx, cy, size, &variation, rng)
 	}
 }
 

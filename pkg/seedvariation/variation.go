@@ -14,6 +14,7 @@ type Variation struct {
 	// Body proportions (multipliers from 0.7 to 1.3)
 	LimbLengthRatio float64 // Arm/leg length relative to base
 	BodyWidthRatio  float64 // Torso width relative to base
+	BodyHeightRatio float64 // Torso/body height relative to base
 	HeadSizeRatio   float64 // Head size relative to base
 	NeckLengthRatio float64 // Neck extension
 
@@ -77,6 +78,7 @@ func (g *Generator) GenerateHumanoidVariation(seed int64) Variation {
 		// Body proportions vary ±15%
 		LimbLengthRatio: 0.85 + rng.Float64()*0.30,
 		BodyWidthRatio:  0.85 + rng.Float64()*0.30,
+		BodyHeightRatio: 0.85 + rng.Float64()*0.30,
 		HeadSizeRatio:   0.90 + rng.Float64()*0.20,
 		NeckLengthRatio: 0.90 + rng.Float64()*0.20,
 
@@ -125,6 +127,7 @@ func (g *Generator) GenerateQuadrupedVariation(seed int64) Variation {
 		// Body proportions - quadrupeds have more variation
 		LimbLengthRatio: 0.80 + rng.Float64()*0.40, // ±20%
 		BodyWidthRatio:  0.80 + rng.Float64()*0.40,
+		BodyHeightRatio: 0.80 + rng.Float64()*0.40,
 		HeadSizeRatio:   0.85 + rng.Float64()*0.30,
 		NeckLengthRatio: 0.70 + rng.Float64()*0.60, // Neck length varies a lot
 
@@ -179,6 +182,7 @@ func (g *Generator) GenerateInsectVariation(seed int64) Variation {
 		// Body proportions
 		LimbLengthRatio: 0.85 + rng.Float64()*0.30,
 		BodyWidthRatio:  0.80 + rng.Float64()*0.40,
+		BodyHeightRatio: 0.80 + rng.Float64()*0.40,
 		HeadSizeRatio:   0.80 + rng.Float64()*0.40,
 
 		// Color variation - insects can be quite varied
@@ -216,8 +220,9 @@ func (g *Generator) GenerateSerpentVariation(seed int64) Variation {
 		SegmentCount:      6 + rng.Intn(5),           // 6-10 segments
 		SegmentSizeGrowth: 0.85 + rng.Float64()*0.30, // How much segments shrink
 
-		BodyWidthRatio: 0.80 + rng.Float64()*0.40, // Body thickness
-		HeadSizeRatio:  0.85 + rng.Float64()*0.30,
+		BodyWidthRatio:  0.80 + rng.Float64()*0.40, // Body thickness
+		BodyHeightRatio: 0.90 + rng.Float64()*0.20,
+		HeadSizeRatio:   0.85 + rng.Float64()*0.30,
 
 		// Color variation
 		ColorShiftR: int8(rng.Intn(61) - 30),
@@ -260,6 +265,7 @@ func (g *Generator) GenerateFlyingVariation(seed int64) Variation {
 		// Wings and body shape
 		LimbLengthRatio: 0.90 + rng.Float64()*0.40, // Wing span varies a lot
 		BodyWidthRatio:  0.75 + rng.Float64()*0.50,
+		BodyHeightRatio: 0.85 + rng.Float64()*0.30,
 		HeadSizeRatio:   0.85 + rng.Float64()*0.30,
 
 		// Color variation
@@ -294,8 +300,9 @@ func (g *Generator) GenerateAmorphousVariation(seed int64) Variation {
 
 	v := Variation{
 		// Amorphous have significant size/shape variation
-		BodyWidthRatio: 0.70 + rng.Float64()*0.60, // Very variable
-		HeadSizeRatio:  0.60 + rng.Float64()*0.80, // Some have larger "core"
+		BodyWidthRatio:  0.70 + rng.Float64()*0.60, // Very variable
+		BodyHeightRatio: 0.70 + rng.Float64()*0.60,
+		HeadSizeRatio:   0.60 + rng.Float64()*0.80, // Some have larger "core"
 
 		// Color variation - amorphous can be quite colorful
 		ColorShiftR: int8(rng.Intn(61) - 30),
@@ -329,7 +336,8 @@ func (g *Generator) GeneratePropVariation(seed int64) Variation {
 
 	v := Variation{
 		// Size variation for props
-		BodyWidthRatio: 0.90 + rng.Float64()*0.20,
+		BodyWidthRatio:  0.90 + rng.Float64()*0.20,
+		BodyHeightRatio: 0.90 + rng.Float64()*0.20,
 
 		// Wear and damage
 		WearLevel: rng.Float64() * 0.6,
