@@ -123,6 +123,7 @@ import (
 	"github.com/opd-ai/violence/pkg/weaponsway"
 	"github.com/opd-ai/violence/pkg/weather"
 	"github.com/opd-ai/violence/pkg/wetness"
+	"github.com/opd-ai/violence/pkg/caustics"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/image/font/basicfont"
 )
@@ -454,6 +455,9 @@ type Game struct {
 	wetnessSystem  *wetness.System
 	wetnessPattern *wetness.WetnessPattern
 
+	// Water caustics system for animated light patterns near water
+	causticsSystem *caustics.System
+
 	// Bounce lighting system for indirect illumination
 	bounceLightSystem *bouncelight.System
 	bounceMap         *bouncelight.BounceMap
@@ -742,6 +746,9 @@ func NewGame() *Game {
 	// Initialize surface wetness system for puddles and wet surface rendering
 	g.wetnessSystem = wetness.NewSystem(g.genreID, config.C.InternalWidth, config.C.InternalHeight)
 
+	// Initialize water caustics system for animated light patterns near water
+	g.causticsSystem = caustics.NewSystem(g.genreID, config.C.InternalWidth, config.C.InternalHeight)
+
 	// Initialize bounce lighting system for indirect illumination
 	g.bounceLightSystem = bouncelight.NewSystem(g.genreID, config.C.InternalWidth, config.C.InternalHeight)
 
@@ -1005,6 +1012,11 @@ func (g *Game) generateLevel() {
 		g.wetnessPattern = g.wetnessSystem.GenerateWetnessPattern(tiles, int64(g.seed)^0x574554)
 	}
 
+	// Generate water caustics from puddle locations
+	if g.causticsSystem != nil && g.wetnessPattern != nil {
+		g.generateCausticsFromWetness()
+	}
+
 	// Generate bounce lighting map for indirect illumination
 	if g.bounceLightSystem != nil && len(tiles) > 0 && len(tiles[0]) > 0 {
 		g.bounceMap = g.generateBounceMap(tiles)
@@ -1212,6 +1224,40 @@ func (g *Game) getWallTileColor(tileType int, wallRNG *rng.RNG) (r, gr, b float6
 	}
 
 	return r, gr, b
+}
+
+// generateCausticsFromWetness extracts puddle locations from the wetness pattern
+// and creates caustic light sources for water surface lighting effects.
+func (g *Game) generateCausticsFromWetness() {
+	if g.causticsSystem == nil || g.wetnessPattern == nil {
+		return
+	}
+
+	// Collect puddle locations from the wetness pattern
+	puddles := make([]caustics.PuddleLocation, 0)
+
+	for y := 0; y < g.wetnessPattern.Height; y++ {
+		for x := 0; x < g.wetnessPattern.Width; x++ {
+			comp := g.wetnessPattern.GetComponentAt(x, y)
+			if comp != nil && comp.IsPuddle {
+				puddles = append(puddles, caustics.PuddleLocation{
+					TileX:    x,
+					TileY:    y,
+					WorldX:   float64(x) + 0.5, // Center of tile
+					WorldY:   float64(y) + 0.5,
+					Moisture: comp.Moisture,
+				})
+			}
+		}
+	}
+
+	// Generate caustics from the puddle locations
+	g.causticsSystem.GenerateCausticsFromWetness(puddles, int64(g.seed)^0x43415553) // "CAUS"
+
+	logrus.WithFields(logrus.Fields{
+		"system":  "caustics",
+		"puddles": len(puddles),
+	}).Debug("Water caustics generated from wetness pattern")
 }
 
 // placeDecorativeProps places decorative props in BSP rooms.
@@ -1982,6 +2028,7 @@ func (g *Game) setGenreForVisualSystems(genreID string) {
 	trySetGenre(g.flickerBridge, genreID)
 	trySetGenre(g.statusTintSystem, genreID)
 	trySetGenre(g.wetnessSystem, genreID)
+	trySetGenre(g.causticsSystem, genreID)
 	trySetGenre(g.bounceLightSystem, genreID)
 	trySetGenre(g.muzzleFlashSystem, genreID)
 	trySetGenre(g.muzzleFlashRenderer, genreID)
@@ -5650,6 +5697,7 @@ func (g *Game) renderFloorDetails(screen *ebiten.Image) {
 	g.renderFloorTiles(screen, tileSize)
 	g.renderDetailOverlays(screen, tileSize)
 	g.renderWetness(screen)
+	g.renderCaustics(screen)
 }
 
 // renderFloorTiles renders base floor tiles with material textures.
@@ -5774,6 +5822,19 @@ func (g *Game) collectWetnessLights() []wetness.LightSource {
 	}
 
 	return lights
+}
+
+// renderCaustics draws animated water caustic light patterns near puddles.
+func (g *Game) renderCaustics(screen *ebiten.Image) {
+	if g.causticsSystem == nil {
+		return
+	}
+
+	// Update animation state
+	g.causticsSystem.Update(g.world)
+
+	// Render caustics with camera offset
+	g.causticsSystem.Render(screen, g.camera.X, g.camera.Y)
 }
 
 // renderBounceLighting draws indirect illumination overlay from nearby surfaces.
