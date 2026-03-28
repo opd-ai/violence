@@ -90,6 +90,7 @@ import (
 	"github.com/opd-ai/violence/pkg/proximityui"
 	"github.com/opd-ai/violence/pkg/quest"
 	"github.com/opd-ai/violence/pkg/raycaster"
+	"github.com/opd-ai/violence/pkg/reloadbar"
 	"github.com/opd-ai/violence/pkg/render"
 	"github.com/opd-ai/violence/pkg/replay"
 	"github.com/opd-ai/violence/pkg/rimlight"
@@ -519,6 +520,9 @@ type Game struct {
 
 	// Weapon sway system for first-person weapon movement with inertia and weight feel
 	weaponSwaySystem *weaponsway.System
+
+	// Reload bar system for weapon reload progress indicator
+	reloadBarSystem *reloadbar.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -727,6 +731,10 @@ func NewGame() *Game {
 
 	// Initialize crosshair system for aiming reticle
 	g.crosshairSystem = crosshair.NewSystem(g.genreID)
+
+	// Initialize reload bar system for weapon reload progress indicator
+	g.reloadBarSystem = reloadbar.NewSystem(g.genreID)
+	g.reloadBarSystem.SetScreenSize(config.C.InternalWidth, config.C.InternalHeight)
 
 	// Initialize impact burst system for visually realistic combat impact effects
 	g.impactBurstSystem = impactburst.NewSystem(g.genreID, int64(seed))
@@ -2064,6 +2072,7 @@ func (g *Game) setGenreForGameplaySystems(genreID string) {
 	trySetGenre(g.emissiveSystem, genreID)
 	trySetGenre(g.lensDirtSystem, genreID)
 	trySetGenre(g.floorReflectSystem, genreID)
+	trySetGenre(g.reloadBarSystem, genreID)
 }
 
 // loadGame loads a saved game state.
@@ -2165,6 +2174,7 @@ func (g *Game) updatePlaying() error {
 	g.handleWeaponFiring()
 
 	g.arsenal.Update()
+	g.updateReloadBarState() // Update reload bar based on weapon animator state
 	g.updateAIAgents()
 	g.updateSquadAndEventTriggers()
 	g.updateQuestObjectives()
@@ -2324,6 +2334,31 @@ func (g *Game) getPlayerWeaponSwayOffset() (float64, float64) {
 
 	sway := comp.(*weaponsway.Component)
 	return sway.GetSwayOffset()
+}
+
+// updateReloadBarState syncs reload progress from weapon animator to reload bar UI.
+func (g *Game) updateReloadBarState() {
+	if g.reloadBarSystem == nil || g.arsenal == nil || g.arsenal.Animator == nil {
+		return
+	}
+
+	animator := g.arsenal.Animator
+	isReloading := animator.CurrentState == weapon.AnimReload
+
+	if isReloading {
+		// Calculate progress from animation frames
+		anim, ok := animator.Animations[weapon.AnimReload]
+		if ok && len(anim.Frames) > 0 {
+			totalFrames := len(anim.Frames) * anim.FrameDuration
+			currentProgress := float64(animator.CurrentFrame*anim.FrameDuration+animator.FrameCounter) / float64(totalFrames)
+			g.reloadBarSystem.SetReloadState(true, currentProgress, 1.0)
+		}
+	} else {
+		g.reloadBarSystem.SetReloadState(false, 0, 0)
+	}
+
+	// Update the system (handles fade animations)
+	g.reloadBarSystem.Update(g.world)
 }
 
 // recordReplayInput captures current input state to the replay recorder.
@@ -5380,6 +5415,13 @@ func (g *Game) renderOverlaysAndHUD(screen *ebiten.Image, camX, camY float64) {
 	// Render crosshair for player aiming
 	if g.crosshairSystem != nil {
 		g.crosshairSystem.Render(screen, g.world, camX, camY, config.C.InternalWidth, config.C.InternalHeight)
+	}
+
+	// Render reload bar below crosshair when weapon is reloading
+	if g.reloadBarSystem != nil && g.reloadBarSystem.IsActive() {
+		centerX := float32(config.C.InternalWidth) / 2
+		centerY := float32(config.C.InternalHeight) / 2
+		g.reloadBarSystem.Render(screen, centerX, centerY)
 	}
 
 	// Render hit marker at crosshair when player deals damage
