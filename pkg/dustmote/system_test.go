@@ -118,8 +118,8 @@ func TestSetAmbientLight(t *testing.T) {
 		{0.5, 0.5},
 		{0.0, 0.0},
 		{1.0, 1.0},
-		{-0.5, 0.0},  // Clamped to 0
-		{1.5, 1.0},   // Clamped to 1
+		{-0.5, 0.0}, // Clamped to 0
+		{1.5, 1.0},  // Clamped to 1
 	}
 
 	for _, tt := range tests {

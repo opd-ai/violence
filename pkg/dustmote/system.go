@@ -29,20 +29,20 @@ const (
 
 // GenrePreset defines mote behavior per genre.
 type GenrePreset struct {
-	MoteType       MoteType
-	Density        float64 // Particles per unit area
-	BaseSize       float64 // Average particle size in pixels
-	SizeVariation  float64 // Size variation range
-	Brightness     float64 // Base brightness (0-1)
-	DriftSpeed     float64 // Horizontal drift speed
-	TurbulenceAmp  float64 // Brownian motion amplitude
-	LightResponse  float64 // How strongly particles respond to light (0-1)
-	TwinkleRate    float64 // How often particles catch light
-	ColorR         uint8
-	ColorG         uint8
-	ColorB         uint8
-	GlowRadius     float64 // For spores/magic particles
-	TrailLength    int     // For digital particles
+	MoteType      MoteType
+	Density       float64 // Particles per unit area
+	BaseSize      float64 // Average particle size in pixels
+	SizeVariation float64 // Size variation range
+	Brightness    float64 // Base brightness (0-1)
+	DriftSpeed    float64 // Horizontal drift speed
+	TurbulenceAmp float64 // Brownian motion amplitude
+	LightResponse float64 // How strongly particles respond to light (0-1)
+	TwinkleRate   float64 // How often particles catch light
+	ColorR        uint8
+	ColorG        uint8
+	ColorB        uint8
+	GlowRadius    float64 // For spores/magic particles
+	TrailLength   int     // For digital particles
 }
 
 var genrePresets = map[string]GenrePreset{
@@ -130,16 +130,16 @@ var genrePresets = map[string]GenrePreset{
 
 // Mote represents a single floating ambient particle.
 type Mote struct {
-	X, Y          float64 // World position
-	VX, VY        float64 // Current velocity
-	Phase         float64 // Brownian motion phase offset
-	Size          float64 // Particle size
-	BaseAlpha     uint8   // Base transparency
-	TwinklePhase  float64 // Light catching animation phase
-	LifePhase     float64 // For respawn cycling
-	Active        bool
-	LightLevel    float64 // Current illumination (0-1)
-	Trail         []point // For digital particles
+	X, Y         float64 // World position
+	VX, VY       float64 // Current velocity
+	Phase        float64 // Brownian motion phase offset
+	Size         float64 // Particle size
+	BaseAlpha    uint8   // Base transparency
+	TwinklePhase float64 // Light catching animation phase
+	LifePhase    float64 // For respawn cycling
+	Active       bool
+	LightLevel   float64 // Current illumination (0-1)
+	Trail        []point // For digital particles
 }
 
 type point struct {
@@ -619,7 +619,7 @@ func (s *System) calculateLightTint(x, y float64) (r, g, b uint8) {
 	r = uint8(totalR / totalWeight)
 	g = uint8(totalG / totalWeight)
 	b = uint8(totalB / totalWeight)
-	return
+	return r, g, b
 }
 
 // GetActiveCount returns the number of active motes.
