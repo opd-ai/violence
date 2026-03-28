@@ -59,6 +59,7 @@ import (
 	"github.com/opd-ai/violence/pkg/groundshadow"
 	"github.com/opd-ai/violence/pkg/hazard"
 	"github.com/opd-ai/violence/pkg/healthbar"
+	"github.com/opd-ai/violence/pkg/hitmarker"
 	"github.com/opd-ai/violence/pkg/impactburst"
 	"github.com/opd-ai/violence/pkg/input"
 	"github.com/opd-ai/violence/pkg/inventory"
@@ -481,6 +482,10 @@ type Game struct {
 
 	// Surface sheen system for material-specific light reflections
 	surfaceSheenSystem *surfacesheen.System
+
+	// Hit marker system for visual hit confirmation feedback at crosshair
+	hitMarkerSystem *hitmarker.System
+	hitMarkerEntity engine.Entity
 }
 
 // NewGame creates and initializes a new game instance.
@@ -742,6 +747,11 @@ func NewGame() *Game {
 
 	// Initialize surface sheen system for material-specific light reflections
 	g.surfaceSheenSystem = surfacesheen.NewSystem(g.genreID)
+
+	// Initialize hit marker system for visual hit confirmation at crosshair
+	g.hitMarkerSystem = hitmarker.NewSystem(g.genreID)
+	g.hitMarkerSystem.SetScreenSize(config.C.InternalWidth, config.C.InternalHeight)
+	g.hitMarkerEntity = hitmarker.SpawnHitMarker(g.world)
 
 	// Connect sliding system to spatial index
 	game.ConnectSlidingSystem(g.slidingSystem, g.spatialSystem)
@@ -1875,6 +1885,7 @@ func (g *Game) setGenreForGameplaySystems(genreID string) {
 	trySetGenre(g.subsurfaceSystem, genreID)
 	trySetGenre(g.edgeAOSystem, genreID)
 	trySetGenre(g.surfaceSheenSystem, genreID)
+	trySetGenre(g.hitMarkerSystem, genreID)
 }
 
 // loadGame loads a saved game state.
@@ -2405,6 +2416,7 @@ func (g *Game) applyHitFeedback(agent *ai.Agent, damage float64, isCritical bool
 	g.applyImpactBurstEffects(agent, damage, isCritical, impactAngle)
 	g.applyCameraHitEffects(damage, isCritical)
 	g.applyParticleImpactEffects(agent, isCritical, impactAngle)
+	g.applyHitMarkerFeedback(agent, damage, isCritical)
 }
 
 // applyFeedbackSystemEffects applies screen shake and damage numbers.
@@ -2463,6 +2475,27 @@ func (g *Game) applyParticleImpactEffects(agent *ai.Agent, isCritical bool, impa
 		impactTypeParticle = particle.ImpactCritical
 	}
 	g.impactEmitter.EmitImpact(agent.X, agent.Y, impactTypeParticle, particle.MaterialFlesh, impactAngle)
+}
+
+// applyHitMarkerFeedback triggers the crosshair hit marker for visual damage confirmation.
+func (g *Game) applyHitMarkerFeedback(agent *ai.Agent, damage float64, isCritical bool) {
+	if g.hitMarkerSystem == nil || g.hitMarkerEntity == 0 {
+		return
+	}
+
+	// Determine hit type based on damage and state
+	ht := hitmarker.HitNormal
+	if agent.Health <= 0 {
+		ht = hitmarker.HitKill
+	} else if isCritical {
+		ht = hitmarker.HitCritical
+	}
+
+	// Hit marker appears at screen center (crosshair location)
+	centerX := float64(config.C.InternalWidth) / 2
+	centerY := float64(config.C.InternalHeight) / 2
+
+	hitmarker.TriggerHit(g.world, g.hitMarkerEntity, ht, int(damage), centerX, centerY)
 }
 
 // spawnMuzzleFlash creates a muzzle flash effect at the weapon barrel position.
@@ -3060,6 +3093,11 @@ func (g *Game) updateV3Systems() {
 	// Update muzzle flash system for weapon firing visual feedback
 	if g.muzzleFlashSystem != nil {
 		g.muzzleFlashSystem.Update(g.world)
+	}
+
+	// Update hit marker system for damage confirmation feedback
+	if g.hitMarkerSystem != nil {
+		g.hitMarkerSystem.Update(g.world)
 	}
 
 	// Check for hazard collisions and apply damage/effects
@@ -5053,6 +5091,11 @@ func (g *Game) renderOverlaysAndHUD(screen *ebiten.Image, camX, camY float64) {
 	// Render crosshair for player aiming
 	if g.crosshairSystem != nil {
 		g.crosshairSystem.Render(screen, g.world, camX, camY, config.C.InternalWidth, config.C.InternalHeight)
+	}
+
+	// Render hit marker at crosshair when player deals damage
+	if g.hitMarkerSystem != nil {
+		g.hitMarkerSystem.Render(g.world, screen)
 	}
 
 	g.hud.Update()
