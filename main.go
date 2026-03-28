@@ -102,6 +102,7 @@ import (
 	"github.com/opd-ai/violence/pkg/shop"
 	"github.com/opd-ai/violence/pkg/skills"
 	"github.com/opd-ai/violence/pkg/spatial"
+	"github.com/opd-ai/violence/pkg/specsparkle"
 	"github.com/opd-ai/violence/pkg/sprite"
 	"github.com/opd-ai/violence/pkg/spritebatch"
 	"github.com/opd-ai/violence/pkg/squad"
@@ -535,6 +536,9 @@ type Game struct {
 
 	// Directional damage indicator system for screen-edge damage direction vignettes
 	damageDirSystem *damagedir.System
+
+	// Specular sparkle system for animated glints on metallic, crystalline, and wet surfaces
+	specSparkleSystem *specsparkle.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -841,6 +845,10 @@ func NewGame() *Game {
 	// Initialize directional damage indicator system for screen-edge vignettes
 	g.damageDirSystem = damagedir.NewSystem(g.genreID)
 	g.damageDirSystem.SetScreenSize(config.C.InternalWidth, config.C.InternalHeight)
+
+	// Initialize specular sparkle system for animated glints on reflective surfaces
+	g.specSparkleSystem = specsparkle.NewSystem(g.genreID, int64(seed))
+	g.specSparkleSystem.SetScreenSize(config.C.InternalWidth, config.C.InternalHeight)
 
 	// Initialize weapon sway system for first-person weapon movement with realistic inertia
 	g.weaponSwaySystem = weaponsway.NewSystem(g.genreID)
@@ -1784,6 +1792,14 @@ func (g *Game) spawnDynamicLights(rooms []*bsp.Room) {
 			lightComp.Y = lightY
 			g.world.AddComponent(entity, lightComp)
 
+			// Add specular sparkle component for metallic light fixtures
+			sparkleComp := specsparkle.NewComponent(specsparkle.MaterialMetal)
+			sparkleComp.Density = 0.4
+			sparkleComp.Size = 2.0
+			sparkleComp.Width = 16.0
+			sparkleComp.Height = 16.0
+			g.world.AddComponent(entity, sparkleComp)
+
 			logrus.WithFields(logrus.Fields{
 				"room":      roomIdx,
 				"light_idx": i,
@@ -2098,6 +2114,7 @@ func (g *Game) setGenreForGameplaySystems(genreID string) {
 	trySetGenre(g.reloadBarSystem, genreID)
 	trySetGenre(g.dustMoteSystem, genreID)
 	trySetGenre(g.damageDirSystem, genreID)
+	trySetGenre(g.specSparkleSystem, genreID)
 }
 
 // loadGame loads a saved game state.
@@ -3390,6 +3407,12 @@ func (g *Game) updateV3Systems() {
 	// Update directional damage indicator system for screen-edge vignettes
 	if g.damageDirSystem != nil {
 		g.damageDirSystem.Update(g.world)
+	}
+
+	// Update specular sparkle system for animated glints on reflective surfaces
+	if g.specSparkleSystem != nil {
+		g.specSparkleSystem.SetCamera(g.camera.X, g.camera.Y)
+		g.specSparkleSystem.Update(g.world)
 	}
 
 	// Update toast notification system for action feedback
@@ -5484,6 +5507,11 @@ func (g *Game) renderOverlaysAndHUD(screen *ebiten.Image, camX, camY float64) {
 	// Render emissive glow effects for light sources and magic effects
 	if g.emissiveSystem != nil {
 		g.emissiveSystem.Render(g.world, screen)
+	}
+
+	// Render animated specular sparkles on metallic and wet surfaces
+	if g.specSparkleSystem != nil {
+		g.specSparkleSystem.Draw(screen, g.world)
 	}
 
 	// Render lens dirt cinematic light scattering effects
