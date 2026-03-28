@@ -77,8 +77,13 @@ func (s *System) renderCrosshair(screen *ebiten.Image, entityX, entityY float64,
 	dx := crosshairWorldX - cameraX
 	dy := crosshairWorldY - cameraY
 
+	// Base screen position
 	screenX := float32(screenWidth/2) + float32(dx*10)
 	screenY := float32(screenHeight/2) + float32(dy*10)
+
+	// Apply weapon sway offset for realistic first-person weapon movement feel
+	screenX += float32(ch.SwayOffsetX)
+	screenY += float32(ch.SwayOffsetY)
 
 	// Early exit if off-screen
 	margin := float32(50)

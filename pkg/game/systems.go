@@ -45,6 +45,7 @@ import (
 	"github.com/opd-ai/violence/pkg/walltex"
 	"github.com/opd-ai/violence/pkg/weapon"
 	"github.com/opd-ai/violence/pkg/weaponanim"
+	"github.com/opd-ai/violence/pkg/weaponsway"
 	"github.com/opd-ai/violence/pkg/weather"
 )
 
@@ -100,6 +101,7 @@ type SystemDependencies struct {
 	ProximityUI      *proximityui.System
 	Subsurface       *subsurface.System
 	EdgeAO           *edgeao.System
+	WeaponSway       *weaponsway.System
 }
 
 // RegisterECSSystems registers all ECS systems with the World in the correct order.
@@ -177,6 +179,11 @@ func RegisterECSSystems(world *engine.World, deps *SystemDependencies) {
 	world.AddSystem(deps.ProximityUI)
 	world.AddSystem(deps.Subsurface)
 	world.AddSystem(deps.EdgeAO)
+
+	// Register weapon sway system for first-person weapon movement (optional, may be nil)
+	if deps.WeaponSway != nil {
+		world.AddSystem(deps.WeaponSway)
+	}
 }
 
 // ConnectSlidingSystem wires the sliding system to the spatial index.

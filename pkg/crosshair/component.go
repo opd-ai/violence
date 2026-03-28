@@ -19,6 +19,9 @@ type Component struct {
 
 	// Color tint for crosshair (R, G, B, A in 0-1 range)
 	ColorR, ColorG, ColorB, ColorA float64
+
+	// SwayOffsetX and SwayOffsetY apply weapon sway offset to crosshair position (pixels)
+	SwayOffsetX, SwayOffsetY float64
 }
 
 // Type implements the engine.Component interface.
@@ -29,15 +32,17 @@ func (c *Component) Type() string {
 // NewComponent creates a crosshair component with default values.
 func NewComponent() *Component {
 	return &Component{
-		AimX:       1.0,
-		AimY:       0.0,
-		WeaponType: "melee",
-		Visible:    true,
-		Range:      3.0,
-		Scale:      1.0,
-		ColorR:     1.0,
-		ColorG:     1.0,
-		ColorB:     1.0,
-		ColorA:     0.8,
+		AimX:        1.0,
+		AimY:        0.0,
+		WeaponType:  "melee",
+		Visible:     true,
+		Range:       3.0,
+		Scale:       1.0,
+		ColorR:      1.0,
+		ColorG:      1.0,
+		ColorB:      1.0,
+		ColorA:      0.8,
+		SwayOffsetX: 0.0,
+		SwayOffsetY: 0.0,
 	}
 }

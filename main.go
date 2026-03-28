@@ -120,6 +120,7 @@ import (
 	"github.com/opd-ai/violence/pkg/walltex"
 	"github.com/opd-ai/violence/pkg/weapon"
 	"github.com/opd-ai/violence/pkg/weaponanim"
+	"github.com/opd-ai/violence/pkg/weaponsway"
 	"github.com/opd-ai/violence/pkg/weather"
 	"github.com/opd-ai/violence/pkg/wetness"
 	"github.com/sirupsen/logrus"
@@ -506,6 +507,9 @@ type Game struct {
 
 	// Lens dirt system for cinematic light scattering effects
 	lensDirtSystem *lensdirt.System
+
+	// Weapon sway system for first-person weapon movement with inertia and weight feel
+	weaponSwaySystem *weaponsway.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -791,6 +795,9 @@ func NewGame() *Game {
 	// Initialize lens dirt system for cinematic light scattering effects
 	g.lensDirtSystem = lensdirt.NewSystem(g.genreID, int64(seed), config.C.InternalWidth, config.C.InternalHeight)
 
+	// Initialize weapon sway system for first-person weapon movement with realistic inertia
+	g.weaponSwaySystem = weaponsway.NewSystem(g.genreID)
+
 	// Connect sliding system to spatial index
 	game.ConnectSlidingSystem(g.slidingSystem, g.spatialSystem)
 
@@ -846,6 +853,7 @@ func NewGame() *Game {
 		ProximityUI:      g.proximityUISystem,
 		Subsurface:       g.subsurfaceSystem,
 		EdgeAO:           g.edgeAOSystem,
+		WeaponSway:       g.weaponSwaySystem,
 	})
 
 	// Show main menu
@@ -1759,6 +1767,11 @@ func (g *Game) initializePlayer() {
 	crosshairComp.WeaponType = "ranged" // Default to ranged crosshair
 	g.world.AddComponent(g.playerEntity, crosshairComp)
 
+	// Add weapon sway component to player for first-person weapon movement
+	swayComp := weaponsway.NewComponent()
+	swayComp.SetWeaponWeight(1.0) // Default medium weapon
+	g.world.AddComponent(g.playerEntity, swayComp)
+
 	// Add status bar component to player for displaying active status effects
 	statusBarComp := statusbar.NewComponent()
 	statusBarComp.SetPosition(4, 55) // Below health/armor bars
@@ -2184,6 +2197,11 @@ func (g *Game) syncPlayerCrosshair() {
 	ch.AimX = g.camera.DirX
 	ch.AimY = g.camera.DirY
 
+	// Sync weapon sway offset to crosshair for visual feedback
+	swayX, swayY := g.getPlayerWeaponSwayOffset()
+	ch.SwayOffsetX = swayX
+	ch.SwayOffsetY = swayY
+
 	// Update weapon type based on current weapon
 	if g.arsenal != nil && len(g.arsenal.Weapons) > 0 {
 		currentWeapon := g.arsenal.GetCurrentWeapon()
@@ -2198,6 +2216,56 @@ func (g *Game) syncPlayerCrosshair() {
 			ch.WeaponType = "ranged"
 		}
 	}
+}
+
+// applyWeaponSwayTurnImpulse applies turn-based weapon sway from camera rotation.
+// deltaYaw is the horizontal rotation in radians (from mouse/keyboard).
+// deltaPitch is the vertical rotation in radians (from mouse).
+func (g *Game) applyWeaponSwayTurnImpulse(deltaYaw, deltaPitch float64) {
+	if g.playerEntity == 0 || g.weaponSwaySystem == nil {
+		return
+	}
+
+	swayType := reflect.TypeOf(&weaponsway.Component{})
+	comp, ok := g.world.GetComponent(g.playerEntity, swayType)
+	if !ok {
+		return
+	}
+
+	sway := comp.(*weaponsway.Component)
+	g.weaponSwaySystem.AddTurnImpulse(sway, deltaYaw, deltaPitch)
+}
+
+// updateWeaponSwayMovementState syncs movement flags to weapon sway component.
+func (g *Game) updateWeaponSwayMovementState(isMoving, isSprinting bool) {
+	if g.playerEntity == 0 || g.weaponSwaySystem == nil {
+		return
+	}
+
+	swayType := reflect.TypeOf(&weaponsway.Component{})
+	comp, ok := g.world.GetComponent(g.playerEntity, swayType)
+	if !ok {
+		return
+	}
+
+	sway := comp.(*weaponsway.Component)
+	g.weaponSwaySystem.SetMovementState(sway, isMoving, isSprinting)
+}
+
+// getPlayerWeaponSwayOffset returns the current weapon sway offset for rendering.
+func (g *Game) getPlayerWeaponSwayOffset() (float64, float64) {
+	if g.playerEntity == 0 {
+		return 0, 0
+	}
+
+	swayType := reflect.TypeOf(&weaponsway.Component{})
+	comp, ok := g.world.GetComponent(g.playerEntity, swayType)
+	if !ok {
+		return 0, 0
+	}
+
+	sway := comp.(*weaponsway.Component)
+	return sway.GetSwayOffset()
 }
 
 // recordReplayInput captures current input state to the replay recorder.
@@ -3322,6 +3390,11 @@ func (g *Game) processPlayerMovement() (float64, float64, float64) {
 	g.processGamepadMovement(&deltaX, &deltaY, moveSpeed)
 	g.processCameraRotation(rotSpeed, &deltaPitch)
 
+	// Update weapon sway movement state based on whether player is moving
+	isMoving := deltaX != 0 || deltaY != 0
+	isSprinting := false // Sprint not implemented yet, but ready for future
+	g.updateWeaponSwayMovementState(isMoving, isSprinting)
+
 	return deltaX, deltaY, deltaPitch
 }
 
@@ -3337,25 +3410,50 @@ func (g *Game) processGamepadMovement(deltaX, deltaY *float64, moveSpeed float64
 
 // processCameraRotation processes keyboard, mouse, and gamepad camera rotation.
 func (g *Game) processCameraRotation(rotSpeed float64, deltaPitch *float64) {
+	totalYawDelta := 0.0
+
 	if g.input.IsPressed(input.ActionTurnLeft) {
 		g.camera.Rotate(-rotSpeed)
+		totalYawDelta -= rotSpeed
 	}
 	if g.input.IsPressed(input.ActionTurnRight) {
 		g.camera.Rotate(rotSpeed)
+		totalYawDelta += rotSpeed
 	}
 
 	mouseDX, mouseDY := g.input.MouseDelta()
 	if mouseDX != 0 || mouseDY != 0 {
 		sensitivity := config.C.MouseSensitivity * 0.002
-		g.camera.Rotate(mouseDX * sensitivity)
-		*deltaPitch = -mouseDY * sensitivity * 3.0
+		yawDelta := mouseDX * sensitivity
+		pitchDelta := -mouseDY * sensitivity * 3.0
+
+		g.camera.Rotate(yawDelta)
+		*deltaPitch = pitchDelta
+
+		totalYawDelta += yawDelta
+
+		// Apply weapon sway turn impulse from mouse movement
+		g.applyWeaponSwayTurnImpulse(yawDelta, pitchDelta)
 	}
 
 	rightX, rightY := g.input.GamepadRightStick()
 	deadzone := 0.15
 	if rightX*rightX+rightY*rightY > deadzone*deadzone {
-		g.camera.Rotate(rightX * rotSpeed * 1.5)
-		*deltaPitch = -rightY * rotSpeed * 15.0
+		yawDelta := rightX * rotSpeed * 1.5
+		pitchDelta := -rightY * rotSpeed * 15.0
+
+		g.camera.Rotate(yawDelta)
+		*deltaPitch = pitchDelta
+
+		totalYawDelta += yawDelta
+
+		// Apply weapon sway turn impulse from gamepad
+		g.applyWeaponSwayTurnImpulse(yawDelta, pitchDelta)
+	}
+
+	// Apply keyboard turn sway (no pitch component)
+	if totalYawDelta != 0 && mouseDX == 0 && rightX*rightX <= deadzone*deadzone {
+		g.applyWeaponSwayTurnImpulse(totalYawDelta, 0)
 	}
 }
 
