@@ -967,6 +967,17 @@ type bodyPartPositions struct {
 	armW, armH          int
 	headRadius          int
 	attackOffset        int
+	// Role-specific silhouette modifiers
+	shoulderWidth    int  // Extra width for tanks
+	stanceWidthMod   int  // Leg spread modifier
+	hunchAmount      int  // Forward lean for ambushers
+	neckLength       int  // Extended neck for ranged
+	weaponScale      int  // Weapon size multiplier (percentage)
+	hasHelmet        bool // Visible helmet for tanks
+	hasHood          bool // Hood silhouette for ambushers
+	hasBackpack      bool // Gear pack for scouts
+	glowingHands     bool // Magic glow for healers
+	extraArmorHeight int  // Pauldrons/shoulder pads
 }
 
 // selectGenreColors returns color scheme and weapon type based on genre.
@@ -1002,23 +1013,98 @@ func (g *Generator) selectGenreColors() (armorColor, accentColor, skinColor colo
 }
 
 // calculateBodyPartPositions computes positions and dimensions for all body parts with animation offsets.
+// Role-specific proportions create distinct silhouettes for immediate visual recognition:
+// - Tank: wide shoulders, stocky build, heavy armor, helmet
+// - Ranged: elongated arms, narrow body, extended reach
+// - Healer: glowing hands, robed silhouette, staff-like weapon
+// - Ambusher: crouched posture, hood, lean profile
+// - Scout: compact build, backpack, quick stance
 func (g *Generator) calculateBodyPartPositions(size, cx, cy int, role string, frame int) bodyPartPositions {
+	// Base proportions (modified by role below)
 	positions := bodyPartPositions{
-		leftLegY:   cy + size/6,
-		rightLegY:  cy + size/6,
-		leftArmY:   cy - size/10,
-		rightArmY:  cy - size/10,
-		bodyY:      cy - size/8,
-		torsoW:     size / 3,
-		torsoH:     size / 3,
-		legW:       size / 12,
-		legH:       size / 4,
-		headRadius: size / 10,
+		leftLegY:         cy + size/6,
+		rightLegY:        cy + size/6,
+		leftArmY:         cy - size/10,
+		rightArmY:        cy - size/10,
+		bodyY:            cy - size/8,
+		torsoW:           size / 3,
+		torsoH:           size / 3,
+		legW:             size / 12,
+		legH:             size / 4,
+		headRadius:       size / 10,
+		weaponScale:      100,
+		shoulderWidth:    0,
+		stanceWidthMod:   0,
+		hunchAmount:      0,
+		neckLength:       0,
+		extraArmorHeight: 0,
 	}
 
 	positions.armW = positions.legW - 1
 	positions.armH = size / 4
 
+	// Apply role-specific body proportions for silhouette differentiation
+	switch role {
+	case "tank":
+		// Wide and stocky: increased torso width, shorter legs, heavy armor
+		positions.torsoW = size * 2 / 5           // 40% wider torso
+		positions.torsoH = size / 3               // Same height
+		positions.legW = size / 9                 // Thicker legs
+		positions.legH = size / 5                 // Shorter legs (stockier)
+		positions.headRadius = size / 11          // Slightly smaller head relative to body
+		positions.shoulderWidth = size / 8        // Wide pauldrons
+		positions.stanceWidthMod = size / 16      // Wider leg stance
+		positions.hasHelmet = true                // Visible helmet
+		positions.extraArmorHeight = size / 10    // Shoulder pads visible above torso
+		positions.weaponScale = 120               // Larger weapon
+		positions.armW = positions.legW - 1       // Thicker arms to match
+		positions.armH = size / 5                 // Shorter, stockier arms
+
+	case "ranged":
+		// Lean with extended arms: narrow torso, longer arms for bow/gun silhouette
+		positions.torsoW = size / 4               // Narrower torso
+		positions.torsoH = size * 2 / 5           // Taller torso (elongated)
+		positions.armH = size / 3                 // Longer arms for weapon reach
+		positions.armW = size / 14                // Thinner arms
+		positions.neckLength = size / 16          // Slightly extended neck
+		positions.headRadius = size / 9           // Normal head
+		positions.legW = size / 14                // Thinner legs
+		positions.weaponScale = 150               // Large visible weapon (bow/rifle silhouette)
+
+	case "healer":
+		// Robed appearance: flowing silhouette, glowing hands
+		positions.torsoW = size * 3 / 10          // Slightly narrow upper body
+		positions.torsoH = size * 2 / 5           // Longer torso (robed)
+		positions.legH = size / 5                 // Shorter visible legs (hidden by robe)
+		positions.legW = size / 16                // Thin legs (robe silhouette)
+		positions.headRadius = size / 9           // Normal head
+		positions.glowingHands = true             // Magical glow effect
+		positions.weaponScale = 130               // Staff silhouette
+
+	case "ambusher":
+		// Crouched and hooded: hunched posture, lean profile
+		positions.torsoW = size / 4               // Narrow torso
+		positions.torsoH = size / 4               // Compact torso (crouched)
+		positions.bodyY = cy                      // Lower center (crouching)
+		positions.hunchAmount = size / 12         // Forward lean
+		positions.hasHood = true                  // Hood silhouette
+		positions.headRadius = size / 12          // Smaller visible head (hooded)
+		positions.legH = size / 5                 // Bent legs (crouching)
+		positions.stanceWidthMod = size / 20      // Slightly wider stance (ready to spring)
+		positions.weaponScale = 80                // Smaller, concealed weapon
+
+	case "scout":
+		// Compact and agile: balanced proportions, backpack
+		positions.torsoW = size / 4               // Narrow torso
+		positions.torsoH = size / 4               // Compact torso
+		positions.legH = size * 3 / 10            // Longer legs (runner's build)
+		positions.legW = size / 14                // Lean legs
+		positions.hasBackpack = true              // Visible gear pack
+		positions.headRadius = size / 10          // Normal head
+		positions.weaponScale = 90                // Compact weapon
+	}
+
+	// Animation: leg alternation for walking
 	if frame%3 == 1 {
 		positions.leftLegY += 2
 		positions.rightLegY -= 2
@@ -1027,12 +1113,14 @@ func (g *Generator) calculateBodyPartPositions(size, cx, cy int, role string, fr
 		positions.rightLegY += 2
 	}
 
+	// Ambusher crouch animation
 	if role == "ambusher" && frame == 0 {
 		positions.bodyY += 2
 		positions.leftArmY += 2
 		positions.rightArmY += 2
 	}
 
+	// Attack frame offset
 	if frame%4 == 3 {
 		positions.attackOffset = -3
 	}
@@ -1040,10 +1128,12 @@ func (g *Generator) calculateBodyPartPositions(size, cx, cy int, role string, fr
 	return positions
 }
 
-// drawLegs renders both legs with shading.
+// drawLegs renders both legs with shading and role-specific stance width.
 func (g *Generator) drawLegs(img *image.RGBA, size, cx int, armorColor color.RGBA, pos bodyPartPositions) {
+	// Left leg with stance width modifier
+	leftLegCenterX := cx - size/8 - pos.stanceWidthMod
 	for y := pos.leftLegY; y < pos.leftLegY+pos.legH; y++ {
-		for x := cx - size/8 - pos.legW/2; x < cx-size/8+pos.legW/2; x++ {
+		for x := leftLegCenterX - pos.legW/2; x < leftLegCenterX+pos.legW/2; x++ {
 			if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
 				shade := 0.7 + 0.3*float64(y-pos.leftLegY)/float64(pos.legH)
 				r := uint8(float64(armorColor.R) * shade)
@@ -1054,8 +1144,10 @@ func (g *Generator) drawLegs(img *image.RGBA, size, cx int, armorColor color.RGB
 		}
 	}
 
+	// Right leg with stance width modifier
+	rightLegCenterX := cx + size/8 + pos.stanceWidthMod
 	for y := pos.rightLegY; y < pos.rightLegY+pos.legH; y++ {
-		for x := cx + size/8 - pos.legW/2; x < cx+size/8+pos.legW/2; x++ {
+		for x := rightLegCenterX - pos.legW/2; x < rightLegCenterX+pos.legW/2; x++ {
 			if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
 				shade := 0.7 + 0.3*float64(y-pos.rightLegY)/float64(pos.legH)
 				r := uint8(float64(armorColor.R) * shade)
@@ -1067,25 +1159,78 @@ func (g *Generator) drawLegs(img *image.RGBA, size, cx int, armorColor color.RGB
 	}
 }
 
-// drawTorso renders the body with optional role-specific accent stripes.
+// drawTorso renders the body with role-specific silhouette features.
+// Includes shoulder width extensions, pauldrons, and role-specific accents.
 func (g *Generator) drawTorso(img *image.RGBA, cx int, armorColor, accentColor color.RGBA, role string, pos bodyPartPositions) {
-	for y := pos.bodyY; y < pos.bodyY+pos.torsoH; y++ {
-		for x := cx - pos.torsoW/2; x < cx+pos.torsoW/2; x++ {
-			if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
-				dx := float64(x - cx)
-				shade := 1.0 - math.Abs(dx)/float64(pos.torsoW)*0.4
-				r := uint8(float64(armorColor.R) * shade)
-				g := uint8(float64(armorColor.G) * shade)
-				b := uint8(float64(armorColor.B) * shade)
-				img.Set(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
+	// Draw shoulder extensions/pauldrons for tanks
+	if pos.shoulderWidth > 0 {
+		shoulderY := pos.bodyY - pos.extraArmorHeight
+		shoulderH := pos.torsoH/4 + pos.extraArmorHeight
+		// Left pauldron
+		for y := shoulderY; y < shoulderY+shoulderH; y++ {
+			pauldronWidth := pos.shoulderWidth * (shoulderH - (y - shoulderY)) / shoulderH
+			for x := cx - pos.torsoW/2 - pauldronWidth; x < cx-pos.torsoW/2; x++ {
+				if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
+					shade := 0.9 - float64(y-shoulderY)/float64(shoulderH)*0.3
+					r := uint8(float64(armorColor.R) * shade)
+					gr := uint8(float64(armorColor.G) * shade)
+					b := uint8(float64(armorColor.B) * shade)
+					img.Set(x, y, color.RGBA{R: r, G: gr, B: b, A: 255})
+				}
+			}
+		}
+		// Right pauldron
+		for y := shoulderY; y < shoulderY+shoulderH; y++ {
+			pauldronWidth := pos.shoulderWidth * (shoulderH - (y - shoulderY)) / shoulderH
+			for x := cx + pos.torsoW/2; x < cx+pos.torsoW/2+pauldronWidth; x++ {
+				if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
+					shade := 0.9 - float64(y-shoulderY)/float64(shoulderH)*0.3
+					r := uint8(float64(armorColor.R) * shade)
+					gr := uint8(float64(armorColor.G) * shade)
+					b := uint8(float64(armorColor.B) * shade)
+					img.Set(x, y, color.RGBA{R: r, G: gr, B: b, A: 255})
+				}
 			}
 		}
 	}
 
+	// Main torso body with hunch offset for ambushers
+	torsoStartX := cx - pos.torsoW/2 + pos.hunchAmount
+	torsoEndX := cx + pos.torsoW/2 + pos.hunchAmount
+	for y := pos.bodyY; y < pos.bodyY+pos.torsoH; y++ {
+		for x := torsoStartX; x < torsoEndX; x++ {
+			if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
+				dx := float64(x - (cx + pos.hunchAmount))
+				shade := 1.0 - math.Abs(dx)/float64(pos.torsoW)*0.4
+				r := uint8(float64(armorColor.R) * shade)
+				gr := uint8(float64(armorColor.G) * shade)
+				b := uint8(float64(armorColor.B) * shade)
+				img.Set(x, y, color.RGBA{R: r, G: gr, B: b, A: 255})
+			}
+		}
+	}
+
+	// Role-specific accent stripes
 	if role == "tank" || role == "healer" {
 		accentY := pos.bodyY + pos.torsoH/3
 		accentH := 2
 		common.FillRect(img, cx-pos.torsoW/3, accentY, cx+pos.torsoW/3, accentY+accentH, accentColor)
+	}
+
+	// Scout backpack silhouette
+	if pos.hasBackpack {
+		packW := pos.torsoW / 3
+		packH := pos.torsoH / 2
+		packX := cx + pos.torsoW/2 + 1
+		packY := pos.bodyY + pos.torsoH/4
+		packColor := color.RGBA{R: armorColor.R / 2, G: armorColor.G / 2, B: armorColor.B / 2, A: 255}
+		for y := packY; y < packY+packH; y++ {
+			for x := packX; x < packX+packW; x++ {
+				if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
+					img.Set(x, y, packColor)
+				}
+			}
+		}
 	}
 }
 
@@ -1116,27 +1261,117 @@ func (g *Generator) drawArms(img *image.RGBA, size, cx int, armorColor color.RGB
 	}
 }
 
-// drawHead renders a circular head with gradient shading.
+// drawHead renders the head with role-specific silhouette features.
+// Includes helmet for tanks, hood for ambushers, and neck extension for ranged.
 func (g *Generator) drawHead(img *image.RGBA, size, cx int, skinColor color.RGBA, pos bodyPartPositions) {
-	for y := -pos.headRadius; y <= pos.headRadius; y++ {
-		for x := -pos.headRadius; x <= pos.headRadius; x++ {
-			if x*x+y*y <= pos.headRadius*pos.headRadius {
-				px := cx + x
-				py := pos.bodyY - size/16 + y
+	// Calculate head position with neck length adjustment
+	headCenterY := pos.bodyY - size/16 - pos.neckLength
+
+	// Draw hood silhouette for ambushers (drawn first, behind head)
+	if pos.hasHood {
+		hoodColor := color.RGBA{R: skinColor.R / 3, G: skinColor.G / 3, B: skinColor.B / 3, A: 255}
+		hoodRadius := pos.headRadius + size/16
+		// Pointed hood top
+		for y := -hoodRadius - size/12; y <= 0; y++ {
+			pointWidth := (hoodRadius * (y + hoodRadius + size/12)) / (hoodRadius + size/12)
+			for x := -pointWidth; x <= pointWidth; x++ {
+				px := cx + x + pos.hunchAmount
+				py := headCenterY + y
 				if px >= 0 && px < img.Bounds().Dx() && py >= 0 && py < img.Bounds().Dy() {
-					dist := math.Sqrt(float64(x*x + y*y))
-					shade := 1.0 - (dist / float64(pos.headRadius) * 0.3)
-					r := uint8(math.Min(255, float64(skinColor.R)*shade))
-					g := uint8(math.Min(255, float64(skinColor.G)*shade))
-					b := uint8(math.Min(255, float64(skinColor.B)*shade))
-					img.Set(px, py, color.RGBA{R: r, G: g, B: b, A: 255})
+					img.Set(px, py, hoodColor)
+				}
+			}
+		}
+		// Hood body wrapping around head
+		for y := -hoodRadius; y <= hoodRadius/2; y++ {
+			for x := -hoodRadius; x <= hoodRadius; x++ {
+				if x*x+y*y <= hoodRadius*hoodRadius {
+					px := cx + x + pos.hunchAmount
+					py := headCenterY + y
+					if px >= 0 && px < img.Bounds().Dx() && py >= 0 && py < img.Bounds().Dy() {
+						img.Set(px, py, hoodColor)
+					}
 				}
 			}
 		}
 	}
+
+	// Draw helmet for tanks (drawn first, behind head face)
+	if pos.hasHelmet {
+		helmetColor := color.RGBA{R: 80, G: 80, B: 90, A: 255}
+		helmetRadius := pos.headRadius + 2
+		// Helmet dome
+		for y := -helmetRadius - 2; y <= 0; y++ {
+			for x := -helmetRadius; x <= helmetRadius; x++ {
+				if x*x+y*y <= helmetRadius*helmetRadius {
+					px := cx + x
+					py := headCenterY + y
+					if px >= 0 && px < img.Bounds().Dx() && py >= 0 && py < img.Bounds().Dy() {
+						dist := math.Sqrt(float64(x*x + y*y))
+						shade := 0.8 - (dist / float64(helmetRadius) * 0.3)
+						r := uint8(float64(helmetColor.R) * shade)
+						gr := uint8(float64(helmetColor.G) * shade)
+						b := uint8(float64(helmetColor.B) * shade)
+						img.Set(px, py, color.RGBA{R: r, G: gr, B: b, A: 255})
+					}
+				}
+			}
+		}
+		// Helmet visor slit (dark line across face area)
+		visorY := headCenterY - pos.headRadius/3
+		for x := -pos.headRadius + 1; x <= pos.headRadius-1; x++ {
+			px := cx + x
+			if px >= 0 && px < img.Bounds().Dx() && visorY >= 0 && visorY < img.Bounds().Dy() {
+				img.Set(px, visorY, color.RGBA{R: 20, G: 20, B: 30, A: 255})
+			}
+		}
+	}
+
+	// Draw the actual head/face
+	headOffsetX := pos.hunchAmount
+	for y := -pos.headRadius; y <= pos.headRadius; y++ {
+		for x := -pos.headRadius; x <= pos.headRadius; x++ {
+			if x*x+y*y <= pos.headRadius*pos.headRadius {
+				px := cx + x + headOffsetX
+				py := headCenterY + y
+				if px >= 0 && px < img.Bounds().Dx() && py >= 0 && py < img.Bounds().Dy() {
+					// Don't overwrite visor area for helmeted units
+					if pos.hasHelmet && y < -pos.headRadius/3 {
+						continue
+					}
+					dist := math.Sqrt(float64(x*x + y*y))
+					shade := 1.0 - (dist / float64(pos.headRadius) * 0.3)
+					r := uint8(math.Min(255, float64(skinColor.R)*shade))
+					gr := uint8(math.Min(255, float64(skinColor.G)*shade))
+					b := uint8(math.Min(255, float64(skinColor.B)*shade))
+					img.Set(px, py, color.RGBA{R: r, G: gr, B: b, A: 255})
+				}
+			}
+		}
+	}
+
+	// Draw eyes for non-helmeted units (high-contrast landmark)
+	if !pos.hasHelmet {
+		eyeColor := color.RGBA{R: 255, G: 255, B: 255, A: 255}
+		pupilColor := color.RGBA{R: 30, G: 30, B: 40, A: 255}
+		eyeY := headCenterY - pos.headRadius/4
+		leftEyeX := cx + headOffsetX - pos.headRadius/3
+		rightEyeX := cx + headOffsetX + pos.headRadius/3
+		// Eye whites
+		if leftEyeX >= 0 && leftEyeX < img.Bounds().Dx() && eyeY >= 0 && eyeY < img.Bounds().Dy() {
+			img.Set(leftEyeX, eyeY, eyeColor)
+			img.Set(rightEyeX, eyeY, eyeColor)
+		}
+		// Pupils (offset slightly for direction)
+		if leftEyeX+1 < img.Bounds().Dx() {
+			img.Set(leftEyeX+1, eyeY, pupilColor)
+			img.Set(rightEyeX+1, eyeY, pupilColor)
+		}
+	}
 }
 
-// drawWeapon renders weapon based on type with animation offset.
+// drawWeapon renders weapon based on type with role-specific sizing.
+// Weapon scale varies by role: tanks get larger weapons, scouts get compact ones.
 func (g *Generator) drawWeapon(img *image.RGBA, size, cx, weaponType int, armorColor color.RGBA, frame int, pos bodyPartPositions) {
 	weaponColor := color.RGBA{R: 200, G: 200, B: 220, A: 255}
 	if weaponType == 2 {
@@ -1147,39 +1382,129 @@ func (g *Generator) drawWeapon(img *image.RGBA, size, cx, weaponType int, armorC
 
 	weaponX := cx + pos.torsoW/2 + pos.armW
 	weaponY := pos.rightArmY + pos.armH/2 + pos.attackOffset
-	weaponLen := size / 5
+	// Apply weapon scale from role (100 = normal, 150 = 50% larger, etc.)
+	baseLen := size / 5
+	weaponLen := baseLen * pos.weaponScale / 100
+	if weaponLen < 2 {
+		weaponLen = 2
+	}
+	weaponThickness := 1 + pos.weaponScale/80 // Thicker weapons for larger scale
 
 	if weaponType == 2 {
-		common.FillRect(img, weaponX, weaponY-1, weaponX+weaponLen, weaponY+1, weaponColor)
-		common.FillCircle(img, weaponX+weaponLen, weaponY, 2, color.RGBA{R: 100, G: 100, B: 110, A: 255})
+		// Gun/rifle silhouette
+		common.FillRect(img, weaponX, weaponY-weaponThickness, weaponX+weaponLen, weaponY+weaponThickness, weaponColor)
+		common.FillCircle(img, weaponX+weaponLen, weaponY, 2+weaponThickness/2, color.RGBA{R: 100, G: 100, B: 110, A: 255})
 	} else {
-		common.FillRect(img, weaponX, weaponY-1, weaponX+weaponLen, weaponY+1, weaponColor)
+		// Sword/club silhouette
+		common.FillRect(img, weaponX, weaponY-weaponThickness, weaponX+weaponLen, weaponY+weaponThickness, weaponColor)
 		if weaponType == 1 {
-			common.FillCircle(img, weaponX+weaponLen, weaponY, 3, color.RGBA{R: 180, G: 180, B: 200, A: 255})
+			// Blade tip
+			common.FillCircle(img, weaponX+weaponLen, weaponY, 3+weaponThickness/2, color.RGBA{R: 180, G: 180, B: 200, A: 255})
 		}
 	}
 }
 
-// drawRoleSpecificDecorations adds visual indicators for tank and healer roles.
+// drawRoleSpecificDecorations adds visual indicators for each role's silhouette.
+// These are high-contrast elements that survive downscaling and enable instant recognition.
 func (g *Generator) drawRoleSpecificDecorations(img *image.RGBA, cx int, role string, accentColor color.RGBA, pos bodyPartPositions) {
+	// Tank: Large rectangular shield on left side (distinctive silhouette)
 	if role == "tank" {
-		shieldX := cx - pos.torsoW/2 - pos.armW - 2
-		shieldY := pos.leftArmY + pos.armH/4
-		shieldH := pos.armH / 2
+		shieldX := cx - pos.torsoW/2 - pos.armW - 4
+		shieldY := pos.leftArmY
+		shieldW := 6
+		shieldH := pos.armH * 3 / 4
+		shieldColor := color.RGBA{R: 160, G: 140, B: 100, A: 255}
+		shieldHighlight := color.RGBA{R: 200, G: 180, B: 140, A: 255}
+		// Shield body with vertical shading
 		for y := shieldY; y < shieldY+shieldH; y++ {
-			for x := shieldX - 4; x < shieldX; x++ {
+			for x := shieldX - shieldW; x < shieldX; x++ {
 				if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
-					img.Set(x, y, color.RGBA{R: 160, G: 140, B: 100, A: 255})
+					shade := 0.7 + 0.3*float64(shieldX-x)/float64(shieldW)
+					r := uint8(float64(shieldColor.R) * shade)
+					gr := uint8(float64(shieldColor.G) * shade)
+					b := uint8(float64(shieldColor.B) * shade)
+					img.Set(x, y, color.RGBA{R: r, G: gr, B: b, A: 255})
 				}
 			}
 		}
+		// Shield boss (center bump) for recognition
+		bossX := shieldX - shieldW/2
+		bossY := shieldY + shieldH/2
+		common.FillCircle(img, bossX, bossY, 2, shieldHighlight)
 	}
 
+	// Healer: Glowing hands and medical/magic symbol on torso
 	if role == "healer" {
+		// Cross/plus symbol on torso
 		symbolX := cx - 2
 		symbolY := pos.bodyY + pos.torsoH/2 - 2
 		common.FillRect(img, symbolX, symbolY-4, symbolX+4, symbolY+4, accentColor)
 		common.FillRect(img, symbolX-4, symbolY, symbolX+8, symbolY+4, accentColor)
+
+		// Glowing hands effect
+		if pos.glowingHands {
+			glowColor := color.RGBA{R: 180, G: 220, B: 255, A: 200}
+			// Left hand glow
+			leftHandX := cx - pos.torsoW/2 - pos.armW/2
+			leftHandY := pos.leftArmY + pos.armH
+			common.FillCircle(img, leftHandX, leftHandY, 3, glowColor)
+			// Right hand glow
+			rightHandX := cx + pos.torsoW/2 + pos.armW/2
+			rightHandY := pos.rightArmY + pos.armH + pos.attackOffset
+			common.FillCircle(img, rightHandX, rightHandY, 3, glowColor)
+		}
+	}
+
+	// Ranged: Distinctive bow/rifle outline extending from arm
+	if role == "ranged" {
+		// Bow string or rifle stock silhouette (drawn as dark line)
+		stringColor := color.RGBA{R: 40, G: 40, B: 50, A: 255}
+		stringX := cx + pos.torsoW/2 + pos.armW + 2
+		stringTop := pos.rightArmY - pos.armH/4
+		stringBot := pos.rightArmY + pos.armH
+		common.DrawThickLine(img, stringX, stringTop, stringX, stringBot, 1, stringColor)
+	}
+
+	// Ambusher: Dagger/blade at hip (small but visible)
+	if role == "ambusher" {
+		daggerColor := color.RGBA{R: 180, G: 180, B: 200, A: 255}
+		daggerX := cx - pos.torsoW/2 - 2
+		daggerY := pos.bodyY + pos.torsoH - 2
+		daggerLen := pos.torsoH / 3
+		// Diagonal dagger
+		for i := 0; i < daggerLen; i++ {
+			px := daggerX - i/2
+			py := daggerY + i
+			if px >= 0 && px < img.Bounds().Dx() && py >= 0 && py < img.Bounds().Dy() {
+				img.Set(px, py, daggerColor)
+			}
+		}
+	}
+
+	// Scout: Visible belt/utility pouches
+	if role == "scout" {
+		beltColor := color.RGBA{R: 100, G: 80, B: 60, A: 255}
+		pouchColor := color.RGBA{R: 80, G: 60, B: 40, A: 255}
+		beltY := pos.bodyY + pos.torsoH - 3
+		// Belt
+		for x := cx - pos.torsoW/2; x < cx+pos.torsoW/2; x++ {
+			if x >= 0 && x < img.Bounds().Dx() && beltY >= 0 && beltY < img.Bounds().Dy() {
+				img.Set(x, beltY, beltColor)
+				img.Set(x, beltY+1, beltColor)
+			}
+		}
+		// Small pouches on belt
+		for _, pouchX := range []int{cx - pos.torsoW/4, cx + pos.torsoW/4} {
+			for dy := 0; dy < 3; dy++ {
+				for dx := -1; dx <= 1; dx++ {
+					px := pouchX + dx
+					py := beltY + 2 + dy
+					if px >= 0 && px < img.Bounds().Dx() && py >= 0 && py < img.Bounds().Dy() {
+						img.Set(px, py, pouchColor)
+					}
+				}
+			}
+		}
 	}
 }
 

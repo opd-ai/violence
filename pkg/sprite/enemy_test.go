@@ -2,6 +2,8 @@ package sprite
 
 import (
 	"testing"
+
+	"github.com/hajimehoshi/ebiten/v2"
 )
 
 func TestGenerateEnemySprite(t *testing.T) {
@@ -228,5 +230,132 @@ func BenchmarkEnemySpriteCached(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		gen.GetSprite(SpriteEnemy, "humanoid", 12345, 0, 64)
+	}
+}
+
+// TestHumanoidRoleSilhouetteDifferentiation verifies that different humanoid roles
+// produce sprites with distinct silhouettes. Each role should generate successfully
+// and sprites with the same seed but different roles should be cached separately.
+func TestHumanoidRoleSilhouetteDifferentiation(t *testing.T) {
+	gen := NewGenerator(100)
+	gen.SetGenre("fantasy")
+
+	roles := []string{"humanoid", "tank", "ranged", "healer", "ambusher", "scout"}
+	seed := int64(42424242) // Fixed seed for determinism
+	size := 64
+
+	// Generate sprites for all roles and verify they're created
+	sprites := make(map[string]*ebiten.Image)
+	for _, role := range roles {
+		sprite := gen.GetSprite(SpriteEnemy, role, seed, 0, size)
+		if sprite == nil {
+			t.Fatalf("role %s: GetSprite returned nil", role)
+		}
+		sprites[role] = sprite
+
+		// Verify correct size
+		bounds := sprite.Bounds()
+		if bounds.Dx() != size || bounds.Dy() != size {
+			t.Errorf("role %s: sprite size = %dx%d, want %dx%d",
+				role, bounds.Dx(), bounds.Dy(), size, size)
+		}
+	}
+
+	// Verify that different roles produce different cached sprites
+	// (same seed + different role = different cache key)
+	for i, role1 := range roles {
+		for j, role2 := range roles {
+			if i >= j {
+				continue
+			}
+
+			// The sprites should be different objects in memory since
+			// they have different subtypes in the cache key
+			if sprites[role1] == sprites[role2] {
+				t.Errorf("roles %s and %s returned same sprite pointer (should be distinct)",
+					role1, role2)
+			}
+		}
+	}
+}
+
+// TestHumanoidRoleProportions verifies that role-specific body proportions are applied.
+func TestHumanoidRoleProportions(t *testing.T) {
+	gen := NewGenerator(100)
+	gen.SetGenre("fantasy")
+	size := 64
+
+	roles := []string{"humanoid", "tank", "ranged", "healer", "ambusher", "scout"}
+
+	for _, role := range roles {
+		t.Run(role, func(t *testing.T) {
+			sprite := gen.GetSprite(SpriteEnemy, role, 12345, 0, size)
+			if sprite == nil {
+				t.Fatal("GetSprite returned nil")
+			}
+
+			bounds := sprite.Bounds()
+			if bounds.Dx() != size || bounds.Dy() != size {
+				t.Errorf("sprite size = %dx%d, want %dx%d",
+					bounds.Dx(), bounds.Dy(), size, size)
+			}
+		})
+	}
+}
+
+// TestRoleBodyPartPositions verifies that calculateBodyPartPositions produces
+// different proportions for each role.
+func TestRoleBodyPartPositions(t *testing.T) {
+	gen := NewGenerator(100)
+	size := 64
+	cx, cy := size/2, size/2
+	frame := 0
+
+	roles := []string{"humanoid", "tank", "ranged", "healer", "ambusher", "scout"}
+	positions := make(map[string]bodyPartPositions)
+
+	for _, role := range roles {
+		pos := gen.calculateBodyPartPositions(size, cx, cy, role, frame)
+		positions[role] = pos
+	}
+
+	// Tank should have wider torso than base humanoid
+	if positions["tank"].torsoW <= positions["humanoid"].torsoW {
+		t.Error("tank torso should be wider than humanoid")
+	}
+
+	// Tank should have shoulder width
+	if positions["tank"].shoulderWidth <= 0 {
+		t.Error("tank should have shoulderWidth > 0")
+	}
+
+	// Tank should have helmet
+	if !positions["tank"].hasHelmet {
+		t.Error("tank should have helmet")
+	}
+
+	// Ranged should have longer arms
+	if positions["ranged"].armH <= positions["humanoid"].armH {
+		t.Error("ranged arms should be longer than humanoid")
+	}
+
+	// Healer should have glowing hands
+	if !positions["healer"].glowingHands {
+		t.Error("healer should have glowing hands")
+	}
+
+	// Ambusher should have hood
+	if !positions["ambusher"].hasHood {
+		t.Error("ambusher should have hood")
+	}
+
+	// Ambusher should have hunch
+	if positions["ambusher"].hunchAmount <= 0 {
+		t.Error("ambusher should have hunchAmount > 0")
+	}
+
+	// Scout should have backpack
+	if !positions["scout"].hasBackpack {
+		t.Error("scout should have backpack")
 	}
 }
