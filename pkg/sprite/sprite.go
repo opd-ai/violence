@@ -14,6 +14,7 @@ import (
 	"github.com/opd-ai/violence/pkg/dither"
 	"github.com/opd-ai/violence/pkg/pool"
 	"github.com/opd-ai/violence/pkg/rimlight"
+	"github.com/opd-ai/violence/pkg/seedvariation"
 )
 
 // SpriteType identifies the category of sprite to generate.
@@ -46,26 +47,28 @@ type CachedSprite struct {
 
 // Generator creates procedural sprites with caching.
 type Generator struct {
-	cache       map[SpriteKey]*list.Element
-	lruList     *list.List
-	maxEntries  int
-	mu          sync.RWMutex
-	genreID     string
-	lightCfg    LightConfig
-	ditherSys   *dither.System
-	rimlightSys *rimlight.System
+	cache        map[SpriteKey]*list.Element
+	lruList      *list.List
+	maxEntries   int
+	mu           sync.RWMutex
+	genreID      string
+	lightCfg     LightConfig
+	ditherSys    *dither.System
+	rimlightSys  *rimlight.System
+	variationGen *seedvariation.Generator
 }
 
 // NewGenerator creates a sprite generator with LRU cache.
 func NewGenerator(maxCacheEntries int) *Generator {
 	return &Generator{
-		cache:       make(map[SpriteKey]*list.Element),
-		lruList:     list.New(),
-		maxEntries:  maxCacheEntries,
-		genreID:     "fantasy",
-		lightCfg:    DefaultLightConfig(),
-		ditherSys:   dither.NewSystem(12345),
-		rimlightSys: rimlight.NewSystem("fantasy"),
+		cache:        make(map[SpriteKey]*list.Element),
+		lruList:      list.New(),
+		maxEntries:   maxCacheEntries,
+		genreID:      "fantasy",
+		lightCfg:     DefaultLightConfig(),
+		ditherSys:    dither.NewSystem(12345),
+		rimlightSys:  rimlight.NewSystem("fantasy"),
+		variationGen: seedvariation.NewGenerator("fantasy"),
 	}
 }
 
@@ -77,6 +80,7 @@ func (g *Generator) SetGenre(genreID string) {
 	g.cache = make(map[SpriteKey]*list.Element)
 	g.lruList = list.New()
 	g.rimlightSys.SetGenre(genreID)
+	g.variationGen.SetGenre(genreID)
 }
 
 // GetSprite retrieves or generates a sprite.
@@ -135,12 +139,12 @@ func (g *Generator) generateSprite(spriteType SpriteType, subtype string, seed i
 
 	switch spriteType {
 	case SpriteEnemy:
-		g.generateEnemySprite(rgba, subtype, rng, frame)
+		g.generateEnemySprite(rgba, subtype, seed, rng, frame)
 		dominantMaterial = g.getDominantMaterialForEnemy(subtype)
 		rimMaterial = g.getRimMaterialForEnemy(subtype)
 		pbrMaterial = g.getPBRMaterialForEnemy(subtype)
 	case SpriteProp:
-		g.generatePropSprite(rgba, subtype, rng, frame)
+		g.generatePropSprite(rgba, subtype, seed, rng, frame)
 		dominantMaterial = g.getDominantMaterialForProp(subtype)
 		rimMaterial = g.getRimMaterialForProp(subtype)
 		pbrMaterial = g.getPBRMaterialForProp(subtype)
@@ -403,43 +407,51 @@ func (g *Generator) getRimMaterialForProp(subtype string) rimlight.Material {
 }
 
 // generatePropSprite creates prop sprites with genre-specific styling.
-func (g *Generator) generatePropSprite(img *image.RGBA, subtype string, rng *rand.Rand, frame int) {
+func (g *Generator) generatePropSprite(img *image.RGBA, subtype string, seed int64, rng *rand.Rand, frame int) {
 	size := img.Bounds().Dx()
 	cx, cy := size/2, size/2
 
+	// Generate seed-based variation for props (affects wear, color, etc.)
+	variation := g.variationGen.GeneratePropVariation(seed)
+
 	switch subtype {
 	case "barrel":
-		g.drawBarrel(img, cx, cy, size, rng)
+		g.drawBarrel(img, cx, cy, size, &variation, rng)
 	case "crate":
-		g.drawCrate(img, cx, cy, size, rng)
+		g.drawCrate(img, cx, cy, size, &variation, rng)
 	case "table":
-		g.drawTable(img, cx, cy, size, rng)
+		g.drawTable(img, cx, cy, size, &variation, rng)
 	case "terminal":
-		g.drawTerminal(img, cx, cy, size, rng)
+		g.drawTerminal(img, cx, cy, size, &variation, rng)
 	case "bones":
 		g.drawBones(img, cx, cy, size, rng)
 	case "plant":
-		g.drawPlant(img, cx, cy, size, rng)
+		g.drawPlant(img, cx, cy, size, &variation, rng)
 	case "pillar":
-		g.drawPillar(img, cx, cy, size, rng)
+		g.drawPillar(img, cx, cy, size, &variation, rng)
 	case "torch":
 		g.drawTorch(img, cx, cy, size, rng, frame)
 	case "debris":
 		g.drawDebris(img, cx, cy, size, rng)
 	case "container":
-		g.drawContainer(img, cx, cy, size, rng)
+		g.drawContainer(img, cx, cy, size, &variation, rng)
 	default:
-		g.drawCrate(img, cx, cy, size, rng)
+		g.drawCrate(img, cx, cy, size, &variation, rng)
 	}
 }
 
 // drawBarrel renders a cylindrical barrel with wood grain and metal bands.
-func (g *Generator) drawBarrel(img *image.RGBA, cx, cy, size int, rng *rand.Rand) {
+func (g *Generator) drawBarrel(img *image.RGBA, cx, cy, size int, v *seedvariation.Variation, rng *rand.Rand) {
 	baseColor := g.getGenreWoodColor()
+	// Apply color variation from seed
+	baseColor = v.ApplyColorVariation(baseColor)
 	metalColor := color.RGBA{R: 80, G: 80, B: 90, A: 255}
 
-	radius := size / 3
-	height := size * 2 / 3
+	// Apply size variation
+	radiusBase := float64(size) / 3 * v.BodyWidthRatio
+	radius := int(radiusBase)
+	heightBase := float64(size) * 2 / 3 * v.BodyHeightRatio
+	height := int(heightBase)
 
 	for y := cy - height/2; y < cy+height/2; y++ {
 		bulge := int(float64(radius) * (1.0 + 0.2*math.Sin(float64(y-cy+height/2)/float64(height)*math.Pi)))
@@ -455,10 +467,10 @@ func (g *Generator) drawBarrel(img *image.RGBA, cx, cy, size int, rng *rand.Rand
 			shade += woodGrain
 
 			r := uint8(float64(baseColor.R) * shade)
-			g := uint8(float64(baseColor.G) * shade)
+			gr := uint8(float64(baseColor.G) * shade)
 			b := uint8(float64(baseColor.B) * shade)
 
-			img.Set(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
+			img.Set(x, y, color.RGBA{R: r, G: gr, B: b, A: 255})
 		}
 	}
 
@@ -477,6 +489,9 @@ func (g *Generator) drawBarrel(img *image.RGBA, cx, cy, size int, rng *rand.Rand
 	// Apply PBR shading for realistic wood and metal rendering
 	barrelBounds := image.Rect(cx-radius, cy-height/2, cx+radius, cy+height/2)
 	g.ApplyPBRShadingToRegion(img, barrelBounds, MaterialLeather, "cylindrical", g.lightCfg)
+
+	// Apply wear based on seed variation
+	seedvariation.ApplyWear(img, barrelBounds, v)
 }
 
 // drawCrate renders a wooden crate with planks and corner reinforcements.
@@ -901,32 +916,50 @@ func (g *Generator) generateProjectileSprite(img *image.RGBA, subtype string, rn
 }
 
 // generateEnemySprite creates enemy sprites with body plan variety.
-func (g *Generator) generateEnemySprite(img *image.RGBA, subtype string, rng *rand.Rand, frame int) {
+func (g *Generator) generateEnemySprite(img *image.RGBA, subtype string, seed int64, rng *rand.Rand, frame int) {
 	switch subtype {
 	case "humanoid", "tank", "ranged", "healer", "ambusher", "scout":
-		g.generateHumanoidEnemy(img, subtype, rng, frame)
+		g.generateHumanoidEnemy(img, subtype, seed, rng, frame)
 	case "quadruped":
-		g.generateQuadrupedEnemy(img, rng, frame)
+		g.generateQuadrupedEnemy(img, seed, rng, frame)
 	case "insect":
-		g.generateInsectEnemy(img, rng, frame)
+		g.generateInsectEnemy(img, seed, rng, frame)
 	case "serpent":
-		g.generateSerpentEnemy(img, rng, frame)
+		g.generateSerpentEnemy(img, seed, rng, frame)
 	case "flying":
-		g.generateFlyingEnemy(img, rng, frame)
+		g.generateFlyingEnemy(img, seed, rng, frame)
 	case "amorphous":
-		g.generateAmorphousEnemy(img, rng, frame)
+		g.generateAmorphousEnemy(img, seed, rng, frame)
 	default:
-		g.generateHumanoidEnemy(img, subtype, rng, frame)
+		g.generateHumanoidEnemy(img, subtype, seed, rng, frame)
 	}
 }
 
-// generateHumanoidEnemy creates genre-aware humanoid enemy sprites.
-func (g *Generator) generateHumanoidEnemy(img *image.RGBA, role string, rng *rand.Rand, frame int) {
+// generateHumanoidEnemy creates genre-aware humanoid enemy sprites with seed-driven variation.
+func (g *Generator) generateHumanoidEnemy(img *image.RGBA, role string, seed int64, rng *rand.Rand, frame int) {
 	size := img.Bounds().Dx()
 	cx, cy := size/2, size/2
 
+	// Generate seed-based individual variation
+	variation := g.variationGen.GenerateHumanoidVariation(seed)
+
 	armorColor, accentColor, skinColor, weaponType := g.selectGenreColors()
+
+	// Apply color variation from seed
+	armorColor = variation.ApplyColorVariation(armorColor)
+	skinColor = variation.ApplyColorVariation(skinColor)
+
 	bodyParts := g.calculateBodyPartPositions(size, cx, cy, role, frame)
+
+	// Apply seed-based proportion scaling
+	bodyParts.legH = variation.ScaleBodyPart(bodyParts.legH, "limb")
+	bodyParts.armH = variation.ScaleBodyPart(bodyParts.armH, "limb")
+	bodyParts.torsoW = variation.ScaleBodyPart(bodyParts.torsoW, "body")
+	bodyParts.headRadius = variation.ScaleBodyPart(bodyParts.headRadius, "head")
+
+	// Apply asymmetry
+	bodyParts.leftArmY += variation.LeftArmOffset
+	bodyParts.rightArmY += variation.RightArmOffset
 
 	g.drawLegs(img, size, cx, armorColor, bodyParts)
 	g.drawTorso(img, cx, armorColor, accentColor, role, bodyParts)
@@ -936,6 +969,11 @@ func (g *Generator) generateHumanoidEnemy(img *image.RGBA, role string, rng *ran
 	g.drawRoleSpecificDecorations(img, cx, role, accentColor, bodyParts)
 	g.applyMaterialTextures(img, size, cx, armorColor, skinColor, rng, bodyParts)
 
+	// Apply seed-based markings (scars, etc.)
+	torsoBounds := image.Rect(cx-bodyParts.torsoW/2, bodyParts.bodyY, cx+bodyParts.torsoW/2, bodyParts.bodyY+bodyParts.torsoH)
+	seedvariation.ApplyMarkings(img, torsoBounds, &variation, armorColor)
+	seedvariation.ApplyWear(img, torsoBounds, &variation)
+
 	// Apply PBR shading to each body part for realistic lighting
 	// Legs (cylindrical geometry)
 	leftLegBounds := image.Rect(cx-size/8-bodyParts.legW/2, bodyParts.leftLegY, cx-size/8+bodyParts.legW/2, bodyParts.leftLegY+bodyParts.legH)
@@ -944,7 +982,6 @@ func (g *Generator) generateHumanoidEnemy(img *image.RGBA, role string, rng *ran
 	g.ApplyPBRShadingToRegion(img, rightLegBounds, MaterialMetal, "cylindrical", g.lightCfg)
 
 	// Torso (cylindrical geometry)
-	torsoBounds := image.Rect(cx-bodyParts.torsoW/2, bodyParts.bodyY, cx+bodyParts.torsoW/2, bodyParts.bodyY+bodyParts.torsoH)
 	g.ApplyPBRShadingToRegion(img, torsoBounds, MaterialMetal, "cylindrical", g.lightCfg)
 
 	// Arms (cylindrical geometry)
@@ -1517,37 +1554,75 @@ func (g *Generator) applyMaterialTextures(img *image.RGBA, size, cx int, armorCo
 	g.applyMaterialDetail(img, headBounds, MaterialLeather, rng.Int63(), 0.5, skinColor)
 }
 
-// generateQuadrupedEnemy creates four-legged creature sprites.
-func (g *Generator) generateQuadrupedEnemy(img *image.RGBA, rng *rand.Rand, frame int) {
+// generateQuadrupedEnemy creates four-legged creature sprites with seed-driven variation.
+func (g *Generator) generateQuadrupedEnemy(img *image.RGBA, seed int64, rng *rand.Rand, frame int) {
 	size := img.Bounds().Dx()
 	cx, cy := size/2, size/2
 
+	// Generate seed-based individual variation
+	variation := g.variationGen.GenerateQuadrupedVariation(seed)
+
 	bodyColor := g.getCreatureColor("quadruped", rng)
+	// Apply color variation from seed
+	bodyColor = variation.ApplyColorVariation(bodyColor)
 	darkColor := calculateDarkerColor(bodyColor)
 
-	bodyW := size / 2
-	bodyH := size / 5
+	// Apply seed-based size variation
+	bodyW := variation.ScaleBodyPart(size/2, "body")
+	bodyH := variation.ScaleBodyPart(size/5, "body")
 	bodyY := cy - size/10
 
 	drawQuadrupedBody(img, cx, bodyY, bodyW, bodyH, bodyColor)
 	drawQuadrupedLegs(img, cx, bodyY, bodyW, bodyH, size, frame, darkColor)
-	drawQuadrupedHead(img, cx, bodyY, bodyW, bodyH, size, bodyColor)
+
+	// Head size varies with seed
+	headW := variation.ScaleBodyPart(bodyW/3, "head")
+	headH := variation.ScaleBodyPart(size/5, "head")
+	headX := cx + bodyW/2
+	headY := bodyY - headH/2
+
+	// Apply neck length variation
+	neckOffset := int(float64(size/8) * (variation.NeckLengthRatio - 1.0))
+	headX += neckOffset
+
+	drawQuadrupedHeadVaried(img, headX, headY, headW, headH, bodyColor)
 	drawQuadrupedEye(img, cx, bodyY, bodyW, size)
 	drawQuadrupedTail(img, cx, bodyY, bodyW, bodyH, size, frame, darkColor)
 
 	bodyBounds := image.Rect(cx-bodyW/2, bodyY, cx+bodyW/2, bodyY+bodyH)
 	g.applyMaterialDetail(img, bodyBounds, MaterialFur, rng.Int63(), 0.8, bodyColor)
 
+	// Apply seed-based markings (spots, stripes, horns)
+	seedvariation.ApplyMarkings(img, bodyBounds, &variation, bodyColor)
+
+	// Apply horns if present
+	if variation.HasHorns && variation.HornCount > 0 {
+		headBounds := image.Rect(headX, headY, headX+headW, headY+headH)
+		seedvariation.ApplyMarkings(img, headBounds, &variation, bodyColor)
+	}
+
 	// Apply PBR shading for realistic fur rendering
 	g.ApplyPBRShadingToRegion(img, bodyBounds, MaterialFur, "cylindrical", g.lightCfg)
 
 	// Head with spherical shading
-	headW := bodyW / 3
-	headH := size / 5
-	headX := cx + bodyW/2
-	headY := bodyY - headH/2
 	headBounds := image.Rect(headX, headY, headX+headW, headY+headH)
 	g.ApplyPBRShadingToRegion(img, headBounds, MaterialFur, "spherical", g.lightCfg)
+}
+
+// drawQuadrupedHeadVaried draws the creature's head with variable dimensions.
+func drawQuadrupedHeadVaried(img *image.RGBA, headX, headY, headW, headH int, bodyColor color.RGBA) {
+	for y := headY; y < headY+headH; y++ {
+		for x := headX; x < headX+headW; x++ {
+			if x >= 0 && x < img.Bounds().Dx() && y >= 0 && y < img.Bounds().Dy() {
+				dx := float64(x - headX)
+				shade := 1.0 - dx/float64(headW)*0.3
+				r := uint8(float64(bodyColor.R) * shade)
+				g := uint8(float64(bodyColor.G) * shade)
+				b := uint8(float64(bodyColor.B) * shade)
+				img.Set(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
+			}
+		}
+	}
 }
 
 // calculateDarkerColor creates a darker version of a color.
@@ -1659,22 +1734,77 @@ func drawQuadrupedTail(img *image.RGBA, cx, bodyY, bodyW, bodyH, size, frame int
 	common.DrawThickLine(img, tailX, tailY, tailEndX, tailEndY, 2, darkColor)
 }
 
-// generateInsectEnemy creates multi-legged insect sprites.
-func (g *Generator) generateInsectEnemy(img *image.RGBA, rng *rand.Rand, frame int) {
+// generateInsectEnemy creates multi-legged insect sprites with seed-driven variation.
+func (g *Generator) generateInsectEnemy(img *image.RGBA, seed int64, rng *rand.Rand, frame int) {
 	size := img.Bounds().Dx()
 	cx, cy := size/2, size/2
 
+	// Generate seed-based individual variation
+	variation := g.variationGen.GenerateInsectVariation(seed)
+
 	bodyColor := g.getCreatureColor("insect", rng)
+	// Apply color variation from seed
+	bodyColor = variation.ApplyColorVariation(bodyColor)
 	darkColor := createDarkColor(bodyColor)
 
-	g.drawInsectBody(img, cx, cy, size, bodyColor)
+	// Use seed-varied segment count
+	g.drawInsectBodyVaried(img, cx, cy, size, bodyColor, &variation)
 	g.drawInsectLegs(img, cx, cy, size, frame, bodyColor, darkColor)
-	g.drawInsectHead(img, cx, cy, size, frame, bodyColor, darkColor)
+
+	// Head with optional extra eyes
+	headRadius := variation.ScaleBodyPart(size/8, "head")
+	headY := cy - size/6 - 2
+	g.drawInsectHeadVaried(img, cx, headY, headRadius, frame, bodyColor, darkColor, &variation)
+
 	g.applyInsectTexture(img, cx, cy, size, bodyColor, rng)
 
-	// Apply PBR shading for realistic chitin rendering
+	// Apply seed-based markings
 	bodyBounds := image.Rect(cx-size/4, cy-size/6, cx+size/4, cy+size/3)
+	seedvariation.ApplyMarkings(img, bodyBounds, &variation, bodyColor)
+
+	// Apply PBR shading for realistic chitin rendering
 	g.ApplyPBRShadingToRegion(img, bodyBounds, MaterialChitin, "cylindrical", g.lightCfg)
+}
+
+// drawInsectBodyVaried renders the segmented body with variable segment count.
+func (g *Generator) drawInsectBodyVaried(img *image.RGBA, cx, cy, size int, bodyColor color.RGBA, v *seedvariation.Variation) {
+	segmentCount := v.SegmentCount
+	if segmentCount < 2 {
+		segmentCount = 2
+	}
+	if segmentCount > 6 {
+		segmentCount = 6
+	}
+
+	baseSegmentW := int(float64(size/4) * v.BodyWidthRatio)
+	segmentH := size / 6
+
+	for i := 0; i < segmentCount; i++ {
+		// Use variation for segment size progression
+		segW := v.GetSegmentRadius(baseSegmentW, i)
+		if segW < baseSegmentW/3 {
+			segW = baseSegmentW / 3
+		}
+		drawBodySegment(img, cx, cy, size, i, segW, segmentH, bodyColor)
+	}
+}
+
+// drawInsectHeadVaried renders the head with optional extra eyes.
+func (g *Generator) drawInsectHeadVaried(img *image.RGBA, cx, headY, headRadius, frame int, bodyColor, darkColor color.RGBA, v *seedvariation.Variation) {
+	common.FillCircle(img, cx, headY, headRadius, bodyColor)
+
+	// Base eyes
+	eyeColor := color.RGBA{R: 255, G: 50, B: 50, A: 255}
+	common.FillCircle(img, cx-headRadius/2, headY, 2, eyeColor)
+	common.FillCircle(img, cx+headRadius/2, headY, 2, eyeColor)
+
+	// Extra eyes from variation
+	if v.HasExtraEyes && v.EyeCount > 2 {
+		seedvariation.ApplyExtraEyes(img, cx, headY, headRadius, v)
+	}
+
+	// Antennae
+	drawInsectAntennae(img, cx, headY, headRadius, headRadius*8, frame, darkColor)
 }
 
 // createDarkColor generates a darker variant of the given color.
@@ -1819,23 +1949,58 @@ func (g *Generator) applyInsectTexture(img *image.RGBA, cx, cy, size int, bodyCo
 	}
 }
 
-// generateSerpentEnemy creates snake-like creature sprites.
-func (g *Generator) generateSerpentEnemy(img *image.RGBA, rng *rand.Rand, frame int) {
+// generateSerpentEnemy creates snake-like creature sprites with seed-driven variation.
+func (g *Generator) generateSerpentEnemy(img *image.RGBA, seed int64, rng *rand.Rand, frame int) {
 	size := img.Bounds().Dx()
 	cx, cy := size/2, size/2
 
+	// Generate seed-based individual variation
+	variation := g.variationGen.GenerateSerpentVariation(seed)
+
 	bodyColor := g.getCreatureColor("serpent", rng)
+	// Apply color variation from seed
+	bodyColor = variation.ApplyColorVariation(bodyColor)
 	scaleColor := calculateLighterColor(bodyColor, 1.2)
 
-	segments := 8
-	baseRadius := size / 8
+	// Use seed-varied segment count and body thickness
+	segments := variation.SegmentCount
+	if segments < 5 {
+		segments = 5
+	}
+	if segments > 12 {
+		segments = 12
+	}
+	baseRadius := variation.ScaleBodyPart(size/8, "body")
 	wavePhase := float64(frame) * 0.3
 
-	drawSerpentBody(img, cx, cy, size, segments, baseRadius, wavePhase, bodyColor, scaleColor)
+	drawSerpentBodyVaried(img, cx, cy, size, segments, baseRadius, wavePhase, bodyColor, scaleColor, &variation)
 	drawSerpentHead(img, cx, cy, size, baseRadius, wavePhase, bodyColor, frame)
 
 	fullBounds := image.Rect(cx-size/4, cy-size/4, cx+size/4, cy+size/2)
 	g.applyMaterialDetail(img, fullBounds, MaterialScales, rng.Int63(), 1.0, bodyColor)
+
+	// Apply seed-based markings (stripes, spots)
+	seedvariation.ApplyMarkings(img, fullBounds, &variation, bodyColor)
+}
+
+// drawSerpentBodyVaried draws the segmented body with variable segment sizing.
+func drawSerpentBodyVaried(img *image.RGBA, cx, cy, size, segments, baseRadius int, wavePhase float64, bodyColor, scaleColor color.RGBA, v *seedvariation.Variation) {
+	for i := 0; i < segments; i++ {
+		t := float64(i) / float64(segments)
+		segY := cy - size/4 + int(t*float64(size)*0.8)
+		waveOffset := int(math.Sin(t*math.Pi*2+wavePhase) * float64(size) / 6)
+		segX := cx + waveOffset
+
+		// Use variation for segment radius
+		radius := v.GetSegmentRadius(baseRadius, i)
+
+		drawSerpentSegment(img, segX, segY, radius, bodyColor)
+
+		if i%2 == 0 && i < segments-1 {
+			common.FillCircle(img, segX-radius/2, segY, 1, scaleColor)
+			common.FillCircle(img, segX+radius/2, segY, 1, scaleColor)
+		}
+	}
 }
 
 // calculateLighterColor creates a lighter version of a color.
@@ -1939,27 +2104,69 @@ func drawSerpentTongue(img *image.RGBA, headX, headY, headRadius, size, frame in
 	common.DrawThickLine(img, headX, headY+headRadius/2, headX, headY+headRadius/2+tongueLen, 1, tongueColor)
 }
 
-// generateFlyingEnemy creates winged creature sprites.
-func (g *Generator) generateFlyingEnemy(img *image.RGBA, rng *rand.Rand, frame int) {
+// generateFlyingEnemy creates winged creature sprites with seed-driven variation.
+func (g *Generator) generateFlyingEnemy(img *image.RGBA, seed int64, rng *rand.Rand, frame int) {
 	size := img.Bounds().Dx()
 	cx, cy := size/2, size/2
 
+	// Generate seed-based individual variation
+	variation := g.variationGen.GenerateFlyingVariation(seed)
+
 	bodyColor := g.getCreatureColor("flying", rng)
+	// Apply color variation from seed
+	bodyColor = variation.ApplyColorVariation(bodyColor)
 	wingColor := deriveWingColor(bodyColor)
 	hoverOffset := calcHoverOffset(frame)
 
-	wingH := size / 4
+	// Apply wing span variation
+	wingH := variation.ScaleBodyPart(size/4, "limb")
 	if wingH == 0 {
 		return
 	}
 	wingY := cy + hoverOffset - wingH/2
 	wingAngle := calcWingAngle(frame)
 
-	g.drawFlyingWings(img, cx, wingY, size, wingH, wingAngle, wingColor)
+	g.drawFlyingWingsVaried(img, cx, wingY, size, wingH, wingAngle, wingColor, &variation)
 	g.drawFlyingBody(img, cx, cy, size, hoverOffset, bodyColor)
-	g.drawFlyingHead(img, cx, cy, size, hoverOffset, bodyColor)
+
+	// Draw head with optional extra eyes
+	headRadius := variation.ScaleBodyPart(size/8, "head")
+	headY := cy + hoverOffset - size/6
+	g.drawFlyingHeadVaried(img, cx, headY, headRadius, bodyColor, &variation)
+
 	g.drawFlyingTail(img, cx, cy, size, hoverOffset, frame, bodyColor)
-	g.applyMaterialDetail(img, image.Rect(cx-size/2, wingY, cx+size/2, wingY+wingH), MaterialMembrane, rng.Int63(), 0.6, wingColor)
+
+	// Apply wing texture
+	wingBounds := image.Rect(cx-size/2, wingY, cx+size/2, wingY+wingH)
+	g.applyMaterialDetail(img, wingBounds, MaterialMembrane, rng.Int63(), 0.6, wingColor)
+
+	// Apply seed-based markings
+	seedvariation.ApplyMarkings(img, wingBounds, &variation, wingColor)
+}
+
+// drawFlyingWingsVaried draws wings with variable span.
+func (g *Generator) drawFlyingWingsVaried(img *image.RGBA, cx, wingY, size, wingH int, wingAngle float64, wingColor color.RGBA, v *seedvariation.Variation) {
+	// Wing span varies with seed
+	wingSpan := int(float64(size/2) * v.LimbLengthRatio)
+	for side := -1; side <= 1; side += 2 {
+		g.drawSingleWing(img, cx, wingY, size, wingH, wingSpan, wingAngle, side, wingColor)
+	}
+}
+
+// drawFlyingHeadVaried draws a flying creature head with optional extra eyes.
+func (g *Generator) drawFlyingHeadVaried(img *image.RGBA, cx, headY, headRadius int, bodyColor color.RGBA, v *seedvariation.Variation) {
+	// Draw head
+	common.FillCircle(img, cx, headY, headRadius, bodyColor)
+
+	// Eyes
+	eyeColor := color.RGBA{R: 255, G: 50, B: 50, A: 255}
+	common.FillCircle(img, cx-headRadius/2, headY, 2, eyeColor)
+	common.FillCircle(img, cx+headRadius/2, headY, 2, eyeColor)
+
+	// Extra eyes from variation
+	if v.HasExtraEyes && v.EyeCount > 2 {
+		seedvariation.ApplyExtraEyes(img, cx, headY, headRadius, v)
+	}
 }
 
 // deriveWingColor creates a darker wing color from body color.
@@ -2056,20 +2263,78 @@ func (g *Generator) drawFlyingTail(img *image.RGBA, cx, cy, size, hoverOffset, f
 	common.DrawThickLine(img, cx, tailY, cx+tailSway, tailEndY, 2, bodyColor)
 }
 
-// generateAmorphousEnemy creates blob/slime creature sprites.
-func (g *Generator) generateAmorphousEnemy(img *image.RGBA, rng *rand.Rand, frame int) {
+// generateAmorphousEnemy creates blob/slime creature sprites with seed-driven variation.
+func (g *Generator) generateAmorphousEnemy(img *image.RGBA, seed int64, rng *rand.Rand, frame int) {
 	size := img.Bounds().Dx()
 	cx, cy := size/2, size/2
 
+	// Generate seed-based individual variation
+	variation := g.variationGen.GenerateAmorphousVariation(seed)
+
 	bodyColor := g.getCreatureColor("amorphous", rng)
+	// Apply color variation from seed
+	bodyColor = variation.ApplyColorVariation(bodyColor)
 	innerColor := calculateInnerColor(bodyColor)
 	pulseAmount := calculatePulseAmount(frame)
-	baseRadius := int(float64(size) / 3 * pulseAmount)
+
+	// Apply size variation from seed
+	baseRadius := int(float64(size) / 3 * pulseAmount * variation.BodyWidthRatio)
 
 	radiusVariation := generateBlobShape(rng, 12)
 	drawAmorphousBody(img, cx, cy, baseRadius, bodyColor, innerColor, radiusVariation)
-	drawAmorphousEyes(img, cx, cy, baseRadius, rng)
+
+	// Draw variable number of eyes based on seed
+	drawAmorphousEyesVaried(img, cx, cy, baseRadius, &variation)
+
 	drawAmorphousHighlight(img, cx, cy, baseRadius, frame)
+
+	// Apply internal spotting/bubbles
+	bodyBounds := image.Rect(cx-baseRadius, cy-baseRadius, cx+baseRadius, cy+baseRadius)
+	seedvariation.ApplyMarkings(img, bodyBounds, &variation, innerColor)
+}
+
+// drawAmorphousEyesVaried draws variable number of eyes on amorphous creature.
+func drawAmorphousEyesVaried(img *image.RGBA, cx, cy, baseRadius int, v *seedvariation.Variation) {
+	eyeColor := color.RGBA{R: 255, G: 255, B: 200, A: 255}
+	pupilColor := color.RGBA{R: 20, G: 20, B: 20, A: 255}
+
+	rng := rand.New(rand.NewSource(v.PatternSeed + 6000))
+
+	eyeCount := v.EyeCount
+	if eyeCount < 1 {
+		eyeCount = 1
+	}
+	if eyeCount > 8 {
+		eyeCount = 8
+	}
+
+	for i := 0; i < eyeCount; i++ {
+		// Position eyes randomly in upper portion
+		angle := rng.Float64() * math.Pi // Upper semicircle
+		dist := float64(baseRadius) * (0.3 + rng.Float64()*0.4)
+		eyeX := cx + int(math.Cos(angle)*dist)
+		eyeY := cy - int(math.Sin(angle)*dist) // Negative Y for upper half
+
+		eyeRadius := 2 + rng.Intn(2)
+
+		// Draw eye
+		for dy := -eyeRadius; dy <= eyeRadius; dy++ {
+			for dx := -eyeRadius; dx <= eyeRadius; dx++ {
+				if dx*dx+dy*dy <= eyeRadius*eyeRadius {
+					px := eyeX + dx
+					py := eyeY + dy
+					if px >= 0 && px < img.Bounds().Dx() && py >= 0 && py < img.Bounds().Dy() {
+						img.Set(px, py, eyeColor)
+					}
+				}
+			}
+		}
+
+		// Pupil
+		if eyeX >= 0 && eyeX < img.Bounds().Dx() && eyeY >= 0 && eyeY < img.Bounds().Dy() {
+			img.Set(eyeX, eyeY, pupilColor)
+		}
+	}
 }
 
 // calculateInnerColor computes a brighter inner color from the base body color.
