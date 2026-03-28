@@ -99,6 +99,7 @@ import (
 	"github.com/opd-ai/violence/pkg/statusfx"
 	"github.com/opd-ai/violence/pkg/statustint"
 	"github.com/opd-ai/violence/pkg/subsurface"
+	"github.com/opd-ai/violence/pkg/surfacesheen"
 	"github.com/opd-ai/violence/pkg/telegraph"
 	"github.com/opd-ai/violence/pkg/territory"
 	"github.com/opd-ai/violence/pkg/texture"
@@ -477,6 +478,9 @@ type Game struct {
 
 	// Edge ambient occlusion system for environment geometry depth
 	edgeAOSystem *edgeao.System
+
+	// Surface sheen system for material-specific light reflections
+	surfaceSheenSystem *surfacesheen.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -735,6 +739,9 @@ func NewGame() *Game {
 
 	// Initialize edge ambient occlusion system for environment geometry depth
 	g.edgeAOSystem = edgeao.NewSystem(g.genreID, int64(seed))
+
+	// Initialize surface sheen system for material-specific light reflections
+	g.surfaceSheenSystem = surfacesheen.NewSystem(g.genreID)
 
 	// Connect sliding system to spatial index
 	game.ConnectSlidingSystem(g.slidingSystem, g.spatialSystem)
@@ -1867,6 +1874,7 @@ func (g *Game) setGenreForGameplaySystems(genreID string) {
 	trySetGenre(g.statusBarSystem, genreID)
 	trySetGenre(g.subsurfaceSystem, genreID)
 	trySetGenre(g.edgeAOSystem, genreID)
+	trySetGenre(g.surfaceSheenSystem, genreID)
 }
 
 // loadGame loads a saved game state.
