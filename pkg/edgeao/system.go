@@ -395,6 +395,12 @@ func (s *System) getAOSafe(x, y int) float64 {
 	return s.aoMap[y][x]
 }
 
+// GetAOMap returns the raw ambient occlusion map for use by other systems.
+// Returns nil if the map hasn't been built yet.
+func (s *System) GetAOMap() [][]float64 {
+	return s.aoMap
+}
+
 // GetEdgeType returns the edge classification for a tile.
 func (s *System) GetEdgeType(x, y int) EdgeType {
 	if s.edgeMap == nil || x < 0 || x >= s.width || y < 0 || y >= s.height {

@@ -111,6 +111,7 @@ import (
 	"github.com/opd-ai/violence/pkg/statusfx"
 	"github.com/opd-ai/violence/pkg/statustint"
 	"github.com/opd-ai/violence/pkg/subsurface"
+	"github.com/opd-ai/violence/pkg/surfacegrime"
 	"github.com/opd-ai/violence/pkg/surfacesheen"
 	"github.com/opd-ai/violence/pkg/telegraph"
 	"github.com/opd-ai/violence/pkg/territory"
@@ -501,6 +502,9 @@ type Game struct {
 	// Surface sheen system for material-specific light reflections
 	surfaceSheenSystem *surfacesheen.System
 
+	// Surface grime system for procedural dirt and dust accumulation
+	surfaceGrimeSystem *surfacegrime.System
+
 	// Hit marker system for visual hit confirmation feedback at crosshair
 	hitMarkerSystem *hitmarker.System
 	hitMarkerEntity engine.Entity
@@ -804,6 +808,9 @@ func NewGame() *Game {
 
 	// Initialize surface sheen system for material-specific light reflections
 	g.surfaceSheenSystem = surfacesheen.NewSystem(g.genreID)
+
+	// Initialize surface grime system for procedural dirt and dust accumulation
+	g.surfaceGrimeSystem = surfacegrime.NewSystem(g.genreID, int64(seed))
 
 	// Initialize hit marker system for visual hit confirmation at crosshair
 	g.hitMarkerSystem = hitmarker.NewSystem(g.genreID)
@@ -2080,6 +2087,7 @@ func (g *Game) setGenreForGameplaySystems(genreID string) {
 	trySetGenre(g.subsurfaceSystem, genreID)
 	trySetGenre(g.edgeAOSystem, genreID)
 	trySetGenre(g.surfaceSheenSystem, genreID)
+	trySetGenre(g.surfaceGrimeSystem, genreID)
 	trySetGenre(g.hitMarkerSystem, genreID)
 	trySetGenre(g.heatDistortSystem, genreID)
 	trySetGenre(g.focusRingSystem, genreID)
@@ -5303,6 +5311,10 @@ func (g *Game) renderWorldEntities(screen *ebiten.Image, camX, camY float64) {
 	if g.floorDetailSystem != nil && (len(g.floorTiles) > 0 || len(g.floorDetails) > 0) {
 		g.renderFloorDetails(screen)
 	}
+	// Render surface grime overlay for realistic dirt/dust accumulation
+	if g.surfaceGrimeSystem != nil {
+		g.renderSurfaceGrime(screen)
+	}
 	// Render floor reflections on wet/polished surfaces before entities
 	if g.floorReflectSystem != nil {
 		g.renderFloorReflections(screen)
@@ -6166,6 +6178,27 @@ func (g *Game) renderBounceLighting(screen *ebiten.Image) {
 		g.camera.Y*tileSize,
 		scale*tileSize, // Each tile covers tileSize pixels
 	)
+}
+
+// renderSurfaceGrime draws procedural dirt and grime overlay on surfaces.
+func (g *Game) renderSurfaceGrime(screen *ebiten.Image) {
+	if g.surfaceGrimeSystem == nil {
+		return
+	}
+
+	// Use game seed for deterministic room ID and grime generation
+	roomID := fmt.Sprintf("level_%d", g.seed)
+
+	// Pass edge map from edgeAO system if available for accurate accumulation zones
+	if g.edgeAOSystem != nil {
+		aoMap := g.edgeAOSystem.GetAOMap()
+		if aoMap != nil {
+			g.surfaceGrimeSystem.SetEdgeMap(aoMap)
+		}
+	}
+
+	// Generate and draw grime overlay using game seed for determinism
+	g.surfaceGrimeSystem.Draw(screen, roomID, int64(g.seed))
 }
 
 // renderVolumetricLighting draws atmospheric light shafts from visible light sources.
