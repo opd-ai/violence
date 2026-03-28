@@ -67,6 +67,7 @@ import (
 	"github.com/opd-ai/violence/pkg/input"
 	"github.com/opd-ai/violence/pkg/inventory"
 	"github.com/opd-ai/violence/pkg/itemicon"
+	"github.com/opd-ai/violence/pkg/lensdirt"
 	"github.com/opd-ai/violence/pkg/lighting"
 	"github.com/opd-ai/violence/pkg/loot"
 	"github.com/opd-ai/violence/pkg/lore"
@@ -502,6 +503,9 @@ type Game struct {
 
 	// Emissive glow system for light sources and magic effects
 	emissiveSystem *emissive.System
+
+	// Lens dirt system for cinematic light scattering effects
+	lensDirtSystem *lensdirt.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -783,6 +787,9 @@ func NewGame() *Game {
 	// Initialize emissive glow system for light sources and magic effects
 	g.emissiveSystem = emissive.NewSystem(g.genreID, int64(seed))
 	g.emissiveSystem.SetScreenSize(config.C.InternalWidth, config.C.InternalHeight)
+
+	// Initialize lens dirt system for cinematic light scattering effects
+	g.lensDirtSystem = lensdirt.NewSystem(g.genreID, int64(seed), config.C.InternalWidth, config.C.InternalHeight)
 
 	// Connect sliding system to spatial index
 	game.ConnectSlidingSystem(g.slidingSystem, g.spatialSystem)
@@ -1985,6 +1992,7 @@ func (g *Game) setGenreForGameplaySystems(genreID string) {
 	trySetGenre(g.focusRingSystem, genreID)
 	trySetGenre(g.objectiveCompassSystem, genreID)
 	trySetGenre(g.emissiveSystem, genreID)
+	trySetGenre(g.lensDirtSystem, genreID)
 }
 
 // loadGame loads a saved game state.
@@ -5224,6 +5232,9 @@ func (g *Game) renderOverlaysAndHUD(screen *ebiten.Image, camX, camY float64) {
 		g.emissiveSystem.Render(g.world, screen)
 	}
 
+	// Render lens dirt cinematic light scattering effects
+	g.renderLensDirtEffects(screen)
+
 	g.hud.Update()
 	ui.DrawHUD(screen, g.hud)
 
@@ -5935,6 +5946,138 @@ func (g *Game) isWallAt(worldX, worldY float64) bool {
 	}
 
 	return g.currentMap[tileY][tileX] > 0
+}
+
+// renderLensDirtEffects renders cinematic lens dirt artifacts around bright lights.
+func (g *Game) renderLensDirtEffects(screen *ebiten.Image) {
+	if g.lensDirtSystem == nil {
+		return
+	}
+
+	// Clear previous frame's light sources
+	g.lensDirtSystem.ClearLights()
+
+	// Collect visible light sources (torches, explosions, magic effects)
+	g.collectLensDirtLights()
+
+	// Render the lens dirt overlay
+	g.lensDirtSystem.Render(screen)
+}
+
+// collectLensDirtLights gathers bright light sources for lens dirt effects.
+func (g *Game) collectLensDirtLights() {
+	if g.propsManager == nil {
+		return
+	}
+
+	visibleRange := 10.0 // Max distance to consider for lens dirt
+
+	for _, prop := range g.propsManager.GetProps() {
+		// Only torches trigger lens dirt (PropTorch is the light-emitting prop type)
+		if prop.SpriteType != props.PropTorch {
+			continue
+		}
+
+		// Check if within visible range
+		dx := prop.X - g.camera.X
+		dy := prop.Y - g.camera.Y
+		distSq := dx*dx + dy*dy
+		if distSq > visibleRange*visibleRange {
+			continue
+		}
+
+		// Project to screen coordinates
+		screenX, screenY, visible := g.worldToScreen(prop.X, prop.Y)
+		if !visible {
+			continue
+		}
+
+		// Get base intensity, modulated by flicker if available
+		intensity := 0.7
+		var r, g_, b float64 = 255, 200, 100 // Default warm torch color
+
+		// Apply flicker using simple calculation method
+		if g.flickerBridge != nil {
+			// Use a seed derived from prop ID hash
+			seed := int64(len(prop.ID))
+			flickerResult := g.flickerBridge.CalculateFlickerSimple(seed, g.flickerTick, 0.9, r, g_, b)
+			intensity = flickerResult.Intensity * 0.8
+			r, g_, b = flickerResult.R, flickerResult.G, flickerResult.B
+		}
+
+		// Distance falloff
+		dist := math.Sqrt(distSq)
+		falloff := 1.0 - (dist / visibleRange)
+		intensity *= falloff * falloff
+
+		if intensity < 0.1 {
+			continue
+		}
+
+		// Add light source for lens dirt
+		light := lensdirt.NewLightSource(
+			screenX,
+			screenY,
+			intensity,
+			50.0, // Effective radius for dirt visibility
+			color.RGBA{R: uint8(r), G: uint8(g_), B: uint8(b), A: 255},
+		)
+		g.lensDirtSystem.AddLightSource(light)
+	}
+
+	// Add magic projectile effects as lens dirt light sources
+	g.collectMagicLensDirtLights()
+}
+
+// collectMagicLensDirtLights adds magic projectile effects as lens dirt light sources.
+func (g *Game) collectMagicLensDirtLights() {
+	projType := reflect.TypeOf(&projectile.ProjectileComponent{})
+	posType := reflect.TypeOf(&engine.Position{})
+	entities := g.world.Query(projType, posType)
+
+	for _, entity := range entities {
+		projComp, found := g.world.GetComponent(entity, projType)
+		if !found {
+			continue
+		}
+		proj := projComp.(*projectile.ProjectileComponent)
+
+		// Only bright projectiles produce lens dirt (magic, fire, lightning)
+		if proj.DamageType != projectile.DamageFire && proj.DamageType != projectile.DamageLightning {
+			continue
+		}
+
+		posComp, found := g.world.GetComponent(entity, posType)
+		if !found {
+			continue
+		}
+		pos := posComp.(*engine.Position)
+
+		screenX, screenY, visible := g.worldToScreen(pos.X, pos.Y)
+		if !visible {
+			continue
+		}
+
+		// Determine color based on damage type
+		var col color.RGBA
+		switch proj.DamageType {
+		case projectile.DamageFire:
+			col = color.RGBA{R: 255, G: 150, B: 50, A: 255}
+		case projectile.DamageLightning:
+			col = color.RGBA{R: 255, G: 255, B: 150, A: 255}
+		default:
+			col = color.RGBA{R: 200, G: 200, B: 255, A: 255}
+		}
+
+		light := lensdirt.NewLightSource(
+			screenX,
+			screenY,
+			0.5, // Moderate intensity for projectiles
+			40.0,
+			col,
+		)
+		g.lensDirtSystem.AddLightSource(light)
+	}
 }
 
 // renderShadows draws dynamic shadows for props and entities based on active lights.
