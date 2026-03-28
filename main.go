@@ -75,6 +75,7 @@ import (
 	"github.com/opd-ai/violence/pkg/motion"
 	"github.com/opd-ai/violence/pkg/muzzleflash"
 	"github.com/opd-ai/violence/pkg/network"
+	"github.com/opd-ai/violence/pkg/objectivecompass"
 	"github.com/opd-ai/violence/pkg/outline"
 	"github.com/opd-ai/violence/pkg/parallax"
 	"github.com/opd-ai/violence/pkg/particle"
@@ -496,6 +497,9 @@ type Game struct {
 	// Focus ring system for keyboard navigation and accessibility
 	focusRingSystem *focusring.System
 
+	// Objective compass system for navigation indicators
+	objectiveCompassSystem *objectivecompass.System
+
 	// Emissive glow system for light sources and magic effects
 	emissiveSystem *emissive.System
 }
@@ -772,6 +776,10 @@ func NewGame() *Game {
 	g.focusRingSystem = focusring.NewSystem()
 	g.focusRingSystem.SetGenre(g.genreID)
 
+	// Initialize objective compass system for navigation indicators
+	g.objectiveCompassSystem = objectivecompass.NewSystem(g.genreID)
+	g.objectiveCompassSystem.SetScreenSize(config.C.InternalWidth, config.C.InternalHeight)
+
 	// Initialize emissive glow system for light sources and magic effects
 	g.emissiveSystem = emissive.NewSystem(g.genreID, int64(seed))
 	g.emissiveSystem.SetScreenSize(config.C.InternalWidth, config.C.InternalHeight)
@@ -900,6 +908,14 @@ func (g *Game) updateMenu() error {
 	// Update focus ring system for keyboard navigation and accessibility
 	if g.focusRingSystem != nil {
 		g.focusRingSystem.Update()
+	}
+
+	// Update objective compass system with player position
+	if g.objectiveCompassSystem != nil {
+		// Calculate view angle from direction vector
+		viewAngle := math.Atan2(g.camera.DirY, g.camera.DirX)
+		g.objectiveCompassSystem.SetPlayerPosition(g.camera.X, g.camera.Y, viewAngle)
+		g.objectiveCompassSystem.Update(common.DeltaTime)
 	}
 
 	// Keyboard navigation (existing)
@@ -1527,6 +1543,57 @@ func (g *Game) setupQuests(rooms []*bsp.Room) {
 		Rooms:       questRooms,
 	}
 	g.questTracker.GenerateWithLayout(g.seed, layout)
+
+	// Sync quest objectives with compass system for navigation indicators
+	g.syncObjectiveCompass()
+}
+
+// syncObjectiveCompass updates the objective compass with current quest objectives.
+func (g *Game) syncObjectiveCompass() {
+	if g.objectiveCompassSystem == nil || g.questTracker == nil {
+		return
+	}
+
+	g.objectiveCompassSystem.ClearObjectives()
+
+	for _, obj := range g.questTracker.Objectives {
+		if obj.Complete {
+			continue
+		}
+
+		// Map quest objective type to compass indicator type
+		var compassType objectivecompass.ObjectiveType
+		switch obj.Type {
+		case quest.ObjFindExit:
+			compassType = objectivecompass.TypeExit
+		case quest.ObjKillAll, quest.ObjDestroyTarget, quest.ObjSurvive:
+			compassType = objectivecompass.TypeMain
+		case quest.ObjFindItem, quest.ObjRetrieveItem, quest.ObjRescueHostage:
+			if obj.Category == quest.CategoryMain {
+				compassType = objectivecompass.TypeMain
+			} else {
+				compassType = objectivecompass.TypeBonus
+			}
+		default:
+			if obj.Category == quest.CategoryMain {
+				compassType = objectivecompass.TypeMain
+			} else {
+				compassType = objectivecompass.TypeBonus
+			}
+		}
+
+		// Only add objectives with valid positions
+		if obj.PosX != 0 || obj.PosY != 0 {
+			g.objectiveCompassSystem.AddObjective(obj.ID, compassType, obj.PosX, obj.PosY)
+		}
+	}
+}
+
+// markObjectiveComplete marks an objective as completed in the compass system.
+func (g *Game) markObjectiveComplete(id string) {
+	if g.objectiveCompassSystem != nil {
+		g.objectiveCompassSystem.CompleteObjective(id)
+	}
 }
 
 // setupEventTriggers initializes event triggers for alarms, lockdowns, and boss arenas.
@@ -1916,6 +1983,7 @@ func (g *Game) setGenreForGameplaySystems(genreID string) {
 	trySetGenre(g.hitMarkerSystem, genreID)
 	trySetGenre(g.heatDistortSystem, genreID)
 	trySetGenre(g.focusRingSystem, genreID)
+	trySetGenre(g.objectiveCompassSystem, genreID)
 	trySetGenre(g.emissiveSystem, genreID)
 }
 
@@ -3135,6 +3203,14 @@ func (g *Game) updateV3Systems() {
 	if g.emissiveSystem != nil {
 		g.emissiveSystem.SetCamera(g.camera.X, g.camera.Y)
 		g.emissiveSystem.Update(g.world)
+	}
+
+	// Update objective compass for navigation (during gameplay only)
+	if g.objectiveCompassSystem != nil && g.camera != nil {
+		// Calculate view angle from direction vector
+		viewAngle := math.Atan2(g.camera.DirY, g.camera.DirX)
+		g.objectiveCompassSystem.SetPlayerPosition(g.camera.X, g.camera.Y, viewAngle)
+		g.objectiveCompassSystem.Update(common.DeltaTime)
 	}
 
 	// Check for hazard collisions and apply damage/effects
@@ -5165,6 +5241,11 @@ func (g *Game) renderOverlaysAndHUD(screen *ebiten.Image, camX, camY float64) {
 	// Render threat indicators for information hierarchy
 	if g.threatSystem != nil {
 		g.threatSystem.Render(screen, g.world, camX, camY)
+	}
+
+	// Render objective compass for navigation indicators
+	if g.objectiveCompassSystem != nil {
+		g.objectiveCompassSystem.Render(screen)
 	}
 
 	if g.questTracker != nil {
