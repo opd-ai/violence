@@ -54,6 +54,7 @@ import (
 	"github.com/opd-ai/violence/pkg/feedback"
 	"github.com/opd-ai/violence/pkg/flicker"
 	"github.com/opd-ai/violence/pkg/floor"
+	"github.com/opd-ai/violence/pkg/focusring"
 	"github.com/opd-ai/violence/pkg/fog"
 	"github.com/opd-ai/violence/pkg/game"
 	"github.com/opd-ai/violence/pkg/groundshadow"
@@ -490,6 +491,9 @@ type Game struct {
 
 	// Heat distortion system for atmospheric shimmer near heat sources
 	heatDistortSystem *heatdistort.System
+
+	// Focus ring system for keyboard navigation and accessibility
+	focusRingSystem *focusring.System
 }
 
 // NewGame creates and initializes a new game instance.
@@ -760,6 +764,10 @@ func NewGame() *Game {
 	// Initialize heat distortion system for atmospheric shimmer effects
 	g.heatDistortSystem = heatdistort.NewSystem(g.genreID, config.C.InternalWidth, config.C.InternalHeight)
 
+	// Initialize focus ring system for keyboard navigation and accessibility
+	g.focusRingSystem = focusring.NewSystem()
+	g.focusRingSystem.SetGenre(g.genreID)
+
 	// Connect sliding system to spatial index
 	game.ConnectSlidingSystem(g.slidingSystem, g.spatialSystem)
 
@@ -879,6 +887,11 @@ func (g *Game) updateMenu() error {
 	// Update tooltip system
 	if g.tooltipSystem != nil {
 		g.tooltipSystem.Update()
+	}
+
+	// Update focus ring system for keyboard navigation and accessibility
+	if g.focusRingSystem != nil {
+		g.focusRingSystem.Update()
 	}
 
 	// Keyboard navigation (existing)
@@ -1894,6 +1907,7 @@ func (g *Game) setGenreForGameplaySystems(genreID string) {
 	trySetGenre(g.surfaceSheenSystem, genreID)
 	trySetGenre(g.hitMarkerSystem, genreID)
 	trySetGenre(g.heatDistortSystem, genreID)
+	trySetGenre(g.focusRingSystem, genreID)
 }
 
 // loadGame loads a saved game state.
@@ -4882,6 +4896,10 @@ func (g *Game) drawMenu(screen *ebiten.Image) {
 	// Draw interactive UI on top for smooth transitions and hover effects
 	if g.interactiveUI != nil {
 		g.interactiveUI.Draw(screen)
+	}
+	// Draw focus ring for keyboard navigation accessibility
+	if g.focusRingSystem != nil {
+		g.focusRingSystem.Draw(screen)
 	}
 	// Draw tooltips above all other UI elements
 	if g.tooltipSystem != nil {
