@@ -42,7 +42,7 @@ This audit covers collision detection, UI architecture, input handling, renderin
   1. Set FOV to extreme values (approaching 0° or 180°).
   2. Observe sprite positions become corrupt.
 - **Root Cause**: Missing guard against degenerate determinant.
-- **Suggested Fix**: Add `if math.Abs(det) < 1e-10 { return 0, 0 }` guard before division.
+- **Suggested Fix**: Add `det := ...; if math.Abs(det) < 1e-10 { return -1e18, -1e18 }` guard before division, placing degenerate transforms safely offscreen.
 
 ### [C-003] Chat Relay Deadlock — Blocking I/O Under Read Lock
 
@@ -174,7 +174,7 @@ This audit covers collision detection, UI architecture, input handling, renderin
 - **Category**: Collision / Logic
 - **Description**: When `g.currentMap` is nil or empty, `isWalkable()` returns `true`, allowing the player to walk anywhere. This can occur during level transitions or if map generation fails.
 - **Impact**: Player escapes level bounds, falls into void, or enters undefined map space. Can corrupt game state if other systems assume valid map coordinates.
-- **Suggested Fix**: Return `false` when map is nil — prevent all movement until a valid map is loaded.
+- **Suggested Fix**: Return `false` when map is nil — prevent all movement until a valid map is loaded. Consider maintaining previous map state during transitions to avoid freezing the player.
 
 ---
 
@@ -373,7 +373,7 @@ This audit covers collision detection, UI architecture, input handling, renderin
 ### [Q-002] main.go Exceeds 8000 Lines
 
 - **Location**: `main.go` (8,360 lines)
-- **Issue**: Single file contains the entire game loop, all state management, rendering dispatch, input handling, UI drawing, collision, AI updates, and system initialization. This monolithic structure makes navigation, code review, and testing extremely difficult.
+- **Issue**: Single file contains the entire game loop, all state management, rendering dispatch, input handling, UI drawing, collision, AI updates, and system initialization. While this monolithic layout is the documented "violence-style" convention, it makes navigation, code review, and testing difficult at 8,360 lines.
 - **Suggestion**: Extract logical sections into separate files within the main package: `game_update.go`, `game_draw.go`, `game_init.go`, `game_collision.go`, `game_ui.go`, etc.
 
 ### [Q-003] Inconsistent Error Handling Patterns
