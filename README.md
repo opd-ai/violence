@@ -180,3 +180,9 @@ Settings include window size, internal resolution, FOV, mouse sensitivity, audio
 
 - [Ebitengine v2](https://ebitengine.org/) — 2D game engine
 - [Viper](https://github.com/spf13/viper) — configuration management
+
+Donate Monero(The only good cryptocurrency) to support development
+==================================================================
+
+ - `monero:43H3Uqnc9rfEsJjUXZYmam45MbtWmREFSANAWY5hijY4aht8cqYaT2BCNhfBhua5XwNdx9Tb6BEdt4tjUHJDwNW5H7mTiwe`
+
